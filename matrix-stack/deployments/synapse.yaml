@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse
+  namespace: matrix
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: synapse
+  template:
+    metadata:
+      labels:
+        app: synapse
+    spec:
+      containers:
+        - name: synapse
+          image: matrixdotorg/synapse:latest
+          env:
+            - name: SYNAPSE_SERVER_NAME
+              value: "white.fm"
+            - name: SYNAPSE_REPORT_STATS
+              value: "yes"
+            - name: SYNAPSE_NO_TLS
+              value: "true"
+            - name: SYNAPSE_DB_HOST
+              value: "postgres"
+            - name: SYNAPSE_DB_NAME
+              value: "synapse"
+            - name: SYNAPSE_DB_USER
+              value: "synapse_user"
+            - name: SYNAPSE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-secrets
+                  key: SYNAPSE_DB_PASSWORD
+            - name: SYNAPSE_ADMIN_USER
+              value: "admin"
+            - name: SYNAPSE_ADMIN_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-secrets
+                  key: SYNAPSE_ADMIN_PASS
+          ports:
+            - containerPort: 8008
+            - containerPort: 8448
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: homeserver
+              mountPath: /data/homeserver.yaml
+              subPath: homeserver.yaml
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: synapse-pvc
+        - name: homeserver
+          configMap:
+            name: synapse-config
