@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postfix
+  namespace: matrix
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postfix
+  template:
+    metadata:
+      labels:
+        app: postfix
+    spec:
+      containers:
+        - name: postfix
+          image: juanluisbaptiste/postfix:alpine
+          ports:
+            - containerPort: 25
+          envFrom:
+            - secretRef:
+                name: postfix-smtp-secret
+
