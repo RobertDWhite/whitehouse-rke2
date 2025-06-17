@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-maubot
+  namespace: matrix
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-maubot
+  template:
+    metadata:
+      labels:
+        app: postgres-maubot
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-maubot-secrets
+          volumeMounts:
+            - name: postgres-maubot-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-maubot-data
+          persistentVolumeClaim:
+            claimName: postgres-maubot-pvc
+
