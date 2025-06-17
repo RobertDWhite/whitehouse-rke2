@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-server
+  namespace: authentik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authentik
+      role: server
+  template:
+    metadata:
+      labels:
+        app: authentik
+        role: server
+    spec:
+      containers:
+        - name: authentik
+          image: ghcr.io/goauthentik/server:latest
+          args: ["server", "--bind", "0.0.0.0:9000"]
+          env:
+            - name: AUTHENTIK_MODE
+              value: server
+            - name: AUTHENTIK_LISTEN__PORT
+              value: "9000"
+            - name: AUTHENTIK_LISTEN__PROTOCOL
+              value: "http"
+            - name: AUTHENTIK_GUNICORN__BIND
+              value: "0.0.0.0:9000"
+          envFrom:
+            - secretRef:
+                name: authentik-env
+          ports:
+            - containerPort: 9000
+            - containerPort: 9443
+          volumeMounts:
+            - name: media
+              mountPath: /media
+            - name: templates
+              mountPath: /templates
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: templates
+          emptyDir: {}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-worker
+  namespace: authentik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authentik
+      role: worker
+  template:
+    metadata:
+      labels:
+        app: authentik
+        role: worker
+    spec:
+      containers:
+        - name: authentik
+          image: ghcr.io/goauthentik/server:latest
+          args: ["worker"]
+          env:
+            - name: AUTHENTIK_MODE
+              value: worker
+          envFrom:
+            - secretRef:
+                name: authentik-env
+          volumeMounts:
+            - name: media
+              mountPath: /media
+            - name: certs
+              mountPath: /certs
+            - name: templates
+              mountPath: /templates
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: certs
+          emptyDir: {}
+        - name: templates
+          emptyDir: {}
+
