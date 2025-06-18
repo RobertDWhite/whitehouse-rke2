@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: readsb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: readsb
+  template:
+    metadata:
+      labels:
+        app: readsb
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-server
+      containers:
+      - name: readsb
+        image: ghcr.io/sdr-enthusiasts/docker-readsb-protobuf:latest
+        ports:
+        - containerPort: 8080
+        - containerPort: 30005   # ✅ REQUIRED for FR24/tar1090 connectivity
+        env:
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_TZ
+        - name: READSB_DEVICE_TYPE
+          value: "rtlsdr"
+        - name: READSB_RTLSDR_DEVICE
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: ADSB_SDR_SERIAL
+        - name: READSB_GAIN
+          value: "autogain"
+        - name: READSB_LAT
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LAT
+        - name: READSB_LON
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LONG
+        - name: READSB_RX_LOCATION_ACCURACY
+          value: "2"
+        - name: READSB_STATS_RANGE
+          value: "true"
+        - name: READSB_NET_ENABLE
+          value: "true"
+        volumeMounts:
+        - name: dev-usb
+          mountPath: /dev/bus/usb
+        - name: rrd
+          mountPath: /run/collectd
+        - name: autogain
+          mountPath: /run/autogain
+        - name: readsb-run
+          mountPath: /run/readsb
+        - name: varlog
+          mountPath: /var/log
+        securityContext:
+          privileged: true
+      volumes:
+      - name: dev-usb
+        hostPath:
+          path: /dev/bus/usb
+          type: Directory
+      - name: rrd
+        persistentVolumeClaim:
+          claimName: readsbpb-rrd
+      - name: autogain
+        persistentVolumeClaim:
+          claimName: readsbpb-autogain
+      - name: readsb-run
+        emptyDir:
+          medium: Memory
+      - name: varlog
+        emptyDir:
+          medium: Memory
+
