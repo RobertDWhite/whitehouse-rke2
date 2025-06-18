@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tar1090
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tar1090
+  template:
+    metadata:
+      labels:
+        app: tar1090
+    spec:
+      containers:
+      - name: tar1090
+        image: mikenye/tar1090:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: BEASTHOST
+          value: "readsb"
+        - name: MLATHOST
+          value: "mlathub"
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_TZ
+        - name: LAT
+          valueFrom:
+            secretKeyRef:
+              name: feeder-secrets
+              key: FEEDER_LAT
+        - name: LONG
+          valueFrom:
+            secretKeyRef:
+              name: feeder-secrets
+              key: FEEDER_LONG
+        - name: GRAPHS1090_DARKMODE
+          value: "true"
+        volumeMounts:
+        - name: runmem
+          mountPath: /run
+        - name: varlog
+          mountPath: /var/log
+      volumes:
+      - name: runmem
+        emptyDir:
+          medium: Memory
+      - name: varlog
+        emptyDir:
+          medium: Memory

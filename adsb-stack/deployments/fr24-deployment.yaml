@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fr24
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fr24
+  template:
+    metadata:
+      labels:
+        app: fr24
+    spec:
+      containers:
+      - name: fr24
+        image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest
+        ports:
+        - containerPort: 8754
+        env:
+        - name: BEASTHOST
+          value: "readsb"
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_TZ
+        - name: FR24KEY
+          valueFrom:
+            secretKeyRef:
+              name: feeder-secrets
+              key: FR24_SHARING_KEY
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+      volumes:
+      - name: varlog
+        emptyDir:
+          medium: Memory
