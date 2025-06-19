@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mastodon-db-migrate
+  namespace: mastodon
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/mastodon/mastodon:v4.2.8
+          command: ["bundle", "exec", "rails", "db:migrate"]
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          envFrom:
+            - configMapRef:
+                name: mastodon-env
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: secret-key-base
+            - name: OTP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: otp-secret
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: db-password
+            - name: DB_USER
+              value: "mastodon"
+            - name: DB_NAME
+              value: "mastodon"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: redis-password
+

@@ -1,0 +1,89 @@
+clusterName: mastodon
+fullnameOverride: elasticsearch
+
+global:
+  imageRegistry: docker.io
+
+image:
+  registry: docker.io
+  repository: bitnami/elasticsearch
+  tag: 7.17.21
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+auth:
+  enabled: false
+
+security:
+  enabled: false
+
+minimumMasterNodes: 1
+
+persistence:
+  enabled: true
+  storageClass: "local-path"
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+roles:
+  master: true
+  data: true
+  ingest: true
+  coordinating: false
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 1Gi
+
+sysctlImage:
+  enabled: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+
+copyTlsCerts:
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+service:
+  type: ClusterIP
+  ports:
+    restAPI: 9200
+    transport: 9300
+
+networkPolicy:
+  enabled: false
+
+snapshotRepo:
+  enabled: false
+
+data:
+  volumeClaimTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: "local-path"
+    resources:
+      requests:
+        storage: 10Gi
+
+master:
+  volumeClaimTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: "local-path"
+    resources:
+      requests:
+        storage: 10Gi
+
