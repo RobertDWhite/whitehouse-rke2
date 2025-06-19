@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mastodon-streaming
+  namespace: mastodon
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - streaming.mastodon.whitematter.tech
+      secretName: mastodon-streaming-tls
+  rules:
+    - host: streaming.mastodon.whitematter.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mastodon-streaming
+                port:
+                  number: 80
+
