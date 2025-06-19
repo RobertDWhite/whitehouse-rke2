@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mastodon-streaming
+  namespace: mastodon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mastodon
+      tier: streaming
+  template:
+    metadata:
+      labels:
+        app: mastodon
+        tier: streaming
+    spec:
+      containers:
+        - name: streaming
+          image: ghcr.io/mastodon/mastodon:v4.2.8
+          command: ["node", "streaming/index.js"]
+          envFrom:
+            - configMapRef:
+                name: mastodon-env
+          env:
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: secret-key-base
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: redis-password
+          ports:
+            - containerPort: 4000
+

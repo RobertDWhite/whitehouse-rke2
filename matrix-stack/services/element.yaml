@@ -3,10 +3,13 @@ kind: Service
 metadata:
   name: element
   namespace: matrix
-
 spec:
   selector:
     app: element
   ports:
-    - port: 80
-      targetPort: 80
+    - name: http
+      protocol: TCP
+      port: 8080         # Exposed internally to the cluster as 8080
+      targetPort: 80     # Element container listens on port 80
+  type: ClusterIP
+
