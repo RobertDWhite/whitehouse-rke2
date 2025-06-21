@@ -1,0 +1,111 @@
+name: invidious
+
+image:
+  repository: quay.io/invidious/invidious
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Setting replicaCount higher than 1 may cause PostgreSQL database deadlocks.
+# This happens when multiple Invidious processes simultaneously attempt to refresh channel subscriptions for users.
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 16
+  targetCPUUtilizationPercentage: 50
+
+service:
+  type: ClusterIP
+  port: 3000
+  # loadBalancerIP:
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: invidious.white.fm
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 64Mi
+  # limits:
+  #   cpu: 800m
+  #   memory: 512Mi
+
+deploymentLabels: {}
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+
+# Reference: https://github.com/bitnami/charts/tree/main/bitnami/postgresql
+postgresql:
+  enabled: true
+  image:
+    tag: 16
+  auth:
+    username: ${INVIDIOUS_DB_USER}
+    password: ${INVIDIOUS_DB_PASSWORD}
+    database: invidious
+  primary:
+    initdb:
+      username: ${INVIDIOUS_DB_USER}
+      password: ${INVIDIOUS_DB_PASSWORD}
+      scriptsConfigMap: invidious-postgresql-init
+
+# Reference: https://github.com/iv-org/invidious/blob/master/config/config.example.yml
+config:
+  hmac_key: ${INVIDIOUS_HMAC_KEY}
+  db:
+    user: ${INVIDIOUS_DB_USER}
+    password: ${INVIDIOUS_DB_PASSWORD}
+    host: ""
+    port: 5432
+    dbname: invidious
+  port: 3000
+  domain: ""
+  https_only: false
+  channel_threads: 1
+  full_refresh: false
+  feed_threads: 1
+
+sighelper:
+  enabled: true
+  resources: {}
+  service:
+    port: 12999
+  image:
+    repository: quay.io/invidious/inv-sig-helper
+    tag: latest
+    pullPolicy: Always
+
