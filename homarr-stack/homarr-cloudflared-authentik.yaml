@@ -1,16 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cloudflared-to-homarr
+  name: allow-authentik-and-cloudflared-to-homarr
   namespace: homarr
 spec:
   podSelector:
     matchLabels:
       app: homarr
-  policyTypes:
-    - Ingress
   ingress:
     - from:
+        - namespaceSelector:
+            matchLabels:
+              name: authentik
+          podSelector:
+            matchLabels:
+              app: authentik
         - namespaceSelector:
             matchLabels:
               name: cloudflared
@@ -20,4 +24,6 @@ spec:
       ports:
         - protocol: TCP
           port: 7575
+  policyTypes:
+    - Ingress
 
