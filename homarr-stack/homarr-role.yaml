@@ -1,13 +1,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  namespace: homarr
-  name: homarr-read-access
+  name: homarr-cluster-role
 rules:
   - apiGroups: [""]
-    resources: ["pods", "services", "endpoints", "namespaces"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets"]
+    resources: ["pods", "services", "endpoints", "configmaps", "secrets", "nodes", "namespaces"]
     verbs: ["get", "list", "watch"]
 

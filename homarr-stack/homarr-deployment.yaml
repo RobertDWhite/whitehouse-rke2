@@ -18,14 +18,20 @@ spec:
         fsGroup: 1000
       containers:
         - name: homarr
-          image: ghcr.io/homarr-labs/homarr:v1.27.0
+          image: ghcr.io/homarr-labs/homarr:latest
           ports:
             - containerPort: 7575
           env:
             - name: TZ
               value: "UTC"
+            - name: ENABLE_KUBERNETES_INTEGRATION
+              value: "true"
             - name: DATABASE_FILE
               value: /appdata/db/db.sqlite
+            - name: ENABLE_DOCKER_INTEGRATION
+              value: "false"
+            - name: NODE_ENV
+              value: "production"
             - name: SECRET_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -34,8 +40,17 @@ spec:
           volumeMounts:
             - name: db-storage
               mountPath: /appdata
+            - name: k8s-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
       volumes:
         - name: db-storage
           persistentVolumeClaim:
             claimName: homarr-database
-
+        - name: k8s-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+                  audience: kubernetes
