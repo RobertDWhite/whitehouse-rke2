@@ -18,14 +18,14 @@ spec:
         fsGroup: 1000
       containers:
         - name: homarr
-          image: ghcr.io/homarr-labs/homarr:v1.24.0
+          image: ghcr.io/homarr-labs/homarr:v1.27.0
           ports:
             - containerPort: 7575
           env:
             - name: TZ
               value: "UTC"
             - name: DATABASE_FILE
-              value: /data/database.sqlite
+              value: /appdata/db/db.sqlite
             - name: SECRET_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -33,7 +33,7 @@ spec:
                   key: SECRET_ENCRYPTION_KEY
           volumeMounts:
             - name: db-storage
-              mountPath: /data
+              mountPath: /appdata
       volumes:
         - name: db-storage
           persistentVolumeClaim:
