@@ -1,23 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cloudflared-to-homarr
+  name: allow-ingress-nginx-to-homarr
   namespace: homarr
 spec:
   podSelector:
     matchLabels:
       app: homarr
-  policyTypes:
-    - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: cloudflared
+              name: kube-system
           podSelector:
             matchLabels:
-              app: cloudflared
-      ports:
-        - protocol: TCP
-          port: 7575
+              app.kubernetes.io/name: ingress-nginx
+  policyTypes:
+    - Ingress
 
