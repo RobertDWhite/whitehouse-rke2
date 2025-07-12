@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clusterissuer
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: clusterissuer
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default  # fine, even though the resource isn't namespaced
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+
