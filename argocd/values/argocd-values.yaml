@@ -1,0 +1,11 @@
+repoServer:
+  volumeMounts:
+    - mountPath: /home/argocd/.config/sops/age
+      name: sops-age
+      readOnly: true
+
+  volumes:
+    - name: sops-age
+      secret:
+        secretName: sops-age
+
