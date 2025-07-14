@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-repos
+  namespace: argocd
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
+    targetRevision: HEAD
+    path: argo/helm-repos
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
