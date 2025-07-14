@@ -9,13 +9,15 @@ spec:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
     targetRevision: main
     path: authentik-stack
+    plugin:
+      name: ksops
   destination:
     server: https://kubernetes.default.svc
     namespace: authentik
   syncPolicy:
     automated:
-      prune: false
-      selfHeal: false
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
 
