@@ -4,13 +4,14 @@ metadata:
   name: ksops
   namespace: argocd
 spec:
+  project: default
   destination:
     namespace: ksops
     server: https://kubernetes.default.svc
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
     targetRevision: HEAD
-    path: argo/helm/ksops
+    path: argo/applications
   syncPolicy:
     automated:
       prune: true
