@@ -4,11 +4,12 @@ metadata:
   name: helm-operator-crds
   namespace: argocd
 spec:
+  project: default
   destination:
-    namespace: flux
+    namespace: argocd
     server: https://kubernetes.default.svc
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
     targetRevision: HEAD
     path: argo/crds
   syncPolicy:
