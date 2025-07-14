@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: helm-operator-crds
+  namespace: argocd
+spec:
+  destination:
+    namespace: flux
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: HEAD
+    path: argo/crds
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
