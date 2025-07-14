@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ksops
+  namespace: argocd
+spec:
+  destination:
+    namespace: ksops
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: HEAD
+    path: helm/ksops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
