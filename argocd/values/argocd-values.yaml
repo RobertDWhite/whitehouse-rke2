@@ -1,0 +1,20 @@
+global:
+  image:
+    tag: v3.0.11
+
+configs:
+  params:
+    # Enable SOPS or KSOPS plugin in the repo-server if needed later
+    # This is just for future support; not strictly required for Age key injection
+    ARGOCD_EXEC_TIMEOUT: 180
+
+repoServer:
+  volumes:
+    - name: sops-age
+      secret:
+        secretName: sops-age
+  volumeMounts:
+    - name: sops-age
+      mountPath: /home/argocd/.config/sops/age
+      readOnly: true
+
