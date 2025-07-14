@@ -5,15 +5,21 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  destination:
-    namespace: ksops
-    server: https://kubernetes.default.svc
   source:
     repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
     targetRevision: HEAD
-    path: argo/applications
+    path: argo/applications/ksops
+    helm:
+      values: |
+        ageKeySecretName: sops-age
+        ageKeySecretKey: age.key
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ksops
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
 
