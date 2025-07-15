@@ -6,9 +6,13 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/argoproj/argo-cd
-    targetRevision: v3.0.11
-    path: manifests
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-cd
+    targetRevision: 5.52.1
+    helm:
+      valueFiles:
+        - argo/values/argocd-values.yaml
+      parameters: []
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
