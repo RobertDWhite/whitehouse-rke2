@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-crd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://rancher-charts.rancher.io
+    targetRevision: 106.1.1+up0.12.3
+    chart: fleet-crd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-fleet-system
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
