@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher-provisioning-capi
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://rancher-charts.rancher.io
+    targetRevision: 106.0.0+up0.7.0
+    chart: rancher-provisioning-capi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-provisioning-capi-system
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
