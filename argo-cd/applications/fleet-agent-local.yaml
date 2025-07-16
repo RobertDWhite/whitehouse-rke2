@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fleet-agent-local
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://rancher-charts.rancher.io
+    targetRevision: v0.0.0+s-fb7bf5b0be3b91940bcab3c86536098919cbca8a5e83c89283e6b4892c0ea
+    chart: fleet-agent-local
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cattle-fleet-local-system
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
