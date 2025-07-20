@@ -11,6 +11,12 @@ repoServer:
     - name: sops-age
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: "/home/argocd/.config/sops/age/key.txt"
+  sidecars: []
+  # Enable KSOPS plugin
+  envFrom: []
   plugins:
     enabled: true
     plugins:
@@ -20,4 +26,7 @@ repoServer:
         generate:
           command: [ksops]
           args: ["-d", ".", "-o", "-"]
+
+cmpServer:
+  enabled: true
 
