@@ -14,19 +14,19 @@ repoServer:
   env:
     - name: SOPS_AGE_KEY_FILE
       value: "/home/argocd/.config/sops/age/key.txt"
-  sidecars: []
-  # Enable KSOPS plugin
-  envFrom: []
-  plugins:
-    enabled: true
+
+configs:
+  cmp:
+    create: true
     plugins:
-      - name: ksops
+      ksops:
         init:
-          image: viaductoss/ksops:v4.3.0
+          command: [ksops]
+          args: [version]
         generate:
           command: [ksops]
           args: ["-d", ".", "-o", "-"]
-
-cmpServer:
-  enabled: true
+        repositories:
+          - url: git@github.com:RobertDWhite/whitehouse-rke2.git
+          - url: https://github.com/RobertDWhite/whitehouse-rke2.git
 
