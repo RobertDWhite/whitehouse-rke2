@@ -7,8 +7,12 @@ spec:
   selector:
     app: readsb
   ports:
-  - protocol: TCP
-    port: 8080
-    targetPort: 8080
-  type: NodePort
+    - name: beast
+      protocol: TCP
+      port: 30005
+      targetPort: 30005
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
 
