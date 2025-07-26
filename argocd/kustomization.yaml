@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - allow-cloudflared-to-argo.yaml
+
+helmCharts:
+  - name: argo-cd
+    releaseName: argocd
+    namespace: argocd
+    version: 5.52.1  # match version in Chart.yaml
+    repo: https://argoproj.github.io/argo-helm
+    valuesFile: argocd-values.yaml
+    includeCRDs: true
+
+
+
