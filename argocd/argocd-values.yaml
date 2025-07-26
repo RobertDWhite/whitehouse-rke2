@@ -10,7 +10,14 @@ repoServer:
     - name: sops-age-ksops
       secret:
         secretName: sops-age
+    - name: ksops-cmp-plugin
+      configMap:
+        name: ksops-cmp-plugin
   volumeMounts:
+    - name: ksops-cmp-plugin
+      mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
+      subPath: plugin.yaml
+      readOnly: true
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -20,6 +27,40 @@ repoServer:
   env:
     - name: SOPS_AGE_KEY_FILE
       value: "/home/argocd/.config/sops/age/key.txt"
+  initContainers:
+    - name: copyutil
+      image: quay.io/argoproj/argocd:v3.0.11
+      command: [cp, /usr/local/bin/argocd-cmp-server, /var/run/argocd/argocd-cmp-server]
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+  sidecars:
+    - name: copyutil
+      image: quay.io/argoproj/argocd:v3.0.11
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          cp -n /usr/local/bin/argocd-cmp-server /var/run/argocd/argocd-cmp-server &&
+          sleep 3600
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+  extraContainers:
+    - name: cmp-server
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: quay.io/argoproj/argocd:v3.0.11
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      volumeMounts:
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /home/argocd/.config/argocd-cmp-server/plugins
+          name: cmp-plugin-config
+        - mountPath: /etc/sops/age
+          name: sops-age
+        - mountPath: /home/argocd/.config/sops/age
+          name: sops-age
 #
 configs:
   cmp:
