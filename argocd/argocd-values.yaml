@@ -28,6 +28,19 @@ repoServer:
       mountPath: /var/run/argocd
 
   initContainers:
+    - name: install-ksops
+      image: alpine:3.18
+      command: [sh, -c]
+      args:
+        - |
+          apk add --no-cache curl &&
+          curl -sSL https://github.com/viaduct-ai/kustomize-sops/releases/latest/download/ksops-linux-amd64 \
+            -o /var/run/argocd/ksops &&
+          chmod +x /var/run/argocd/ksops
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+
     - name: copyutil
       image: viaductoss/ksops:v4.3.1 # includes ksops
       command: ["cp"]
@@ -35,7 +48,6 @@ repoServer:
       volumeMounts:
         - name: cmp-plugin-bin
           mountPath: /var/run/argocd
-
   sidecars:
     - name: cmp-server
       image: quay.io/argoproj/argocd:v3.0.11
@@ -64,10 +76,10 @@ configs:
     plugins:
       ksops:
         init:
-          command: [ksops]
+          command: ["/var/run/argocd/ksops"]
           args: [version]
         generate:
-          command: [ksops]
+          command: ["/var/run/argocd/ksops"]
           args: ["-o", "yaml", "$(find . -name '*.sops.yaml')"]
         repositories:
           - url: git@github.com:RobertDWhite/whitehouse-rke2.git
