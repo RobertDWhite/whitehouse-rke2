@@ -16,8 +16,9 @@ repoServer:
     - name: sops-age
       secret:
         secretName: sops-age
+    - name: cmp-plugins
+      emptyDir: {}
 
-  # For repo-server container (main one)
   volumeMounts:
     - name: cmp-plugin-config
       mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
@@ -60,7 +61,10 @@ repoServer:
           mountPath: /home/argocd/cmp-server/config/plugin.yaml
           subPath: plugin.yaml
           readOnly: true
+        - name: cmp-plugins
+          mountPath: /home/argocd/cmp-server/plugins
         - name: sops-age
           mountPath: /etc/sops/age
         - name: sops-age
           mountPath: /home/argocd/.config/sops/age
+
