@@ -14,9 +14,9 @@ data:
       name: ksops
     spec:
       init:
-        command: ["ksops"]
+        command: [ksops]
         args: ["version"]
       generate:
-        command: ["ksops"]
-        args: ["-o", "yaml", "$(find . -name '*.sops.yaml')"]
-
+        command: [sh, -c]
+        args:
+          - ksops -o yaml $(find . -name '*.sops.yaml')
