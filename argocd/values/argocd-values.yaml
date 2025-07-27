@@ -3,43 +3,52 @@ global:
     tag: v3.0.11
 
 repoServer:
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: "/home/argocd/.config/sops/age/key.txt"
+
   volumes:
-    - name: sops-age
-      secret:
-        secretName: sops-age
     - name: cmp-plugin-config
       configMap:
         name: ksops-cmp-plugin
     - name: cmp-plugin-bin
       emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: sops-age
 
   volumeMounts:
-    - name: sops-age
-      mountPath: /etc/sops/age
-      readOnly: true
-    - name: sops-age
-      mountPath: /home/argocd/.config/sops/age
-      readOnly: true
     - name: cmp-plugin-config
       mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
       subPath: plugin.yaml
       readOnly: true
     - name: cmp-plugin-bin
       mountPath: /var/run/argocd
+    - name: sops-age
+      mountPath: /etc/sops/age
+      readOnly: true
+    - name: sops-age
+      mountPath: /home/argocd/.config/sops/age
+      readOnly: true
 
   initContainers:
-    - name: copyutil
-      image: viaductoss/ksops:v4.3.1 # includes ksops
-      command: ["cp"]
-      args: ["/ksops", "/var/run/argocd/ksops"]
+    - name: install-ksops
+      image: alpine:3.18
+      command: [sh, -c]
+      args:
+        - |
+          apk add --no-cache curl &&
+          curl -L https://github.com/viaduct-ai/kustomize-sops/releases/latest/download/ksops-linux-amd64 \
+          -o /var/run/argocd/ksops &&
+          chmod +x /var/run/argocd/ksops
       volumeMounts:
         - name: cmp-plugin-bin
           mountPath: /var/run/argocd
 
-  sidecars:
+  extraContainers:
     - name: cmp-server
-      image: quay.io/argoproj/argocd:v3.0.11
       command: ["/var/run/argocd/argocd-cmp-server"]
+      image: quay.io/argoproj/argocd:v3.0.11
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
@@ -53,23 +62,4 @@ repoServer:
           mountPath: /etc/sops/age
         - name: sops-age
           mountPath: /home/argocd/.config/sops/age
-
-env:
-  - name: SOPS_AGE_KEY_FILE
-    value: "/home/argocd/.config/sops/age/key.txt"
-#
-configs:
-  cmp:
-    create: true
-    plugins:
-      ksops:
-        init:
-          command: [ksops]
-          args: [version]
-        generate:
-          command: [ksops]
-          args: ["-o", "yaml", "$(find . -name '*.sops.yaml')"]
-        repositories:
-          - url: git@github.com:RobertDWhite/whitehouse-rke2.git
-          - url: https://github.com/RobertDWhite/whitehouse-rke2.git
 
