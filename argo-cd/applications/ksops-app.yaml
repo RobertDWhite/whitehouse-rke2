@@ -1,22 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ksops
+  name: ksops-plugin
   namespace: argocd
 spec:
-  project: default
-  source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    path: .
-    targetRevision: HEAD
-    plugin:
-      name: ksops
   destination:
     server: https://kubernetes.default.svc
-    namespace: ksops
+    namespace: argocd
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    path: argocd/plugins
+    targetRevision: HEAD
+    directory:
+      recurse: true
+  project: default
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+
