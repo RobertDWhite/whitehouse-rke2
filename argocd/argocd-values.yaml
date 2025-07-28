@@ -7,19 +7,19 @@ repoServer:
     - name: SOPS_AGE_KEY_FILE
       value: "/home/argocd/.config/sops/age/key.txt"
 
-  volumes:
+  extraVolumes:
     - name: cmp-plugin-config
       configMap:
         name: ksops-cmp-plugin
     - name: var-files
       emptyDir: {}
+    - name: cmp-plugins
+      emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
-    - name: cmp-plugins
-      emptyDir: {}
 
-  volumeMounts:
+  extraVolumeMounts:
     - name: cmp-plugin-config
       mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
       subPath: plugin.yaml
@@ -67,4 +67,3 @@ repoServer:
           mountPath: /etc/sops/age
         - name: sops-age
           mountPath: /home/argocd/.config/sops/age
-
