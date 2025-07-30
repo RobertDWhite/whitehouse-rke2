@@ -11,8 +11,6 @@ repoServer:
     - name: cmp-plugin-config
       configMap:
         name: ksops-cmp-plugin
-    - name: var-files
-      emptyDir: {}
     - name: cmp-plugins
       emptyDir: {}
     - name: sops-age
@@ -24,8 +22,8 @@ repoServer:
       mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
       subPath: plugin.yaml
       readOnly: true
-    - name: var-files
-      mountPath: /var/run/argocd
+    - name: cmp-plugins
+      mountPath: /home/argocd/cmp-server/plugins
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -44,7 +42,7 @@ repoServer:
           -o /var/run/argocd/ksops &&
           chmod +x /var/run/argocd/ksops
       volumeMounts:
-        - name: var-files
+        - name: cmp-plugins
           mountPath: /var/run/argocd
 
   extraContainers:
@@ -55,8 +53,6 @@ repoServer:
         runAsNonRoot: true
         runAsUser: 999
       volumeMounts:
-        - name: var-files
-          mountPath: /var/run/argocd
         - name: cmp-plugin-config
           mountPath: /home/argocd/cmp-server/config/plugin.yaml
           subPath: plugin.yaml
@@ -67,5 +63,3 @@ repoServer:
           mountPath: /etc/sops/age
         - name: sops-age
           mountPath: /home/argocd/.config/sops/age
-
-
