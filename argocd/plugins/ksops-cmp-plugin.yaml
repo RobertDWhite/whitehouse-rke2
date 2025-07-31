@@ -14,9 +14,8 @@ data:
       name: ksops
     spec:
       init:
-        command: [ksops]
+        command: ["/var/run/argocd/ksops"]
         args: ["version"]
       generate:
-        command: [sh, -c]
-        args:
-          - ksops -o yaml $(find . -name '*.sops.yaml')
+        command: ["/var/run/argocd/ksops"]
+        args: ["-d", ".", "-o", "-"]
