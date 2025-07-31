@@ -3,25 +3,6 @@ global:
     tag: v3.0.11
 
 repoServer:
-  sidecars:
-    - name: cmp-server
-      image: quay.io/argoproj/argocd:v3.0.11
-      command: ["/var/run/argocd/argocd-cmp-server"]
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-      volumeMounts:
-        - name: cmp-plugin-config
-          mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
-          subPath: plugin.yaml
-          readOnly: true
-        - name: cmp-plugins
-          mountPath: /var/run/argocd
-        - name: sops-age
-          mountPath: /etc/sops/age
-        - name: sops-age
-          mountPath: /home/argocd/.config/sops/age
-
   initContainers:
     - name: install-ksops
       image: alpine:3.18
@@ -36,26 +17,51 @@ repoServer:
         - name: cmp-plugins
           mountPath: /var/run/argocd
 
-  volumes:
-    - name: cmp-plugin-config
-      configMap:
-        name: ksops-cmp-plugin
-    - name: cmp-plugins
-      emptyDir: {}
-    - name: sops-age
-      secret:
-        secretName: sops-age
+  extraContainers:
+    - name: cmp-server
+      image: quay.io/argoproj/argocd:v3.0.11
+      command: ["/usr/local/bin/argocd-cmp-server"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      volumeMounts:
+        - name: plugins
+          mountPath: /home/argocd/cmp-server/plugins
+        - name: cmp-plugin-config
+          mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: plugin.yaml
+          readOnly: true
+        - name: cmp-plugins
+          mountPath: /var/run/argocd
+        - name: sops-age
+          mountPath: /etc/sops/age
+        - name: sops-age
+          mountPath: /home/argocd/.config/sops/age
 
   volumeMounts:
     - name: cmp-plugin-config
-      mountPath: /home/argocd/.config/argocd-cmp-server/plugins/ksops.yaml
+      mountPath: /home/argocd/cmp-server/config/plugin.yaml
       subPath: plugin.yaml
       readOnly: true
     - name: cmp-plugins
       mountPath: /var/run/argocd
+    - name: plugins
+      mountPath: /home/argocd/cmp-server/plugins
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
     - name: sops-age
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
+
+  volumes:
+    - name: cmp-plugin-config
+      configMap:
+        name: ksops-cmp-plugin
+    - name: cmp-plugins
+      emptyDir: {}
+    - name: plugins
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: sops-age
