@@ -34,12 +34,13 @@ repoServer:
   initContainers:
     - name: install-ksops
       image: alpine:3.18
-      command: [sh, -c]
+      command: ["sh", "-c"]
       args:
         - |
-          apk add --no-cache curl &&
-          curl -L https://github.com/viaduct-ai/kustomize-sops/releases/latest/download/ksops-linux-amd64 \
-          -o /var/run/argocd/ksops &&
+          apk add --no-cache curl tar &&
+          curl -L https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64.tar.gz \
+            -o /var/run/argocd/ksops.tar.gz &&
+          tar -xzvf /var/run/argocd/ksops.tar.gz -C /var/run/argocd &&
           chmod +x /var/run/argocd/ksops
       volumeMounts:
         - name: cmp-plugins
