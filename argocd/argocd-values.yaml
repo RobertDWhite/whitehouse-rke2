@@ -5,7 +5,7 @@ global:
 repoServer:
 
   extraArgs:
-    - --enable-argo-cmp
+ #   - --enable-argo-cmp
     - --enable-alpha-plugins
     - --enable-exec
     - --loglevel=debug
@@ -16,10 +16,14 @@ repoServer:
       args:
         - |
           apk add --no-cache curl tar &&
+          mkdir -p /var/run/argocd &&
           curl -L https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64.tar.gz \
             -o /var/run/argocd/ksops.tar.gz &&
           tar -xzvf /var/run/argocd/ksops.tar.gz -C /var/run/argocd &&
-          chmod +x /var/run/argocd/ksops
+          mkdir -p /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops &&
+          cp /var/run/argocd/ksops /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops &&
+          chmod +x /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops
+
   #    volumeMounts:
    #     - name: cmp-plugins
     #      mountPath: /var/run/argocd
