@@ -3,61 +3,10 @@ global:
     tag: v3.0.11
 
 repoServer:
-
   extraArgs:
- #   - --enable-argo-cmp
-    - --enable-alpha-plugins
-    - --enable-exec
-    - --loglevel=debug
-  initContainers:
-    - name: install-ksops
-      image: alpine:3.18
-      command: ["sh", "-c"]
-      args:
-        - |
-          apk add --no-cache curl tar &&
-          mkdir -p /var/run/argocd &&
-          curl -L https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64.tar.gz \
-            -o /var/run/argocd/ksops.tar.gz &&
-          tar -xzvf /var/run/argocd/ksops.tar.gz -C /var/run/argocd &&
-          mkdir -p /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops &&
-          cp /var/run/argocd/ksops /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops &&
-          chmod +x /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops
-
-  #    volumeMounts:
-   #     - name: cmp-plugins
-    #      mountPath: /var/run/argocd
-
-  extraContainers:
- #   - name: cmp-server
-  #    image: quay.io/argoproj/argocd:v3.0.11
-   #   command: ["/usr/local/bin/argocd-cmp-server"]
-    #  securityContext:
-     #   runAsNonRoot: true
-      #  runAsUser: 999
-      volumeMounts:
-  #      - name: plugins
-   #       mountPath: /home/argocd/cmp-server/plugins
- #       - name: cmp-plugin-config
-  #        mountPath: /home/argocd/cmp-server/config/plugin.yaml
-   #       subPath: plugin.yaml
-    #      readOnly: true
-  #      - name: cmp-plugins
-   #       mountPath: /var/run/argocd
-        - name: sops-age
-          mountPath: /etc/sops/age
-        - name: sops-age
-          mountPath: /home/argocd/.config/sops/age
+    - --loglevel=debug   # Optional, remove if you want less logs
 
   volumeMounts:
-#    - name: cmp-plugin-config
- #     mountPath: /home/argocd/cmp-server/config/plugin.yaml
-  #    subPath: plugin.yaml
-   #   readOnly: true
-#    - name: cmp-plugins
- #     mountPath: /var/run/argocd
-#    - name: plugins
- #     mountPath: /home/argocd/cmp-server/plugins
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -66,13 +15,6 @@ repoServer:
       readOnly: true
 
   volumes:
- #   - name: cmp-plugin-config
-  #    configMap:
-   #     name: ksops-cmp-plugin
-#    - name: cmp-plugins
- #     emptyDir: {}
- #   - name: plugins
-  #    emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
