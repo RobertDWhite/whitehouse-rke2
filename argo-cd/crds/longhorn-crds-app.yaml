@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn-crds
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    namespace: longhorn-system
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
+    targetRevision: HEAD
+    path: argo-cd/crds/longhorn
+    directory:
+      recurse: true
+    kustomize: {}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
