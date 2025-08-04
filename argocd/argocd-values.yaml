@@ -11,6 +11,7 @@ repoServer:
     - --enable-alpha-plugins
     - --enable-exec
     - --loglevel=debug
+
   volumes:
     - name: custom-tools
       emptyDir: {}
@@ -23,7 +24,8 @@ repoServer:
       image: viaductoss/ksops:v4.4.0
       command: ["/bin/sh", "-c"]
       args:
-        - echo "Installing KSOPS...";
+        - |
+          echo "Installing KSOPS...";
           mv ksops /custom-tools/;
           mv kustomize /custom-tools/;
           echo "Done.";
@@ -38,6 +40,9 @@ repoServer:
     - mountPath: /usr/local/bin/ksops
       name: custom-tools
       subPath: ksops
-    - mountPath: /.config/sops/age
+    - mountPath: /etc/sops/age
+      name: sops-age
+      readOnly: true
+    - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
