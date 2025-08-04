@@ -26,12 +26,13 @@ repoServer:
       args:
         - |
           echo "Installing KSOPS...";
-          mv ksops /custom-tools/;
-          mv kustomize /custom-tools/;
+          cp /usr/local/bin/ksops /custom-tools/;
+          cp /usr/local/bin/kustomize /custom-tools/;
           echo "Done.";
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
+
 
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
