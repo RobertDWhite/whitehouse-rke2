@@ -3,17 +3,28 @@ kind: Application
 metadata:
   name: longhorn-crds
   namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: crds
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
-  destination:
-    namespace: longhorn-system
-    server: https://kubernetes.default.svc
   source:
-    repoURL: https://github.com/RobertDWhite/whitehouse-rke2.git
-    targetRevision: HEAD
-    path: argo-cd/crds/longhorn
-    kustomize: {}
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: 1.6.2
+    helm:
+      values: |
+        installCRDs: true
+        enableManager: false
+        enableUI: false
+        enableWebhook: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
