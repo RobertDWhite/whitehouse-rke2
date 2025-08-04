@@ -2,38 +2,38 @@ global:
   image:
     tag: v3.0.11
 
+configs:
+  cm:
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+
 repoServer:
-  extraArgs:
-    - --loglevel=debug  # Good for troubleshooting, remove for less logs
-
-  initContainers:
-    - name: install-ksops
-      image: alpine:3.18
-      command: ["sh", "-c"]
-      args:
-        - |
-          apk add --no-cache curl tar &&
-          # Install sops
-          curl -L https://github.com/mozilla/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64 -o /usr/local/bin/sops &&
-          chmod +x /usr/local/bin/sops &&
-          # Install ksops
-          mkdir -p /var/run/argocd &&
-          curl -L https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64.tar.gz \
-            -o /var/run/argocd/ksops.tar.gz &&
-          tar -xzvf /var/run/argocd/ksops.tar.gz -C /var/run/argocd &&
-          mkdir -p /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops &&
-          cp /var/run/argocd/ksops /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops &&
-          chmod +x /home/argocd/.config/kustomize/plugin/viaduct.ai/v1/ksops/ksops
-
-  volumeMounts:
-    - name: sops-age
-      mountPath: /etc/sops/age
-      readOnly: true
-    - name: sops-age
-      mountPath: /home/argocd/.config/sops/age
-      readOnly: true
-
   volumes:
+    - name: custom-tools
+      emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
+
+  initContainers:
+    - name: install-ksops
+      image: viaductoss/ksops:v4.4.0     # Use latest tested version or lock it
+      command: ["/bin/sh", "-c"]
+      args:
+        - echo "Installing KSOPS...";
+          mv ksops /custom-tools/;
+          mv kustomize /custom-tools/;
+          echo "Done.";
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+
+  volumeMounts:
+    - mountPath: /usr/local/bin/kustomize
+      name: custom-tools
+      subPath: kustomize
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: /.config/sops/age
+      name: sops-age
+      readOnly: true
