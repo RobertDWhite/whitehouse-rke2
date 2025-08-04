@@ -11,16 +11,20 @@ spec:
     repoURL: https://charts.longhorn.io
     chart: longhorn
     targetRevision: 1.9.1
-    helm:
-      values: |
-        installCRDs: true
-        persistence:
-          defaultClassReplicaCount: 1
-        defaultSettings:
-          defaultReplicaCount: 1
-          replicaSoftAntiAffinity: true
-        ingress:
-          enabled: false
+  helm:
+    values: |
+      installCRDs: true
+      enableManager: true
+      enableUI: true
+      enableWebhook: true
+      persistence:
+        defaultClassReplicaCount: 1
+      defaultSettings:
+        defaultReplicaCount: 1
+        replicaSoftAntiAffinity: true
+      ingress:
+        enabled: false
+
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
