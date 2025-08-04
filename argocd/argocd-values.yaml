@@ -7,6 +7,10 @@ configs:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
 
 repoServer:
+  extraArgs:
+    - --enable-alpha-plugins
+    - --enable-exec
+    - --loglevel=debug
   volumes:
     - name: custom-tools
       emptyDir: {}
@@ -16,7 +20,7 @@ repoServer:
 
   initContainers:
     - name: install-ksops
-      image: viaductoss/ksops:v4.4.0     # Use latest tested version or lock it
+      image: viaductoss/ksops:v4.4.0
       command: ["/bin/sh", "-c"]
       args:
         - echo "Installing KSOPS...";
