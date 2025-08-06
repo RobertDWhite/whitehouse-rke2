@@ -6,12 +6,20 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    path: longhorn
-    targetRevision: main
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: 1.6.1
     helm:
-      valueFiles:
-        - local-values.yaml
+      values: |
+        preUpgradeChecker:
+          jobEnabled: false
+          upgradeVersionCheck: false
+        persistence:
+          defaultClass: true
+          defaultClassReplicaCount: 2
+        service:
+          ui:
+            type: LoadBalancer
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
@@ -21,4 +29,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+
 
