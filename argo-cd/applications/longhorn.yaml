@@ -4,30 +4,20 @@ metadata:
   name: longhorn
   namespace: argocd
 spec:
-  project: default
-  source:
-    repoURL: https://charts.longhorn.io
-    chart: longhorn
-    targetRevision: 1.9.1
-    helm:
-      values: |
-        preUpgradeChecker:
-          jobEnabled: false
-          upgradeVersionCheck: false
-        persistence:
-          defaultClass: true
-          defaultClassReplicaCount: 2
-        service:
-          ui:
-            type: LoadBalancer
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
+  project: default
+  source:
+    repoURL: https://github.com/your-org/your-repo.git
+    targetRevision: main
+    path: longhorn
+    directory:
+      recurse: false
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-
 
