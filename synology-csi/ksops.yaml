@@ -1,0 +1,11 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: synology-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - 01-secret.sops.yaml
+  - 03-storageclass-iscsi.sops.yaml
