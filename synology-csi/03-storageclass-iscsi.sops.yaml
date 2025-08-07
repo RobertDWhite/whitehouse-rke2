@@ -1,0 +1,29 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+    name: synostorage
+    annotations:
+        storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.san.synology.com
+parameters:
+    fsType: ENC[AES256_GCM,data:AiVudUY=,iv:XH9QBFfg/WucAfkytVtuZD4zpKx7wuKgTEFbLIYZRy0=,tag:CYc9kqZXIrQPqPaisdtZtA==,type:str]
+    dsm: ENC[AES256_GCM,data:Goq1icrv1+jtslk=,iv:j0BWDQey62MnmFXfYMnuPv9UM7JgrPgPI3bX/CfN/Ow=,tag:m8bJdhOk9iH2PKURg1N8CA==,type:str]
+    location: ENC[AES256_GCM,data:fKVX+mpWY+U=,iv:KY25uPQUGifXsvznS5vZTqYvyNJ4OhefyNY6VXiYV3A=,tag:hLHaEiWEhN2dcK0LchXlHA==,type:str]
+    formatOptions: ENC[AES256_GCM,data:T3C2m5pEHbDHxMQ=,iv:lsTm0wCXTeWinq1xqNvBd81bX+iURZhuepervIUD7CI=,tag:PlXoCOKP6h++I/wHoDIHMg==,type:str]
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA0TkFlR080VXh5d2UrZjNn
+            ZTlIdk9GZWZtRDRNdENGako3a3YyTlZScVdvCjZaQUNUNkwva0JMd1BsSSt3Rjl2
+            aW1LOUhLRk9LRmw2QVFhQktWaFp2akkKLS0tIE00YW5GdUJjekRXMllrQjdSWGYz
+            eFhzbGJVNzN4NGptWlFtNG5jSHM3TU0KemGEOyxMMBSTnoSDF+iodoinY5MO6KZo
+            CkG4jWsU/o3QrBRxRYfqYM4yXRakB4C7VLJh8lAvAIS6950Rlb/Z7Q==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-08-07T05:24:09Z"
+    mac: ENC[AES256_GCM,data:KC3e38PPntT5MK061ifPOpebPHlRGRMHVMN06kke7Ib1xU2NtjgTX3X7oyKc2zk8KXrmgkMCaRA8z++A10pUtvMD5ZHavfMoOlXad0RhY7IsArFkqM2U/8byo7W/nGmr5+ygBPXSUdew9cjCNyigFq54iavgdgtTO65n+u0Y+P0=,iv:9MsEgUlvwU2J/tqkM44aBpP9BDTljAvoHtr8fAWpTas=,tag:Bn9Ai1yuw58//CK6X/PQMg==,type:str]
+    encrypted_regex: ^(parameters)$
+    version: 3.10.2
