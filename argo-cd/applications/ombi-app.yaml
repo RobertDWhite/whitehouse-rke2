@@ -40,15 +40,40 @@ spec:
 
         service:
           main:
+            controller: main
             type: ClusterIP
             ports:
               http:
                 port: 3579
 
+        ingress:
+          main:
+            enabled: true
+            className: nginx
+            annotations: {}
+            hosts:
+              - host: ombi.white.fm
+                paths:
+                  - path: /
+                    pathType: Prefix
+            tls:
+              - secretName: ombi-tls
+                hosts:
+                  - ombi.white.fm
+
         persistence:
           config:
             enabled: true
-            accessMode: ReadWriteOnce
+            type: persistentVolumeClaim
+            accessModes:
+              - ReadWriteOnce
             size: 10Gi
             storageClass: longhorn
-            mountPath: /config
+            globalMounts:
+              - path: /config
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
