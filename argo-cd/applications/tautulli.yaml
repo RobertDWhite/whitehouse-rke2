@@ -19,12 +19,19 @@ spec:
         controllers:
           tautulli:
             strategy: RollingUpdate
+
+            podDisruptionBudget:
+              enabled: true
+              minAvailable: 1
+              # or use maxUnavailable: 0
+
             pod:
               securityContext:
                 runAsUser: 1000
                 runAsGroup: 1000
                 fsGroup: 1000
                 fsGroupChangePolicy: OnRootMismatch
+
             containers:
               app:
                 image:
