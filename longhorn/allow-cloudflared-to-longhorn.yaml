@@ -1,22 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cloudflared-to-longhorn
+  name: allow-cloudflared-to-longhorn-ui
   namespace: longhorn-system
 spec:
   podSelector:
     matchLabels:
       app: longhorn-ui
-  policyTypes:
-    - Ingress
+  policyTypes: [Ingress]
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: cloudflared
+              kubernetes.io/metadata.name: cloudflared
           podSelector:
             matchLabels:
               app: cloudflared
       ports:
         - protocol: TCP
-          port: 80
+          port: 8000
