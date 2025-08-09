@@ -5,9 +5,6 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  defaultPodOptions:
-    labels:
-      app: tautulli
   source:
     repoURL: https://bjw-s-labs.github.io/helm-charts/
     chart: app-template
@@ -15,6 +12,10 @@ spec:
     helm:
       releaseName: tautulli
       values: |
+        defaultPodOptions:
+          labels:
+            app: tautulli
+
         controllers:
           tautulli:
             strategy: RollingUpdate
@@ -31,8 +32,8 @@ spec:
                   tag: latest
                   pullPolicy: IfNotPresent
                 env:
-                  TZ: "America/New_York"     # change as needed
-                  PUID: "1000"               # match your host/user ids
+                  TZ: "America/New_York"
+                  PUID: "1000"
                   PGID: "1000"
                 resources:
                   requests:
@@ -41,18 +42,21 @@ spec:
                   limits:
                     cpu: 500m
                     memory: 1Gi
+
                 ports:
-                  http:
-                    port: 8181
+                  - name: http
+                    containerPort: 8181
+                    protocol: TCP
+
                 probes:
                   liveness:
                     enabled: true
-                    path: /
                     port: http
+                    path: /
                   readiness:
                     enabled: true
-                    path: /
                     port: http
+                    path: /
 
         service:
           app:
@@ -79,7 +83,7 @@ spec:
             tls:
               - secretName: tautulli-tls
                 hosts:
-                  - tautulli.example.com
+                  - tautulli.white.fm
 
         persistence:
           config:
