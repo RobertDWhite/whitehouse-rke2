@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: authentik-ppostgresql
+  namespace: authentik
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 999
+      initContainers:
+        - name: init-pgdata
+          image: busybox:1.36
+          command: ["sh","-c"]
+          args:
+            - >
+              mkdir -p /var/lib/postgresql/data/pgdata &&
+              chown -R 999:999 /var/lib/postgresql/data
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgresql
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
