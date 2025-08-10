@@ -1,43 +1,62 @@
-# postgresql-deploy.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgresql
+  name: authentik-postgresql
   namespace: authentik
   labels:
-    app: postgresql
+    app: authentik-postgresql
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: postgresql
+      app: authentik-postgresql
   template:
     metadata:
       labels:
-        app: postgresql
+        app: authentik-postgresql
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: rke2-agent-1
-      containers:
-        - name: postgresql
-          image: postgres:12-alpine
-          ports:
-            - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              value: authentik
-            - name: POSTGRES_USER
-              value: authentik
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: authentik-env
-                  key: PG_PASS
+      securityContext:
+        fsGroup: 999
+      initContainers:
+        - name: init-pgdata
+          image: busybox:1.36
+          command: ["sh","-c"]
+          args:
+            - >
+              mkdir -p /var/lib/postgresql/data/pgdata &&
+              chown -R 999:999 /var/lib/postgresql/data
           volumeMounts:
-            - name: postgres-storage
+            - name: pgdata
               mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: pg
+              containerPort: 5432
+          env:
+            # From your working SOPS secret:
+            - name: POSTGRES_DB
+              valueFrom: { secretKeyRef: { name: authentik-env, key: POSTGRES_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: authentik-env, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: authentik-env, key: POSTGRES_PASSWORD } }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh","-c","pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\" -h 127.0.0.1 -p 5432"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 5432 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
       volumes:
-        - name: postgres-storage
+        - name: pgdata
           persistentVolumeClaim:
             claimName: authentik-postgres-pvc
-
