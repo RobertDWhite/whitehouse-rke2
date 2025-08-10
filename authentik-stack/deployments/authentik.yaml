@@ -20,6 +20,10 @@ spec:
           image: ghcr.io/goauthentik/server:latest
           args: ["server", "--bind", "0.0.0.0:9000"]
           env:
+            - name: AUTHENTIK_POSTGRESQL__HOST
+              value: authentik-postgresql.authentik.svc.cluster.local
+            - name: AUTHENTIK_POSTGRESQL__PORT
+              value: "5432"
             - name: AUTHENTIK_MODE
               value: server
             - name: AUTHENTIK_LISTEN__PORT
@@ -41,7 +45,8 @@ spec:
               mountPath: /templates
       volumes:
         - name: media
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: authentik-media-pvc
         - name: templates
           emptyDir: {}
 
