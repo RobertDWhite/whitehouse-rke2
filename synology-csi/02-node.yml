@@ -25,22 +25,6 @@ rules:
   - apiGroups: ["storage.k8s.io"]
     resources: ["volumeattachments"]
     verbs: ["get", "list", "watch", "update"]
-
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: synology-csi-node-role
-  namespace: synology-csi
-subjects:
-  - kind: ServiceAccount
-    name: csi-node-sa
-    namespace: synology-csi
-roleRef:
-  kind: ClusterRole
-  name: synology-csi-node-role
-  apiGroup: rbac.authorization.k8s.io
-
 ---
 kind: DaemonSet
 apiVersion: apps/v1
