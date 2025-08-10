@@ -1,17 +1,17 @@
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-    name: letsencrypt-dns
+  name: letsencrypt-dns
 spec:
-    acme:
-        email: robert@whitematter.tech
-        server: https://acme-v02.api.letsencrypt.org/directory
-        privateKeySecretRef:
-            name: letsencrypt-dns-account-key
-        solvers:
-            - dns01:
-                cloudflare:
-                    email: robert@white.fm
-                apiTokenSecretRef:
-                    name: cloudflare-api-token
-                    key: api-token
+  acme:
+    email: robert@whitematter.tech
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-dns-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            email: robert@white.fm
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
