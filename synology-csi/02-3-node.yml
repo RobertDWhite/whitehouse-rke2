@@ -113,16 +113,16 @@ spec:
       volumes:
         - name: kubelet-dir
           hostPath:
-            path: /var/lib/kubelet
+            path: /var/lib/rancher/rke2/agent/kubelet
             type: Directory
         - name: plugin-dir
           hostPath:
-            path: /var/lib/kubelet/plugins/csi.san.synology.com/
+            path: /var/lib/rancher/rke2/agent/kubelet/plugins/csi.san.synology.com/
             type: DirectoryOrCreate
         - name: registration-dir
           hostPath:
-            path: /var/lib/kubelet/plugins_registry
-            type: Directory
+            path: /var/lib/rancher/rke2/agent/kubelet/plugins_registry
+            type: DirectoryOrCreate
         - name: client-info
           secret:
             secretName: client-info-secret
