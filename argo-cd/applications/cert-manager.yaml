@@ -9,6 +9,12 @@ spec:
     repoURL: https://charts.jetstack.io
     targetRevision: v1.18.0
     chart: cert-manager
+    helm:
+      values: |
+        crds:
+          install: true
+        extraArgs:
+          - --feature-gates=ExperimentalCertificateSigningRequestControllers=true
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager
