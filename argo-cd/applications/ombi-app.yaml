@@ -20,11 +20,12 @@ spec:
             replicas: 1
             strategy: RollingUpdate
             initContainers:
-              - name: fix-perms
+              fix-perms:
                 image: busybox:1.36
                 command: ["sh","-c"]
                 args:
-                  - chown -R 1000:1000 /config || true;
+                  - |
+                    chown -R 1000:1000 /config || true
                     chmod -R u+rwX,g+rwX /config || true
                 securityContext:
                   runAsUser: 0
