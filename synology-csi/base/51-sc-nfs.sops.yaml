@@ -1,0 +1,31 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+    name: synology-nfs
+    annotations:
+        storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.san.synology.com
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+mountOptions:
+    - nfsvers=4.1
+parameters:
+    protocol: ENC[AES256_GCM,data:1iCq,iv:YoHQDwgXZhwdMk3og6orOfQMEIxooEsuHX4PlnbNvjU=,tag:QYdRPJ03JrPjQ2kNLf4MOQ==,type:str]
+    dsm: ENC[AES256_GCM,data:dV0QtvyTi75W6ow=,iv:C0GJeFF+wUDg/vxnS0Z5PW2kwTTxFwUqp/ty52jwP9k=,tag:plx0xRb48fZi9C+T4vS7Hw==,type:str]
+    location: ENC[AES256_GCM,data:+7GOkC0b1/RpREaLmQY=,iv:CGfXaU5jkvA1TucxLDKmJGLvaS0SiLZ7LysxBMDrGVE=,tag:rQiHjsJJXrckfehkb7axUw==,type:str]
+    mountPermissions: ENC[AES256_GCM,data:MPsDCg==,iv:hL70pdQQ28gKgKKkgiZjBprqxoxu7/NHaGCgMEy2X6c=,tag:zi3AQYrBk7PAh0Ri+TG8Ww==,type:str]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBwNitTKzhJQjNKb0sraGxG
+            ODFDTUhKNG1xV052Q2x4clpaMzNVYTlhK3pZCnZtMFdrQ2ZpQlZrMk1aa1lFYlVJ
+            aUx1Q2MweUljRDlMMXRseDZ2RzB0SmcKLS0tIExJeXU2cmNnelZvbGY0VTJuTG1l
+            UVYxQkliZk13QisxcXdIbVNnR0REZTgKP8pFfveQmpMDg16YJuKCEBq7IUfOxLOR
+            j6K5UQw3haEXNXaJfBj6MPq2eJ+2QzA3Kn/KxYqd2G4LYZkmlKAmUA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-08-11T03:24:21Z"
+    mac: ENC[AES256_GCM,data:ucjQbu6M1mQ/n96ox+SwEGl3ySSL06Dh2fiu6ktaGKW7tiOaS/4Ze1ZfZTkw4PNqBT5cJp6Xwhkb8ArpfuLH1taxGUgm+d0ZeTiuV57RJs2MmdaCsB0bWxn6Vt9H8izdHpcJ7Oi+9aNS1cvIMOurtasFQ/j+kmdzmB9Gbxx0Hm4=,iv:hb0LqO7/qGhUnQ1ZVMvDFgLL5/1TCbHr1qKrWcflddY=,tag:bnVcArKQRcE4k5W2TCzmng==,type:str]
+    encrypted_regex: ^(data|stringData|parameters)$
+    version: 3.10.2
