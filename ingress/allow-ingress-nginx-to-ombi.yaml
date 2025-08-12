@@ -4,8 +4,11 @@ metadata:
   name: allow-ingress-nginx-to-ombi
   namespace: ombi
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ombi
+  policyTypes:
+    - Ingress
   ingress:
     - from:
         - namespaceSelector:
@@ -14,3 +17,6 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3579
