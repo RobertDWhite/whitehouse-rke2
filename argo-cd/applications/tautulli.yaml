@@ -19,14 +19,12 @@ spec:
         controllers:
           tautulli:
             strategy: RollingUpdate
-
             pod:
               securityContext:
                 runAsUser: 1000
                 runAsGroup: 1000
                 fsGroup: 1000
                 fsGroupChangePolicy: OnRootMismatch
-
             containers:
               app:
                 image:
@@ -44,12 +42,10 @@ spec:
                   limits:
                     cpu: 500m
                     memory: 1Gi
-
                 ports:
                   - name: http
                     containerPort: 8181
                     protocol: TCP
-
                 probes:
                   liveness:
                     enabled: true
@@ -70,10 +66,11 @@ spec:
 
         ingress:
           app:
-            enabled: false
+            enabled: true
             className: nginx
             annotations:
-              cert-manager.io/cluster-issuer: "letsencrypt-prod"
+              cert-manager.io/cluster-issuer: "letsencrypt-dns"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
             hosts:
               - host: tautulli.white.fm
                 paths:
@@ -83,7 +80,7 @@ spec:
                       identifier: app
                       port: http
             tls:
-              - secretName: tautulli-tls
+              - secretName: tautulli-white-fm-tls
                 hosts:
                   - tautulli.white.fm
 
@@ -98,7 +95,6 @@ spec:
               tautulli:
                 app:
                   - path: /config
-
   destination:
     server: https://kubernetes.default.svc
     namespace: tautulli
