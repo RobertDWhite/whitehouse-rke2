@@ -20,11 +20,6 @@ spec:
           tautulli:
             strategy: RollingUpdate
 
-            defaultPodDisruptionBudget:
-              enabled: true
-              minAvailable: 1
-              # or use maxUnavailable: 0
-
             pod:
               securityContext:
                 runAsUser: 1000
@@ -80,7 +75,7 @@ spec:
             annotations:
               cert-manager.io/cluster-issuer: "letsencrypt-prod"
             hosts:
-              - host: tautulli.example.com
+              - host: tautulli.white.fm
                 paths:
                   - path: /
                     pathType: Prefix
