@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: longhorn-white-fm-tls
+  namespace: longhorn-system
+spec:
+  secretName: longhorn-white-fm-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - longhorn.white.fm
