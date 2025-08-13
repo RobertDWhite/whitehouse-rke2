@@ -6,7 +6,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: longhorn-ui
+      app.kubernetes.io/name: longhorn-ui
   ingress:
     - from:
         - namespaceSelector:
@@ -19,5 +19,8 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+        - protocol: TCP
+          port: 8000
   policyTypes:
     - Ingress
+
