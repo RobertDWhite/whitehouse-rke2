@@ -41,10 +41,20 @@ spec:
                   PUID: "1000"
                   PGID: "1000"
                   TZ: "America/New_York"
+                  ASPNETCORE_URLS: "http://0.0.0.0:3579"
                 ports:
                   - name: http
                     containerPort: 3579
                 resources: {}
+                probes:
+                  readiness:
+                    enabled: true
+                    port: http
+                    path: /
+                  liveness:
+                    enabled: true
+                    port: http
+                    path: /
             pod:
               securityContext:
                 fsGroup: 1000
