@@ -5,25 +5,48 @@ metadata:
   namespace: argocd
 spec:
   project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: portainer
   source:
     repoURL: https://portainer.github.io/k8s/
     chart: portainer
-    targetRevision: ">=1.0.0"
+    targetRevision: ">=1.0.0 <2.0.0"
     helm:
       releaseName: portainer
       values: |
+        # Storage: keep or change to synology-iscsi if you like
         persistence:
           enabled: true
           storageClass: longhorn
           size: 10Gi
+
         service:
-          type: LoadBalancer
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: portainer
+          type: ClusterIP
+          httpPort: 9000
+
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-dns
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+            nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+
+          hosts:
+            - host: portainer.white.fm
+              paths:
+                - path: /
+                  pathType: Prefix
+                  port: 9443
+          tls:
+            - secretName: portainer-white-fm-tls
+              hosts:
+                - portainer.white.fm
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+
