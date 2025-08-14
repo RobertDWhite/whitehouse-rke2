@@ -1,13 +1,14 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-nginx-to-ombi
+  name: allow-ingress-nginx-to-ombi-app
   namespace: ombi
 spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/instance: ombi
-  policyTypes: [Ingress]
+  policyTypes:
+    - Ingress
   ingress:
     - from:
         - namespaceSelector:
@@ -20,4 +21,3 @@ spec:
       ports:
         - protocol: TCP
           port: 3579
-
