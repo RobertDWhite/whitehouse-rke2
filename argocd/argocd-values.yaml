@@ -53,17 +53,3 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
-      
-server:
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-dns
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    hosts:
-      - argocd.white.fm
-    tls:
-      - secretName: argocd-white-fm-tls
-        hosts:
-          - argocd.white.fm
