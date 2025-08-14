@@ -5,40 +5,58 @@ metadata:
   namespace: authentik
   annotations:
     argocd.argoproj.io/sync-options: Replace=true
+  labels:
+    app.kubernetes.io/name: authentik
+    app.kubernetes.io/component: worker
 spec:
-  replicas: 1
+  replicas: 2
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app: authentik
-      role: worker
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: worker
   template:
     metadata:
       labels:
-        app: authentik
-        role: worker
+        app.kubernetes.io/name: authentik
+        app.kubernetes.io/component: worker
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
-        - name: authentik
+        - name: worker
           image: ghcr.io/goauthentik/server:2024.8.1
           imagePullPolicy: IfNotPresent
           args: ["worker"]
-          env:
-            - name: AUTHENTIK_MODE
-              value: worker
           envFrom:
             - secretRef:
                 name: authentik-env
-          volumeMounts:
-            - name: media
-              mountPath: /media
-            - name: certs
-              mountPath: /certs
-            - name: templates
-              mountPath: /templates
-      volumes:
-        - name: media
-          emptyDir: {}
-        - name: certs
-          emptyDir: {}
-        - name: templates
-          emptyDir: {}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: ["authentik"]
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values: ["worker"]
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          l
