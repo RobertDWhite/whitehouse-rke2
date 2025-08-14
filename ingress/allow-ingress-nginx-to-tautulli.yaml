@@ -7,17 +7,16 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/instance: tautulli
-  ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: kube-system
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/component: controller
-          app.kubernetes.io/name: rke2-ingress-nginx
-    ports:
-    - protocol: TCP
-      port: 8181
   policyTypes:
-  - Ingress
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8181
