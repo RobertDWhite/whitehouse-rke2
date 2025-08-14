@@ -1,23 +1,33 @@
-# redis.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis
+  name: authentik-redis
   namespace: authentik
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: redis
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/component: cache
   template:
     metadata:
       labels:
-        app: redis
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: cache
     spec:
       containers:
         - name: redis
-          image: redis:alpine
-          command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+          image: redis:7.2-alpine
           ports:
             - containerPort: 6379
-
+          command: ["redis-server", "--appendonly", "yes"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

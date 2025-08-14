@@ -1,14 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: authentik-stack
+  name: authentik
   namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
     targetRevision: main
     path: authentik-stack
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: authentik
@@ -18,10 +22,11 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-
+      - RespectIgnoreDifferences=true
+      - FailOnSharedResource=true
+      - ApplyOutOfSyncOnly=true
   ignoreDifferences:
-    - group: ""
-      kind: Secret
-      namespace: authentik
+    - group: "apps"
+      kind: "Deployment"
       jsonPointers:
-        - /data
+        - /spec/template/spec/volumes/0/persistentVolumeClaim

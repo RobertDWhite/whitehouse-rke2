@@ -1,22 +1,23 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-authentik-to-tautulli
-  namespace: tautulli
+  name: allow-ingress-nginx-to-authentik
+  namespace: authentik
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/instance: tautulli
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: server
   policyTypes:
     - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: authentik
+              kubernetes.io/metadata.name: ingress-nginx
           podSelector:
             matchLabels:
-              app.kubernetes.io/instance: authentik
+              app.kubernetes.io/name: ingress-nginx
       ports:
         - protocol: TCP
-          port: 8181
+          port: 9443
