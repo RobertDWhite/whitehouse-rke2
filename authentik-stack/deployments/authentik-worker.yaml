@@ -3,64 +3,42 @@ kind: Deployment
 metadata:
   name: authentik-worker
   namespace: authentik
-  labels:
-    app.kubernetes.io/name: authentik
-    app.kubernetes.io/component: worker
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
-  replicas: 2
-  revisionHistoryLimit: 2
+  replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: authentik
-      app.kubernetes.io/component: worker
+      app: authentik
+      role: worker
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: authentik
-        app.kubernetes.io/component: worker
+        app: authentik
+        role: worker
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
       containers:
-        - name: worker
+        - name: authentik
           image: ghcr.io/goauthentik/server:2024.8.1
           imagePullPolicy: IfNotPresent
           args: ["worker"]
+          env:
+            - name: AUTHENTIK_MODE
+              value: worker
           envFrom:
             - secretRef:
                 name: authentik-env
-          env:
-            - name: AUTHENTIK_REDIS__PORT
-              value: "6379"
-          resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: "1"
-              memory: 1Gi
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/component
-                      operator: In
-                      values: ["worker"]
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values: ["authentik"]
-                topologyKey: kubernetes.io/hostname
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: authentik
-              app.kubernetes.io/component: worker
+          volumeMounts:
+            - name: media
+              mountPath: /media
+            - name: certs
+              mountPath: /certs
+            - name: templates
+              mountPath: /templates
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: certs
+          emptyDir: {}
+        - name: templates
+          emptyDir: {}
