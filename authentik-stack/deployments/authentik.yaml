@@ -33,6 +33,11 @@ spec:
         - name: server
           image: ghcr.io/goauthentik/server:2024.8.1
           imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              /entrypoint.sh server
           ports:
             - name: http
               containerPort: 9000
