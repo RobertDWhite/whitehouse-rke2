@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: authentik-worker
   namespace: authentik
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
   labels:
     app.kubernetes.io/name: authentik
     app.kubernetes.io/component: worker
