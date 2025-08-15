@@ -3,8 +3,6 @@ kind: Deployment
 metadata:
   name: authentik-worker
   namespace: authentik
-  annotations:
-    argocd.argoproj.io/sync-options: Replace=true
   labels:
     app.kubernetes.io/name: authentik
     app.kubernetes.io/component: worker
@@ -30,10 +28,14 @@ spec:
         - name: worker
           image: ghcr.io/goauthentik/server:2024.8.1
           imagePullPolicy: IfNotPresent
+          command: ["/usr/bin/authentik"]
           args: ["worker"]
           envFrom:
             - secretRef:
                 name: authentik-env
+          env:
+            - name: AUTHENTIK_REDIS__PORT
+              value: "6379"
           resources:
             requests:
               cpu: 250m
@@ -48,15 +50,18 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchExpressions:
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values: ["authentik"]
                     - key: app.kubernetes.io/component
                       operator: In
                       values: ["worker"]
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: ["authentik"]
                 topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
-          l
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: authentik
+              app.kubernetes.io/component: worker
