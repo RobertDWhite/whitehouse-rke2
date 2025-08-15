@@ -33,7 +33,7 @@ spec:
           ports:
             - containerPort: 5432
           volumeMounts:
-            - name: data
+            - name: pgdata
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
@@ -54,12 +54,7 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: longhorn
-        resources:
-          requests:
-            storage: 20Gi
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: authentik-postgres
