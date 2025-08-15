@@ -10,6 +10,10 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
     nginx.ingress.kubernetes.io/proxy-body-size: "16m"
     nginx.ingress.kubernetes.io/proxy-ssl-verify: "false"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "authentik-session"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+
 spec:
   ingressClassName: nginx
   tls:
