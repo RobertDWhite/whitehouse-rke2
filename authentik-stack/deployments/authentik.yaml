@@ -48,9 +48,16 @@ spec:
               value: "0.0.0.0:9443"
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
+            - name: AUTHENTIK_TLS__CERTIFICATE
+              value: /certs/tls.crt
+            - name: AUTHENTIK_TLS__KEY
+              value: /certs/tls.key
           volumeMounts:
             - name: media
               mountPath: /media
+            - name: tls
+              mountPath: /certs
+              readOnly: true
           readinessProbe:
             httpGet:
               scheme: HTTPS
@@ -78,6 +85,9 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: authentik-media
+        - name: tls
+          secret:
+            secretName: auth-white-fm-tls
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
