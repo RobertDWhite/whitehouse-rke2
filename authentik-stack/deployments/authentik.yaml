@@ -55,6 +55,8 @@ spec:
               value: /certs/tls.crt
             - name: AUTHENTIK_TLS__KEY
               value: /certs/tls.key
+            - name: AUTHENTIK_HEALTHCHECK__ENABLED
+              value: "true"
           volumeMounts:
             - name: media
               mountPath: /media
@@ -66,7 +68,7 @@ spec:
               scheme: HTTP
               path: /-/health/ready
               port: 9000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 5
             failureThreshold: 6
           livenessProbe:
