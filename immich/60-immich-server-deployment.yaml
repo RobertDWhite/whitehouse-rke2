@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-server
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-server
+  template:
+    metadata:
+      labels:
+        app: immich-server
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+      containers:
+        - name: immich-server
+          image: ghcr.io/immich-app/immich-server:release
+          ports:
+            - containerPort: 2283
+          env:
+            - name: DB_HOSTNAME
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: DB_HOSTNAME }
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: DB_PORT }
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_USERNAME }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_PASSWORD }
+            - name: DB_DATABASE_NAME
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_DATABASE_NAME }
+
+            - name: REDIS_HOSTNAME
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: REDIS_HOSTNAME }
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: REDIS_PORT }
+
+
+            - name: MACHINE_LEARNING_URL
+              value: "http://immich-machine-learning.immich.svc.cluster.local:3003"
+
+            - name: UPLOAD_LOCATION
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: UPLOAD_LOCATION }
+          volumeMounts:
+            - name: upload
+              mountPath: /usr/src/app/upload
+            - name: photos
+              mountPath: /photos
+          readinessProbe:
+            tcpSocket: { port: 2283 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 2283 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+      volumes:
+        - name: upload
+          persistentVolumeClaim:
+            claimName: immich-upload
+        - name: photos
+          persistentVolumeClaim:
+            claimName: immich-photos
