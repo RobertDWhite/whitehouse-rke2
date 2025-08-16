@@ -11,3 +11,14 @@ creation_rules:
     path_regex: '.*\.sops\.yaml$'
     age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
 
+  - path_regex: '(.*/)?(secret.*|.*secret|config.*|.*config).*\.ya?ml$'
+    encrypted_regex: '^(data|stringData)$'
+    key_groups:
+      - age:
+          - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: '(^|.*/)?immich/.*\.ya?ml$'
+    encrypted_regex: '^(data|stringData)$'
+    key_groups:
+      - age:
+          - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
