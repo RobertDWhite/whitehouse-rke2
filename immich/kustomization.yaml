@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 15-ingress.yaml
+  - 20-redis-deployment.yaml
+  - 25-redis-svc.yaml
+  - 30-pvc-immich-upload.yaml
+  - 31-pvc-photo.yaml
+  - 40-pv-immich-upload.yaml
+  - 41-pv-photo.yaml
+  - 50-immich-ml-deployment.yaml
+  - 55-immich-ml-svc.yaml
+  - 60-immich-server-deployment.yaml
+  - 65-immich-server-svc.yaml
+generators:
+  - ksops.yaml
