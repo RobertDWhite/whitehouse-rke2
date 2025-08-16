@@ -4,6 +4,8 @@ metadata:
   name: immich
   namespace: immich
   annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
 spec:
   ingressClassName: nginx
   rules:
@@ -18,5 +20,7 @@ spec:
                 port:
                   number: 2283
   tls:
-    - hosts: [photos.white.fm]
+    - hosts:
+        - photos.white.fm
       secretName: immich-tls
+
