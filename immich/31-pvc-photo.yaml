@@ -1,11 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: photo-pvc
+  name: immich-photos
   namespace: immich
 spec:
-  accessModes: ["ReadWriteMany"]
-  storageClassName: pv-immich-photos
+  accessModes: [ReadWriteMany]
   resources:
     requests:
       storage: 10Ti
+  storageClassName: ""
+  volumeName: pv-immich-photos
