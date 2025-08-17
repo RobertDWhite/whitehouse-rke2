@@ -23,6 +23,15 @@ spec:
           image: ghcr.io/immich-app/immich-machine-learning:release
           ports:
             - containerPort: 3003
+          env:
+            - name: MPLCONFIGDIR
+              value: /cache/matplotlib
+            - name: HF_HOME
+              value: /cache/hf
+            - name: HUGGINGFACE_HUB_CACHE
+              value: /cache/hf
+            - name: TRANSFORMERS_CACHE
+              value: /cache/hf
           volumeMounts:
             - name: ml-cache
               mountPath: /cache
