@@ -23,9 +23,11 @@ spec:
           env:
             - name: HOMEPAGE_ALLOWED_HOSTS
               value: "home.white.fm"
+            - name: HOMEPAGE_CONFIG_DIR
+              value: /app/config/configmap
           volumeMounts:
             - name: homepage-config
-              mountPath: /app/config
+              mountPath: /app/config/configmap
       volumes:
         - name: homepage-config
           configMap:
@@ -41,3 +43,4 @@ spec:
                 path: settings.yaml
               - key: widgets.yaml
                 path: widgets.yaml
+
