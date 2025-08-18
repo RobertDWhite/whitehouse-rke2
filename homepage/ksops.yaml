@@ -1,0 +1,16 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: homepage-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+literals:
+  - bookmarks.yaml=@config/bookmarks.sops.yaml
+  - services.yaml=@config/services.sops.yaml
+  - widgets.yaml=@config/widgets.sops.yaml
+  - settings.yaml=@config/settings.sops.yaml
+  - kubernetes.yaml=@config/kubernetes.sops.yaml
+  - custom.css=@config/custom.css
+  - custom.js=@config/custom.js
