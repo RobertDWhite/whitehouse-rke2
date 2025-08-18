@@ -20,7 +20,28 @@ spec:
           image: ghcr.io/gethomepage/homepage:latest
           ports:
             - containerPort: 3000
+          env:
+            - name: HOMEPAGE_ALLOWED_HOSTS
+              value: "home.white.fm"
+          volumeMounts:
+            - name: homepage-config
+              mountPath: /app/config
       volumes:
         - name: homepage-config
           configMap:
             name: homepage
+            items:
+              - key: bookmarks.yaml
+                path: bookmarks.yaml
+              - key: kubernetes.yaml
+                path: kubernetes.yaml
+              - key: services.yaml
+                path: services.yaml
+              - key: settings.yaml
+                path: settings.yaml
+              - key: widgets.yaml
+                path: widgets.yaml
+              - key: custom.css
+                path: custom.css
+              - key: custom.js
+                path: custom.js
