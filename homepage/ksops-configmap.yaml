@@ -1,0 +1,20 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: homepage-config-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+    config.kubernetes.io/local-config: "true"
+files:
+  - config/bookmarks.sops.yaml
+  - config/services.sops.yaml
+  - config/widgets.sops.yaml
+  - config/settings.sops.yaml
+  - config/kubernetes.sops.yaml
+  - config/custom.css
+  - config/custom.js
+
+configMap:
+  name: homepage
