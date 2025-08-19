@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-ingress-from-homepage-to-portainer
-  namespace: homepage
+  namespace: portainer
 spec:
   podSelector: {}
   policyTypes:
@@ -11,7 +11,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: uptime-kuma
+              kubernetes.io/metadata.name: homepage
           podSelector:
             matchLabels:
               app: homepage
