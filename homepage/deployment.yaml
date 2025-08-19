@@ -21,7 +21,7 @@ spec:
           image: busybox
           command: ["/bin/sh", "-c", "cp -r /source/* /app-config/"]
           volumeMounts:
-            - name: homepage-static-config
+            - name: homepage-config
               mountPath: /source
             - name: homepage-writable-config
               mountPath: /app-config
@@ -51,15 +51,9 @@ spec:
               mountPath: /app/config
 
       volumes:
-
-        - name: homepage-static-config
-          projected:
-            sources:
-              - configMap:
-                  name: homepage-static
-              - secret:
-                  name: homepage-env
+        - name: homepage-config
+          configMap:
+            name: homepage
 
         - name: homepage-writable-config
           emptyDir: {}
-
