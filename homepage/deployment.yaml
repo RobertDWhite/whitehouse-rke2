@@ -21,7 +21,7 @@ spec:
           image: busybox
           command: ["/bin/sh", "-c", "cp -r /source/* /app-config/"]
           volumeMounts:
-            - name: homepage-config
+            - name: homepage-static-config
               mountPath: /source
             - name: homepage-writable-config
               mountPath: /app-config
@@ -51,19 +51,15 @@ spec:
               mountPath: /app/config
 
       volumes:
-        - name: homepage-config
-          configMap:
-            name: homepage
-            items:
-              - key: config/bookmarks.yaml
-                path: bookmarks.yaml
-              - key: config/kubernetes.yaml
-                path: kubernetes.yaml
-              - key: config/services.yaml
-                path: services.yaml
-              - key: config/settings.yaml
-                path: settings.yaml
-              - key: config/widgets.yaml
-                path: widgets.yaml
+
+        - name: homepage-static-config
+          projected:
+            sources:
+              - configMap:
+                  name: homepage-static
+              - secret:
+                  name: homepage-env
+
         - name: homepage-writable-config
           emptyDir: {}
+
