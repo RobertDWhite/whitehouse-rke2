@@ -8,5 +8,6 @@
           type: portainer
           url: http://portainer.portainer.svc.cluster.local:9000
           env: 1
-          headerName: X-API-Key
-          token: {{ env "PORTAINER_TOKEN" }}
+          headers:
+            - name: X-API-Key
+              value: {{ env "PORTAINER_TOKEN" }}
