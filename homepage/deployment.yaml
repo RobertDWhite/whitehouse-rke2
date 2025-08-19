@@ -15,6 +15,7 @@ spec:
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
+
       initContainers:
         - name: copy-config
           image: busybox
@@ -24,6 +25,7 @@ spec:
               mountPath: /source
             - name: homepage-writable-config
               mountPath: /app-config
+
       containers:
         - name: homepage
           image: ghcr.io/gethomepage/homepage:latest
@@ -34,23 +36,34 @@ spec:
               value: "home.white.fm"
             - name: HOMEPAGE_CONFIG_DIR
               value: /app/config
+            - name: PORTAINER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: homepage-env
+                  key: PORTAINER_TOKEN
+#            - name: AUTHENTIK_TOKEN
+#              valueFrom:
+#                secretKeyRef:
+#                  name: homepage-env
+#                  key: AUTHENTIK_TOKEN
           volumeMounts:
             - name: homepage-writable-config
               mountPath: /app/config
+
       volumes:
         - name: homepage-config
           configMap:
             name: homepage
             items:
-              - key: bookmarks.yaml
+              - key: config/bookmarks.yaml
                 path: bookmarks.yaml
-              - key: kubernetes.yaml
+              - key: config/kubernetes.yaml
                 path: kubernetes.yaml
-              - key: services.yaml
+              - key: config/services.yaml
                 path: services.yaml
-              - key: settings.yaml
+              - key: config/settings.yaml
                 path: settings.yaml
-              - key: widgets.yaml
+              - key: config/widgets.yaml
                 path: widgets.yaml
         - name: homepage-writable-config
           emptyDir: {}
