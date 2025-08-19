@@ -1,13 +1,11 @@
 - System Monitoring:
     - Portainer:
         icon: https://favicon.is/portainer.io
-        href: http://portainer.portainer.svc.cluster.local:9000
+        href: https://portainer.white.fm
         container: portainer
         description: Docker containers monitor
         widget:
           type: portainer
           url: http://portainer.portainer.svc.cluster.local:9000
           env: 1
-          headers:
-            - name: X-API-Key
-              value: {{ env "PORTAINER_TOKEN" }}
+          key: {{ env "PORTAINER_TOKEN" }}
