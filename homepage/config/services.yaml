@@ -1,12 +1,21 @@
 - System Monitoring:
-  - name: System Monitoring
-    items:
-      - name: Portainer
+    - Portainer:
         icon: https://favicon.is/portainer.io
         href: https://portainer.white.fm
-        description: Docker containers monitor
+        description: Docker containers monitoring
         widget:
           type: portainer
           url: http://portainer.portainer.svc.cluster.local:9000
-          env: 5 
+          env: 5
           key: {{ env "PORTAINER_TOKEN" }}
+
+- Media:
+    - Radarr:
+        icon: https://favicon.is/radarr.video
+        href: https://radarr.white.fm
+        description: Radarr
+        widget:
+          type: radarr
+          url: http://10.100.1.20:7878
+          key: {{ env "RADARR_TOKEN" }}
+          enableQueue: true
