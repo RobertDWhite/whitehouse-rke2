@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-immich-server-to-redis
+  namespace: immich
+spec:
+  podSelector:
+    matchLabels:
+      app: immich-redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: immich-server
+    ports:
+    - protocol: TCP
+      port: 6379
