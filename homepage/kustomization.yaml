@@ -15,33 +15,21 @@ resources:
   - metrics-reader.yaml
   - egress.yaml
 
-  - config/bookmarks.yaml
-  - config/settings.yaml
-  - config/docker.yaml
-  - config/custom.js
-  - config/custom.css
-  - config/proxmox.yaml
-  - config/homeassistant.yaml
-  - config/uptime-kuma.yaml
-  - config/unifi.yaml
-  - config/services.cm.sops.yaml
-  - config/widgets.cm.sops.yaml
-  - config/kubernetes.cm.sops.yaml
-#configMapGenerator:
-#  - name: homepage
-#    files:
-#      - config/bookmarks.yaml
-#      - config/settings.yaml
-#      - config/docker.yaml
-#      - config/custom.js
-#      - config/custom.css
-#      - config/proxmox.yaml
-#      - config/homeassistant.yaml
-#      - config/uptime-kuma.yaml
-#      - config/unifi.yaml
-#      - config/services.cm.sops.yaml
-#      - config/widgets.cm.sops.yaml
-#      - config/kubernetes.cm.sops.yaml
+configMapGenerator:
+  - name: homepage
+    files:
+     - config/bookmarks.yaml
+      - config/settings.yaml
+      - config/docker.yaml
+      - config/custom.js
+      - config/custom.css
+      - config/proxmox.yaml
+      - config/homeassistant.yaml
+      - config/uptime-kuma.yaml
+      - config/unifi.yaml
+      - config/services.cm.sops.yaml
+      - config/widgets.cm.sops.yaml
+      - config/kubernetes.cm.sops.yaml
 
 generators:
   - ksops-env.yaml
