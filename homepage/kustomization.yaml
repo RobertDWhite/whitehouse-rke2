@@ -15,17 +15,43 @@ resources:
   - egress.yaml
 
 configMapGenerator:
-  - name: homepage
+  - name: homepage-bookmarks
     files:
-      - config/bookmarks.yaml
-      - config/settings.yaml
-      - config/docker.yaml
-      - config/custom.js
-      - config/custom.css
-      - config/proxmox.yaml
-      - config/homeassistant.yaml
-      - config/uptime-kuma.yaml
-      - config/unifi.yaml
+      - bookmarks.yaml=config/bookmarks.yaml
+  - name: homepage-settings
+    files:
+      - settings.yaml=config/settings.yaml
+  - name: homepage-docker
+    files:
+      - docker.yaml=config/docker.yaml
+  - name: homepage-custom-css
+    files:
+      - custom.css=config/custom.css
+  - name: homepage-custom-js
+    files:
+      - custom.js=config/custom.js
+  - name: homepage-proxmox
+    files:
+      - proxmox.yaml=config/proxmox.yaml
+  - name: homepage-homeassistant
+    files:
+      - homeassistant.yaml=config/homeassistant.yaml
+  - name: homepage-uptime-kuma
+    files:
+      - uptime-kuma.yaml=config/uptime-kuma.yaml
+  - name: homepage-unifi
+    files:
+      - unifi.yaml=config/unifi.yaml
+  - name: homepage-services
+    files:
+      - services.yaml=config/services.cm.sops.yaml
+  - name: homepage-widgets
+    files:
+      - widgets.yaml=config/widgets.cm.sops.yaml
+  - name: homepage-kubernetes
+    files:
+      - kubernetes.yaml=config/kubernetes.cm.sops.yaml
+
 
 
 generators:
