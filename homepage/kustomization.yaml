@@ -17,9 +17,15 @@ resources:
 
 configMapGenerator:
   - name: homepage
-    behavior: merge
+    namespace: homepage
     files:
       - config/bookmarks.yaml
+    behavior: create    
+
+  - name: homepage
+    namespace: homepage
+    behavior: merge
+    files:
       - config/settings.yaml
       - config/docker.yaml
       - config/custom.js
