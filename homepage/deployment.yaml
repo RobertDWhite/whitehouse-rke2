@@ -30,12 +30,30 @@ spec:
                   key: PORTAINER_TOKEN
           volumeMounts:
             - name: homepage-config
-              mountPath: /app/config
+              mountPath: /app/config/
+            - name: homepage-services
+              mountPath: /app/config/services.yaml
+              subPath: services.yaml
+            - name: homepage-widgets
+              mountPath: /app/config/widgets.yaml
+              subPath: widgets.yaml
+            - name: homepage-kubernetes
+              mountPath: /app/config/kubernetes.yaml
+              subPath: kubernetes.yaml
             - name: logs
               mountPath: /app/config/logs
       volumes:
         - name: homepage-config
           configMap:
             name: homepage
+        - name: homepage-services
+          configMap:
+            name: homepage-services
+        - name: homepage-widgets
+          configMap:
+            name: homepage-widgets
+        - name: homepage-kubernetes
+          configMap:
+            name: homepage-kubernetes
         - name: logs
           emptyDir: {}
