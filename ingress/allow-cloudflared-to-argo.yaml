@@ -6,18 +6,19 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/instance: argocd-server
+      app.kubernetes.io/name: argocd-server
   policyTypes:
     - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              name: cloudflared
+              kubernetes.io/metadata.name: cloudflared
           podSelector:
             matchLabels:
               app: cloudflared
       ports:
         - protocol: TCP
           port: 443
+
 
