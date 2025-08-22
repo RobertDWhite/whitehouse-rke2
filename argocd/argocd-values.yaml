@@ -5,6 +5,11 @@ global:
 configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    accounts.readonly: apiKey   # 👈 adds readonly account with apiKey capability
+
+  rbac:
+    policy.csv: |
+      g, readonly, role:readonly   # 👈 grant readonly role to readonly account
 
 repoServer:
   env:
@@ -38,7 +43,6 @@ repoServer:
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
-
 
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
