@@ -12,38 +12,38 @@ spec:
             targetRevision: main
             path: charts/matrix-stack
             namespace: matrix
-            type: helm
-            valueFiles:
-              - matrix-stack/helm/values.sops.yaml
+            sourceType: helm
+            helm:
+              valueFiles:
+                - matrix-stack/helm/values.sops.yaml
 
           - name: matrix-ingress
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/ingress
             namespace: matrix
-            type: manifest
+            sourceType: directory
 
           - name: matrix-well-known
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/well-known
             namespace: matrix
-            type: manifest
+            sourceType: directory
 
           - name: matrix-projects
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/projects
             namespace: matrix
-            type: manifest
+            sourceType: directory
 
           - name: matrix-secrets
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/secrets
             namespace: matrix
-            type: manifest
-
+            sourceType: directory
   template:
     metadata:
       name: '{{name}}'
@@ -53,6 +53,7 @@ spec:
         repoURL: '{{repoURL}}'
         targetRevision: '{{targetRevision}}'
         path: '{{path}}'
+        helm: '{{helm}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
