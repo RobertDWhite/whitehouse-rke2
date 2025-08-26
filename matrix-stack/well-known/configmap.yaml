@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-well-known
+  namespace: matrix
+data:
+  server: |
+    {
+      "m.server": "matrix.white.fm:443"
+    }
+  client: |
+    {
+      "m.homeserver": {
+        "base_url": "https://matrix.white.fm"
+      },
+      "m.identity_server": {
+        "base_url": "https://vector.im"  # optional, or remove if unused
+      }
+    }
