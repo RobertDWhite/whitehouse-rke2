@@ -6,12 +6,14 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/element-hq/ess-helm.git
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
     targetRevision: main
-    path: charts/matrix-stack
+    path: matrix-stack/helm
     helm:
       valueFiles:
-        - matrix-stack/helm/values.sops.yaml
+        - values.sops.yaml
+      chart: matrix-stack
+      repo: https://element-hq.github.io/helm-charts
   destination:
     server: https://kubernetes.default.svc
     namespace: matrix
