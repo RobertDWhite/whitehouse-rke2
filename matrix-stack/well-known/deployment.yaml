@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-well-known
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matrix-well-known
+  template:
+    metadata:
+      labels:
+        app: matrix-well-known
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          volumeMounts:
+            - name: well-known
+              mountPath: /usr/share/nginx/html/.well-known/matrix
+      volumes:
+        - name: well-known
+          configMap:
+            name: matrix-well-known
+            items:
+              - key: server
+                path: server
+              - key: client
+                path: client

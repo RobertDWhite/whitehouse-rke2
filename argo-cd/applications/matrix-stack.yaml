@@ -1,0 +1,62 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: matrix-stack
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: matrix-ess
+            repoURL: https://github.com/element-hq/ess-helm.git
+            targetRevision: main
+            path: charts/matrix-stack
+            namespace: matrix
+            valueFiles:
+              - matrix-stack/helm/values.sops.yaml
+
+          - name: matrix-ingress
+            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+            targetRevision: main
+            path: matrix-stack/ingress
+            namespace: matrix
+
+          - name: matrix-well-known
+            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+            targetRevision: main
+            path: matrix-stack/well-known
+            namespace: matrix
+
+          - name: matrix-projects
+            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+            targetRevision: main
+            path: matrix-stack/projects
+            namespace: matrix
+
+          - name: matrix-secrets
+            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+            targetRevision: main
+            path: matrix-stack/secrets
+            namespace: matrix
+
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{repoURL}}'
+        targetRevision: '{{targetRevision}}'
+        path: '{{path}}'
+        helm:
+          valueFiles:
+            - '{{valueFiles}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+

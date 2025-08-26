@@ -1,5 +1,12 @@
 # .sops.yaml
 creation_rules:
+
+
+  - path_regex: matrix-stack/helm/values\.sops\.yaml$
+    encrypted_regex: '.*'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+
   - path_regex: '.*\.env$'
     encrypted_regex: '^(.*)$'
     input_type: dotenv
