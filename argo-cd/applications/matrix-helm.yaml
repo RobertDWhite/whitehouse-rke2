@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: matrix-ess
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/element-hq/ess-helm.git
+    targetRevision: main
+    path: charts/matrix-stack
+    helm:
+      valueFiles:
+        - matrix-stack/helm/values.sops.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: matrix
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

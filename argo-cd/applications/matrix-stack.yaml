@@ -7,43 +7,30 @@ spec:
   generators:
     - list:
         elements:
-          - name: matrix-ess
-            repoURL: https://github.com/element-hq/ess-helm.git
-            targetRevision: main
-            path: charts/matrix-stack
-            namespace: matrix
-            sourceType: helm
-            helm:
-              valueFiles:
-                - matrix-stack/helm/values.sops.yaml
-
           - name: matrix-ingress
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/ingress
             namespace: matrix
-            sourceType: directory
 
           - name: matrix-well-known
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/well-known
             namespace: matrix
-            sourceType: directory
 
           - name: matrix-projects
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/projects
             namespace: matrix
-            sourceType: directory
 
           - name: matrix-secrets
             repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
             targetRevision: main
             path: matrix-stack/secrets
             namespace: matrix
-            sourceType: directory
+
   template:
     metadata:
       name: '{{name}}'
@@ -53,7 +40,6 @@ spec:
         repoURL: '{{repoURL}}'
         targetRevision: '{{targetRevision}}'
         path: '{{path}}'
-        helm: '{{helm}}'
       destination:
         server: https://kubernetes.default.svc
         namespace: '{{namespace}}'
@@ -61,4 +47,3 @@ spec:
         automated:
           prune: true
           selfHeal: true
-
