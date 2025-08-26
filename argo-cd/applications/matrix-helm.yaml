@@ -5,15 +5,14 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    targetRevision: main
-    path: matrix-stack/helm
-    helm:
-      valueFiles:
-        - values.sops.yaml
-      chart: matrix-stack
-      repo: https://element-hq.github.io/helm-charts
+  sources:
+    - repoURL: https://github.com/element-hq/ess-helm.git
+      targetRevision: main
+      path: charts/matrix-stack
+
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: matrix
@@ -21,3 +20,6 @@ spec:
     automated:
       prune: true
       selfHeal: true
+  helm:
+    valueFiles:
+      - $values/matrix-stack/helm/values.sops.yaml
