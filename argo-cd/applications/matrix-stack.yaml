@@ -1,49 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
+kind: Application
 metadata:
   name: matrix-stack
   namespace: argocd
 spec:
-  generators:
-    - list:
-        elements:
-          - name: matrix-ingress
-            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-            targetRevision: main
-            path: matrix-stack/ingress
-            namespace: matrix
-
-          - name: matrix-well-known
-            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-            targetRevision: main
-            path: matrix-stack/well-known
-            namespace: matrix
-
-          - name: matrix-projects
-            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-            targetRevision: main
-            path: matrix-stack/projects
-            namespace: matrix
-
-          - name: matrix-secrets
-            repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-            targetRevision: main
-            path: matrix-stack/secrets
-            namespace: matrix
-
-  template:
-    metadata:
-      name: '{{name}}'
-    spec:
-      project: default
-      source:
-        repoURL: '{{repoURL}}'
-        targetRevision: '{{targetRevision}}'
-        path: '{{path}}'
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: '{{namespace}}'
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
+  project: default
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: HEAD
+    path: matrix-stack
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
