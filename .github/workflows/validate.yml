@@ -10,44 +10,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Collect all K8s YAMLs into one file
-      - name: Collect manifests
+      # Install yq (for YAML processing)
+      - name: Install yq
+        run: |
+          YQ_VERSION=v4.44.3
+          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+          yq --version
+
+      # Collect & sanitize manifests:
+      #  - exclude .git/ and build/
+      #  - split multi-doc YAMLs
+      #  - keep only docs that have apiVersion+kind
+      #  - drop the .sops key so kubeconform won't error
+      - name: Collect & sanitize manifests
         run: |
           set -euo pipefail
           mkdir -p build
           tmp="$(mktemp)"
-      
-          # Concatenate all YAMLs EXCEPT anything in .git/ or build/
-          # Add '---' between files to keep valid multi-doc YAML
+
+          # Gather all candidate YAMLs
           while IFS= read -r -d '' f; do
+            # Add a separator so we can safely split later
             cat "$f" >> "$tmp"
             printf '\n---\n' >> "$tmp"
           done < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
                     -not -path './.git/*' -not -path './build/*' -print0)
-      
-          # Fail if nothing was found
-          if [ ! -s "$tmp" ]; then
-            echo "No YAMLs found"
+
+          # Split, filter to K8s docs, and remove the .sops block
+          yq eval-all '
+            select(fileIndex == 0) |
+            (.
+              | splitDoc
+              | map(select(type == "!!map"))
+              | map(select(has("apiVersion") and has("kind")))
+              | map(del(.sops))
+              | .[]
+            )
+          ' "$tmp" > build/manifests.sanitized.yaml
+
+          if [ ! -s build/manifests.sanitized.yaml ]; then
+            echo "No Kubernetes manifests found after sanitation."
             exit 1
           fi
-      
-          mv "$tmp" build/manifests.yaml
-          wc -l build/manifests.yaml
 
+          echo "Sanitized manifest line count:"
+          wc -l build/manifests.sanitized.yaml
 
       # kubeconform: fast schema validation (supports CRDs)
       - name: Setup kubeconform
         uses: bmuschko/setup-kubeconform@v1
       - name: Run kubeconform
         run: |
-          kubeconform -strict -ignore-missing-schemas \
-            -summary -output json < build/manifests.yaml
+          kubeconform \
+            -strict \
+            -ignore-missing-schemas \
+            -summary \
+            -output json \
+            build/manifests.sanitized.yaml
 
       # Kubesec: risk analysis + upload to Security tab
       - name: Kubesec scan
         uses: controlplaneio/kubesec-action@43d0ddff5ffee89a6bb9f29b64cd865411137b14
         with:
-          input: build/manifests.yaml
+          input: build/manifests.sanitized.yaml
           format: template
           template: template/sarif.tpl
           output: kubesec-results.sarif
