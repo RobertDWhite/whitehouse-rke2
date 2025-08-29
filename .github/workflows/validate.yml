@@ -1,0 +1,43 @@
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Collect all K8s YAMLs into one file
+      - name: Collect manifests
+        run: |
+          mkdir -p build
+          find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+            -not -path './.git/*' \
+            -print0 | xargs -0 cat > build/manifests.yaml
+          test -s build/manifests.yaml || (echo "No YAMLs found" && exit 1)
+
+      # kubeconform: fast schema validation (supports CRDs)
+      - name: Setup kubeconform
+        uses: imranismail/setup-kubeconform@v1
+      - name: Run kubeconform
+        run: |
+          kubeconform -strict -ignore-missing-schemas \
+            -summary -output json < build/manifests.yaml
+
+      # Kubesec: risk analysis + upload to Security tab
+      - name: Kubesec scan
+        uses: controlplaneio/kubesec-action@43d0ddff5ffee89a6bb9f29b64cd865411137b14
+        with:
+          input: build/manifests.yaml
+          format: template
+          template: template/sarif.tpl
+          output: kubesec-results.sarif
+          exit-code: "0"
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kubesec-results.sarif
