@@ -27,35 +27,35 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          tmp="$(mktemp)"
-
-          # Gather all candidate YAMLs
-          while IFS= read -r -d '' f; do
-            # Add a separator so we can safely split later
-            cat "$f" >> "$tmp"
-            printf '\n---\n' >> "$tmp"
-          done < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
-                    -not -path './.git/*' -not -path './build/*' -print0)
-
-          # Split, filter to K8s docs, and remove the .sops block
-          yq eval-all '
-            select(fileIndex == 0) |
-            (.
-              | splitDoc
-              | map(select(type == "!!map"))
-              | map(select(has("apiVersion") and has("kind")))
-              | map(del(.sops))
-              | .[]
-            )
-          ' "$tmp" > build/manifests.sanitized.yaml
-
-          if [ ! -s build/manifests.sanitized.yaml ]; then
-            echo "No Kubernetes manifests found after sanitation."
+      
+          # Build a null-delimited array of YAML files (exclude .git/ and build/)
+          mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+                                    -not -path './.git/*' -not -path './build/*' -print0)
+      
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No YAMLs found"
             exit 1
           fi
-
+      
+          # Use yq to evaluate ALL documents from ALL files:
+          #  - keep only mapping docs
+          #  - keep only docs that have apiVersion AND kind
+          #  - drop the .sops key (SOPS metadata isn't part of K8s schema)
+          yq ea '
+            select(type == "!!map") |
+            select(has("apiVersion") and has("kind")) |
+            del(.sops)
+          ' "${files[@]}" > build/manifests.sanitized.yaml
+      
+          if [ ! -s build/manifests.sanitized.yaml ]; then
+            echo "No Kubernetes manifests found after sanitation."
+            # Optional: comment this out to allow empty runs without failing CI
+            exit 1
+          fi
+      
           echo "Sanitized manifest line count:"
           wc -l build/manifests.sanitized.yaml
+
 
       # kubeconform: fast schema validation (supports CRDs)
       - name: Setup kubeconform
