@@ -13,6 +13,7 @@ jobs:
       # Install yq (for YAML processing)
       - name: Install yq
         run: |
+          set -euo pipefail
           YQ_VERSION=v4.44.3
           curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
           chmod +x /usr/local/bin/yq
@@ -20,39 +21,50 @@ jobs:
 
       # Collect & sanitize manifests:
       #  - exclude .git/ and build/
-      #  - split multi-doc YAMLs
-      #  - keep only docs that have apiVersion+kind
-      #  - drop the .sops key so kubeconform won't error
-      - name: Collect & sanitize manifests
+      #  - keep only K8s docs (has apiVersion + kind)
+      #  - drop the .sops block
+      #  - SKIP Secrets entirely (avoids SOPS-induced schema noise)
+# Replace the "Collect & sanitize manifests" step with this
+      - name: Collect & sanitize manifests (skip SOPS files)
         run: |
           set -euo pipefail
           mkdir -p build
-      
-          # Build a null-delimited array of YAML files (exclude .git/ and build/)
-          mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
-                                    -not -path './.git/*' -not -path './build/*' -print0)
-      
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No YAMLs found"
+
+          # Collect all YAML paths (excluding .git/, build/, decrypted/)
+          mapfile -d '' all < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+                                  -not -path './.git/*' -not -path './build/*' -not -path './decrypted/*' -print0)
+
+          # Split into encrypted vs plain using yq: a file is "encrypted" if it has a top-level 'sops' key
+          encrypted=()
+          plain=()
+          for f in "${all[@]}"; do
+            if yq 'has("sops")' "$f" | grep -q true; then
+              encrypted+=("$f")
+            else
+              plain+=("$f")
+            fi
+          done
+
+          # Log what we're skipping
+          echo "SOPS-encrypted files skipped by CI validation:"
+          printf '  - %s\n' "${encrypted[@]:-<none>}"
+
+          # Build sanitized bundle from only *plain* files
+          if [ ${#plain[@]} -eq 0 ]; then
+            echo "No non-encrypted Kubernetes YAMLs found to validate."
+            # If you prefer not to fail when everything is encrypted, uncomment the next line:
+            # exit 0
             exit 1
           fi
-      
-          # Use yq to evaluate ALL documents from ALL files:
-          #  - keep only mapping docs
-          #  - keep only docs that have apiVersion AND kind
-          #  - drop the .sops key (SOPS metadata isn't part of K8s schema)
+
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
             del(.sops)
-          ' "${files[@]}" > build/manifests.sanitized.yaml
-      
-          if [ ! -s build/manifests.sanitized.yaml ]; then
-            echo "No Kubernetes manifests found after sanitation."
-            # Optional: comment this out to allow empty runs without failing CI
-            exit 1
-          fi
-      
+          ' "${plain[@]}" > build/manifests.sanitized.yaml
+
+          test -s build/manifests.sanitized.yaml || { echo "No Kubernetes manifests found after sanitation."; exit 1; }
+
           echo "Sanitized manifest line count:"
           wc -l build/manifests.sanitized.yaml
 
@@ -60,8 +72,10 @@ jobs:
       # kubeconform: fast schema validation (supports CRDs)
       - name: Setup kubeconform
         uses: bmuschko/setup-kubeconform@v1
+
       - name: Run kubeconform
         run: |
+          set -euo pipefail
           kubeconform \
             -strict \
             -ignore-missing-schemas \
