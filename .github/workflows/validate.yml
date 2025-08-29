@@ -13,11 +13,27 @@ jobs:
       # Collect all K8s YAMLs into one file
       - name: Collect manifests
         run: |
+          set -euo pipefail
           mkdir -p build
-          find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
-            -not -path './.git/*' \
-            -print0 | xargs -0 cat > build/manifests.yaml
-          test -s build/manifests.yaml || (echo "No YAMLs found" && exit 1)
+          tmp="$(mktemp)"
+      
+          # Concatenate all YAMLs EXCEPT anything in .git/ or build/
+          # Add '---' between files to keep valid multi-doc YAML
+          while IFS= read -r -d '' f; do
+            cat "$f" >> "$tmp"
+            printf '\n---\n' >> "$tmp"
+          done < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+                    -not -path './.git/*' -not -path './build/*' -print0)
+      
+          # Fail if nothing was found
+          if [ ! -s "$tmp" ]; then
+            echo "No YAMLs found"
+            exit 1
+          fi
+      
+          mv "$tmp" build/manifests.yaml
+          wc -l build/manifests.yaml
+
 
       # kubeconform: fast schema validation (supports CRDs)
       - name: Setup kubeconform
