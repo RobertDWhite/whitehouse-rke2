@@ -24,7 +24,7 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
-      # Collect & sanitize manifests (skip SOPS-encrypted files)
+      # Collect & sanitize manifests (skip SOPS-encrypted docs and Secrets)
       - name: Collect & sanitize manifests (skip SOPS-encrypted docs)
         run: |
           set -euo pipefail
@@ -70,7 +70,7 @@ jobs:
             -output json \
             build/manifests.sanitized.yaml
 
-      # Kubesec: risk analysis + SARIF
+      # Kubesec: risk analysis + SARIF (use built-in template path)
       - name: Kubesec scan
         uses: controlplaneio/kubesec-action@43d0ddff5ffee89a6bb9f29b64cd865411137b14
         with:
@@ -80,17 +80,32 @@ jobs:
           output: kubesec-results.sarif
           exit-code: "0"
 
-      # Validate SARIF JSON before uploading (optional)
-      - name: Validate SARIF JSON
+      # Ensure jq exists
+      - name: Install jq
         run: |
           command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
-          jq . kubesec-results.sarif >/dev/null
+
+      # Normalize SARIF to a single run to satisfy GitHub's new rule
+      - name: Normalize SARIF to single run
+        run: |
+          jq '
+            if (.runs | length) > 1 then
+              .runs = [
+                ( .runs[0]
+                  | .results     = ([ .runs[] | (.results     // []) ] | add)
+                  | .artifacts   = ([ .runs[] | (.artifacts   // []) ] | add)
+                  | .invocations = ([ .runs[] | (.invocations // []) ] | add)
+                )
+              ]
+            else . end
+          ' kubesec-results.sarif > kubesec-results.single.sarif
+          # sanity check
+          jq '.[0:0]' kubesec-results.single.sarif >/dev/null
 
       # Upload SARIF (skip if forked PR, since token has no perms there)
       - name: Upload SARIF
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: kubesec-results.sarif
-
-
+          sarif_file: kubesec-results.single.sarif
+          category: kubesec
