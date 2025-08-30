@@ -4,6 +4,11 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  actions: read
+  security-events: write   # needed for upload-sarif
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -19,57 +24,38 @@ jobs:
           chmod +x /usr/local/bin/yq
           yq --version
 
-      # Collect & sanitize manifests:
-      #  - exclude .git/ and build/
-      #  - keep only K8s docs (has apiVersion + kind)
-      #  - drop the .sops block
-      #  - SKIP Secrets entirely (avoids SOPS-induced schema noise)
-# Replace the "Collect & sanitize manifests" step with this
-      - name: Collect & sanitize manifests (skip SOPS files)
+      # Collect & sanitize manifests (skip SOPS-encrypted files)
+      - name: Collect & sanitize manifests
         run: |
           set -euo pipefail
           mkdir -p build
 
-          # Collect all YAML paths (excluding .git/, build/, decrypted/)
-          mapfile -d '' all < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
-                                  -not -path './.git/*' -not -path './build/*' -not -path './decrypted/*' -print0)
+          # Collect all YAMLs except .git/, build/
+          mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
+                                    -not -path './.git/*' -not -path './build/*' -print0)
 
-          # Split into encrypted vs plain using yq: a file is "encrypted" if it has a top-level 'sops' key
-          encrypted=()
-          plain=()
-          for f in "${all[@]}"; do
-            if yq 'has("sops")' "$f" | grep -q true; then
-              encrypted+=("$f")
-            else
-              plain+=("$f")
-            fi
-          done
-
-          # Log what we're skipping
-          echo "SOPS-encrypted files skipped by CI validation:"
-          printf '  - %s\n' "${encrypted[@]:-<none>}"
-
-          # Build sanitized bundle from only *plain* files
-          if [ ${#plain[@]} -eq 0 ]; then
-            echo "No non-encrypted Kubernetes YAMLs found to validate."
-            # If you prefer not to fail when everything is encrypted, uncomment the next line:
-            # exit 0
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No YAMLs found"
             exit 1
           fi
 
+          # Filter out SOPS-encrypted docs
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
-            del(.sops)
-          ' "${plain[@]}" > build/manifests.sanitized.yaml
+            del(.sops) |
+            select(.kind != "Secret")
+          ' "${files[@]}" > build/manifests.sanitized.yaml
 
-          test -s build/manifests.sanitized.yaml || { echo "No Kubernetes manifests found after sanitation."; exit 1; }
+          if [ ! -s build/manifests.sanitized.yaml ]; then
+            echo "No Kubernetes manifests found after sanitation."
+            exit 1
+          fi
 
           echo "Sanitized manifest line count:"
           wc -l build/manifests.sanitized.yaml
 
-
-      # kubeconform: fast schema validation (supports CRDs)
+      # kubeconform: schema validation
       - name: Setup kubeconform
         uses: bmuschko/setup-kubeconform@v1
 
@@ -83,6 +69,7 @@ jobs:
             -output json \
             build/manifests.sanitized.yaml
 
+      # Kubesec: risk analysis + SARIF
       - name: Kubesec scan
         uses: controlplaneio/kubesec-action@43d0ddff5ffee89a6bb9f29b64cd865411137b14
         with:
@@ -91,9 +78,17 @@ jobs:
           output: kubesec-results.sarif
           exit-code: "0"
 
+      # Validate SARIF JSON before uploading (optional)
+      - name: Validate SARIF JSON
+        run: |
+          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
+          jq . kubesec-results.sarif >/dev/null
+
+      # Upload SARIF (skip if forked PR, since token has no perms there)
       - name: Upload SARIF
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: kubesec-results.sarif
+
 
