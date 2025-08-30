@@ -25,7 +25,7 @@ jobs:
           yq --version
 
       # Collect & sanitize manifests (skip SOPS-encrypted files)
-      - name: Collect & sanitize manifests
+      - name: Collect & sanitize manifests (skip SOPS-encrypted docs)
         run: |
           set -euo pipefail
           mkdir -p build
@@ -38,41 +38,23 @@ jobs:
             echo "No YAMLs found"; exit 1
           fi
 
-          # Build sanitized bundle:
-          #  - keep only K8s docs (have apiVersion+kind)
-          #  - drop .sops
-          #  - skip Secrets entirely
-          #  - coerce common numeric-string fields with try/catch
+          echo "SOPS-encrypted files being skipped:"
+          for f in "${files[@]}"; do
+            if yq 'has("sops")' "$f" | grep -q true; then
+              echo "  - $f"
+            fi
+          done
+
+          # Keep only K8s docs, drop any doc that has top-level .sops, and skip Secrets
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
-            del(.sops) |
-            select(.kind != "Secret") |
-
-            # replicas: "1" -> 1 (leave non-numeric as-is)
-            (.spec.replicas? |= (try tonumber catch .)) |
-
-            # container ports: "3000" -> 3000
-            (.spec.template.spec.containers[]?.ports[]?.containerPort? |= (try tonumber catch .)) |
-
-            # service ports: "80" -> 80 ; named targetPorts remain strings
-            (if .kind == "Service" then
-              .spec.ports[]? |= (
-                .port?       |= (try tonumber catch .) |
-                .targetPort? |= (try tonumber catch .)
-              )
-            else . end)
+            select(has("sops") | not) |
+            select(.kind != "Secret")
           ' "${files[@]}" > build/manifests.sanitized.yaml
 
           test -s build/manifests.sanitized.yaml || { echo "No Kubernetes manifests found after sanitation."; exit 1; }
-
           echo "Sanitized manifest line count:"; wc -l build/manifests.sanitized.yaml
-
-          echo "Debug (homepage replicas after sanitize):"
-          yq ea -r '
-            select(.kind=="Deployment" and .metadata.name=="homepage")
-            | "replicas=" + (.spec.replicas|tostring)
-          ' build/manifests.sanitized.yaml
 
       # kubeconform: schema validation
       - name: Setup kubeconform
