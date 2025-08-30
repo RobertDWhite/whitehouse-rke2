@@ -42,24 +42,24 @@ jobs:
           #  - keep only K8s docs (have apiVersion+kind)
           #  - drop .sops
           #  - skip Secrets entirely
-          #  - coerce common numeric-string fields to integers (replicas, containerPort, svc ports)
+          #  - coerce common numeric-string fields with try/catch
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
             del(.sops) |
             select(.kind != "Secret") |
 
-            # replicas might be quoted; turn "1" -> 1 (if numeric)
-            (.spec.replicas? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))) |
+            # replicas: "1" -> 1 (leave non-numeric as-is)
+            (.spec.replicas? |= (try tonumber catch .)) |
 
             # container ports: "3000" -> 3000
-            (.spec.template.spec.containers[]?.ports[]?.containerPort? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))) |
+            (.spec.template.spec.containers[]?.ports[]?.containerPort? |= (try tonumber catch .)) |
 
-            # service ports: "80" -> 80 ; targetPort only coerced if numeric
+            # service ports: "80" -> 80 ; named targetPorts remain strings
             (if .kind == "Service" then
               .spec.ports[]? |= (
-                .port? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end)) |
-                .targetPort? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))
+                .port?       |= (try tonumber catch .) |
+                .targetPort? |= (try tonumber catch .)
               )
             else . end)
           ' "${files[@]}" > build/manifests.sanitized.yaml
@@ -73,7 +73,6 @@ jobs:
             select(.kind=="Deployment" and .metadata.name=="homepage")
             | "replicas=" + (.spec.replicas|tostring)
           ' build/manifests.sanitized.yaml
-
 
       # kubeconform: schema validation
       - name: Setup kubeconform
