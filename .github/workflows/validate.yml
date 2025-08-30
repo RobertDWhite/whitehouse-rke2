@@ -30,6 +30,7 @@ jobs:
           set -euo pipefail
           mkdir -p build
 
+          # Gather YAMLs (exclude .git/ and build/)
           mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
                                     -not -path './.git/*' -not -path './build/*' -print0)
 
@@ -37,50 +38,41 @@ jobs:
             echo "No YAMLs found"; exit 1
           fi
 
+          # Build sanitized bundle:
+          #  - keep only K8s docs (have apiVersion+kind)
+          #  - drop .sops
+          #  - skip Secrets entirely
+          #  - coerce common numeric-string fields to integers (replicas, containerPort, svc ports)
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
             del(.sops) |
             select(.kind != "Secret") |
 
-            # --- Coerce known numeric fields if they look like numbers ---
-            (
-              if .kind == "Deployment" and .spec.replicas then
-                .spec.replicas |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
-              else . end
-            ) |
+            # replicas might be quoted; turn "1" -> 1 (if numeric)
+            (.spec.replicas? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))) |
 
-            (
-              .spec.template.spec.containers[]? |= (
-                if has("ports") then
-                  .ports[]? |= (
-                    if has("containerPort") then
-                      .containerPort |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
-                    else . end
-                  )
-                else . end
+            # container ports: "3000" -> 3000
+            (.spec.template.spec.containers[]?.ports[]?.containerPort? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))) |
+
+            # service ports: "80" -> 80 ; targetPort only coerced if numeric
+            (if .kind == "Service" then
+              .spec.ports[]? |= (
+                .port? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end)) |
+                .targetPort? |= ((.|tostring) | (test("^[0-9]+$") then tonumber else . end))
               )
-            ) |
-
-            (
-              if .kind == "Service" and has("spec") and has(.spec.ports) then
-                .spec.ports[] |= (
-                  if has("port") then .port |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) ) else . end |
-                  if has("targetPort") then
-                    # only coerce numeric targetPorts; keep named ports as strings
-                    .targetPort |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
-                  else . end
-                )
-              else . end
-            )
+            else . end)
           ' "${files[@]}" > build/manifests.sanitized.yaml
 
           test -s build/manifests.sanitized.yaml || { echo "No Kubernetes manifests found after sanitation."; exit 1; }
 
           echo "Sanitized manifest line count:"; wc -l build/manifests.sanitized.yaml
 
-          echo "Debug: replicas seen for homepage (post-sanitize):"
-          yq ea -r 'select(.kind=="Deployment" and .metadata.name=="homepage") | "replicas=" + (.spec.replicas|tostring) + "  file=" + input_filename' build/manifests.sanitized.yaml
+          echo "Debug (homepage replicas after sanitize):"
+          yq ea -r '
+            select(.kind=="Deployment" and .metadata.name=="homepage")
+            | "replicas=" + (.spec.replicas|tostring)
+          ' build/manifests.sanitized.yaml
 
 
       # kubeconform: schema validation
