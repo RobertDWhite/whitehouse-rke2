@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
   actions: read
-  security-events: write   # needed for upload-sarif
+  security-events: write
 
 jobs:
   validate:
@@ -29,11 +29,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-
-          # Gather YAMLs (exclude .git/ and build/)
           mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
                                     -not -path './.git/*' -not -path './build/*' -print0)
-
           if [ ${#files[@]} -eq 0 ]; then
             echo "No YAMLs found"; exit 1
           fi
@@ -45,7 +42,6 @@ jobs:
             fi
           done
 
-          # Keep only K8s docs, drop any doc that has top-level .sops, and skip Secrets
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
@@ -80,38 +76,73 @@ jobs:
           output: kubesec-results.sarif
           exit-code: "0"
 
-      # Normalize SARIF to comply with GitHub's "single run per category" rule
+      # Install jq (if not present)
+      - name: Install jq
+        run: |
+          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
+
+      # Validate SARIF (non-fatal) — prints basic info if valid
+      - name: Inspect SARIF (non-fatal)
+        continue-on-error: true
+        run: |
+          echo "First 200 bytes of kubesec-results.sarif:"
+          head -c 200 kubesec-results.sarif || true
+          echo
+          echo "Attempting jq parse:"
+          jq '.version, (.runs | length)' kubesec-results.sarif || true
+
+      # Normalize SARIF robustly (handles null/missing runs, multiple concatenated JSON objects, etc.)
       - name: Normalize SARIF to single run
         run: |
           set -euo pipefail
-          # Ensure jq exists
-          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
 
-          # Merge multiple runs (if any) into a single run; tolerate missing/null .runs
-          jq '
-            def flatten_runs:
-              ( .runs // [] ) as $r
-              | if ($r | length) <= 1 then .
-                else
-                  .runs = [
-                    ( $r[0]
-                      | .results     = ([ $r[] | (.results     // []) ] | add)
-                      | .artifacts   = ([ $r[] | (.artifacts   // []) ] | add)
-                      | .invocations = ([ $r[] | (.invocations // []) ] | add)
-                    )
-                  ]
-                end;
-            flatten_runs
-          ' kubesec-results.sarif > kubesec-results.single.sarif
+          # If file is empty, fail early
+          if [ ! -s kubesec-results.sarif ]; then
+            echo "kubesec-results.sarif is empty"
+            exit 1
+          fi
 
-          # Sanity check
+          # Try parsing as a single JSON object. If that fails, try slurping multiple objects.
+          if jq -e 'type=="object"' kubesec-results.sarif > /dev/null 2>&1; then
+            # Single object path
+            jq '
+              def flatten_runs:
+                ( .runs // [] ) as $r
+                | if ($r | length) <= 1 then .
+                  else
+                    .runs = [
+                      ( $r[0]
+                        | .results     = ([ $r[] | (.results     // []) ] | add)
+                        | .artifacts   = ([ $r[] | (.artifacts   // []) ] | add)
+                        | .invocations = ([ $r[] | (.invocations // []) ] | add)
+                      )
+                    ]
+                  end;
+              flatten_runs
+            ' kubesec-results.sarif > kubesec-results.single.sarif
+          else
+            # Slurp mode: handle concatenated JSON objects (rare but possible)
+            jq -s '
+              # Keep first object’s top-level fields if present; otherwise create a minimal shell
+              def shell: { "version": "2.1.0", "runs": [] };
+              def runs_of: (.runs // []);
+              ( if length == 0 then shell
+                elif (.[0] | type) == "object" then .[0]
+                else shell end
+              )
+              | .runs = ([ .[] | runs_of ] | add)
+            ' kubesec-results.sarif > kubesec-results.single.sarif
+          fi
+
+          # Final sanity check: ensure object with runs array
           jq -e 'type=="object" and (.runs // []) | type=="array"' kubesec-results.single.sarif > /dev/null
           echo "Runs after normalize: $(jq '.runs | length' kubesec-results.single.sarif)"
 
-      # Upload SARIF (skip if forked PR, since token has no perms there)
+      # Upload SARIF (skip if forked PR)
       - name: Upload SARIF
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: kubesec-results.single.sarif
           category: kubesec
+
