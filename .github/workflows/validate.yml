@@ -30,30 +30,58 @@ jobs:
           set -euo pipefail
           mkdir -p build
 
-          # Collect all YAMLs except .git/, build/
           mapfile -d '' files < <(find . -type f \( -name '*.yaml' -o -name '*.yml' \) \
                                     -not -path './.git/*' -not -path './build/*' -print0)
 
           if [ ${#files[@]} -eq 0 ]; then
-            echo "No YAMLs found"
-            exit 1
+            echo "No YAMLs found"; exit 1
           fi
 
-          # Filter out SOPS-encrypted docs
           yq ea '
             select(type == "!!map") |
             select(has("apiVersion") and has("kind")) |
             del(.sops) |
-            select(.kind != "Secret")
+            select(.kind != "Secret") |
+
+            # --- Coerce known numeric fields if they look like numbers ---
+            (
+              if .kind == "Deployment" and .spec.replicas then
+                .spec.replicas |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
+              else . end
+            ) |
+
+            (
+              .spec.template.spec.containers[]? |= (
+                if has("ports") then
+                  .ports[]? |= (
+                    if has("containerPort") then
+                      .containerPort |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
+                    else . end
+                  )
+                else . end
+              )
+            ) |
+
+            (
+              if .kind == "Service" and has("spec") and has(.spec.ports) then
+                .spec.ports[] |= (
+                  if has("port") then .port |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) ) else . end |
+                  if has("targetPort") then
+                    # only coerce numeric targetPorts; keep named ports as strings
+                    .targetPort |= ( (.|tostring) | (test("^[0-9]+$") then tonumber else . end) )
+                  else . end
+                )
+              else . end
+            )
           ' "${files[@]}" > build/manifests.sanitized.yaml
 
-          if [ ! -s build/manifests.sanitized.yaml ]; then
-            echo "No Kubernetes manifests found after sanitation."
-            exit 1
-          fi
+          test -s build/manifests.sanitized.yaml || { echo "No Kubernetes manifests found after sanitation."; exit 1; }
 
-          echo "Sanitized manifest line count:"
-          wc -l build/manifests.sanitized.yaml
+          echo "Sanitized manifest line count:"; wc -l build/manifests.sanitized.yaml
+
+          echo "Debug: replicas seen for homepage (post-sanitize):"
+          yq ea -r 'select(.kind=="Deployment" and .metadata.name=="homepage") | "replicas=" + (.spec.replicas|tostring) + "  file=" + input_filename' build/manifests.sanitized.yaml
+
 
       # kubeconform: schema validation
       - name: Setup kubeconform
