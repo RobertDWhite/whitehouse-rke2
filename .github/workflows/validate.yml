@@ -80,27 +80,33 @@ jobs:
           output: kubesec-results.sarif
           exit-code: "0"
 
-      # Ensure jq exists
-      - name: Install jq
-        run: |
-          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
-
-      # Normalize SARIF to a single run to satisfy GitHub's new rule
+      # Normalize SARIF to comply with GitHub's "single run per category" rule
       - name: Normalize SARIF to single run
         run: |
+          set -euo pipefail
+          # Ensure jq exists
+          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
+
+          # Merge multiple runs (if any) into a single run; tolerate missing/null .runs
           jq '
-            if (.runs | length) > 1 then
-              .runs = [
-                ( .runs[0]
-                  | .results     = ([ .runs[] | (.results     // []) ] | add)
-                  | .artifacts   = ([ .runs[] | (.artifacts   // []) ] | add)
-                  | .invocations = ([ .runs[] | (.invocations // []) ] | add)
-                )
-              ]
-            else . end
+            def flatten_runs:
+              ( .runs // [] ) as $r
+              | if ($r | length) <= 1 then .
+                else
+                  .runs = [
+                    ( $r[0]
+                      | .results     = ([ $r[] | (.results     // []) ] | add)
+                      | .artifacts   = ([ $r[] | (.artifacts   // []) ] | add)
+                      | .invocations = ([ $r[] | (.invocations // []) ] | add)
+                    )
+                  ]
+                end;
+            flatten_runs
           ' kubesec-results.sarif > kubesec-results.single.sarif
-          # sanity check
-          jq '.[0:0]' kubesec-results.single.sarif >/dev/null
+
+          # Sanity check
+          jq -e 'type=="object" and (.runs // []) | type=="array"' kubesec-results.single.sarif > /dev/null
+          echo "Runs after normalize: $(jq '.runs | length' kubesec-results.single.sarif)"
 
       # Upload SARIF (skip if forked PR, since token has no perms there)
       - name: Upload SARIF
