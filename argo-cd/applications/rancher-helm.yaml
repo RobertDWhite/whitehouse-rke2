@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rancher
+  namespace: argocd
+spec:
+  project: default
+  destination:
+    namespace: cattle-system
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://releases.rancher.com/server-charts/latest
+    chart: rancher
+    targetRevision: 2.12.1
+    helm:
+      values: |
+        hostname: rancher.white.fm
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          extraAnnotations:
+            cert-manager.io/cluster-issuer: letsencrypt-dns
+            nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          tls:
+            source: letsEncrypt
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
