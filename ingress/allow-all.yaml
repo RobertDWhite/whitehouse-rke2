@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all
+  namespace: default  # or argocd, etc.
+spec:
+  podSelector: {}     # select all pods
+  ingress:
+  - {}                # allow all ingress
+  egress:
+  - {}                # allow all egress
+  policyTypes:
+  - Ingress
+  - Egress
+
