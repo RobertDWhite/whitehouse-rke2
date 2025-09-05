@@ -5,13 +5,14 @@ global:
 configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
-    accounts.readonly: apiKey   # 👈 adds readonly account with apiKey capability
+    accounts.readonly: apiKey
 
   rbac:
     policy.csv: |
-      g, readonly, role:readonly   # 👈 grant readonly role to readonly account
+      g, readonly, role:readonly
 
 repoServer:
+  replicas: 3
   env:
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
@@ -31,9 +32,9 @@ repoServer:
       command: ["/bin/sh", "-c"]
       args:
         - |
-          echo "Installing KSOPS...";
-          cp /usr/local/bin/ksops /custom-tools/;
-          cp /usr/local/bin/kustomize /custom-tools/;
+          echo "Installing KSOPS..."; \
+          cp /usr/local/bin/ksops /custom-tools/; \
+          cp /usr/local/bin/kustomize /custom-tools/; \
           echo "Done.";
       volumeMounts:
         - mountPath: /custom-tools
@@ -54,6 +55,14 @@ repoServer:
       readOnly: true
 
 server:
+  replicas: 2
+  service:
+    type: ClusterIP
+    ports:
+      - name: https
+        port: 443
+        targetPort: 8080
+
   resources:
     requests:
       cpu: 250m
@@ -61,7 +70,7 @@ server:
     limits:
       cpu: 500m
       memory: 1Gi
-  extraArgs: []
+
   livenessProbe:
     httpGet:
       path: /healthz?full=true
@@ -80,14 +89,15 @@ server:
     periodSeconds: 15
     failureThreshold: 10
 
-  # 👇 disable Helm's built-in Certificate CR (prevents webhook errors)
   certificate:
-    enabled: false
+    enabled: true
+    domain: argo.white.fm
+    secretName: argocd-white-fm-tls
+    issuer:
+      group: cert-manager.io
+      kind: ClusterIssuer
+      name: letsencrypt-dns
 
-  # 👇 Mount cert-manager issued secret instead
-  extraArgs:
-    - --tls-cert=/app/config/tls/tls.crt
-    - --tls-key=/app/config/tls/tls.key
 
   extraVolumes:
     - name: argocd-tls
@@ -98,3 +108,6 @@ server:
     - name: argocd-tls
       mountPath: /app/config/tls
       readOnly: true
+
+applicationController:
+  replicas: 2
