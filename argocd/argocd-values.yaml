@@ -80,3 +80,17 @@ server:
     periodSeconds: 15
     failureThreshold: 10
 
+  # 👇 Mount cert-manager issued secret instead of Helm creating a Certificate CR
+  extraArgs:
+    - --tls-cert=/app/config/tls/tls.crt
+    - --tls-key=/app/config/tls/tls.key
+
+  volumes:
+    - name: argocd-tls
+      secret:
+        secretName: argocd-white-fm-tls
+
+  volumeMounts:
+    - mountPath: /app/config/tls
+      name: argocd-tls
+      readOnly: true
