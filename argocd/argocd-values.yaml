@@ -80,17 +80,21 @@ server:
     periodSeconds: 15
     failureThreshold: 10
 
-  # 👇 Mount cert-manager issued secret instead of Helm creating a Certificate CR
+  # 👇 disable Helm's built-in Certificate CR (prevents webhook errors)
+  certificate:
+    enabled: false
+
+  # 👇 Mount cert-manager issued secret instead
   extraArgs:
     - --tls-cert=/app/config/tls/tls.crt
     - --tls-key=/app/config/tls/tls.key
 
-  volumes:
+  extraVolumes:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
 
-  volumeMounts:
-    - mountPath: /app/config/tls
-      name: argocd-tls
+  extraVolumeMounts:
+    - name: argocd-tls
+      mountPath: /app/config/tls
       readOnly: true
