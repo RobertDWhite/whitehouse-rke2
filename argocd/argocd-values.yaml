@@ -18,11 +18,6 @@ repoServer:
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
 
-#  extraArgs:
-#    - --enable-alpha-plugins
-#    - --enable-exec
-#    - --loglevel=debug
-
   volumes:
     - name: custom-tools
       emptyDir: {}
@@ -57,3 +52,31 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
+
+server:
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  livenessProbe:
+    httpGet:
+      path: /healthz?full=true
+      port: 8080
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 10
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 10
+
