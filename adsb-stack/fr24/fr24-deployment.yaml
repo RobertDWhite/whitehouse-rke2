@@ -13,28 +13,40 @@ spec:
       labels:
         app: fr24
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: readsb
+                topologyKey: kubernetes.io/hostname
+
       containers:
-      - name: fr24
-        image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest
-        ports:
-        - containerPort: 8754
-        env:
-        - name: BEASTHOST
-          value: "readsb"
-        - name: TZ
-          valueFrom:
-            configMapKeyRef:
-              name: feeder-config
-              key: FEEDER_TZ
-        - name: FR24KEY
-          valueFrom:
-            secretKeyRef:
-              name: feeder-secrets
-              key: FR24_SHARING_KEY
-        volumeMounts:
-        - name: varlog
-          mountPath: /var/log
+        - name: fr24
+          image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest
+          ports:
+            - containerPort: 8754
+          env:
+            - name: BEASTHOST
+              value: "readsb"
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: feeder-config
+                  key: FEEDER_TZ
+            - name: FR24KEY
+              valueFrom:
+                secretKeyRef:
+                  name: feeder-secrets
+                  key: FR24_SHARING_KEY
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
       volumes:
-      - name: varlog
-        emptyDir:
-          medium: Memory
+        - name: varlog
+          emptyDir:
+            medium: Memory
