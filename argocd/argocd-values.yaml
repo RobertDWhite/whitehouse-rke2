@@ -13,6 +13,8 @@ configs:
 
 repoServer:
   replicas: 3
+  extraArgs:
+    - --loglevel=debug
   env:
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
@@ -56,6 +58,8 @@ repoServer:
 
 server:
   replicas: 2
+  extraArgs:
+    - --loglevel=debug
   service:
     type: ClusterIP
     ports:
