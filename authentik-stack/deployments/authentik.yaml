@@ -37,8 +37,8 @@ spec:
           ports:
             - name: http
               containerPort: 9000
-#            - name: https
-#              containerPort: 9443
+            - name: https
+              containerPort: 9443
           envFrom:
             - secretRef:
                 name: authentik-env
@@ -47,8 +47,8 @@ spec:
               value: server
             - name: AUTHENTIK_LISTEN__HTTP
               value: "0.0.0.0:9000"
-#            - name: AUTHENTIK_LISTEN__HTTPS
-#              value: "0.0.0.0:9443"
+            - name: AUTHENTIK_LISTEN__HTTPS
+              value: "0.0.0.0:9443"
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
 #            - name: AUTHENTIK_TLS__CERTIFICATE
