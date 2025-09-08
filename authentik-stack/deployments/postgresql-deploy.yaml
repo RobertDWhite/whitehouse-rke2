@@ -30,6 +30,21 @@ spec:
           env:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_POSTGRESQL__USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_POSTGRESQL__PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_POSTGRESQL__NAME
           ports:
             - containerPort: 5432
           volumeMounts:
