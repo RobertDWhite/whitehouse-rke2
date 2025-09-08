@@ -32,13 +32,13 @@ spec:
       containers:
         - name: server
           image: ghcr.io/goauthentik/server:latest
-          args: ["server", "--bind", "0.0.0.0:9443"]
+          args: ["server"]
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 9000
-            - name: https
-              containerPort: 9443
+#            - name: https
+#              containerPort: 9443
           envFrom:
             - secretRef:
                 name: authentik-env
@@ -47,22 +47,22 @@ spec:
               value: server
             - name: AUTHENTIK_LISTEN__HTTP
               value: "0.0.0.0:9000"
-            - name: AUTHENTIK_LISTEN__HTTPS
-              value: "0.0.0.0:9443"
+#            - name: AUTHENTIK_LISTEN__HTTPS
+#              value: "0.0.0.0:9443"
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
-            - name: AUTHENTIK_TLS__CERTIFICATE
-              value: /certs/tls.crt
-            - name: AUTHENTIK_TLS__KEY
-              value: /certs/tls.key
+#            - name: AUTHENTIK_TLS__CERTIFICATE
+#              value: /certs/tls.crt
+#            - name: AUTHENTIK_TLS__KEY
+#              value: /certs/tls.key
 #            - name: AUTHENTIK_HEALTHCHECK__ENABLED
 #              value: "true"
           volumeMounts:
             - name: media
               mountPath: /media
-            - name: tls
-              mountPath: /certs
-              readOnly: true
+#            - name: tls
+#              mountPath: /certs
+#              readOnly: true
           resources:
             requests:
               cpu: 250m
@@ -74,9 +74,9 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: authentik-media
-        - name: tls
-          secret:
-            secretName: auth-white-fm-tls
+#        - name: tls
+#          secret:
+#            secretName: auth-white-fm-tls
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
