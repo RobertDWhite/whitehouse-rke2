@@ -25,14 +25,8 @@ spec:
       containers:
       - image: nvcr.io/nvidia/k8s-device-plugin:v0.17.0
         name: nvidia-device-plugin-ctr
-        env:
-          - name: FAIL_ON_INIT_ERROR
-            value: "false"
         securityContext:
           privileged: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["ALL"]
         volumeMounts:
         - name: device-plugin
           mountPath: /var/lib/kubelet/device-plugins
@@ -45,3 +39,4 @@ spec:
       - name: dev-vol
         hostPath:
           path: /dev
+
