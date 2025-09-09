@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-ml-gpu
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-machine-learning
+  template:
+    metadata:
+      labels:
+        app: immich-machine-learning
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      containers:
+        - name: immich-ml
+          image: ghcr.io/immich-app/immich-machine-learning:release
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          ports:
+            - containerPort: 3003
+          env:
+            - name: MPLCONFIGDIR
+              value: /cache/matplotlib
+            - name: HF_HOME
+              value: /cache/hf
+            - name: HUGGINGFACE_HUB_CACHE
+              value: /cache/hf
+            - name: TRANSFORMERS_CACHE
+              value: /cache/hf
+          volumeMounts:
+            - name: ml-cache
+              mountPath: /cache
+              subPath: immich-ml-cache
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 3003
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: ml-cache
+          persistentVolumeClaim:
+            claimName: immich-upload
