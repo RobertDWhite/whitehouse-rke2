@@ -8,13 +8,35 @@
         "repoURL:\\s*(?<registryUrl>.*?)\\s*\\n.*?chart:\\s*(?<depName>.*?)\\s*\\n.*?targetRevision:\\s*(?<currentValue>.*?)\\s"
       ],
       "datasourceTemplate": "helm"
+    },
+    {
+      "fileMatch": ["k8s-upgrade.*\\.ya?ml$", "applications/.*\\.ya?ml$"],
+      "matchStrings": [
+        "version:\\s*(?<currentValue>v?[0-9].*?\\+rke2r[0-9]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "rancher/rke2"
     }
   ],
   "packageRules": [
     {
+      "managers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
       "matchManagers": ["regex"],
       "groupName": "Helm chart updates",
       "automerge": false
+    },
+    {
+      "matchPackagePatterns": ["^ghcr\\.io/.*"],
+      "datasource": "docker",
+      "packageRules": [
+        {
+          "automerge": false
+        }
+      ]
     }
   ]
 }
