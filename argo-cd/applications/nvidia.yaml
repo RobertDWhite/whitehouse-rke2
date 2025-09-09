@@ -9,19 +9,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: kube-system
   source:
-    repoURL: https://github.com/NVIDIA/k8s-device-plugin.git
-    path: deployments
-    targetRevision: v0.17.0
-    kustomize:
-      patches:
-        - target:
-            kind: DaemonSet
-            name: nvidia-device-plugin-daemonset
-            namespace: kube-system
-          patch: |-
-            - op: add
-              path: /spec/template/spec/nodeSelector/accelerator
-              value: nvidia
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    path: nvidia
+    targetRevision: main
   syncPolicy:
     automated:
       prune: true
