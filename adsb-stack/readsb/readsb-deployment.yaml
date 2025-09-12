@@ -15,6 +15,35 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-14
+      initContainers:
+      - name: format-rrd
+        image: busybox
+        command: ["sh", "-c"]
+        args:
+          - |
+            if ! blkid /dev/longhorn/* | grep -q ext4; then
+              echo "Formatting PVC for rrd..."
+              mkfs.ext4 -F /dev/longhorn/* || true
+            else
+              echo "PVC already formatted"
+            fi
+        volumeMounts:
+        - name: rrd
+          mountPath: /mnt
+      - name: format-autogain
+        image: busybox
+        command: ["sh", "-c"]
+        args:
+          - |
+            if ! blkid /dev/longhorn/* | grep -q ext4; then
+              echo "Formatting PVC for autogain..."
+              mkfs.ext4 -F /dev/longhorn/* || true
+            else
+              echo "PVC already formatted"
+            fi
+        volumeMounts:
+        - name: autogain
+          mountPath: /mnt
       containers:
       - name: readsb
         image: ghcr.io/sdr-enthusiasts/docker-readsb-protobuf:latest
@@ -82,4 +111,3 @@ spec:
       - name: varlog
         emptyDir:
           medium: Memory
-
