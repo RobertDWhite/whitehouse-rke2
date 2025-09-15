@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+generators:
+  - ksops-values.yaml
+
+helmCharts:
+  - name: matrix-stack
+    repo: https://element-hq.github.io/helm-charts
+    version: 0.1.0 # pick the release you want
+    releaseName: matrix-ess
+    namespace: matrix
+    valuesFile: values.sops.yaml
