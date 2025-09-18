@@ -5,13 +5,17 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  source:
-    repoURL: ghcr.io
-    chart: element-hq/ess-helm/matrix-stack
-    targetRevision: 25.9.1
-    helm:
-      valueFiles:
-        - values.sops.yaml
+  sources:
+    - repoURL: ghcr.io
+      chart: element-hq/ess-helm/matrix-stack
+      targetRevision: 25.9.1
+      helm:
+        valueFiles:
+          - $values/matrix-stack/helm/values.sops.yaml
+
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: matrix
@@ -19,5 +23,3 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
