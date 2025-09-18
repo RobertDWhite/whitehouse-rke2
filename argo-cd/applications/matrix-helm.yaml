@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    chart: matrix-stack
     repoURL: oci://ghcr.io/element-hq/ess-helm
+    chart: matrix-stack
     targetRevision: 25.9.1
     helm:
       valueFiles:
@@ -19,3 +19,5 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
