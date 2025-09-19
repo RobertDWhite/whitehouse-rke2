@@ -13,6 +13,7 @@ spec:
       labels:
         app: synapse
     spec:
+      automountServiceAccountToken: false
       containers:
       - name: synapse
         image: matrixdotorg/synapse:latest
@@ -27,7 +28,7 @@ spec:
             mountPath: /data
           - name: synapse-secrets
             mountPath: /run/secrets
-            readOnly: false
+            readOnly: true
         env:
           - name: SYNAPSE_SERVER_NAME
             value: "white.fm"
