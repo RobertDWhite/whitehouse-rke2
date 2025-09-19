@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: decrypt-values
+  annotations:
+    "argocd.argoproj.io/hook": PreSync
+    "argocd.argoproj.io/hook-delete-policy": HookSucceeded
+spec:
+  template:
+    spec:
+      containers:
+        - name: decrypt
+          image: ghcr.io/viaduct-ai/kustomize-sops:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - sops -d /workspace/values.sops.yaml > /workspace/values.yaml
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+      restartPolicy: Never
+      volumes:
+        - name: workspace
+          emptyDir: {}
