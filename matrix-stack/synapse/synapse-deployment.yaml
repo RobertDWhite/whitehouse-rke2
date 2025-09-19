@@ -16,6 +16,8 @@ spec:
       containers:
       - name: synapse
         image: matrixdotorg/synapse:latest
+        securityContext:
+          readOnlyRootFilesystem: false
         ports:
           - containerPort: 8008
         volumeMounts:
@@ -25,7 +27,7 @@ spec:
             mountPath: /data
           - name: synapse-secrets
             mountPath: /run/secrets
-            readOnly: true
+            readOnly: false
         env:
           - name: SYNAPSE_SERVER_NAME
             value: "white.fm"
