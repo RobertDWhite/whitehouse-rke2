@@ -1,16 +1,25 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:base"],
-  "regexManagers": [
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
     {
-      "fileMatch": ["applications/.*\\.ya?ml$"],
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/applications/.*\\.ya?ml$/"
+      ],
       "matchStrings": [
         "repoURL:\\s*(?<registryUrl>.*?)\\s*\\n.*?chart:\\s*(?<depName>.*?)\\s*\\n.*?targetRevision:\\s*(?<currentValue>.*?)\\s"
       ],
       "datasourceTemplate": "helm"
     },
     {
-      "fileMatch": ["k8s-upgrade.*\\.ya?ml$", "applications/.*\\.ya?ml$"],
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/k8s-upgrade.*\\.ya?ml$/",
+        "/applications/.*\\.ya?ml$/"
+      ],
       "matchStrings": [
         "version:\\s*(?<currentValue>v?[0-9].*?\\+rke2r[0-9]+)"
       ],
@@ -20,19 +29,30 @@
   ],
   "packageRules": [
     {
-      "managers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "automerge": true
     },
     {
-      "matchManagers": ["regex"],
+      "matchManagers": [
+        "custom.regex"
+      ],
       "groupName": "Helm chart updates",
       "automerge": false
     },
     {
-      "matchPackagePatterns": ["^ghcr\\.io/.*"],
-      "managers": ["docker"],
-      "automerge": false
+      "matchManagers": [
+        "docker"
+      ],
+      "automerge": false,
+      "matchPackageNames": [
+        "/^ghcr\\.io/.*/"
+      ]
     }
   ]
 }
