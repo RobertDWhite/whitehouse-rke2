@@ -1,0 +1,32 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: init-secrets-minimal.yaml matrix-authentication-service-external-synapse.yaml matrix-authentication-service-minimal.yaml postgres-minimal.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+# initSecrets, postgres don't have any required properties to be set and defaults to enabled
+deploymentMarkers:
+  enabled: false
+elementWeb:
+  enabled: false
+matrixAuthenticationService:
+  additional:
+    0000-matrix-server:
+      config: |
+        clients:
+        - client_id: "0000000000000000000SYNAPSE"
+          client_auth_method: client_secret_basic
+          client_secret: CHANGEME-eiv6wae8shooPhie4ief8ru2egahbah0
+        matrix:
+          homeserver: "external.localhost
+          secret: jaix6Am9Shut7zeiduu7ua5maengag3o
+          endpoint: https://syn.external.localhost
+  ingress:
+    host: mas.ess.localhost
+matrixRTC:
+  enabled: false
+synapse:
+  enabled: false
+wellKnownDelegation:
+  enabled: false
