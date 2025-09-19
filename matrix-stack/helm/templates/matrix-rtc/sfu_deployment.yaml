@@ -1,0 +1,160 @@
+{{- /*
+Copyright 2024-2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with $.Values.matrixRTC -}}
+{{- if .enabled -}}
+{{- with .sfu -}}
+{{- if .enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+{{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+  labels:
+    {{- include "element-io.matrix-rtc-sfu.labels" (dict "root" $ "context" .) | nindent 4 }}
+    k8s.element.io/matrix-rtc-sfu-config-hash: {{ include "element-io.matrix-rtc-sfu.configmap-data" (dict "root" $ "context" .) | sha1sum }}
+  name: {{ $.Release.Name }}-matrix-rtc-sfu
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{ include "element-io.ess-library.deployments.commonSpec" (dict "root" $ "context" (dict "nameSuffix" "matrix-rtc-sfu")) | nindent 2 }}
+  template:
+    metadata:
+      labels:
+        {{- include "element-io.matrix-rtc-sfu.labels" (dict "root" $ "context" (dict "image" .image "labels" .labels "withChartVersion" false)) | nindent 8 }}
+        k8s.element.io/matrix-rtc-sfu-config-hash: {{ include "element-io.matrix-rtc-sfu.configmap-data" (dict "root" $ "context" .) | sha1sum }}
+{{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+    spec:
+{{- with .hostAliases }}
+      hostAliases:
+        {{- tpl (toYaml . | nindent 8) $ }}
+{{- end }}
+{{- include "element-io.ess-library.pods.commonSpec" (dict "root" $ "context" (dict "componentValues" . "instanceSuffix" "matrix-rtc-sfu" "deployment" true "usesMatrixTools" true)) | nindent 6 }}
+      initContainers:
+{{- if not (.livekitAuth).keysYaml }}
+      {{- include "element-io.ess-library.render-config-container" (dict "root" $ "context"
+        (dict "nameSuffix" "matrix-rtc-sfu"
+              "underrides" list
+              "overrides" (list "keys-template.yaml")
+              "containerName" "render-config-keys-yaml"
+              "outputFile" "keys.yaml"
+              "resources" .resources
+              "containersSecurityContext" .containersSecurityContext
+              "extraEnv" .extraEnv)) | nindent 6 }}
+{{- end }}
+      {{- include "element-io.ess-library.render-config-container" (dict "root" $ "context"
+        (dict "nameSuffix" "matrix-rtc-sfu"
+              "additionalPath" "matrixRTC.sfu.additional"
+              "underrides" (list "config-underrides.yaml")
+              "overrides" (list "config-overrides.yaml")
+              "containerName" "render-config-sfu"
+              "outputFile" "sfu-config.yaml"
+              "resources" .resources
+              "containersSecurityContext" .containersSecurityContext
+              "extraEnv" .extraEnv)) | nindent 6 }}
+      hostNetwork: {{ .hostNetwork }}
+      containers:
+      - name: sfu
+        args:
+        - --config
+        - /conf/sfu-config.yaml
+{{- with .image -}}
+{{- if .digest }}
+        image: "{{ .registry }}/{{ .repository }}@{{ .digest }}"
+        imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
+{{- else }}
+        image: "{{ .registry }}/{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .pullPolicy | default "Always" }}
+{{- end }}
+{{- end }}
+{{- with .containersSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        {{- include "element-io.ess-library.pods.env" (dict "root" $ "context" (dict "componentValues" . "componentName" "matrix-rtc-sfu")) | nindent 8 }}
+        ports:
+        - containerPort: 6789
+          name: metrics
+          protocol: TCP
+        - containerPort: 7880
+          name: http
+          protocol: TCP
+{{- with .exposedServices }}
+  {{- with .rtcTcp }}
+  {{- if .enabled }}
+        - containerPort: {{ .port }}
+    {{- if eq .type "HostPort" }}
+          hostPort: {{ .port }}
+    {{- end }}
+          name: rtc-tcp
+          protocol: TCP
+  {{- end }}
+  {{- end }}
+  {{- with .rtcMuxedUdp }}
+  {{- if .enabled }}
+        - containerPort: {{ .port }}
+    {{- if eq .type "HostPort" }}
+          hostPort: {{ .port }}
+    {{- end }}
+          name: rtc-muxed-udp
+          protocol: TCP
+  {{- end }}
+  {{- end }}
+  {{- with .rtcUdp }}
+  {{- if .enabled }}
+    {{- $portType := .type -}}
+    {{- with .portRange }}
+    {{- /* container.port is metadata. Omit if a large range is provided so that we don't run into document size limits when submitting to the API server */ -}}
+    {{- if le (sub (.endPort | int) (.startPort | int)) 100 }}
+    {{- range $port := untilStep (.startPort | int) (.endPort | int) 1 }}
+        - containerPort: {{ $port }}
+          name: rtc-udp-{{ $port }}
+          protocol: UDP
+      {{ if eq $portType "HostPort" }}
+          hostPort: {{ $port }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+        livenessProbe: {{- include "element-io.ess-library.pods.probe" .livenessProbe | nindent 10 }}
+          httpGet:
+            path: /
+            port: http
+        readinessProbe: {{- include "element-io.ess-library.pods.probe" .readinessProbe | nindent 10 }}
+          httpGet:
+            path: /
+            port: http
+        startupProbe: {{- include "element-io.ess-library.pods.probe" .startupProbe | nindent 10 }}
+          httpGet:
+            path: /
+            port: http
+{{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        volumeMounts:
+        {{- include "element-io.ess-library.render-config-volume-mounts" (dict "root" $ "context"
+              (dict "nameSuffix" "matrix-rtc-sfu"
+                    "outputFile" "sfu-config.yaml")) | nindent 8 }}
+{{- if not (.livekitAuth).keysYaml }}
+        - mountPath: /conf/keys.yaml
+          name: rendered-config
+          subPath: keys.yaml
+{{- end }}
+      volumes:
+      {{- include "element-io.ess-library.render-config-volumes" (dict "root" $ "context"
+              (dict "nameSuffix" "matrix-rtc-sfu" "additionalPath" "matrixRTC.sfu.additional")) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end -}}
+{{- end -}}

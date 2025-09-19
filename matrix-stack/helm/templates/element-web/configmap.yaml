@@ -1,0 +1,18 @@
+{{- /*
+Copyright 2024 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+{{- with .Values.elementWeb -}}
+{{- if .enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "element-io.element-web.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-element-web
+  namespace: {{ $.Release.Namespace }}
+data:
+  {{- include "element-io.element-web.configmap-data" (dict "root" $ "context" .) | nindent 2 -}}
+{{- end -}}
+{{- end -}}

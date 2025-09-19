@@ -1,0 +1,91 @@
+{{- /*
+Copyright 2024-2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with $.Values.matrixRTC -}}
+{{- if .enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+{{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+  labels:
+    {{- include "element-io.matrix-rtc-authorisation-service.labels" (dict "root" $ "context" .) | nindent 4 }}
+    k8s.element.io/matrix-rtc-authorisation-service-secret-hash: {{ include "element-io.matrix-rtc-authorisation-service.secret-data" (dict "root" $ "context" .) | sha1sum }}
+  name: {{ $.Release.Name }}-matrix-rtc-authorisation-service
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{ include "element-io.ess-library.deployments.commonSpec" (dict "root" $ "context" (dict "replicas" .replicas "nameSuffix" "matrix-rtc-authorisation-service")) | nindent 2 }}
+  template:
+    metadata:
+      labels:
+        {{- include "element-io.matrix-rtc-authorisation-service.labels" (dict "root" $ "context" (dict "image" .image "labels" .labels "withChartVersion" false)) | nindent 8 }}
+        k8s.element.io/matrix-rtc-authorisation-service-secret-hash: {{ include "element-io.matrix-rtc-authorisation-service.secret-data" (dict "root" $ "context" .) | sha1sum }}
+{{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+    spec:
+{{- with .hostAliases }}
+      hostAliases:
+        {{- tpl (toYaml . | nindent 8) $ }}
+{{- end }}
+{{- include "element-io.ess-library.pods.commonSpec" (dict "root" $ "context" (dict "componentValues" . "instanceSuffix" "matrix-rtc-authorisation-service" "deployment" true)) | nindent 6 }}
+      containers:
+      - name: matrix-rtc-authorisation-service
+{{- with .image -}}
+{{- if .digest }}
+        image: "{{ .registry }}/{{ .repository }}@{{ .digest }}"
+        imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
+{{- else }}
+        image: "{{ .registry }}/{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .pullPolicy | default "Always" }}
+{{- end }}
+{{- end }}
+{{- with .containersSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        {{- include "element-io.ess-library.pods.env" (dict "root" $ "context" (dict "componentValues" . "componentName" "matrix-rtc-authorisation-service")) | nindent 8 }}
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        livenessProbe: {{- include "element-io.ess-library.pods.probe" .livenessProbe | nindent 10 }}
+          httpGet:
+            path: /healthz
+            port: http
+        readinessProbe: {{- include "element-io.ess-library.pods.probe" .readinessProbe | nindent 10 }}
+          httpGet:
+            path: /healthz
+            port: http
+        startupProbe: {{- include "element-io.ess-library.pods.probe" .startupProbe | nindent 10 }}
+          httpGet:
+            path: /healthz
+            port: http
+{{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        volumeMounts:
+{{- range $secret := include "element-io.matrix-rtc-authorisation-service.configSecrets" (dict "root" $ "context" $.Values.matrixRTC) | fromJsonArray }}
+{{- with (tpl $secret $) }}
+        - mountPath: /secrets/{{ . }}
+          name: "secret-{{ . | sha256sum | trunc 12 }}"
+          readOnly: true
+{{- end }}
+{{- end }}
+      volumes:
+{{- range $secret := include "element-io.matrix-rtc-authorisation-service.configSecrets" (dict "root" $ "context" $.Values.matrixRTC) | fromJsonArray }}
+{{- with (tpl $secret $) }}
+      - secret:
+          secretName: {{ . }}
+        name: "secret-{{ . | sha256sum | trunc 12 }}"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
