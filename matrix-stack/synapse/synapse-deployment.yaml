@@ -1,3 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: synapse-data
+  namespace: matrix
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: longhorn
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,8 +34,11 @@ spec:
         volumeMounts:
           - name: config
             mountPath: /config
-          - mountPath: /data
-            name: synapse-data
+          - name: synapse-data
+            mountPath: /data
+          - name: synapse-secrets
+            mountPath: /run/secrets
+            readOnly: true
         env:
           - name: SYNAPSE_SERVER_NAME
             value: "white.fm"
@@ -49,3 +65,9 @@ spec:
         - name: config
           configMap:
             name: synapse-config
+        - name: synapse-data
+          persistentVolumeClaim:
+            claimName: synapse-data
+        - name: synapse-secrets
+          secret:
+            secretName: synapse-secrets
