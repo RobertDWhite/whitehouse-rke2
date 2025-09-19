@@ -1,0 +1,75 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: init-secrets-minimal.yaml init-secrets-pytest-extras.yaml postgres-minimal.yaml synapse-minimal.yaml synapse-pytest-base-extras.yaml synapse-pytest-self-extras.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+deploymentMarkers:
+  enabled: false
+elementWeb:
+  enabled: false
+haproxy:
+  podSecurityContext:
+    runAsGroup: 0
+  replicas: 2
+initSecrets:
+  annotations:
+    has-no-service-monitor: "true"
+  podSecurityContext:
+    runAsGroup: 0
+matrixAuthenticationService:
+  enabled: false
+matrixRTC:
+  enabled: false
+postgres:
+  podSecurityContext:
+    runAsGroup: 0
+serverName: ess.localhost
+synapse:
+  additional:
+    00-userconfig.yaml:
+      config: |
+        push:
+          jitter_delay: 10
+    01-other-user-config.yaml:
+      configSecret: '{{ $.Release.Name }}-synapse-secrets'
+      configSecretKey: 01-other-user-config.yaml
+  checkConfigHook:
+    annotations:
+      has-no-service-monitor: "true"
+  extraArgs:
+    # Validate that any Synapse config that has a <foo>_path equivalent uses it
+    - --no-secrets-in-config
+  extraEnv:
+    - name: DEBUG_RENDERING
+      value: "1"
+  ingress:
+    host: synapse.{{ $.Values.serverName }}
+    tlsSecret: '{{ $.Release.Name }}-synapse-web-tls'
+  podSecurityContext:
+    runAsGroup: 0
+  redis:
+    annotations:
+      has-no-service-monitor: "true"
+    podSecurityContext:
+      runAsGroup: 0
+  workers:
+    # A non-HTTP worker & a stream writer
+    event-persister:
+      enabled: true
+    # initial-synchrotron & synchrotron have non-trivial routing behaviour
+    initial-synchrotron:
+      enabled: true
+    # Media repo is fairly distinct from other workers
+    media-repository:
+      enabled: true
+    # A standard HTTP worker
+    sliding-sync:
+      enabled: true
+      replicas: 2
+    # initial-synchrotron & synchrotron have non-trivial routing behaviour
+    synchrotron:
+      enabled: true
+wellKnownDelegation:
+  enabled: false

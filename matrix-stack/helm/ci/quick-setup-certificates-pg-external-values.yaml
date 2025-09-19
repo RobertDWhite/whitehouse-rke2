@@ -1,0 +1,44 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: quick-setup-all-enabled.yaml quick-setup-certificates.yaml quick-setup-hostnames.yaml quick-setup-postgresql.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+# deploymentMarkers, initSecrets, postgres don't have any required properties to be set and defaults to enabled
+elementWeb:
+  ingress:
+    host: chat.your.tld
+    tlsSecret: ess-chat-certificate
+matrixAuthenticationService:
+  ingress:
+    host: account.your.tld
+    tlsSecret: ess-auth-certificate
+  postgres:
+    database: your-matrix-auth-service-database-name
+    host: your-db-host.tld
+    password:
+      value: your-matrix-auth-service-user-password
+    port: 5432
+    sslMode: prefer
+    user: your-matrix-auth-service-user
+matrixRTC:
+  ingress:
+    host: mrtc.your.tld
+    tlsSecret: ess-mrtc-certificate
+serverName: your.tld
+synapse:
+  ingress:
+    host: matrix.your.tld
+    tlsSecret: ess-matrix-certificate
+  postgres:
+    database: your-synapse-database-name
+    host: your-db-host.tld
+    password:
+      value: your-synapse-user-password
+    port: 5432
+    sslMode: prefer
+    user: your-synapse-user
+wellKnownDelegation:
+  ingress:
+    tlsSecret: ess-well-known-certificate

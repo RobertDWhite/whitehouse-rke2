@@ -1,0 +1,28 @@
+{{- /*
+Copyright 2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with .Values.postgres -}}
+{{- if (include "element-io.postgres.enabled" (dict "root" $)) }}
+{{- if $.Capabilities.APIVersions.Has "monitoring.coreos.com/v1/ServiceMonitor" }}
+{{- if .serviceMonitors.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    {{- include "element-io.postgres.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-postgres
+  namespace: {{ $.Release.Namespace }}
+spec:
+  endpoints:
+  - interval: 30s
+    port: metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}-postgres
+{{- end }}
+{{- end }}
+{{- end -}}
+{{- end -}}

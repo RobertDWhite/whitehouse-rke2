@@ -1,0 +1,19 @@
+{{- /*
+Copyright 2024 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with .Values.synapse -}}
+{{- if .enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "element-io.synapse.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ include "element-io.synapse.configmap-name" (dict "root" $ "context" (dict "isHook" false)) }}
+  namespace: {{ $.Release.Namespace }}
+data:
+  {{- include "element-io.synapse.configmap-data" (dict "root" $ "context" (dict "isHook" false)) | nindent 2 }}
+{{- end -}}
+{{- end -}}

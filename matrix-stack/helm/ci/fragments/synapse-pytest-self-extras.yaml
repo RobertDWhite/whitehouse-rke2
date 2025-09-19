@@ -1,0 +1,35 @@
+# Copyright 2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
+synapse:
+  additional:
+    00-userconfig.yaml:
+      config: |
+        push:
+          jitter_delay: 10
+    01-other-user-config.yaml:
+      configSecret: "{{ $.Release.Name }}-synapse-secrets"
+      configSecretKey: "01-other-user-config.yaml"
+
+  extraEnv:
+  - name: DEBUG_RENDERING
+    value: "1"
+
+  workers:
+    # A non-HTTP worker & a stream writer
+    event-persister:
+      enabled: true
+    # initial-synchrotron & synchrotron have non-trivial routing behaviour
+    initial-synchrotron:
+      enabled: true
+    # A standard HTTP worker
+    sliding-sync:
+      replicas: 2
+      enabled: true
+    # initial-synchrotron & synchrotron have non-trivial routing behaviour
+    synchrotron:
+      enabled: true
+    # Media repo is fairly distinct from other workers
+    media-repository:
+      enabled: true

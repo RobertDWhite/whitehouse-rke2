@@ -1,0 +1,162 @@
+{{- /*
+Copyright 2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with .Values.matrixAuthenticationService -}}
+{{- if .enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+{{- with .annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+  labels:
+    {{- include "element-io.matrix-authentication-service.labels" (dict "root" $ "context" .) | nindent 4 }}
+    k8s.element.io/matrix-authentication-service-config-hash: {{ include "element-io.matrix-authentication-service.configmap-data" (dict "root" $ "context" .) | sha1sum }}
+    k8s.element.io/matrix-authentication-service-secret-hash: {{ include "element-io.matrix-authentication-service.secret-data" (dict "root" $ "context" .) | sha1sum }}
+    {{ include "element-io.ess-library.postgres-label" (dict "root" $ "context" (dict
+                                                            "essPassword" "matrixAuthenticationService"
+                                                            "postgresProperty" .postgres
+                                                            )
+                                        ) }}
+  name: {{ $.Release.Name }}-matrix-authentication-service
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{ include "element-io.ess-library.deployments.commonSpec" (dict "root" $ "context" (dict "replicas" .replicas "nameSuffix" "matrix-authentication-service")) | nindent 2 }}
+  template:
+    metadata:
+      labels:
+        {{- include "element-io.matrix-authentication-service.labels" (dict "root" $ "context" (dict "image" .image "labels" .labels "withChartVersion" false)) | nindent 8 }}
+        k8s.element.io/matrix-authentication-service-config-hash: "{{ include "element-io.matrix-authentication-service.configmap-data" (dict "root" $ "context" .) | sha1sum }}"
+        k8s.element.io/matrix-authentication-service-secret-hash: "{{ include "element-io.matrix-authentication-service.secret-data" (dict "root" $ "context" .) | sha1sum }}"
+        {{ include "element-io.ess-library.postgres-label" (dict "root" $ "context" (dict
+                                                                "essPassword" "matrixAuthenticationService"
+                                                                "postgresProperty" .postgres
+                                                                )
+                                            ) }}
+{{- with .annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+    spec:
+{{- with .hostAliases }}
+      hostAliases:
+        {{- tpl (toYaml . | nindent 8) $ }}
+{{- end }}
+{{- include "element-io.ess-library.pods.commonSpec" (dict "root" $ "context" (dict "componentValues" . "instanceSuffix" "matrix-authentication-service" "deployment" true "usesMatrixTools" true)) | nindent 6 }}
+      initContainers:
+      {{ include "element-io.matrix-authentication-service.render-config-container" (dict "root" $ "context" (mustMergeOverwrite . (dict "isHook" false))) | nindent 6 }}
+      - name: db-wait
+{{- with $.Values.matrixTools.image -}}
+{{- if .digest }}
+        image: "{{ .registry }}/{{ .repository }}@{{ .digest }}"
+        imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
+{{- else }}
+        image: "{{ .registry }}/{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .pullPolicy | default "Always" }}
+{{- end }}
+{{- end }}
+{{- with .containersSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        command:
+        - "/matrix-tools"
+        - tcpwait
+        - -address
+        - {{ include "element-io.ess-library.postgres-host-port" (dict "root" $ "context" (dict "postgres" .postgres)) | quote }}
+{{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+      - name: database-migrate
+        args: ["database", "migrate"]
+{{- with .image -}}
+{{- if .digest }}
+        image: "{{ .registry }}/{{ .repository }}@{{ .digest }}"
+        imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
+{{- else }}
+        image: "{{ .registry }}/{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .pullPolicy | default "Always" }}
+{{- end }}
+{{- end }}
+{{- with .containersSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        {{- include "element-io.ess-library.pods.env" (dict "root" $ "context" (dict "componentValues" . "componentName" "matrix-authentication-service")) | nindent 8 }}
+{{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        volumeMounts:
+        {{- include "element-io.ess-library.render-config-volume-mounts" (dict "root" $ "context"
+            (dict "nameSuffix" "matrix-authentication-service"
+                  "outputFile" "mas-config.yaml"
+                  "isHook" false)) | nindent 8 }}
+      containers:
+      - name: matrix-authentication-service
+        args:
+        - server
+        - --no-migrate
+{{/* When in syn2mas dryRun mode, migration has not run yet
+We don't want background jobs to get failed use up their retries because MAS hasn't been set up yet
+*/}}
+{{ if and .syn2mas.enabled .syn2mas.dryRun }}
+        - --no-worker
+{{- end }}
+{{- with .image -}}
+{{- if .digest }}
+        image: "{{ .registry }}/{{ .repository }}@{{ .digest }}"
+        imagePullPolicy: {{ .pullPolicy | default "IfNotPresent" }}
+{{- else }}
+        image: "{{ .registry }}/{{ .repository }}:{{ .tag }}"
+        imagePullPolicy: {{ .pullPolicy | default "Always" }}
+{{- end }}
+{{- end }}
+{{- with .containersSecurityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        {{- include "element-io.ess-library.pods.env" (dict "root" $ "context" (dict "componentValues" . "componentName" "matrix-authentication-service")) | nindent 8 }}
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+          name: http
+        - containerPort: 8081
+          protocol: TCP
+          name: internal
+{{- with .resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+{{- end }}
+        startupProbe: {{- include "element-io.ess-library.pods.probe" .startupProbe | nindent 10 }}
+          httpGet:
+            path: /health
+            port: internal
+            scheme: HTTP
+        livenessProbe: {{- include "element-io.ess-library.pods.probe" .livenessProbe | nindent 10 }}
+          httpGet:
+            path: /health
+            port: internal
+            scheme: HTTP
+        readinessProbe: {{- include "element-io.ess-library.pods.probe" .readinessProbe | nindent 10 }}
+          httpGet:
+            path: /health
+            port: internal
+            scheme: HTTP
+        volumeMounts:
+        {{- include "element-io.ess-library.render-config-volume-mounts" (dict "root" $ "context"
+            (dict "nameSuffix" "matrix-authentication-service"
+                  "outputFile" "mas-config.yaml"
+                  "isHook" false)) | nindent 8 }}
+      volumes:
+      {{- include "element-io.ess-library.render-config-volumes" (dict "root" $ "context"
+            (dict "additionalPath" "matrixAuthenticationService.additional"
+                  "nameSuffix" "matrix-authentication-service"
+                  "isHook" false)) | nindent 6 }}
+{{- end -}}
+{{- end -}}

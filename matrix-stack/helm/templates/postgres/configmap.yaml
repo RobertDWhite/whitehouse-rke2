@@ -1,0 +1,19 @@
+{{- /*
+Copyright 2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with $.Values.postgres }}
+{{- if (include "element-io.postgres.enabled" (dict "root" $)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    {{- include "element-io.postgres.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-postgres
+  namespace: {{ $.Release.Namespace }}
+data:
+  {{- include "element-io.postgres.configmap-data" (dict "root" $ "context" .) | nindent 2 }}
+{{- end -}}
+{{- end -}}

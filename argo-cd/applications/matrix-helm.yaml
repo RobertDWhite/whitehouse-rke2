@@ -6,18 +6,17 @@ metadata:
 spec:
   project: default
   sources:
-    - repoURL: ghcr.io
-      chart: element-hq/ess-helm/matrix-stack
-      targetRevision: 25.9.1
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      path: matrix-stack/overlay 
+      ref: values    
+
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      path: matrix-stack/helm
       helm:
         valueFiles:
-          - values.yaml
-
-#    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-#      targetRevision: main
-#      path: matrix-stack/helm
-#      ref: values
-
+          - values.yaml 
   destination:
     server: https://kubernetes.default.svc
     namespace: matrix
@@ -25,3 +24,4 @@ spec:
     automated:
       prune: true
       selfHeal: true
+

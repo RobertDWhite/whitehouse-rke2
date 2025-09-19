@@ -1,0 +1,30 @@
+{{- /*
+Copyright 2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with $.Values.postgres -}}
+{{- if (include "element-io.postgres.enabled" (dict "root" $)) }}
+{{- if not .storage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: {{ .storage.resourcePolicy }}
+  labels:
+    {{- include "element-io.postgres.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-postgres-data
+  namespace: {{ $.Release.Namespace }}
+spec:
+{{- with .storage.storageClassName }}
+  storageClassName: {{ . }}
+{{- end }}
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .storage.size }}
+{{- end }}
+{{- end -}}
+{{- end -}}
