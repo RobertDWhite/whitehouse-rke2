@@ -10,10 +10,8 @@ spec:
       chart: element-hq/ess-helm/matrix-stack
       targetRevision: 25.9.1
       helm:
-        valuesFrom:
-          - kind: Secret
-            name: matrix-secrets
-            valuesKey: values.sops.yaml
+        valueFiles:
+          - values/values.yaml
 
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
