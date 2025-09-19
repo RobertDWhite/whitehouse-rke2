@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: synapse
+  template:
+    metadata:
+      labels:
+        app: synapse
+    spec:
+      containers:
+      - name: synapse
+        image: matrixdotorg/synapse:latest
+        ports:
+          - containerPort: 8008
+        volumeMounts:
+          - name: config
+            mountPath: /config
+          - mountPath: /data
+            name: synapse-data
+        env:
+          - name: SYNAPSE_SERVER_NAME
+            value: "white.fm"
+          - name: SYNAPSE_REPORT_STATS
+            value: "no"
+          - name: POSTGRES_HOST
+            value: matrix-postgresql
+          - name: POSTGRES_DB
+            valueFrom:
+              secretKeyRef:
+                name: matrix-postgresql-secret
+                key: POSTGRES_DB
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: matrix-postgresql-secret
+                key: POSTGRES_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: matrix-postgresql-secret
+                key: POSTGRES_PASSWORD
+      volumes:
+        - name: config
+          configMap:
+            name: synapse-config
