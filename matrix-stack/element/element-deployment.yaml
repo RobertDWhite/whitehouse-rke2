@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: element-web
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: element-web
+  template:
+    metadata:
+      labels:
+        app: element-web
+    spec:
+      containers:
+      - name: element-web
+        image: vectorim/element-web:latest
+        volumeMounts:
+          - mountPath: /app/config.json
+            subPath: config.json
+            name: config
+      volumes:
+        - name: config
+          configMap:
+            name: element-web-config
