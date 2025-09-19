@@ -1,0 +1,30 @@
+{{- /*
+Copyright 2024 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with .Values.synapse -}}
+{{- if .enabled -}}
+{{- if not .media.storage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: {{ .media.storage.resourcePolicy }}
+  labels:
+    {{- include "element-io.synapse.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-synapse-media
+  namespace: {{ $.Release.Namespace }}
+spec:
+{{- with .media.storage.storageClassName }}
+  storageClassName: {{ . }}
+{{- end }}
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .media.storage.size }}
+{{- end }}
+{{- end -}}
+{{- end -}}

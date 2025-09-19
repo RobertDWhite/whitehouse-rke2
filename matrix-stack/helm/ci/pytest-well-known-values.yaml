@@ -1,0 +1,32 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: well-known-minimal.yaml well-known-pytest-extras.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+# initSecrets, postgres don't have any required properties to be set and defaults to enabled
+deploymentMarkers:
+  enabled: false
+elementWeb:
+  enabled: false
+global:
+  baseDomain: ess.localhost
+haproxy:
+  podSecurityContext:
+    runAsGroup: 0
+ingress:
+  controllerType: ingress-nginx
+matrixAuthenticationService:
+  enabled: false
+matrixRTC:
+  enabled: false
+# To check that templating works against the ingress
+serverName: '{{ $.Values.global.baseDomain }}'
+synapse:
+  enabled: false
+wellKnownDelegation:
+  baseDomainRedirect:
+    url: https://redirect.localhost/path
+  ingress:
+    tlsSecret: '{{ $.Release.Name }}-well-known-web-tls'

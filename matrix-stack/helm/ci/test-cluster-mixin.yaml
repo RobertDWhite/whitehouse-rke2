@@ -1,0 +1,26 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+
+# This value file is not complete on its own.
+# It is a mixin to be used with other values file to enable
+# usage of the test cluster
+
+certManager:
+  clusterIssuer: ess-selfsigned
+
+ingress:
+  controllerType: ingress-nginx
+
+matrixRTC:
+  # Because the authoriser service won't trust certificates issued by the above self-signed CA
+  extraEnv:
+  - name: LIVEKIT_INSECURE_SKIP_VERIFY_TLS
+    value: YES_I_KNOW_WHAT_I_AM_DOING
+  # Because the authoriser service does well-known, Matrix userinfo and self API calls via the frontdoor
+  hostAliases:
+  - hostnames:
+    - ess.localhost
+    - mrtc.ess.localhost
+    - synapse.ess.localhost
+    ip: '{{ ( (lookup "v1" "Service" "ingress-nginx" "ingress-nginx-controller") | default (dict "spec" (dict "clusterIP" "127.0.0.1")) ).spec.clusterIP }}'

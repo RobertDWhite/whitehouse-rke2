@@ -1,0 +1,77 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: deployment-markers-minimal.yaml deployment-markers-pytest-extras.yaml init-secrets-minimal.yaml init-secrets-pytest-extras.yaml matrix-authentication-service-migrated-password-scheme.yaml matrix-authentication-service-pytest-extras.yaml matrix-authentication-service-syn2mas-dryrun.yaml postgres-minimal.yaml synapse-minimal.yaml synapse-pytest-base-extras.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+deploymentMarkers:
+  annotations:
+    has-no-service-monitor: "true"
+  podSecurityContext:
+    runAsGroup: 0
+elementWeb:
+  enabled: false
+haproxy:
+  podSecurityContext:
+    runAsGroup: 0
+  replicas: 2
+initSecrets:
+  annotations:
+    has-no-service-monitor: "true"
+  podSecurityContext:
+    runAsGroup: 0
+matrixAuthenticationService:
+  additional:
+    000-pytest-admin:
+      configSecret: '{{ $.Release.Name }}-pytest-admin'
+      configSecretKey: admin.yaml
+    password-scheme.yml:
+      config: |
+        passwords:
+          schemes:
+            - version: 1
+              algorithm: bcrypt
+            - version: 2
+              algorithm: argon2id
+  enabled: false
+  extraEnv:
+    - name: DEBUG_RENDERING
+      value: "1"
+  ingress:
+    host: mas.{{ $.Values.serverName }}
+    tlsSecret: '{{ $.Release.Name }}-mas-web-tls'
+  podSecurityContext:
+    runAsGroup: 0
+  replicas: 2
+  syn2mas:
+    dryRun: true
+    enabled: true
+    extraEnv:
+      - name: DEBUG_RENDERING
+        value: "1"
+matrixRTC:
+  enabled: false
+postgres:
+  podSecurityContext:
+    runAsGroup: 0
+serverName: ess.localhost
+synapse:
+  checkConfigHook:
+    annotations:
+      has-no-service-monitor: "true"
+  extraArgs:
+    # Validate that any Synapse config that has a <foo>_path equivalent uses it
+    - --no-secrets-in-config
+  ingress:
+    host: synapse.{{ $.Values.serverName }}
+    tlsSecret: '{{ $.Release.Name }}-synapse-web-tls'
+  podSecurityContext:
+    runAsGroup: 0
+  redis:
+    annotations:
+      has-no-service-monitor: "true"
+    podSecurityContext:
+      runAsGroup: 0
+wellKnownDelegation:
+  enabled: false

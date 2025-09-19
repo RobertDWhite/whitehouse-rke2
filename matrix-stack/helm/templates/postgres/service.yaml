@@ -1,0 +1,27 @@
+{{- /*
+Copyright 2025 New Vector Ltd
+
+SPDX-License-Identifier: AGPL-3.0-only
+*/ -}}
+
+{{- with $.Values.postgres -}}
+{{- if (include "element-io.postgres.enabled" (dict "root" $)) }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    {{- include "element-io.postgres.labels" (dict "root" $ "context" .) | nindent 4 }}
+  name: {{ $.Release.Name }}-postgres
+  namespace: {{ $.Release.Namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - port: 5432
+    name: postgres
+  - port: 9187
+    name: metrics
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}-postgres
+{{- end -}}
+{{- end -}}

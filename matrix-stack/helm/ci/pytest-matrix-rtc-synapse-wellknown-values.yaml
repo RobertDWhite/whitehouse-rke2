@@ -1,0 +1,71 @@
+# Copyright 2024-2025 New Vector Ltd
+#
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# source_fragments: init-secrets-minimal.yaml init-secrets-pytest-extras.yaml matrix-rtc-minimal.yaml matrix-rtc-pytest-extras.yaml postgres-minimal.yaml synapse-minimal.yaml synapse-pytest-base-extras.yaml well-known-minimal.yaml well-known-pytest-extras.yaml
+# DO NOT EDIT DIRECTLY. Edit the fragment files to add / modify / remove values
+
+deploymentMarkers:
+  enabled: false
+elementWeb:
+  enabled: false
+global:
+  baseDomain: ess.localhost
+haproxy:
+  podSecurityContext:
+    runAsGroup: 0
+  replicas: 2
+ingress:
+  controllerType: ingress-nginx
+initSecrets:
+  annotations:
+    has-no-service-monitor: "true"
+  podSecurityContext:
+    runAsGroup: 0
+matrixAuthenticationService:
+  enabled: false
+matrixRTC:
+  annotations:
+    has-no-service-monitor: "true"
+  extraEnv:
+    - name: LIVEKIT_INSECURE_SKIP_VERIFY_TLS
+      value: YES_I_KNOW_WHAT_I_AM_DOING
+  ingress:
+    host: mrtc.{{ $.Values.serverName }}
+    tlsSecret: '{{ $.Release.Name }}-matrix-rtc-tls'
+  podSecurityContext:
+    runAsGroup: 0
+  replicas: 2
+  sfu:
+    extraEnv:
+      - name: DEBUG_RENDERING
+        value: "1"
+    podSecurityContext:
+      runAsGroup: 0
+postgres:
+  podSecurityContext:
+    runAsGroup: 0
+# To check that templating works against the ingress
+serverName: '{{ $.Values.global.baseDomain }}'
+synapse:
+  checkConfigHook:
+    annotations:
+      has-no-service-monitor: "true"
+  extraArgs:
+    # Validate that any Synapse config that has a <foo>_path equivalent uses it
+    - --no-secrets-in-config
+  ingress:
+    host: synapse.{{ $.Values.serverName }}
+    tlsSecret: '{{ $.Release.Name }}-synapse-web-tls'
+  podSecurityContext:
+    runAsGroup: 0
+  redis:
+    annotations:
+      has-no-service-monitor: "true"
+    podSecurityContext:
+      runAsGroup: 0
+wellKnownDelegation:
+  baseDomainRedirect:
+    url: https://redirect.localhost/path
+  ingress:
+    tlsSecret: '{{ $.Release.Name }}-well-known-web-tls'
