@@ -29,6 +29,9 @@ spec:
           - name: synapse-secrets
             mountPath: /run/secrets
             readOnly: true
+          - name: config
+            mountPath: /data/homeserver.yaml
+            subPath: homeserver.yaml
         env:
           - name: SYNAPSE_SERVER_NAME
             value: "white.fm"
