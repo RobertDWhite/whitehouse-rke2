@@ -17,16 +17,20 @@ spec:
       - name: element-web
         image: vectorim/element-web:latest
         env:
-          - name: NGINX_LISTEN
-            value: "0.0.0.0:80"
           - name: NGINX_ENTRYPOINT_QUIET_LOGS
             value: "true"
         volumeMounts:
           - mountPath: /app/config.json
             subPath: config.json
             name: config
+          - mountPath: /etc/nginx/templates/default.conf.template
+            subPath: default.conf.template
+            name: nginx-template
       volumes:
         - name: config
           configMap:
             name: element-web-config
+        - name: nginx-template
+          configMap:
+            name: element-nginx-template
 
