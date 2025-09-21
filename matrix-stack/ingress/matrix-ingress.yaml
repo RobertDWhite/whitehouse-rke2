@@ -12,7 +12,8 @@ spec:
   tls:
     - hosts:
         - matrix.white.fm
-      secretName: matrix-white-fm-tls
+        - synapse.white.fm
+      secretName: matrix-synapse-tls
   rules:
     - host: matrix.white.fm
       http:
@@ -21,6 +22,16 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: matrix-ess-synapse
+                name: matrix-synapse
+                port:
+                  number: 8008
+    - host: synapse.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: matrix-synapse
                 port:
                   number: 8008
