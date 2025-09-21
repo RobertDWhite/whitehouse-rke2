@@ -14,6 +14,10 @@ spec:
         app: synapse
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 991
+        runAsGroup: 991
+        fsGroup: 991
       containers:
       - name: synapse
         image: matrixdotorg/synapse:latest
