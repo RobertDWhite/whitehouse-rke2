@@ -18,56 +18,90 @@ spec:
         runAsUser: 991
         runAsGroup: 991
         fsGroup: 991
-      containers:
-      - name: synapse
-        image: matrixdotorg/synapse:latest
-        securityContext:
-          readOnlyRootFilesystem: false
-        command: ["python"]
-        args:
-          - "-m"
-          - "synapse.app.homeserver"
-          - "--config-path"
-          - "/config/homeserver.yaml"
-        ports:
-          - containerPort: 8008
-        volumeMounts:
-          - name: config
-            mountPath: /config
-          - name: synapse-data
-            mountPath: /data
-          - name: synapse-secrets
-            mountPath: /run/secrets
-            readOnly: true
-        env:
-          - name: SYNAPSE_SERVER_NAME
-            value: "white.fm"
-          - name: SYNAPSE_REPORT_STATS
-            value: "no"
-          - name: POSTGRES_HOST
-            value: matrix-postgresql
-          - name: POSTGRES_DB
-            valueFrom:
-              secretKeyRef:
-                name: matrix-postgresql-secret
-                key: POSTGRES_DB
-          - name: POSTGRES_USER
-            valueFrom:
-              secretKeyRef:
-                name: matrix-postgresql-secret
-                key: POSTGRES_USER
-          - name: POSTGRES_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: matrix-postgresql-secret
-                key: POSTGRES_PASSWORD
       volumes:
-        - name: config
+        - name: config-raw
           configMap:
             name: synapse-config
+        - name: config-rendered
+          emptyDir: {}
         - name: synapse-data
           persistentVolumeClaim:
             claimName: synapse-data
         - name: synapse-secrets
           secret:
             secretName: synapse-secrets
+      initContainers:
+        - name: render-config
+          image: bitnami/kubectl:latest   # or any image with sh + envsubst
+          command:
+            - sh
+            - -c
+            - |
+              echo "Rendering homeserver.yaml with envsubst..."
+              envsubst < /config/homeserver.yaml > /rendered/homeserver.yaml
+          env:
+            - name: POSTGRES_HOST
+              value: matrix-postgresql
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: config-raw
+              mountPath: /config
+            - name: config-rendered
+              mountPath: /rendered
+      containers:
+        - name: synapse
+          image: matrixdotorg/synapse:latest
+          securityContext:
+            readOnlyRootFilesystem: false
+          command: ["python"]
+          args:
+            - "-m"
+            - "synapse.app.homeserver"
+            - "--config-path"
+            - "/config-rendered/homeserver.yaml"
+          ports:
+            - containerPort: 8008
+          env:
+            - name: SYNAPSE_SERVER_NAME
+              value: "white.fm"
+            - name: SYNAPSE_REPORT_STATS
+              value: "no"
+            - name: POSTGRES_HOST
+              value: matrix-postgresql
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: config-rendered
+              mountPath: /config-rendered
+            - name: synapse-data
+              mountPath: /data
+            - name: synapse-secrets
+              mountPath: /secrets
+              readOnly: true
