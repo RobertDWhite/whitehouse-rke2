@@ -9,6 +9,8 @@ data:
     public_baseurl: "https://matrix.white.fm/"
     web_client_location: "https://element.white.fm/"
     report_stats: false
+    trusted_key_servers:
+      - server_name: "matrix.org"
     presence:
       require_auth_for_profile_requests: true
       limit_profile_requests_to_users_who_share_rooms: true
@@ -26,6 +28,15 @@ data:
     registration_shared_secret: "/secrets/registration_shared_secret"
     macaroon_secret_key: "/secrets/macaroon_secret_key"
     form_secret: "/secrets/form_secret"
+    database:
+      name: psycopg2
+      args:
+        user: "${POSTGRES_USER}"
+        password: "${POSTGRES_PASSWORD}"
+        database: "${POSTGRES_DB}"
+        host: "${POSTGRES_HOST}"
+        cp_min: 5
+        cp_max: 10
     oidc_providers:
       - idp_id: microsoft
         idp_name: Microsoft
