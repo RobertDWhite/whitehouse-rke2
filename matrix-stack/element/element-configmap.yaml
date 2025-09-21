@@ -13,3 +13,14 @@ data:
         }
       }
     }
+  default.conf.template: |
+    server {
+      listen       80;
+      server_name  _;
+      root   /app;
+      index  index.html;
+
+      location / {
+        try_files $uri /index.html;
+      }
+    }
