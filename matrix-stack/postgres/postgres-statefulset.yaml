@@ -25,6 +25,15 @@ spec:
         env:
           - name: PGDATA
             value: /var/lib/postgresql/data/pgdata
+          # Force locale and encoding on init
+          - name: LANG
+            value: C.UTF-8
+          - name: LC_COLLATE
+            value: C
+          - name: LC_CTYPE
+            value: C
+          - name: POSTGRES_INITDB_ARGS
+            value: "--locale=C --encoding=UTF8"
         volumeMounts:
           - mountPath: /var/lib/postgresql/data
             name: data
