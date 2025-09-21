@@ -8,11 +8,6 @@ metadata:
     cert-manager.io/cluster-issuer: "letsencrypt-dns"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - element.white.fm
-      secretName: element-white-fm-tls
   rules:
     - host: element.white.fm
       http:
@@ -21,6 +16,10 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: matrix-ess-element-web
+                name: element-web
                 port:
                   number: 80
+  tls:
+    - hosts:
+        - element.white.fm
+      secretName: element-web-tls
