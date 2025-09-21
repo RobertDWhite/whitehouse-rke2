@@ -19,7 +19,18 @@ spec:
                 name: element-web
                 port:
                   number: 80
+    - host: messaging.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: element-web
+                port:
+                  number: 80
   tls:
     - hosts:
         - element.white.fm
+        - messaging.white.fm
       secretName: element-web-tls
