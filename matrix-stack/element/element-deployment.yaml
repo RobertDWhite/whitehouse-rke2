@@ -16,6 +16,11 @@ spec:
       containers:
       - name: element-web
         image: vectorim/element-web:latest
+        env:
+          - name: NGINX_PORT
+            value: "80"
+          - name: NGINX_ENTRYPOINT_QUIET_LOGS
+            value: "true"
         volumeMounts:
           - mountPath: /app/config.json
             subPath: config.json
