@@ -17,8 +17,8 @@ spec:
       - name: element-web
         image: vectorim/element-web:latest
         env:
-          - name: NGINX_PORT
-            value: "80"
+          - name: NGINX_LISTEN
+            value: "0.0.0.0:80"
           - name: NGINX_ENTRYPOINT_QUIET_LOGS
             value: "true"
         volumeMounts:
@@ -29,3 +29,4 @@ spec:
         - name: config
           configMap:
             name: element-web-config
+
