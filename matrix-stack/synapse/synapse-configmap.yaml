@@ -31,12 +31,13 @@ data:
     database:
       name: psycopg2
       args:
-        user: !env_var POSTGRES_USER
-        password: !env_var POSTGRES_PASSWORD
-        database: !env_var POSTGRES_DB
-        host: !env_var POSTGRES_HOST
+        user: "${POSTGRES_USER}"
+        password: "${POSTGRES_PASSWORD}"
+        database: "${POSTGRES_DB}"
+        host: "${POSTGRES_HOST}"
         cp_min: 5
         cp_max: 10
+
 
     oidc_providers:
       - idp_id: microsoft
