@@ -12,9 +12,20 @@ spec:
   tls:
     - hosts:
         - white.fm
+        - federation.white.fm
       secretName: white-fm-tls
   rules:
     - host: white.fm
+      http:
+        paths:
+          - path: /.well-known/matrix(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: matrix-well-known
+                port:
+                  number: 80
+    - host: federation.white.fm
       http:
         paths:
           - path: /.well-known/matrix(/|$)(.*)
