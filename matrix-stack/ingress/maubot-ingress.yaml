@@ -4,7 +4,6 @@ metadata:
   name: maubot
   namespace: matrix
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /_matrix/maubot/$2
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     cert-manager.io/cluster-issuer: "letsencrypt-dns"
@@ -18,11 +17,10 @@ spec:
     - host: maubot.white.fm
       http:
         paths:
-          - path: /(.*)
-            pathType: ImplementationSpecific
+          - path: /_matrix/maubot
+            pathType: Prefix
             backend:
               service:
                 name: maubot
                 port:
                   name: http
-
