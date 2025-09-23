@@ -1,24 +1,44 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+
+  # Element
   - element/element-configmap.yaml
   - element/element-deployment.yaml
   - element/element-service.yaml
+
+  # Ingress
   - ingress/element-ingress.yaml
   - ingress/matrix-ingress.yaml
+  - ingress/maubot-ingress.yaml
   - ingress/ns.yaml
+
+  # Maubot
+  - maubot/maubot-configmap.yaml
+  - maubot/maubot-deployment.yaml
+  - maubot/maubot-service.yaml
+
+  # Postgres
   - postgres/postgres-pvc.yaml
   - postgres/postgres-service.yaml
   - postgres/postgres-statefulset.yaml
+
+  # Projects - Postfix
   - projects/postfix/postfix-service.yaml
   - projects/postfix/postfix.yaml
+
+  # Redis
   - redis/redis-pvc.yaml
   - redis/redis-service.yaml
   - redis/redis-statefulset.yaml
+
+  # Synapse
   - synapse/synapse-configmap.yaml
   - synapse/synapse-deployment.yaml
   - synapse/synapse-pvc.yaml
   - synapse/synapse-service.yaml
+
+  # Well-known
   - well-known/configmap.yaml
   - well-known/deployment.yaml
   - well-known/ingress.yaml
