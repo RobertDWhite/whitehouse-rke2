@@ -19,9 +19,8 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              if [ ! -f /data/config.yaml ]; then
-                cp /config/config.yaml /data/config.yaml
-              fi
+              echo "Overwriting /data/config.yaml with Secret version..."
+              cp /config/config.yaml /data/config.yaml
           volumeMounts:
             - name: config
               mountPath: /config
@@ -32,12 +31,6 @@ spec:
           image: dock.mau.dev/maubot/maubot:latest
           ports:
             - containerPort: 29316
-          env:
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: maubot-secret
-                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: maubot-data
               mountPath: /data
