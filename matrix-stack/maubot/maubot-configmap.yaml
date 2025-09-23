@@ -6,7 +6,24 @@ metadata:
 data:
   config.yaml: |
     homeserver: "https://matrix.white.fm"
-    base_url: "https://maubot.white.fm"
-    listen_port: 29316
+
+    server:
+      listen: 0.0.0.0:29316
+      base_url: "https://maubot.white.fm"
+      public_url: "https://maubot.white.fm"
+      ui: true   # enable admin UI
+
     database: "postgresql://maubot:${POSTGRES_PASSWORD}@matrix-postgresql:5432/maubot"
-    log_level: INFO
+    
+    logging:
+      version: 1
+      formatters:
+        default:
+          format: "[%(asctime)s] [%(levelname)s@%(name)s] %(message)s"
+      handlers:
+        console:
+          class: logging.StreamHandler
+          formatter: default
+      root:
+        level: INFO
+        handlers: [console]
