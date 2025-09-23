@@ -18,17 +18,22 @@ spec:
           image: dock.mau.dev/maubot/maubot:latest
           ports:
             - containerPort: 29316
-          volumeMounts:
-            - name: config
-              mountPath: /data/config.yaml
-              subPath: config.yaml
           env:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: maubot-secret
                   key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: maubot-data
+              mountPath: /data
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
       volumes:
         - name: config
           configMap:
             name: maubot-config
+        - name: maubot-data
+          persistentVolumeClaim:
+            claimName: maubot-data
