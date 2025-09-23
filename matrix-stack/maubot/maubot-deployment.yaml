@@ -19,8 +19,11 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Overwriting /data/config.yaml with Secret version..."
-              cp /config/config.yaml /data/config.yaml
+              set -eu
+              echo "Overwriting /data/config.yaml from Secret..."
+              ls -l /config || true
+              cat /config/config.yaml >/data/config.yaml
+              echo "Resulting database line:"; grep '^database:' /data/config.yaml || true
           volumeMounts:
             - name: config
               mountPath: /config
