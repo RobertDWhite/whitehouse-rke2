@@ -5,8 +5,8 @@ metadata:
   namespace: matrix
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    cert-manager.io/cluster-issuer: "letsencrypt-dns"
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: "letsencrypt-dns"
 spec:
   ingressClassName: nginx
   tls:
@@ -23,4 +23,5 @@ spec:
               service:
                 name: maubot
                 port:
-                  number: 29316
+                  name: http
+
