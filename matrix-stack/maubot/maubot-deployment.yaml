@@ -43,8 +43,8 @@ spec:
               mountPath: /data
       volumes:
         - name: config
-          configMap:
-            name: maubot-config
+          secret:
+            secretName: maubot-config
         - name: maubot-data
           persistentVolumeClaim:
             claimName: maubot-data
