@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maubot
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: maubot
+  template:
+    metadata:
+      labels:
+        app: maubot
+    spec:
+      containers:
+        - name: maubot
+          image: dock.mau.dev/maubot/maubot:latest
+          ports:
+            - containerPort: 29316
+          volumeMounts:
+            - name: config
+              mountPath: /data/config.yaml
+              subPath: config.yaml
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maubot-secret
+                  key: POSTGRES_PASSWORD
+      volumes:
+        - name: config
+          configMap:
+            name: maubot-config

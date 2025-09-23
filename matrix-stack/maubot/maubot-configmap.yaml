@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maubot-config
+  namespace: matrix
+data:
+  config.yaml: |
+    homeserver: "https://matrix.white.fm"
+    base_url: "https://maubot.white.fm"
+    listen_port: 29316
+    database: "postgresql://maubot:${POSTGRES_PASSWORD}@matrix-postgresql:5432/maubot"
+    log_level: INFO
