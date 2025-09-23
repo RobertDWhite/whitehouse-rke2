@@ -13,6 +13,20 @@ spec:
       labels:
         app: maubot
     spec:
+      initContainers:
+        - name: copy-config
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ ! -f /data/config.yaml ]; then
+                cp /config/config.yaml /data/config.yaml
+              fi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: maubot-data
+              mountPath: /data
       containers:
         - name: maubot
           image: dock.mau.dev/maubot/maubot:latest
@@ -27,9 +41,6 @@ spec:
           volumeMounts:
             - name: maubot-data
               mountPath: /data
-            - name: config
-              mountPath: /data/config.yaml
-              subPath: config.yaml
       volumes:
         - name: config
           configMap:
