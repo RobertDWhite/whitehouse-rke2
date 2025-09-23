@@ -6,6 +6,9 @@ creation_rules:
     encrypted_regex: '.*'
     age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
 
+  - path_regex: matrix-stack/maubot/maubot-config-secret.sops.yaml$
+    encrypted_regex: 'postgresql://maubot:(.*)@'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
 
   - path_regex: '.*\.env$'
     encrypted_regex: '^(.*)$'
@@ -13,6 +16,7 @@ creation_rules:
     key_groups:
       - age:
           - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
   - path_regex: homepage/deployment\.sops\.yaml$
     encrypted_regex: '^(spec)$'
     age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
