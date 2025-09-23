@@ -19,11 +19,9 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -eu
-              echo "Overwriting /data/config.yaml from Secret..."
-              ls -l /config || true
-              cat /config/config.yaml >/data/config.yaml
-              echo "Resulting database line:"; grep '^database:' /data/config.yaml || true
+              if [ ! -f /data/config.yaml ]; then
+                cp /config/config.yaml /data/config.yaml
+              fi
           volumeMounts:
             - name: config
               mountPath: /config
@@ -34,13 +32,19 @@ spec:
           image: dock.mau.dev/maubot/maubot:latest
           ports:
             - containerPort: 29316
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maubot-secret
+                  key: POSTGRES_PASSWORD
           volumeMounts:
             - name: maubot-data
               mountPath: /data
       volumes:
         - name: config
-          secret:
-            secretName: maubot-config
+          configMap:
+            name: maubot-config
         - name: maubot-data
           persistentVolumeClaim:
             claimName: maubot-data
