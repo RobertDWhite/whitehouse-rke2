@@ -4,8 +4,10 @@ metadata:
   name: maubot
   namespace: matrix
 spec:
-  ports:
-    - port: 29316
-      targetPort: 29316
   selector:
     app: maubot
+  ports:
+    - name: http
+      port: 29316
+      targetPort: 29316
+      protocol: TCP
