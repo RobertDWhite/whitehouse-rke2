@@ -3,7 +3,6 @@ kind: Deployment
 metadata:
   name: postfix
   namespace: matrix
-
 spec:
   replicas: 1
   selector:
@@ -14,6 +13,13 @@ spec:
       labels:
         app: postfix
     spec:
+      initContainers:
+        - name: postmap
+          image: juanluisbaptiste/postfix:alpine
+          command: ["sh", "-c", "postmap /etc/postfix/sasl_passwd"]
+          volumeMounts:
+            - name: sasl-passwd
+              mountPath: /etc/postfix/
       containers:
         - name: postfix
           image: juanluisbaptiste/postfix:alpine
@@ -22,4 +28,11 @@ spec:
           envFrom:
             - secretRef:
                 name: postfix-smtp-secret
-
+          volumeMounts:
+            - name: sasl-passwd
+              mountPath: /etc/postfix/
+              readOnly: true
+      volumes:
+        - name: sasl-passwd
+          secret:
+            secretName: postfix-sasl
