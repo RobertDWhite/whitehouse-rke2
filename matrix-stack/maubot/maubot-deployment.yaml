@@ -19,9 +19,8 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              if [ ! -f /data/config.yaml ]; then
-                cp /opt/maubot/config.yaml /data/config.yaml
-              fi
+              # Always overwrite PVC config with latest ConfigMap
+              cp /opt/maubot/config.yaml /data/config.yaml
           volumeMounts:
             - name: config
               mountPath: /opt/maubot/config.yaml
@@ -40,11 +39,11 @@ spec:
                   name: maubot-secret
                   key: POSTGRES_PASSWORD
           volumeMounts:
+            - name: maubot-data
+              mountPath: /data
             - name: config
               mountPath: /opt/maubot/config.yaml
               subPath: config.yaml
-            - name: maubot-data
-              mountPath: /data
       volumes:
         - name: config
           configMap:
@@ -52,4 +51,3 @@ spec:
         - name: maubot-data
           persistentVolumeClaim:
             claimName: maubot-data
-
