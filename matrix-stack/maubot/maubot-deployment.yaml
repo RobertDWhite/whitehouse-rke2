@@ -20,11 +20,12 @@ spec:
           args:
             - |
               if [ ! -f /data/config.yaml ]; then
-                cp /config/config.yaml /data/config.yaml
+                cp /opt/maubot/config.yaml /data/config.yaml
               fi
           volumeMounts:
             - name: config
-              mountPath: /config
+              mountPath: /opt/maubot/config.yaml
+              subPath: config.yaml
             - name: maubot-data
               mountPath: /data
       containers:
@@ -40,7 +41,8 @@ spec:
                   key: POSTGRES_PASSWORD
           volumeMounts:
             - name: config
-              mountPath: /config
+              mountPath: /opt/maubot/config.yaml
+              subPath: config.yaml
             - name: maubot-data
               mountPath: /data
       volumes:
@@ -50,3 +52,4 @@ spec:
         - name: maubot-data
           persistentVolumeClaim:
             claimName: maubot-data
+
