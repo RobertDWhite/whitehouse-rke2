@@ -16,11 +16,12 @@ spec:
     spec:
       runtimeClassName: nvidia
       nodeSelector:
-        accelerator: nvidia
+        kubernetes.io/hostname: rke2-node-50
       tolerations:
-      - key: nvidia.com/gpu
-        operator: Exists
-        effect: NoSchedule
+        - key: "gpu-only"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
       priorityClassName: "system-node-critical"
       containers:
       - image: nvcr.io/nvidia/k8s-device-plugin:v0.17.0
@@ -39,4 +40,3 @@ spec:
       - name: dev-vol
         hostPath:
           path: /dev
-
