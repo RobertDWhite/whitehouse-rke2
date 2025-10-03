@@ -12,7 +12,8 @@ spec:
   tls:
     - hosts:
         - auth.white.fm
-        - authentik.white.fm
+        - auth.whitematter.tech
+        - auth.w3rdw.radio
       secretName: auth-white-fm-tls
   rules:
     - host: auth.white.fm
@@ -25,7 +26,17 @@ spec:
                 name: authentik
                 port:
                   number: 9000
-    - host: authentik.white.fm
+    - host: auth.whitematter.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik
+                port:
+                  number: 9000
+    - host: auth.w3rdw.radio
       http:
         paths:
           - path: /
