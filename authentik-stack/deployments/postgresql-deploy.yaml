@@ -47,20 +47,23 @@ spec:
                   key: AUTHENTIK_POSTGRESQL__NAME
           ports:
             - containerPort: 5432
+              name: postgres
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["/bin/sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+              command: ["pg_isready", "-U", "postgres"]
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["/bin/sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+              command: ["pg_isready", "-U", "postgres"]
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 6
           resources:
             requests:
