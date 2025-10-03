@@ -12,9 +12,20 @@ spec:
   tls:
     - hosts:
         - auth.white.fm
+        - authentik.white.fm
       secretName: auth-white-fm-tls
   rules:
     - host: auth.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik
+                port:
+                  number: 9000
+    - host: authentik.white.fm
       http:
         paths:
           - path: /
