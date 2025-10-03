@@ -53,14 +53,14 @@ spec:
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "postgres"]
+              command: ["pg_isready", "-q", "-h", "127.0.0.1", "-p", "5432"]
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "postgres"]
+              command: ["pg_isready", "-q", "-h", "127.0.0.1", "-p", "5432"]
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
