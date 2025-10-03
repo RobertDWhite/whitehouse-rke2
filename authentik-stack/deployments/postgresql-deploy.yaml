@@ -24,9 +24,6 @@ spec:
         - name: postgres
           image: postgres:16-alpine
           imagePullPolicy: IfNotPresent
-          envFrom:
-            - secretRef:
-                name: authentik-env
           env:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -53,16 +50,16 @@ spec:
               mountPath: /var/lib/postgresql/data
           readinessProbe:
             exec:
-              command: ["pg_isready", "-q", "-h", "127.0.0.1", "-p", "5432"]
-            initialDelaySeconds: 10
-            periodSeconds: 5
+              command: ["pg_isready", "-q"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["pg_isready", "-q", "-h", "127.0.0.1", "-p", "5432"]
-            initialDelaySeconds: 30
-            periodSeconds: 10
+              command: ["pg_isready", "-q"]
+            initialDelaySeconds: 40
+            periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
           resources:
@@ -76,3 +73,4 @@ spec:
         - name: pgdata
           persistentVolumeClaim:
             claimName: authentik-postgres
+
