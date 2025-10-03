@@ -30,11 +30,12 @@ spec:
         - name: worker
           image: ghcr.io/goauthentik/server:2025.8.4
           imagePullPolicy: IfNotPresent
-          args: ["worker", "run"]
           envFrom:
             - secretRef:
                 name: authentik-env
           env:
+            - name: AUTHENTIK_MODE
+              value: worker
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
             - name: AUTHENTIK_HOST
