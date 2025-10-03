@@ -5,14 +5,13 @@ metadata:
   namespace: authentik
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
-    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "ingress-nginx/custom-headers"
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
         - auth.white.fm
- #       - authentik.white.fm
       secretName: auth-white-fm-tls
   rules:
     - host: auth.white.fm
@@ -24,14 +23,4 @@ spec:
               service:
                 name: authentik
                 port:
-                  number: 443
-#    - host: authentik.white.fm
-#      http:
-#        paths:
-#          - path: /
-#            pathType: Prefix
-#            backend:
-#              service:
-#                name: authentik
-#                port:
-#                  number: 443
+                  number: 9000
