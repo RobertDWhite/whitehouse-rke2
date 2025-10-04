@@ -59,6 +59,28 @@ spec:
             limits:
               cpu: "1"
               memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /-/health/live/
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /-/health/ready/
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /-/health/live/
+              port: http
+            failureThreshold: 30
+            periodSeconds: 10
       volumes:
         - name: media
           persistentVolumeClaim:
