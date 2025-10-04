@@ -28,20 +28,38 @@ repoServer:
       secret:
         secretName: sops-age
 
+  # -----------------------------------------------------
+  # Init container installs KSOPS tools + Helm
+  # -----------------------------------------------------
   initContainers:
-    - name: install-ksops
+    - name: install-tools
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
       args:
         - |
-          echo "Installing KSOPS..."; \
-          cp /usr/local/bin/ksops /custom-tools/; \
-          cp /usr/local/bin/kustomize /custom-tools/; \
-          echo "Done.";
+          set -e
+          echo "Installing KSOPS + Helm in /custom-tools ..."
+
+          # Copy KSOPS + Kustomize + SOPS (already in image)
+          cp /usr/local/bin/ksops /custom-tools/ksops
+          cp /usr/local/bin/kustomize /custom-tools/kustomize
+          cp /usr/local/bin/sops /custom-tools/sops
+
+          # Install Helm v3.15.3
+          wget -qO /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
+          tar -zxvf /tmp/helm.tar.gz -C /tmp
+          mv /tmp/linux-amd64/helm /custom-tools/helm
+          chmod +x /custom-tools/helm
+          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+
+          echo "KSOPS + Helm install complete."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
 
+  # -----------------------------------------------------
+  # Mount all binaries into /usr/local/bin for repo-server
+  # -----------------------------------------------------
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
       name: custom-tools
@@ -49,6 +67,12 @@ repoServer:
     - mountPath: /usr/local/bin/ksops
       name: custom-tools
       subPath: ksops
+    - mountPath: /usr/local/bin/sops
+      name: custom-tools
+      subPath: sops
+    - mountPath: /usr/local/bin/helm
+      name: custom-tools
+      subPath: helm
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
@@ -101,7 +125,6 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
-
 
   extraVolumes:
     - name: argocd-tls
