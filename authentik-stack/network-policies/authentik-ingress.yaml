@@ -6,7 +6,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-set-headers: "ingress-nginx/custom-headers"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "kube-system/custom-headers"
 spec:
   ingressClassName: nginx
   tls:
@@ -25,7 +25,7 @@ spec:
               service:
                 name: authentik
                 port:
-                  number: 80
+                  number: 9000
     - host: auth.whitematter.tech
       http:
         paths:
@@ -35,7 +35,7 @@ spec:
               service:
                 name: authentik
                 port:
-                  number: 80
+                  number: 9000
     - host: auth.w3rdw.radio
       http:
         paths:
@@ -45,4 +45,4 @@ spec:
               service:
                 name: authentik
                 port:
-                  number: 80
+                  number: 9000
