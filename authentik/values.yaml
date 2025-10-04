@@ -78,7 +78,10 @@ server:
     - name: media
       persistentVolumeClaim:
         claimName: authentik-media
-
+  service:
+    port: 9000
+    type: ClusterIP
+    annotations: {}
 # Worker configuration (same env and secret)
 worker:
   envFrom:
@@ -89,11 +92,6 @@ worker:
     requests:
       cpu: 150m
       memory: 256Mi
-
-# Service Configuration
-service:
-  port: 9000
-
 
 persistence:
   enabled: true
