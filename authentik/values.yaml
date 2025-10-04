@@ -1,0 +1,111 @@
+# ----------------------------------------------------------
+# Authentik Helm Chart Configuration
+# Version: 2025.8.4
+# Purpose: Full self-contained deployment (PostgreSQL + Redis)
+# Secrets are loaded from SOPS-encrypted Secret `authentik-env`
+# ----------------------------------------------------------
+
+# Enable Helm-managed PostgreSQL
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: authentik-env
+    usernameKey: POSTGRES_USER
+    passwordKey: POSTGRES_PASSWORD
+    databaseKey: POSTGRES_DB
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+# Enable Helm-managed Redis
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    existingSecret: authentik-env
+    passwordKey: AUTHENTIK_REDIS__PASSWORD
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+# Pass all environment variables from SOPS-decrypted Secret
+server:
+  envFrom:
+    - secretRef:
+        name: authentik-env
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-dns
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/configuration-snippet: |
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header X-Real-IP $remote_addr;
+    hosts:
+      - host: auth.white.fm
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: auth-white-fm-tls
+        hosts:
+          - auth.white.fm
+          - auth.whitematter.tech
+          - auth.w3rdw.radio
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  volumeMounts:
+    - name: media
+      mountPath: /media
+  volumes:
+    - name: media
+      persistentVolumeClaim:
+        claimName: authentik-media
+
+# Worker configuration (same env and secret)
+worker:
+  envFrom:
+    - secretRef:
+        name: authentik-env
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+
+# Service Configuration
+service:
+  port: 9000
+
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  storageClass: longhorn
+
+# Optional: Extra security context & affinity
+podSecurityContext:
+  fsGroup: 1000
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
