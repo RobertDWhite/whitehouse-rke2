@@ -43,20 +43,20 @@ server:
         name: authentik-env
   ingress:
     enabled: true
-    ingressClassName: nginx
+    ingressClassName: "nginx"
     annotations:
       cert-manager.io/cluster-issuer: "letsencrypt-dns"
     hosts:
-      - host: auth.white.fm
+      - host: "auth.white.fm"
         paths:
           - path: /
             pathType: Prefix
     tls:
-      - secretName: auth-white-fm-tls
+      - secretName: "auth-white-fm-tls"
         hosts:
-          - auth.white.fm
-          - auth.whitematter.tech
-          - auth.w3rdw.radio
+          - "auth.white.fm"
+          - "auth.whitematter.tech"
+          - "auth.w3rdw.radio"
   replicaCount: 2
   resources:
     requests:
