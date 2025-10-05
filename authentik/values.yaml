@@ -1,18 +1,14 @@
-# ----------------------------------------------------------
-# Authentik Helm Chart Configuration
-# Version: 2025.8.4
-# Purpose: Full self-contained deployment (PostgreSQL + Redis)
-# Secrets are loaded from SOPS-encrypted Secret `authentik-env`
-# ----------------------------------------------------------
+# ---------------------------
+# Authentik 2025.8.4 values
+# ---------------------------
 
-# Enable Helm-managed PostgreSQL
 postgresql:
   enabled: true
   auth:
     existingSecret: authentik-env
     secretKeys:
       userKey: POSTGRES_USER
-      passwordKey: postgres-password
+      passwordKey: password
       databaseKey: POSTGRES_DB
   primary:
     persistence:
@@ -23,13 +19,12 @@ postgresql:
         cpu: 250m
         memory: 512Mi
 
-# Enable Helm-managed Redis
 redis:
   enabled: true
   architecture: standalone
   auth:
     existingSecret: authentik-env
-    passwordKey: AUTHENTIK_REDIS__PASSWORD
+    existingSecretPasswordKey: redis-password   # <-- see step 3 below
   master:
     persistence:
       enabled: true
@@ -39,7 +34,6 @@ redis:
         cpu: 100m
         memory: 256Mi
 
-# Pass all environment variables from SOPS-decrypted Secret
 server:
   envFrom:
     - secretRef:
@@ -82,8 +76,7 @@ server:
   service:
     port: 9000
     type: ClusterIP
-    annotations: {}
-# Worker configuration (same env and secret)
+
 worker:
   envFrom:
     - secretRef:
@@ -96,13 +89,10 @@ worker:
 
 persistence:
   enabled: true
-  existingClaim: ""
-  accessModes:
-    - ReadWriteOnce
+  accessModes: [ReadWriteOnce]
   size: 5Gi
   storageClass: longhorn
 
-# Optional: Extra security context & affinity
 podSecurityContext:
   fsGroup: 1000
 securityContext:
