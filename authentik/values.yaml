@@ -24,7 +24,7 @@ redis:
   architecture: standalone
   auth:
     existingSecret: authentik-env
-    existingSecretPasswordKey: redis-password   # <-- see step 3 below
+    existingSecretPasswordKey: redis-password
   master:
     persistence:
       enabled: true
@@ -34,6 +34,9 @@ redis:
         cpu: 100m
         memory: 256Mi
 
+# ---------------------------
+# Authentik Server
+# ---------------------------
 server:
   envFrom:
     - secretRef:
@@ -42,14 +45,7 @@ server:
     enabled: true
     ingressClassName: nginx
     annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-dns
-      nginx.ingress.kubernetes.io/rewrite-target: /
-      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/configuration-snippet: |
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port 443;
-        proxy_set_header X-Real-IP $remote_addr;
+      cert-manager.io/cluster-issuer: "letsencrypt-dns"
     hosts:
       - host: auth.white.fm
         paths:
@@ -66,17 +62,20 @@ server:
     requests:
       cpu: 250m
       memory: 512Mi
-  volumeMounts:
-    - name: media
-      mountPath: /media
-  volumes:
-    - name: media
-      persistentVolumeClaim:
-        claimName: authentik-media
+
+  persistence:
+    enabled: true
+    accessModes: [ReadWriteOnce]
+    size: 5Gi
+    storageClass: longhorn
+
   service:
     port: 9000
     type: ClusterIP
 
+# ---------------------------
+# Authentik Worker
+# ---------------------------
 worker:
   envFrom:
     - secretRef:
@@ -87,12 +86,18 @@ worker:
       cpu: 150m
       memory: 256Mi
 
+# ---------------------------
+# Global persistence (optional fallback)
+# ---------------------------
 persistence:
   enabled: true
   accessModes: [ReadWriteOnce]
   size: 5Gi
   storageClass: longhorn
 
+# ---------------------------
+# Security Contexts
+# ---------------------------
 podSecurityContext:
   fsGroup: 1000
 securityContext:
