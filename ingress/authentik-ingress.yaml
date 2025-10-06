@@ -4,7 +4,8 @@ metadata:
   name: authentik
   namespace: authentik
   annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-dns"
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header X-Forwarded-Proto https;
