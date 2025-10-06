@@ -3,6 +3,9 @@ kind: PersistentVolumeClaim
 metadata:
   name: uptime-kuma-pvc
   namespace: uptime-kuma
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    helm.sh/resource-policy: keep
 spec:
   storageClassName: longhorn
   accessModes:
