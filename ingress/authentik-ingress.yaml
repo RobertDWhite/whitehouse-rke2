@@ -29,13 +29,15 @@ spec:
             backend:
               service:
                 name: authentik-server
-                ports:
-                  - protocol: TCP
-                    port: 80
-                  - protocol: TCP
-                    port: 9000
-                  - protocol: TCP
-                    port: 9443
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 9000
     - host: auth.whitematter.tech
       http:
         paths:
@@ -44,13 +46,15 @@ spec:
             backend:
               service:
                 name: authentik-server
-                ports:
-                  - protocol: TCP
-                    port: 80
-                  - protocol: TCP
-                    port: 9000
-                  - protocol: TCP
-                    port: 9443
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 9000
     - host: auth.w3rdw.radio
       http:
         paths:
@@ -59,11 +63,12 @@ spec:
             backend:
               service:
                 name: authentik-server
-                ports:
-                  - protocol: TCP
-                    port: 80
-                  - protocol: TCP
-                    port: 9000
-                  - protocol: TCP
-                    port: 9443
-
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 9000
