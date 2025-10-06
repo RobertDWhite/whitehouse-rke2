@@ -4,8 +4,7 @@ metadata:
   name: authentik
   namespace: authentik
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-dns
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: "letsencrypt-dns"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header X-Forwarded-Proto https;
@@ -28,7 +27,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: authentik
+                name: authentik-server
                 port:
                   number: 80
     - host: auth.whitematter.tech
@@ -38,7 +37,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: authentik
+                name: authentik-server
                 port:
                   number: 80
     - host: auth.w3rdw.radio
@@ -48,6 +47,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: authentik
+                name: authentik-server
                 port:
                   number: 80
