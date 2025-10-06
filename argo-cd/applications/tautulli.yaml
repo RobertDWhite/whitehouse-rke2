@@ -29,7 +29,7 @@ spec:
               app:
                 image:
                   repository: lscr.io/linuxserver/tautulli
-                  tag: latest
+                  tag: 2.16.0
                   pullPolicy: IfNotPresent
                 env:
                   TZ: "America/New_York"
@@ -94,6 +94,10 @@ spec:
               tautulli:
                 app:
                   - path: /config
+            annotations:
+              argocd.argoproj.io/sync-options: Delete=false,Prune=false
+              helm.sh/resource-policy: keep
+            retain: true
   destination:
     server: https://kubernetes.default.svc
     namespace: tautulli
