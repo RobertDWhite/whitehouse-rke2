@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-authentik-to-fr24
+  namespace: adsb
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: fr24
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 8754
+  policyTypes:
+    - Ingress
