@@ -64,19 +64,21 @@ spec:
           readinessProbe:
             httpGet:
               scheme: HTTPS
-              path: /-/health/ready
+              path: /healthz
               port: 9443
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 6
+
           livenessProbe:
             httpGet:
               scheme: HTTPS
-              path: /-/health/live
+              path: /healthz
               port: 9443
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 6
+
           resources:
             requests:
               cpu: 250m
