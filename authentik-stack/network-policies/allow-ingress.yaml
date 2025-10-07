@@ -14,10 +14,11 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: ingress-nginx
+              app.kubernetes.io/name: rke2-ingress-nginx
+              app.kubernetes.io/component: controller
       ports:
         - protocol: TCP
           port: 9443
