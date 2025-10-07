@@ -131,7 +131,7 @@ jobs:
       # Upload SARIF (skip if forked PR)
       - name: Upload SARIF
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: kubesec-results.single.sarif
           category: kubesec
