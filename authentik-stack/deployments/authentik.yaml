@@ -55,30 +55,14 @@ spec:
               value: /certs/tls.crt
             - name: AUTHENTIK_TLS__KEY
               value: /certs/tls.key
+            - name: AUTHENTIK_HEALTHCHECK__ENABLED
+              value: "true"
           volumeMounts:
             - name: media
               mountPath: /media
             - name: tls
               mountPath: /certs
               readOnly: true
-          readinessProbe:
-            httpGet:
-              scheme: HTTPS
-              path: /healthz
-              port: 9443
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 6
-
-          livenessProbe:
-            httpGet:
-              scheme: HTTPS
-              path: /healthz
-              port: 9443
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            failureThreshold: 6
-
           resources:
             requests:
               cpu: 250m
