@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ingress-and-cloudflared-to-authentik
+  name: allow-ingress-nginx-to-authentik
   namespace: authentik
 spec:
   podSelector:
@@ -18,12 +18,6 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: ingress-nginx
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: cloudflared
-          podSelector:
-            matchLabels:
-              app: cloudflared
       ports:
         - protocol: TCP
           port: 9443
