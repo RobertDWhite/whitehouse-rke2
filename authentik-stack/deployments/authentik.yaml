@@ -32,62 +32,62 @@ spec:
       containers:
         - name: server
           image: ghcr.io/goauthentik/server:2025.8.4
-          args: ["server"]
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 9000
+            - name: https
+              containerPort: 9443
           envFrom:
             - secretRef:
                 name: authentik-env
           env:
-            - name: AUTHENTIK_MODE
-              value: server
             - name: AUTHENTIK_LISTEN__HTTP
               value: "0.0.0.0:9000"
+            - name: AUTHENTIK_LISTEN__HTTPS
+              value: "0.0.0.0:9443"
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
-            - name: AUTHENTIK_HEALTHCHECK__ENABLED
-              value: "true"
-            - name: AUTHENTIK_DEFAULT_AUTHENTICATION_FLOW
-              value: default-authentication-flow
-
+            - name: AUTHENTIK_TLS__CERTIFICATE
+              value: /certs/tls.crt
+            - name: AUTHENTIK_TLS__KEY
+              value: /certs/tls.key
           volumeMounts:
             - name: media
               mountPath: /media
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /-/health/ready
+              port: 9443
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /-/health/live
+              port: 9443
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
           resources:
             requests:
               cpu: 250m
               memory: 512Mi
             limits:
               cpu: "1"
-              memory: 2Gi
-          livenessProbe:
-            httpGet:
-              path: /-/health/live/
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 5
-          readinessProbe:
-            httpGet:
-              path: /-/health/ready/
-              port: http
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          startupProbe:
-            httpGet:
-              path: /-/health/live/
-              port: http
-            failureThreshold: 30
-            periodSeconds: 10
+              memory: 1Gi
       volumes:
         - name: media
           persistentVolumeClaim:
             claimName: authentik-media
+        - name: tls
+          secret:
+            secretName: auth-white-fm-tls
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
