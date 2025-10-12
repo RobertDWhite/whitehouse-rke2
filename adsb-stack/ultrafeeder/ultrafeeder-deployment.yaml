@@ -50,30 +50,21 @@ spec:
       containers:
       - name: ultrafeeder
         image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-814
-
-
         ports:
         - name: http
-          containerPort: 8080
-          protocol: TCP
+          containerPort: 80
         - name: beast
           containerPort: 30005
-          protocol: TCP
-
         env:
         - name: TZ
           valueFrom:
             configMapKeyRef:
               name: feeder-config
               key: FEEDER_TZ
-        - name: READSB_RTLSDR_DEVICE
-          valueFrom:
-            configMapKeyRef:
-              name: feeder-config
-              key: ADSB_SDR_SERIAL
+
         - name: DEVICE_TYPE
           value: "rtlsdr"
-        - name: RTLSDR_DEVICE
+        - name: DEVICE
           valueFrom:
             configMapKeyRef:
               name: feeder-config
@@ -85,25 +76,16 @@ spec:
             configMapKeyRef:
               name: feeder-config
               key: FEEDER_LAT
-        - name: LONG
+        - name: LON
           valueFrom:
             configMapKeyRef:
               name: feeder-config
               key: FEEDER_LONG
         - name: RX_LOCATION_ACCURACY
           value: "2"
-        - name: STATS_RANGE
-          value: "true"
 
         - name: TAR1090
           value: "true"
-        - name: TAR1090_PORT
-          value: "8080"
-        - name: TAR1090_DIRECTORY
-          value: "/run/tar1090"
-        - name: TAR1090_DARKMODE
-          value: "true"
-
         - name: GRAPHS1090
           value: "true"
         - name: ENABLE_MLAT
@@ -116,15 +98,22 @@ spec:
           mountPath: /run/collectd
         - name: autogain
           mountPath: /run/autogain
-        - name: ultrafeeder-run
-          mountPath: /run/ultrafeeder
-        - name: varlog
-          mountPath: /var/log
         - name: globe-history
           mountPath: /var/globe_history
-
+        - name: varlog
+          mountPath: /var/log
+        - name: ultrafeeder-run
+          mountPath: /run/ultrafeeder
         securityContext:
           privileged: true
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
 
       volumes:
       - name: dev-usb
@@ -140,9 +129,9 @@ spec:
       - name: globe-history
         persistentVolumeClaim:
           claimName: ultrafeeder-globe-history
-      - name: ultrafeeder-run
+      - name: varlog
         emptyDir:
           medium: Memory
-      - name: varlog
+      - name: ultrafeeder-run
         emptyDir:
           medium: Memory
