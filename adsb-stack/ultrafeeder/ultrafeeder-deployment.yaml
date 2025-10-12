@@ -55,6 +55,7 @@ spec:
           containerPort: 80
         - name: beast
           containerPort: 30005
+
         env:
         - name: TZ
           valueFrom:
@@ -64,23 +65,47 @@ spec:
 
         - name: DEVICE_TYPE
           value: "rtlsdr"
+        - name: READSB_DEVICE_TYPE
+          value: "rtlsdr"
+
         - name: DEVICE
           valueFrom:
             configMapKeyRef:
               name: feeder-config
               key: ADSB_SDR_SERIAL
+        - name: READSB_RTLSDR_DEVICE
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: ADSB_SDR_SERIAL
+
         - name: GAIN
           value: "autogain"
+        - name: READSB_GAIN
+          value: "autogain"
+
         - name: LAT
           valueFrom:
             configMapKeyRef:
               name: feeder-config
               key: FEEDER_LAT
+        - name: READSB_LAT
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LAT
+
         - name: LON
           valueFrom:
             configMapKeyRef:
               name: feeder-config
               key: FEEDER_LONG
+        - name: READSB_LON
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LONG
+
         - name: RX_LOCATION_ACCURACY
           value: "2"
 
@@ -104,6 +129,7 @@ spec:
           mountPath: /var/log
         - name: ultrafeeder-run
           mountPath: /run/ultrafeeder
+
         securityContext:
           privileged: true
         readinessProbe:
