@@ -102,6 +102,8 @@ spec:
           mountPath: /run/ultrafeeder
         - name: varlog
           mountPath: /var/log
+        - name: globe-history
+          mountPath: /var/globe_history
         securityContext:
           privileged: true
 
@@ -116,6 +118,9 @@ spec:
       - name: autogain
         persistentVolumeClaim:
           claimName: readsbpb-autogain-v2
+      - name: globe-history
+        persistentVolumeClaim:
+          claimName: ultrafeeder-globe-history
       - name: ultrafeeder-run
         emptyDir:
           medium: Memory
