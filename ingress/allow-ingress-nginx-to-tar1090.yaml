@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-ingress-nginx-to-tar1090
+  namespace: adsb
+spec:
+  podSelector:
+    matchLabels:
+      app: ultrafeeder
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rke2-ingress-nginx
+              app.kubernetes.io/component: controller
+      ports:
+        - protocol: TCP
+          port: 8080
+  policyTypes:
+    - Ingress
