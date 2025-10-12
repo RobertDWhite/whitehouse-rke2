@@ -50,9 +50,16 @@ spec:
       containers:
       - name: ultrafeeder
         image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder:latest-build-814
+
+
         ports:
-        - containerPort: 8080
-        - containerPort: 30005
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: beast
+          containerPort: 30005
+          protocol: TCP
+
         env:
         - name: TZ
           valueFrom:
@@ -86,10 +93,34 @@ spec:
 
         - name: TAR1090
           value: "true"
+        - name: TAR1090_PORT
+          value: "8080"
+        - name: TAR1090_DIRECTORY
+          value: "/run/tar1090"
+        - name: TAR1090_DARKMODE
+          value: "true"
+
         - name: GRAPHS1090
           value: "true"
         - name: ENABLE_MLAT
           value: "false"
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
 
         volumeMounts:
         - name: dev-usb
@@ -104,6 +135,7 @@ spec:
           mountPath: /var/log
         - name: globe-history
           mountPath: /var/globe_history
+
         securityContext:
           privileged: true
 
