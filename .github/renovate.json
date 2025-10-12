@@ -20,6 +20,16 @@
         ".*\\.ya?ml$"
       ],
       "matchStrings": [
+        "helmCharts:\\s*[- ]+name:\\s*(?<depName>.*?)\\s*\\n.*?repo:\\s*(?<registryUrl>.*?)\\s*\\n.*?version:\\s*(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
         "version:\\s*(?<currentValue>v?[0-9].*?\\+rke2r[0-9]+)"
       ],
       "datasourceTemplate": "github-releases",
