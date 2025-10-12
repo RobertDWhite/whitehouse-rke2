@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ultrafeeder
+  namespace: adsb
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - adsb.w3rdw.radio
+      secretName: adsb-w3rdw-radio-tls
+  rules:
+    - host: adsb.w3rdw.radio
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ultrafeeder
+                port:
+                  number: 8080
