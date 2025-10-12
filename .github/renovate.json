@@ -33,7 +33,7 @@
         "/applications/.*\\.ya?ml$/"
       ],
       "matchStrings": [
-        "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/docker-tar1090):(?<currentValue>latest-build-[0-9]+)"
+        "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/[a-z0-9\\-]+):(?<currentValue>latest-build-[0-9]+)"
       ],
       "datasourceTemplate": "docker"
     }
@@ -64,6 +64,28 @@
       "matchPackageNames": [
         "/^ghcr\\.io/.*/"
       ]
+    },
+    {
+  "customType": "regex",
+  "managerFilePatterns": [
+    "/k8s/.*\\.ya?ml$/",
+    "/applications/.*\\.ya?ml$/"
+  ],
+  "matchStrings": [
+    "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/docker-adsb-ultrafeeder):(?<currentValue>latest-build-[0-9]+)"
+  ],
+  "datasourceTemplate": "docker"
+    },
+
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackagePrefixes": [
+        "ghcr.io/sdr-enthusiasts/"
+      ],
+      "groupName": "SDR Enthusiasts container updates",
+      "automerge": false
     }
   ]
 }
