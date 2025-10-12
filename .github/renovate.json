@@ -7,7 +7,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/applications/.*\\.ya?ml$/"
+        ".*\\.ya?ml$"
       ],
       "matchStrings": [
         "repoURL:\\s*(?<registryUrl>.*?)\\s*\\n.*?chart:\\s*(?<depName>.*?)\\s*\\n.*?targetRevision:\\s*(?<currentValue>.*?)\\s"
@@ -17,8 +17,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/k8s-upgrade.*\\.ya?ml$/",
-        "/applications/.*\\.ya?ml$/"
+        ".*\\.ya?ml$"
       ],
       "matchStrings": [
         "version:\\s*(?<currentValue>v?[0-9].*?\\+rke2r[0-9]+)"
@@ -29,61 +28,53 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/k8s/.*\\.ya?ml$/",
-        "/applications/.*\\.ya?ml$/"
+        ".*\\.ya?ml$"
       ],
       "matchStrings": [
         "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/[a-z0-9\\-]+):(?<currentValue>latest-build-[0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghcr\\.io/[a-z0-9\\-]+/[a-z0-9\\-]+):(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghcr\\.io/[a-z0-9\\-]+/[a-z0-9\\-]+):(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
       "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
     {
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     },
     {
-      "matchManagers": [
-        "custom.regex"
-      ],
+      "matchManagers": ["custom.regex"],
       "groupName": "Helm chart updates",
       "automerge": false
     },
     {
-      "matchManagers": [
-        "docker"
-      ],
+      "matchManagers": ["docker"],
       "automerge": false,
-      "matchPackageNames": [
-        "/^ghcr\\.io/.*/"
-      ]
+      "matchPackageNames": ["/^ghcr\\.io/.*/"]
     },
     {
-  "customType": "regex",
-  "managerFilePatterns": [
-    "/k8s/.*\\.ya?ml$/",
-    "/applications/.*\\.ya?ml$/"
-  ],
-  "matchStrings": [
-    "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/docker-adsb-ultrafeeder):(?<currentValue>latest-build-[0-9]+)"
-  ],
-  "datasourceTemplate": "docker"
-    },
-
-    {
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackagePrefixes": [
-        "ghcr.io/sdr-enthusiasts/"
-      ],
+      "matchDatasources": ["docker"],
+      "matchPackagePrefixes": ["ghcr.io/sdr-enthusiasts/"],
       "groupName": "SDR Enthusiasts container updates",
       "automerge": false
     }
