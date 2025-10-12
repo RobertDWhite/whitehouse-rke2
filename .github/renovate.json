@@ -74,6 +74,17 @@
         "image:\\s*(?<depName>[a-z0-9\\-]+(?:\\/[a-z0-9\\-]+)+):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "app\\.kubernetes\\.io/version:\\s*(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "depNameTemplate": "longhorn/longhorn",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
@@ -100,3 +111,4 @@
     }
   ]
 }
+
