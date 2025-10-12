@@ -15,14 +15,12 @@ spec:
     spec:
       containers:
       - name: tar1090
-        image: mikenye/tar1090:latest
+        image: ghcr.io/sdr-enthusiasts/docker-tar1090:latest-build-1331
         ports:
         - containerPort: 80
         env:
         - name: BEASTHOST
           value: "readsb"
-        - name: MLATHOST
-          value: "mlathub"
         - name: TZ
           valueFrom:
             configMapKeyRef:
@@ -38,13 +36,19 @@ spec:
             secretKeyRef:
               name: feeder-secrets
               key: FEEDER_LONG
+        - name: UPDATE_TAR1090
+          value: "false"
+        - name: ENABLE_GRAPHS1090
+          value: "true"
         - name: GRAPHS1090_DARKMODE
           value: "true"
+
         volumeMounts:
         - name: runmem
           mountPath: /run
         - name: varlog
           mountPath: /var/log
+
       volumes:
       - name: runmem
         emptyDir:
@@ -52,3 +56,4 @@ spec:
       - name: varlog
         emptyDir:
           medium: Memory
+
