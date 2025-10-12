@@ -15,6 +15,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-14
+
       affinity:
         podAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -22,17 +23,18 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    app: readsb
+                    app: ultrafeeder
                 topologyKey: kubernetes.io/hostname
 
       containers:
         - name: fr24
-          image: ghcr.io/sdr-enthusiasts/docker-flightradar24:docker-flightradar24:latest-build-819
+          image: ghcr.io/sdr-enthusiasts/docker-flightradar24:latest-build-819
           ports:
             - containerPort: 8754
           env:
             - name: BEASTHOST
-              value: "readsb"
+              value: "ultrafeeder"
+
             - name: TZ
               valueFrom:
                 configMapKeyRef:
@@ -43,9 +45,11 @@ spec:
                 secretKeyRef:
                   name: feeder-secrets
                   key: FR24_SHARING_KEY
+
           volumeMounts:
             - name: varlog
               mountPath: /var/log
+
       volumes:
         - name: varlog
           emptyDir:
