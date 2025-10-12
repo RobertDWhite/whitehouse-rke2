@@ -25,6 +25,17 @@
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "rancher/rke2"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/k8s/.*\\.ya?ml$/",
+        "/applications/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/docker-tar1090):(?<currentValue>latest-build-[0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
