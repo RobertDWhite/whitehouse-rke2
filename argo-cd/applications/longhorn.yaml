@@ -4,20 +4,77 @@ metadata:
   name: longhorn
   namespace: argocd
 spec:
+  project: default
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
-  project: default
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    targetRevision: main
-    path: longhorn
-    directory:
-      recurse: false
+    repoURL: https://charts.longhorn.io
+    chart: longhorn
+    targetRevision: 1.10.0
+    helm:
+      values: |
+        preUpgradeCheck:
+          job:
+            enabled: false
+        defaultSettings:
+          backupTarget: nfs://10.100.1.20:/volume1/longhorn-backups
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: longhorn-white-fm-tls
+  namespace: longhorn-system
+spec:
+  secretName: longhorn-white-fm-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - longhorn.white.fm
+    - longhornui.white.fm
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - longhorn.white.fm
+        - longhornui.white.fm
+      secretName: longhorn-white-fm-tls
+  rules:
+    - host: longhorn.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: longhorn-frontend
+                port:
+                  number: 80
+    - host: longhornui.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: longhorn-frontend
+                port:
+                  number: 80
+
 
