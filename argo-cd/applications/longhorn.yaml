@@ -4,15 +4,20 @@ metadata:
   name: longhorn
   namespace: argocd
 spec:
-  project: default
   destination:
-    namespace: argocd
     server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  project: default
   source:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    targetRevision: HEAD
-    path: argo-cd/applications/longhorn
+    targetRevision: main
+    path: longhorn
+    directory:
+      recurse: false
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+
