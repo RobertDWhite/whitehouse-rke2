@@ -26,17 +26,21 @@ repoServer:
     runAsGroup: 999
     fsGroup: 999
 
-  # --- Custom Volumes ---
   volumes:
     - name: custom-tools
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
+    - name: var-files
+      emptyDir: {}
+    - name: tmp
+      emptyDir: {}
+    - name: plugins
+      emptyDir: {}
 
-  # --- Custom Mounts ---
   volumeMounts:
-    - mountPath: /custom-tools/bin
+    - mountPath: /custom-tools
       name: custom-tools
     - mountPath: /etc/sops/age
       name: sops-age
@@ -44,8 +48,13 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
+    - mountPath: /var/run/argocd
+      name: var-files
+    - mountPath: /tmp
+      name: tmp
+    - mountPath: /home/argocd/cmp-server/plugins
+      name: plugins
 
-  # --- Tool Installer ---
   initContainers:
     - name: install-tools
       image: alpine:3.19
