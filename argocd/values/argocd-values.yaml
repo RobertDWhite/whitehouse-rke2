@@ -26,18 +26,16 @@ repoServer:
     runAsUser: 999
     runAsGroup: 999
     fsGroup: 999
+
+  # --- Custom Volumes ---
   volumes:
     - name: custom-tools
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
-    - name: var-files
-      emptyDir: {}
-    - name: tmp
-      emptyDir: {}
-    - name: plugins
-      emptyDir: {}
+
+  # --- Custom Mounts ---
   volumeMounts:
     - mountPath: /custom-tools/bin
       name: custom-tools
@@ -47,12 +45,8 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
-    - mountPath: /var/run/argocd
-      name: var-files
-    - mountPath: /tmp
-      name: tmp
-    - mountPath: /home/argocd/cmp-server/plugins
-      name: plugins
+
+  # --- Tool Installer ---
   initContainers:
     - name: install-tools
       image: alpine:3.19
@@ -81,12 +75,14 @@ server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
+
   service:
     type: ClusterIP
     ports:
       - name: https
         port: 443
         targetPort: 8080
+
   resources:
     requests:
       cpu: 2
@@ -117,3 +113,24 @@ server:
       periodSeconds: 15
       failureThreshold: 10
 
+  certificate:
+    enabled: true
+    domain: argo.white.fm
+    secretName: argocd-white-fm-tls
+    issuer:
+      group: cert-manager.io
+      kind: ClusterIssuer
+      name: letsencrypt-dns
+
+  extraVolumes:
+    - name: argocd-tls
+      secret:
+        secretName: argocd-white-fm-tls
+
+  extraVolumeMounts:
+    - name: argocd-tls
+      mountPath: /app/config/tls
+      readOnly: true
+
+applicationController:
+  replicas: 3
