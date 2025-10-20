@@ -15,11 +15,18 @@ repoServer:
   replicas: 4
   extraArgs:
     - --loglevel=debug
+    - --grpc-port=8080
+
   env:
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
+
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
 
   volumes:
     - name: custom-tools
@@ -27,10 +34,13 @@ repoServer:
     - name: sops-age
       secret:
         secretName: sops-age
+    - name: var-files
+      emptyDir: {}
+    - name: tmp
+      emptyDir: {}
+    - name: plugins
+      emptyDir: {}
 
-  # -----------------------------------------------------
-  # Init container installs KSOPS tools + Helm
-  # -----------------------------------------------------
   initContainers:
     - name: install-tools
       image: alpine:3.19
@@ -54,9 +64,6 @@ repoServer:
         - mountPath: /custom-tools
           name: custom-tools
 
-  # -----------------------------------------------------
-  # Mount all binaries into /usr/local/bin for repo-server
-  # -----------------------------------------------------
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
       name: custom-tools
@@ -76,6 +83,12 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
+    - mountPath: /var/run/argocd
+      name: var-files
+    - mountPath: /tmp
+      name: tmp
+    - mountPath: /home/argocd/cmp-server/plugins
+      name: plugins
 
 server:
   replicas: 2
