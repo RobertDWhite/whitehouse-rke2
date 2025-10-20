@@ -6,7 +6,6 @@ configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
     accounts.readonly: apiKey
-
   rbac:
     policy.csv: |
       g, readonly, role:readonly
@@ -16,18 +15,15 @@ repoServer:
   extraArgs:
     - --loglevel=debug
     - --grpc-port=8080
-
   env:
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
-
   securityContext:
     runAsUser: 999
     runAsGroup: 999
     fsGroup: 999
-
   volumes:
     - name: custom-tools
       emptyDir: {}
@@ -40,10 +36,19 @@ repoServer:
       emptyDir: {}
     - name: plugins
       emptyDir: {}
-
   volumeMounts:
-    - name: custom-tools
-      mountPath: /usr/local/bin
+    - mountPath: /usr/local/bin/kustomize
+      name: custom-tools
+      subPath: kustomize
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: /usr/local/bin/sops
+      name: custom-tools
+      subPath: sops
+    - mountPath: /usr/local/bin/helm
+      name: custom-tools
+      subPath: helm
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
@@ -56,7 +61,6 @@ repoServer:
       name: tmp
     - mountPath: /home/argocd/cmp-server/plugins
       name: plugins
-
   initContainers:
     - name: install-tools
       image: alpine:3.19
@@ -64,20 +68,20 @@ repoServer:
       args:
         - |
           set -e
-          echo "Installing KSOPS + Helm + SOPS in /usr/local/bin ..."
+          echo "Installing KSOPS + Helm + SOPS ..."
           apk add --no-cache curl tar
-          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /usr/local/bin/sops
-          curl -L -o /usr/local/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
-          chmod +x /usr/local/bin/ksops
+          curl -L -o /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /custom-tools/sops
+          curl -L -o /custom-tools/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          chmod +x /custom-tools/ksops
           curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
           tar -zxvf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /usr/local/bin/helm
-          chmod +x /usr/local/bin/helm
+          mv /tmp/linux-amd64/helm /custom-tools/helm
+          chmod +x /custom-tools/helm
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
           echo "✅ KSOPS + SOPS + Helm install complete."
       volumeMounts:
-        - mountPath: /usr/local/bin
+        - mountPath: /custom-tools
           name: custom-tools
 
 server:
@@ -90,7 +94,6 @@ server:
       - name: https
         port: 443
         targetPort: 8080
-
   resources:
     requests:
       cpu: 2
@@ -98,7 +101,6 @@ server:
     limits:
       cpu: 4
       memory: 5G
-
   livenessProbe:
     httpGet:
       path: /healthz?full=true
@@ -107,7 +109,6 @@ server:
     timeoutSeconds: 5
     periodSeconds: 15
     failureThreshold: 10
-
   readinessProbe:
     httpGet:
       path: /healthz
@@ -116,7 +117,6 @@ server:
     timeoutSeconds: 5
     periodSeconds: 15
     failureThreshold: 10
-
   certificate:
     enabled: true
     domain: argo.white.fm
@@ -125,12 +125,10 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
-
   extraVolumes:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
-
   extraVolumeMounts:
     - name: argocd-tls
       mountPath: /app/config/tls
