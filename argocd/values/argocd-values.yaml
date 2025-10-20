@@ -41,42 +41,9 @@ repoServer:
     - name: plugins
       emptyDir: {}
 
-  initContainers:
-    - name: install-tools
-      image: alpine:3.19
-      command: ["/bin/sh", "-c"]
-      args:
-        - |
-          set -e
-          echo "Installing KSOPS + Helm + SOPS in /custom-tools ..."
-          apk add --no-cache curl tar
-          curl -L -o /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /custom-tools/sops
-          curl -L -o /custom-tools/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
-          chmod +x /custom-tools/ksops
-          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
-          tar -zxvf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /custom-tools/helm
-          chmod +x /custom-tools/helm
-          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
-          echo "✅ KSOPS + SOPS + Helm install complete."
-      volumeMounts:
-        - mountPath: /custom-tools
-          name: custom-tools
-
   volumeMounts:
-    - mountPath: /usr/local/bin/kustomize
-      name: custom-tools
-      subPath: kustomize
-    - mountPath: /usr/local/bin/ksops
-      name: custom-tools
-      subPath: ksops
-    - mountPath: /usr/local/bin/sops
-      name: custom-tools
-      subPath: sops
-    - mountPath: /usr/local/bin/helm
-      name: custom-tools
-      subPath: helm
+    - name: custom-tools
+      mountPath: /usr/local/bin
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
@@ -89,6 +56,29 @@ repoServer:
       name: tmp
     - mountPath: /home/argocd/cmp-server/plugins
       name: plugins
+
+  initContainers:
+    - name: install-tools
+      image: alpine:3.19
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          echo "Installing KSOPS + Helm + SOPS in /usr/local/bin ..."
+          apk add --no-cache curl tar
+          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /usr/local/bin/sops
+          curl -L -o /usr/local/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          chmod +x /usr/local/bin/ksops
+          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
+          tar -zxvf /tmp/helm.tar.gz -C /tmp
+          mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          chmod +x /usr/local/bin/helm
+          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+          echo "✅ KSOPS + SOPS + Helm install complete."
+      volumeMounts:
+        - mountPath: /usr/local/bin
+          name: custom-tools
 
 server:
   replicas: 2
