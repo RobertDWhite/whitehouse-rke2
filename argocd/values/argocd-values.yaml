@@ -9,7 +9,7 @@ configs:
     kustomize.plugins: |
       - name: ksops
         type: exec
-        path: /custom-tools/ksops
+        path: /usr/local/bin/ksops
     accounts.readonly: apiKey
   rbac:
     policy.csv: |
@@ -22,13 +22,13 @@ repoServer:
 
   env:
     - name: PATH
-      value: "/custom-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
     - name: KUSTOMIZE_PLUGIN_HOME
-      value: /custom-tools
+      value: /usr/local/bin
 
   securityContext:
     runAsUser: 999
@@ -44,7 +44,7 @@ repoServer:
 
   volumeMounts:
     - name: custom-tools
-      mountPath: /custom-tools
+      mountPath: /usr/local/bin
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -58,29 +58,27 @@ repoServer:
       command: ["/bin/sh", "-c"]
       args:
         - |
-          set -e
-          echo "Installing KSOPS + Helm + SOPS into /custom-tools ..."
+          set -eux
+          echo "Installing KSOPS, SOPS, Helm in /usr/local/bin ..."
           apk add --no-cache curl tar
-          mkdir -p /custom-tools
-          curl -L -o /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /custom-tools/sops
-          curl -L -o /custom-tools/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
-          chmod +x /custom-tools/ksops
+          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /usr/local/bin/sops
+          curl -L -o /usr/local/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          chmod +x /usr/local/bin/ksops
           curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
           tar -xzf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /custom-tools/helm
-          chmod +x /custom-tools/helm
+          mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          chmod +x /usr/local/bin/helm
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
-          echo "✅ KSOPS + SOPS + Helm install complete."
+          echo "✅ Installed KSOPS + SOPS + Helm"
       volumeMounts:
         - name: custom-tools
-          mountPath: /custom-tools
+          mountPath: /usr/local/bin
 
 server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
-
   service:
     type: ClusterIP
     ports:
@@ -131,7 +129,6 @@ server:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
-
   extraVolumeMounts:
     - name: argocd-tls
       mountPath: /app/config/tls
