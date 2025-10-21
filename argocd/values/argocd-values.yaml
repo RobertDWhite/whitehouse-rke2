@@ -17,7 +17,7 @@ repoServer:
 
   env:
     - name: PATH
-      value: "/custom-tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      value: "/custom-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
@@ -52,17 +52,17 @@ repoServer:
       args:
         - |
           set -e
-          echo "Installing KSOPS + Helm + SOPS into /custom-tools/bin ..."
-          mkdir -p /custom-tools/bin
+          echo "Installing KSOPS + Helm + SOPS into /custom-tools ..."
+          mkdir -p /custom-tools
           apk add --no-cache curl tar
-          curl -L -o /custom-tools/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /custom-tools/bin/sops
-          curl -L -o /custom-tools/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
-          chmod +x /custom-tools/bin/ksops
+          curl -L -o /custom-tools/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /custom-tools/sops
+          curl -L -o /custom-tools/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          chmod +x /custom-tools/ksops
           curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
           tar -zxvf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /custom-tools/bin/helm
-          chmod +x /custom-tools/bin/helm
+          mv /tmp/linux-amd64/helm /custom-tools/helm
+          chmod +x /custom-tools/helm
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
           echo "✅ KSOPS + SOPS + Helm install complete."
       volumeMounts:
@@ -73,7 +73,6 @@ server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
-
   service:
     type: ClusterIP
     ports:
@@ -132,3 +131,4 @@ server:
 
 applicationController:
   replicas: 3
+
