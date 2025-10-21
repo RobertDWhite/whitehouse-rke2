@@ -14,6 +14,7 @@ repoServer:
   replicas: 4
   extraArgs:
     - --loglevel=debug
+
   env:
     - name: PATH
       value: "/custom-tools/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -21,6 +22,7 @@ repoServer:
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
+
   securityContext:
     runAsUser: 999
     runAsGroup: 999
@@ -32,12 +34,6 @@ repoServer:
     - name: sops-age
       secret:
         secretName: sops-age
-    - name: var-files
-      emptyDir: {}
-    - name: tmp
-      emptyDir: {}
-    - name: plugins
-      emptyDir: {}
 
   volumeMounts:
     - name: custom-tools
@@ -48,12 +44,6 @@ repoServer:
     - name: sops-age
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
-    - name: var-files
-      mountPath: /var/run/argocd
-    - name: tmp
-      mountPath: /tmp
-    - name: plugins
-      mountPath: /home/argocd/cmp-server/plugins
 
   initContainers:
     - name: install-tools
@@ -83,12 +73,14 @@ server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
+
   service:
     type: ClusterIP
     ports:
       - name: https
         port: 443
         targetPort: 8080
+
   resources:
     requests:
       cpu: 2
@@ -96,6 +88,7 @@ server:
     limits:
       cpu: 4
       memory: 5Gi
+
   livenessProbe:
     enabled: true
     probe:
@@ -106,6 +99,7 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
+
   readinessProbe:
     enabled: true
     probe:
@@ -116,6 +110,7 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
+
   certificate:
     enabled: true
     domain: argo.white.fm
@@ -124,10 +119,12 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
+
   extraVolumes:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
+
   extraVolumeMounts:
     - name: argocd-tls
       mountPath: /app/config/tls
