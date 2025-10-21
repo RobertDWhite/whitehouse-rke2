@@ -40,20 +40,20 @@ repoServer:
       emptyDir: {}
 
   volumeMounts:
-    - mountPath: /custom-tools
-      name: custom-tools
-    - mountPath: /etc/sops/age
-      name: sops-age
+    - name: custom-tools
+      mountPath: /custom-tools
+    - name: sops-age
+      mountPath: /etc/sops/age
       readOnly: true
-    - mountPath: /home/argocd/.config/sops/age
-      name: sops-age
+    - name: sops-age
+      mountPath: /home/argocd/.config/sops/age
       readOnly: true
-    - mountPath: /var/run/argocd
-      name: var-files
-    - mountPath: /tmp
-      name: tmp
-    - mountPath: /home/argocd/cmp-server/plugins
-      name: plugins
+    - name: var-files
+      mountPath: /var/run/argocd
+    - name: tmp
+      mountPath: /tmp
+    - name: plugins
+      mountPath: /home/argocd/cmp-server/plugins
 
   initContainers:
     - name: install-tools
@@ -76,21 +76,19 @@ repoServer:
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
           echo "✅ KSOPS + SOPS + Helm install complete."
       volumeMounts:
-        - mountPath: /custom-tools
-          name: custom-tools
+        - name: custom-tools
+          mountPath: /custom-tools
 
 server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
-
   service:
     type: ClusterIP
     ports:
       - name: https
         port: 443
         targetPort: 8080
-
   resources:
     requests:
       cpu: 2
@@ -98,7 +96,6 @@ server:
     limits:
       cpu: 4
       memory: 5Gi
-
   livenessProbe:
     enabled: true
     probe:
@@ -109,7 +106,6 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
-
   readinessProbe:
     enabled: true
     probe:
@@ -120,7 +116,6 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
-
   certificate:
     enabled: true
     domain: argo.white.fm
@@ -129,12 +124,10 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
-
   extraVolumes:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
-
   extraVolumeMounts:
     - name: argocd-tls
       mountPath: /app/config/tls
