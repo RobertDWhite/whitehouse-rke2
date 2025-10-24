@@ -9,7 +9,7 @@ configs:
     kustomize.plugins: |
       - name: ksops
         type: exec
-        path: /usr/local/bin/ksops
+        path: /app/bin/ksops
     accounts.readonly: apiKey
   rbac:
     policy.csv: |
@@ -22,13 +22,13 @@ repoServer:
 
   env:
     - name: PATH
-      value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+      value: "/app/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
     - name: KUSTOMIZE_PLUGIN_HOME
-      value: /usr/local/bin
+      value: /app/bin
 
   securityContext:
     runAsUser: 999
@@ -46,7 +46,7 @@ repoServer:
   # --- Volume Mounts ---
   volumeMounts:
     - name: tools
-      mountPath: /usr/local/bin
+      mountPath: /app/bin
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
