@@ -23,12 +23,14 @@ repoServer:
   env:
     - name: PATH
       value: "/app/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    - name: ARGOCD_KUSTOMIZE_BUILD_OPTIONS
+      value: "--enable-alpha-plugins --enable-exec"
+    - name: KUSTOMIZE_PLUGIN_HOME
+      value: /app/bin
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
-    - name: KUSTOMIZE_PLUGIN_HOME
-      value: /app/bin
 
   securityContext:
     runAsUser: 999
@@ -62,7 +64,7 @@ repoServer:
           echo "Installing KSOPS, SOPS, and Helm into /app/bin ..."
           apk add --no-cache curl tar
           mkdir -p /app/bin
-          curl -L -o /app/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          curl -L -o /app/bin/sops  https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
           chmod +x /app/bin/sops
           curl -L -o /app/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
           chmod +x /app/bin/ksops
@@ -71,7 +73,7 @@ repoServer:
           mv /tmp/linux-amd64/helm /app/bin/helm
           chmod +x /app/bin/helm
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
-          echo "✅ Installed KSOPS + SOPS + Helm successfully."
+          echo "Installed KSOPS + SOPS + Helm"
       volumeMounts:
         - name: tools
           mountPath: /app/bin
@@ -86,7 +88,6 @@ server:
       - name: https
         port: 443
         targetPort: 8080
-
   resources:
     requests:
       cpu: 2
@@ -94,7 +95,6 @@ server:
     limits:
       cpu: 4
       memory: 5Gi
-
   livenessProbe:
     enabled: true
     probe:
@@ -105,7 +105,6 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
-
   readinessProbe:
     enabled: true
     probe:
@@ -116,7 +115,6 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
-
   certificate:
     enabled: true
     domain: argo.white.fm
@@ -125,7 +123,6 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
-
   extraVolumes:
     - name: argocd-tls
       secret:
