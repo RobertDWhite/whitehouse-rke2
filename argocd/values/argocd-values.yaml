@@ -3,16 +3,17 @@ global:
     tag: v3.1.9
 
 configs:
+  cmp:
+    plugins:
+      - name: ksops
+        generate:
+          command: ["ksops"]
+        discover:
+          fileName: "ksops.yaml"
+
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
-
-    kustomize.plugins: |
-      - name: ksops
-        type: exec
-        path: /usr/local/bin/ksops
-
     accounts.readonly: apiKey
-
   rbac:
     policy.csv: |
       g, readonly, role:readonly
@@ -25,14 +26,12 @@ repoServer:
   env:
     - name: PATH
       value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - name: ARGOCD_KUSTOMIZE_BUILD_OPTIONS
-      value: "--enable-alpha-plugins --enable-exec"
-    - name: KUSTOMIZE_PLUGIN_HOME
-      value: /usr/local/bin
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
+    - name: ARGOCD_EXECUTOR_PLUGIN_DIR
+      value: /usr/local/bin
 
   securityContext:
     runAsUser: 999
