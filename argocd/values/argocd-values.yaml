@@ -9,7 +9,8 @@ configs:
         generate:
           command: ["ksops"]
         discover:
-          fileName: "ksops.yaml"
+          find:
+            command: ["find", ".", "-name", "ksops.yaml"]
 
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
@@ -26,12 +27,12 @@ repoServer:
   env:
     - name: PATH
       value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
+    - name: ARGOCD_EXECUTOR_PLUGIN_DIR
+      value: /home/argocd/cmp-server/plugins
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
       value: /home/argocd/.config
-    - name: ARGOCD_EXECUTOR_PLUGIN_DIR
-      value: /usr/local/bin
 
   securityContext:
     runAsUser: 999
@@ -39,15 +40,15 @@ repoServer:
     fsGroup: 999
 
   volumes:
-    - name: tools
+    - name: cmp-plugin-dir
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
 
   volumeMounts:
-    - name: tools
-      mountPath: /usr/local/bin
+    - name: cmp-plugin-dir
+      mountPath: /home/argocd/cmp-server/plugins
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -62,9 +63,9 @@ repoServer:
       args:
         - |
           set -eux
-          echo "Installing KSOPS, SOPS, and Helm into /usr/local/bin ..."
+          echo "Installing KSOPS, SOPS, and Helm into plugin dir ..."
           apk add --no-cache curl tar
-          mkdir -p /usr/local/bin
+          mkdir -p /home/argocd/cmp-server/plugins
 
           ARCH=$(uname -m)
           case "$ARCH" in
@@ -74,24 +75,36 @@ repoServer:
             *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
           esac
 
-          echo "Downloading KSOPS from $KSOPS_URL"
-          curl -L -o /usr/local/bin/ksops "$KSOPS_URL"
-          chmod +x /usr/local/bin/ksops
+          curl -L -o /home/argocd/cmp-server/plugins/ksops "$KSOPS_URL"
+          chmod +x /home/argocd/cmp-server/plugins/ksops
 
-          echo "Downloading SOPS"
-          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /usr/local/bin/sops
+          curl -L -o /home/argocd/cmp-server/plugins/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /home/argocd/cmp-server/plugins/sops
 
-          echo "Downloading Helm"
           curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
           tar -xzf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /usr/local/bin/helm
-          chmod +x /usr/local/bin/helm
+          mv /tmp/linux-amd64/helm /home/argocd/cmp-server/plugins/helm
+          chmod +x /home/argocd/cmp-server/plugins/helm
 
-          echo "✅ Installed KSOPS + SOPS + Helm successfully"
+          echo "✅ Installed KSOPS + SOPS + Helm in plugin dir"
       volumeMounts:
-        - name: tools
-          mountPath: /usr/local/bin
+        - name: cmp-plugin-dir
+          mountPath: /home/argocd/cmp-server/plugins
+
+  sidecarContainers:
+    - name: ksops-plugin
+      image: alpine:3.19
+      command: ["/bin/sh", "-c"]
+      args: ["sleep infinity"]
+      volumeMounts:
+        - name: cmp-plugin-dir
+          mountPath: /home/argocd/cmp-server/plugins
+        - name: sops-age
+          mountPath: /etc/sops/age
+          readOnly: true
+        - name: sops-age
+          mountPath: /home/argocd/.config/sops/age
+          readOnly: true
 
 server:
   replicas: 2
