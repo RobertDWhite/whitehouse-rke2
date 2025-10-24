@@ -64,16 +64,25 @@ repoServer:
           echo "Installing KSOPS, SOPS, and Helm into /app/bin ..."
           apk add --no-cache curl tar
           mkdir -p /app/bin
-          curl -L -o /app/bin/sops  https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64" ;;
+            aarch64) KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm64" ;;
+            armv7l)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm" ;;
+            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+          esac
+
+          curl -L -o /app/bin/sops  https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/;s/armv7l/arm/;')
           chmod +x /app/bin/sops
-          curl -L -o /app/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          curl -L -o /app/bin/ksops "$KSOPS_URL"
           chmod +x /app/bin/ksops
-          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
+          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-$( [ "$ARCH" = "aarch64" ] && echo arm64 || echo amd64 ).tar.gz
           tar -xzf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /app/bin/helm
+          mv /tmp/linux-*64/helm /app/bin/helm
           chmod +x /app/bin/helm
-          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
-          echo "Installed KSOPS + SOPS + Helm"
+          rm -rf /tmp/helm.tar.gz /tmp/linux-*64
+          echo "✅ Installed KSOPS + SOPS + Helm successfully for $ARCH"
       volumeMounts:
         - name: tools
           mountPath: /app/bin
