@@ -35,15 +35,17 @@ repoServer:
     runAsGroup: 999
     fsGroup: 999
 
+  # --- Shared Volumes ---
   volumes:
-    - name: custom-tools
+    - name: tools
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
 
+  # --- Volume Mounts ---
   volumeMounts:
-    - name: custom-tools
+    - name: tools
       mountPath: /usr/local/bin
     - name: sops-age
       mountPath: /etc/sops/age
@@ -52,6 +54,7 @@ repoServer:
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
 
+  # --- Install Tools via Init Container ---
   initContainers:
     - name: install-tools
       image: alpine:3.19
@@ -59,26 +62,28 @@ repoServer:
       args:
         - |
           set -eux
-          echo "Installing KSOPS, SOPS, Helm in /usr/local/bin ..."
+          echo "Installing KSOPS, SOPS, and Helm into /tools ..."
           apk add --no-cache curl tar
-          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /usr/local/bin/sops
-          curl -L -o /usr/local/bin/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
-          chmod +x /usr/local/bin/ksops
+          mkdir -p /tools
+          curl -L -o /tools/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /tools/sops
+          curl -L -o /tools/ksops https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64
+          chmod +x /tools/ksops
           curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
           tar -xzf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /usr/local/bin/helm
-          chmod +x /usr/local/bin/helm
+          mv /tmp/linux-amd64/helm /tools/helm
+          chmod +x /tools/helm
           rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
-          echo "✅ Installed KSOPS + SOPS + Helm"
+          echo "✅ Installed KSOPS + SOPS + Helm successfully."
       volumeMounts:
-        - name: custom-tools
-          mountPath: /usr/local/bin
+        - name: tools
+          mountPath: /tools
 
 server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
+
   service:
     type: ClusterIP
     ports:
