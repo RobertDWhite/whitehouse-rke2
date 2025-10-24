@@ -5,12 +5,14 @@ global:
 configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
-    kustomize.buildOptionsEnv: "KUSTOMIZE_PLUGIN_HOME"
+
     kustomize.plugins: |
       - name: ksops
         type: exec
-        path: /app/bin/ksops
+        path: /usr/local/bin/ksops
+
     accounts.readonly: apiKey
+
   rbac:
     policy.csv: |
       g, readonly, role:readonly
@@ -22,11 +24,11 @@ repoServer:
 
   env:
     - name: PATH
-      value: "/app/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
     - name: ARGOCD_KUSTOMIZE_BUILD_OPTIONS
       value: "--enable-alpha-plugins --enable-exec"
     - name: KUSTOMIZE_PLUGIN_HOME
-      value: /app/bin
+      value: /usr/local/bin
     - name: SOPS_AGE_KEY_FILE
       value: /etc/sops/age/key.txt
     - name: XDG_CONFIG_HOME
@@ -46,7 +48,7 @@ repoServer:
 
   volumeMounts:
     - name: tools
-      mountPath: /app/bin
+      mountPath: /usr/local/bin
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
@@ -54,54 +56,56 @@ repoServer:
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
 
-initContainers:
-  - name: install-tools
-    image: alpine:3.19
-    command: ["/bin/sh", "-c"]
-    args:
-      - |
-        set -eux
-        echo "Installing KSOPS, SOPS, and Helm into /app/bin ..."
-        apk add --no-cache curl tar
-        mkdir -p /app/bin
+  initContainers:
+    - name: install-tools
+      image: alpine:3.19
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eux
+          echo "Installing KSOPS, SOPS, and Helm into /usr/local/bin ..."
+          apk add --no-cache curl tar
+          mkdir -p /usr/local/bin
 
-        ARCH=$(uname -m)
-        case "$ARCH" in
-          x86_64)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64" ;;
-          aarch64) KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm64" ;;
-          armv7l)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm" ;;
-          *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-        esac
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64" ;;
+            aarch64) KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm64" ;;
+            armv7l)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm" ;;
+            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+          esac
 
-        echo "Downloading KSOPS from $KSOPS_URL"
-        curl -L -o /app/bin/ksops "$KSOPS_URL"
-        chmod +x /app/bin/ksops
+          echo "Downloading KSOPS from $KSOPS_URL"
+          curl -L -o /usr/local/bin/ksops "$KSOPS_URL"
+          chmod +x /usr/local/bin/ksops
 
-        echo "Downloading SOPS"
-        curl -L -o /app/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-        chmod +x /app/bin/sops
+          echo "Downloading SOPS"
+          curl -L -o /usr/local/bin/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
+          chmod +x /usr/local/bin/sops
 
-        echo "Downloading Helm"
-        curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
-        tar -xzf /tmp/helm.tar.gz -C /tmp
-        mv /tmp/linux-amd64/helm /app/bin/helm
-        chmod +x /app/bin/helm
+          echo "Downloading Helm"
+          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          mv /tmp/linux-amd64/helm /usr/local/bin/helm
+          chmod +x /usr/local/bin/helm
 
-        echo "✅ Installed KSOPS + SOPS + Helm successfully"
-    volumeMounts:
-      - name: tools
-        mountPath: /app/bin
+          echo "✅ Installed KSOPS + SOPS + Helm successfully"
+      volumeMounts:
+        - name: tools
+          mountPath: /usr/local/bin
 
 server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
+
   service:
     type: ClusterIP
     ports:
       - name: https
         port: 443
         targetPort: 8080
+
   resources:
     requests:
       cpu: 2
@@ -109,6 +113,7 @@ server:
     limits:
       cpu: 4
       memory: 5Gi
+
   livenessProbe:
     enabled: true
     probe:
@@ -119,6 +124,7 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
+
   readinessProbe:
     enabled: true
     probe:
@@ -129,6 +135,7 @@ server:
       timeoutSeconds: 5
       periodSeconds: 15
       failureThreshold: 10
+
   certificate:
     enabled: true
     domain: argo.white.fm
@@ -137,10 +144,12 @@ server:
       group: cert-manager.io
       kind: ClusterIssuer
       name: letsencrypt-dns
+
   extraVolumes:
     - name: argocd-tls
       secret:
         secretName: argocd-white-fm-tls
+
   extraVolumeMounts:
     - name: argocd-tls
       mountPath: /app/config/tls
