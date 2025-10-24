@@ -4,7 +4,7 @@ global:
 
 configs:
   cm:
-    kustomize.buildOptions: "--enable-exec"
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
     kustomize.buildOptionsEnv: "KUSTOMIZE_PLUGIN_HOME"
     kustomize.plugins: |
       - name: ksops
@@ -76,12 +76,10 @@ repoServer:
         - name: tools
           mountPath: /app/bin
 
-
 server:
   replicas: 2
   extraArgs:
     - --loglevel=debug
-
   service:
     type: ClusterIP
     ports:
