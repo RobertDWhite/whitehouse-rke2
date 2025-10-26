@@ -47,14 +47,13 @@ repoServer:
         secretName: sops-age
 
   volumeMounts:
-    - name: cmp-plugin-dir
-      mountPath: /home/argocd/cmp-server/plugins
     - name: sops-age
       mountPath: /etc/sops/age
       readOnly: true
     - name: sops-age
       mountPath: /home/argocd/.config/sops/age
       readOnly: true
+
 
   initContainers:
     - name: install-tools
@@ -105,7 +104,6 @@ repoServer:
         - name: sops-age
           mountPath: /home/argocd/.config/sops/age
           readOnly: true
-
 
 server:
   replicas: 2
