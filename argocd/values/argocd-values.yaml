@@ -1,170 +1,51 @@
 global:
   image:
-    tag: v3.1.9
+    tag: v3.0.11
 
 configs:
-  cmp:
-    plugins:
-      ksops:
-        generate:
-          command: ["ksops"]
-        discover:
-          find:
-            command: ["find", ".", "-name", "ksops.yaml"]
-
   cm:
-    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
-    accounts.readonly: apiKey
-  rbac:
-    policy.csv: |
-      g, readonly, role:readonly
+    kustomize.buildOptions: "--enable-alpha-plugins"
+    configManagementPlugins: |
+      - name: ksops
+        generate:
+          command: ["/usr/local/bin/kustomize"]
+          args: ["build", "--enable-alpha-plugins"]
 
 repoServer:
-  replicas: 4
   extraArgs:
-    - --loglevel=debug
-
-  env:
-    - name: PATH
-      value: "/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
-    - name: ARGOCD_EXECUTOR_PLUGIN_DIR
-      value: /home/argocd/cmp-server/plugins
-    - name: SOPS_AGE_KEY_FILE
-      value: /etc/sops/age/key.txt
-    - name: XDG_CONFIG_HOME
-      value: /home/argocd/.config
-
-  securityContext:
-    runAsUser: 999
-    runAsGroup: 999
-    fsGroup: 999
+    - --loglevel=debug  # ✅ keep this, remove alpha flags
 
   volumes:
-    - name: cmp-plugin-dir
+    - name: custom-tools
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
 
-  volumeMounts:
-    - name: sops-age
-      mountPath: /etc/sops/age
-      readOnly: true
-    - name: sops-age
-      mountPath: /home/argocd/.config/sops/age
-      readOnly: true
-
-
   initContainers:
-    - name: install-tools
-      image: alpine:3.19
+    - name: install-ksops
+      image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
       args:
         - |
-          set -eux
-          echo "Installing KSOPS, SOPS, and Helm into plugin dir ..."
-          apk add --no-cache curl tar
-          mkdir -p /home/argocd/cmp-server/plugins
-
-          ARCH=$(uname -m)
-          case "$ARCH" in
-            x86_64)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_x86_64" ;;
-            aarch64) KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm64" ;;
-            armv7l)  KSOPS_URL="https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.3.3/ksops_4.3.3_Linux_arm" ;;
-            *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
-          esac
-
-          curl -L -o /home/argocd/cmp-server/plugins/ksops "$KSOPS_URL"
-          chmod +x /home/argocd/cmp-server/plugins/ksops
-
-          curl -L -o /home/argocd/cmp-server/plugins/sops https://github.com/getsops/sops/releases/download/v3.8.1/sops-v3.8.1.linux.amd64
-          chmod +x /home/argocd/cmp-server/plugins/sops
-
-          curl -L -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
-          tar -xzf /tmp/helm.tar.gz -C /tmp
-          mv /tmp/linux-amd64/helm /home/argocd/cmp-server/plugins/helm
-          chmod +x /home/argocd/cmp-server/plugins/helm
-
-          echo "✅ Installed KSOPS + SOPS + Helm in plugin dir"
+          echo "Installing KSOPS...";
+          cp /usr/local/bin/ksops /custom-tools/ && chmod +x /custom-tools/ksops;
+          cp /usr/local/bin/kustomize /custom-tools/ && chmod +x /custom-tools/kustomize;
+          echo "Done.";
       volumeMounts:
-        - name: cmp-plugin-dir
-          mountPath: /home/argocd/cmp-server/plugins
+        - mountPath: /custom-tools
+          name: custom-tools
 
-  sidecarContainers:
-    - name: ksops-plugin
-      image: alpine:3.19
-      command: ["/bin/sh", "-c"]
-      args: ["sleep infinity"]
-      volumeMounts:
-        - name: cmp-plugin-dir
-          mountPath: /home/argocd/cmp-server/plugins
-        - name: sops-age
-          mountPath: /etc/sops/age
-          readOnly: true
-        - name: sops-age
-          mountPath: /home/argocd/.config/sops/age
-          readOnly: true
-
-server:
-  replicas: 2
-  extraArgs:
-    - --loglevel=debug
-
-  service:
-    type: ClusterIP
-    ports:
-      - name: https
-        port: 443
-        targetPort: 8080
-
-  resources:
-    requests:
-      cpu: 2
-      memory: 2Gi
-    limits:
-      cpu: 4
-      memory: 5Gi
-
-  livenessProbe:
-    enabled: true
-    probe:
-      httpGet:
-        path: /healthz?full=true
-        port: 8080
-      initialDelaySeconds: 20
-      timeoutSeconds: 5
-      periodSeconds: 15
-      failureThreshold: 10
-
-  readinessProbe:
-    enabled: true
-    probe:
-      httpGet:
-        path: /healthz
-        port: 8080
-      initialDelaySeconds: 20
-      timeoutSeconds: 5
-      periodSeconds: 15
-      failureThreshold: 10
-
-  certificate:
-    enabled: true
-    domain: argo.white.fm
-    secretName: argocd-white-fm-tls
-    issuer:
-      group: cert-manager.io
-      kind: ClusterIssuer
-      name: letsencrypt-dns
-
-  extraVolumes:
-    - name: argocd-tls
-      secret:
-        secretName: argocd-white-fm-tls
-
-  extraVolumeMounts:
-    - name: argocd-tls
-      mountPath: /app/config/tls
+  volumeMounts:
+    - mountPath: /usr/local/bin/kustomize
+      name: custom-tools
+      subPath: kustomize
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: /etc/sops/age
+      name: sops-age
       readOnly: true
-
-applicationController:
-  replicas: 3
+    - mountPath: /home/argocd/.config/sops/age
+      name: sops-age
+      readOnly: true
