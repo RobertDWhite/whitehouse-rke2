@@ -4,21 +4,18 @@ global:
 
 configs:
   cm:
-    kustomize.buildOptions: "--enable-alpha-plugins"
-    configManagementPlugins: |
-      - name: ksops
-        generate:
-          command: ["/usr/local/bin/kustomize"]
-          args: ["build", "--enable-alpha-plugins"]
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
 
 repoServer:
   env:
-    - name: ARGOCD_EXEC_ENABLED
-      value: "true"
-    - name: ARGOCD_KUSTOMIZE_PLUGIN_HOME
-      value: /usr/local/bin
+    - name: SOPS_AGE_KEY_FILE
+      value: /etc/sops/age/key.txt
+    - name: XDG_CONFIG_HOME
+      value: /home/argocd/.config
 
   extraArgs:
+    - --enable-alpha-plugins
+    - --enable-exec
     - --loglevel=debug
 
   volumes:
@@ -27,8 +24,6 @@ repoServer:
     - name: sops-age
       secret:
         secretName: sops-age
-    - name: cmp-plugins
-      emptyDir: {}
 
   initContainers:
     - name: install-ksops
@@ -37,12 +32,13 @@ repoServer:
       args:
         - |
           echo "Installing KSOPS...";
-          cp /usr/local/bin/ksops /custom-tools/ && chmod +x /custom-tools/ksops;
-          cp /usr/local/bin/kustomize /custom-tools/ && chmod +x /custom-tools/kustomize;
+          cp /usr/local/bin/ksops /custom-tools/;
+          cp /usr/local/bin/kustomize /custom-tools/;
           echo "Done.";
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
+
 
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
@@ -57,5 +53,3 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
-    - mountPath: /home/argocd/cmp-server/plugins
-      name: cmp-plugins
