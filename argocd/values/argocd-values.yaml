@@ -12,6 +12,12 @@ configs:
           args: ["build", "--enable-alpha-plugins"]
 
 repoServer:
+  env:
+    - name: ARGOCD_EXEC_ENABLED
+      value: "true"
+    - name: ARGOCD_KUSTOMIZE_PLUGIN_HOME
+      value: /usr/local/bin
+
   extraArgs:
     - --loglevel=debug
 
@@ -21,6 +27,8 @@ repoServer:
     - name: sops-age
       secret:
         secretName: sops-age
+    - name: cmp-plugins
+      emptyDir: {}
 
   initContainers:
     - name: install-ksops
@@ -49,3 +57,5 @@ repoServer:
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
+    - mountPath: /home/argocd/cmp-server/plugins
+      name: cmp-plugins
