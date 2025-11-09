@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-authentik-to-freshrss
+  namespace: freshrss
+spec:
+  podSelector:
+    matchLabels:
+      app: freshrss
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 80
+  policyTypes:
+    - Ingress
