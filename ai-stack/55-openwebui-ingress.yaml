@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openwebui
+  namespace: ai-stack
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: "authentik.authentik.svc.cluster.local"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - openwebui.white.fm
+      secretName: openwebui-white-fm-tls
+  rules:
+    - host: openwebui.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-proxy
+                port:
+                  number: 9443
+---
