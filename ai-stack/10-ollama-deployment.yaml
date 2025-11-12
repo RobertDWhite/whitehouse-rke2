@@ -15,21 +15,37 @@ spec:
       labels:
         app: ollama
     spec:
+      tolerations:
+        - key: "gpu-only"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: In
+                    values:
+                      - "true"
       containers:
         - name: ollama
           image: ollama/ollama:latest
           ports:
             - containerPort: 11434
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              cpu: "10"
+              memory: "16Gi"
+            requests:
+              cpu: "4"
+              memory: "8Gi"
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
-          resources:
-            requests:
-              cpu: "1"
-              memory: "2Gi"
-            limits:
-              cpu: "2"
-              memory: "4Gi"
       volumes:
         - name: ollama-data
           persistentVolumeClaim:
