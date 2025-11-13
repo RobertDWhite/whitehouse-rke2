@@ -21,8 +21,13 @@ spec:
             - -c
             - |
               echo "Installing FreshRSS AI Assistant..." && \
-              mkdir -p /extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-aiassist /extensions/xExtension-AIAssistant || true
+              rm -rf /extensions/xExtension-AIAssistant && \
+              git clone https://github.com/cvlc/freshrss-aiassist /extensions/xExtension-AIAssistant --depth 1 && \
+              if [ -d /extensions/xExtension-AIAssistant/freshrss-aiassist ]; then \
+                mv /extensions/xExtension-AIAssistant/freshrss-aiassist/* /extensions/xExtension-AIAssistant/; \
+                rm -rf /extensions/xExtension-AIAssistant/freshrss-aiassist; \
+              fi && \
+              chown -R 1000:1000 /extensions
           volumeMounts:
             - name: extensions
               mountPath: /extensions
@@ -34,8 +39,13 @@ spec:
             - -c
             - |
               echo "Installing FeedDigest..." && \
-              mkdir -p /extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest /extensions/xExtension-FeedDigest || true
+              rm -rf /extensions/xExtension-FeedDigest && \
+              git clone https://github.com/fengchang/xExtension-FeedDigest /extensions/xExtension-FeedDigest --depth 1 && \
+              if [ -d /extensions/xExtension-FeedDigest/xExtension-FeedDigest ]; then \
+                mv /extensions/xExtension-FeedDigest/xExtension-FeedDigest/* /extensions/xExtension-FeedDigest/; \
+                rm -rf /extensions/xExtension-FeedDigest/xExtension-FeedDigest; \
+              fi && \
+              chown -R 1000:1000 /extensions
           volumeMounts:
             - name: extensions
               mountPath: /extensions
@@ -47,9 +57,14 @@ spec:
             - -c
             - |
               echo "Installing WordHighlighter..." && \
-              mkdir -p /extensions/xExtension-WordHighlighter && \
-              git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions && \
-              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /extensions/xExtension-WordHighlighter || true
+              rm -rf /extensions/xExtension-WordHighlighter && \
+              git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions --depth 1 && \
+              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /extensions/xExtension-WordHighlighter && \
+              if [ -d /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter ]; then \
+                mv /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter/* /extensions/xExtension-WordHighlighter/; \
+                rm -rf /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter; \
+              fi && \
+              chown -R 1000:1000 /extensions
           volumeMounts:
             - name: extensions
               mountPath: /extensions
