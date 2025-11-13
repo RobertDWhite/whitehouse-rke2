@@ -3,12 +3,8 @@ kind: Deployment
 metadata:
   name: ollama-gpu
   namespace: ai-stack
-  labels:
-    app: ollama
-    type: gpu
 spec:
   replicas: 1
-  priorityClassName: high-priority
   selector:
     matchLabels:
       app: ollama
@@ -19,6 +15,7 @@ spec:
         app: ollama
         type: gpu
     spec:
+      priorityClassName: high-priority
       tolerations:
         - key: "gpu-only"
           operator: "Equal"
@@ -46,4 +43,3 @@ spec:
         - name: ollama-data
           persistentVolumeClaim:
             claimName: ollama-pvc
-
