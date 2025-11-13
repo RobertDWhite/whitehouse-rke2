@@ -1,28 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ollama-gpu
+  name: ollama
   namespace: ai-stack
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: ollama
-      type: gpu
   template:
     metadata:
       labels:
         app: ollama
-        type: gpu
     spec:
-      priorityClassName: high-priority
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: nvidia.com/gpu.present
+                    operator: In
+                    values:
+                      - "true"
       tolerations:
         - key: "gpu-only"
           operator: "Equal"
           value: "true"
           effect: "NoSchedule"
-      nodeSelector:
-        nvidia.com/gpu.present: "true"
       containers:
         - name: ollama
           image: ollama/ollama:latest
@@ -30,9 +35,9 @@ spec:
             - containerPort: 11434
           resources:
             limits:
-              nvidia.com/gpu: 1
               cpu: "8"
               memory: "16Gi"
+              nvidia.com/gpu: 1
             requests:
               cpu: "4"
               memory: "8Gi"
