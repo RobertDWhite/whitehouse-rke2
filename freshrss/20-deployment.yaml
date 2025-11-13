@@ -21,16 +21,12 @@ spec:
             - -c
             - |
               echo "Installing FreshRSS AI Assistant..." && \
-              rm -rf /extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-ai-assistant /extensions/xExtension-AIAssistant --depth 1 || true && \
-              if [ -d /extensions/xExtension-AIAssistant/freshrss-ai-assistant ]; then \
-                mv /extensions/xExtension-AIAssistant/freshrss-ai-assistant/* /extensions/xExtension-AIAssistant/; \
-                rm -rf /extensions/xExtension-AIAssistant/freshrss-ai-assistant; \
-              fi && \
-              chown -R 1000:1000 /extensions || true
+              rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant && \
+              git clone https://github.com/cvlc/freshrss-ai-assistant /config/www/freshrss/extensions/xExtension-AIAssistant --depth 1 || true && \
+              chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
-            - name: extensions
-              mountPath: /extensions
+            - name: data
+              mountPath: /config
 
         - name: install-feeddigest
           image: alpine/git
@@ -39,16 +35,12 @@ spec:
             - -c
             - |
               echo "Installing FeedDigest..." && \
-              rm -rf /extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest /extensions/xExtension-FeedDigest --depth 1 || true && \
-              if [ -d /extensions/xExtension-FeedDigest/xExtension-FeedDigest ]; then \
-                mv /extensions/xExtension-FeedDigest/xExtension-FeedDigest/* /extensions/xExtension-FeedDigest/; \
-                rm -rf /extensions/xExtension-FeedDigest/xExtension-FeedDigest; \
-              fi && \
-              chown -R 1000:1000 /extensions || true
+              rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest && \
+              git clone https://github.com/fengchang/xExtension-FeedDigest /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1 || true && \
+              chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
-            - name: extensions
-              mountPath: /extensions
+            - name: data
+              mountPath: /config
 
         - name: install-wordhighlighter
           image: alpine/git
@@ -57,17 +49,13 @@ spec:
             - -c
             - |
               echo "Installing WordHighlighter..." && \
-              rm -rf /extensions/xExtension-WordHighlighter && \
+              rm -rf /config/www/freshrss/extensions/xExtension-WordHighlighter && \
               git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions --depth 1 || true && \
-              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /extensions/xExtension-WordHighlighter && \
-              if [ -d /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter ]; then \
-                mv /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter/* /extensions/xExtension-WordHighlighter/; \
-                rm -rf /extensions/xExtension-WordHighlighter/xExtension-WordHighlighter; \
-              fi && \
-              chown -R 1000:1000 /extensions || true
+              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /config/www/freshrss/extensions/xExtension-WordHighlighter && \
+              chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
-            - name: extensions
-              mountPath: /extensions
+            - name: data
+              mountPath: /config
 
       containers:
         - name: freshrss
@@ -84,13 +72,9 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /config
-            - name: extensions
-              mountPath: /app/www/freshrss/extensions
 
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: freshrss-data
-        - name: extensions
-          persistentVolumeClaim:
-            claimName: freshrss-extensions
+
