@@ -13,6 +13,20 @@ spec:
       labels:
         app: freshrss
     spec:
+      initContainers:
+        - name: install-aiassistant
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              echo "Installing FreshRSS AI Assistant..." && \
+              mkdir -p /extensions/xExtension-AIAssistant && \
+              git clone https://github.com/cvlc/freshrss-aiassist /extensions/xExtension-AIAssistant || \
+              echo "Clone failed or already exists."
+          volumeMounts:
+            - name: extensions
+              mountPath: /extensions
       containers:
         - name: freshrss
           image: lscr.io/linuxserver/freshrss:latest
@@ -28,7 +42,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /config
+            - name: extensions
+              mountPath: /config/www/extensions
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: freshrss-data
+        - name: extensions
+          emptyDir: {}
