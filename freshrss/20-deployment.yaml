@@ -22,11 +22,38 @@ spec:
             - |
               echo "Installing FreshRSS AI Assistant..." && \
               mkdir -p /extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-aiassist /extensions/xExtension-AIAssistant || \
-              echo "Clone failed or already exists."
+              git clone https://github.com/cvlc/freshrss-aiassist /extensions/xExtension-AIAssistant || true
           volumeMounts:
             - name: extensions
               mountPath: /extensions
+
+        - name: install-feeddigest
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              echo "Installing FeedDigest..." && \
+              mkdir -p /extensions/xExtension-FeedDigest && \
+              git clone https://github.com/fengchang/xExtension-FeedDigest /extensions/xExtension-FeedDigest || true
+          volumeMounts:
+            - name: extensions
+              mountPath: /extensions
+
+        - name: install-wordhighlighter
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              echo "Installing WordHighlighter..." && \
+              mkdir -p /extensions/xExtension-WordHighlighter && \
+              git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions && \
+              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /extensions/xExtension-WordHighlighter || true
+          volumeMounts:
+            - name: extensions
+              mountPath: /extensions
+
       containers:
         - name: freshrss
           image: lscr.io/linuxserver/freshrss:latest
@@ -44,9 +71,11 @@ spec:
               mountPath: /config
             - name: extensions
               mountPath: /config/www/extensions
+
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: freshrss-data
         - name: extensions
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: freshrss-extensions
