@@ -14,15 +14,15 @@ spec:
         app: freshrss
     spec:
       initContainers:
-        - name: install-aiassistant
+        - name: install-ollamasummarizer
           image: alpine/git
           command:
             - sh
             - -c
             - |
-              echo "Installing FreshRSS AI Assistant..." && \
-              rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-ai-assistant /config/www/freshrss/extensions/xExtension-AIAssistant --depth 1 || true && \
+              echo "Installing xExtension-OllamaSummarizer..." && \
+              rm -rf /config/www/freshrss/extensions/xExtension-OllamaSummarizer && \
+              git clone https://github.com/fspv/xExtension-OllamaSummarizer.git /config/www/freshrss/extensions/xExtension-OllamaSummarizer --depth 1 || true && \
               chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
             - name: data
@@ -36,7 +36,6 @@ spec:
             - |
               echo "Installing FeedDigest..." && \
               rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1 || true && \
               chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
             - name: data
@@ -77,4 +76,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: freshrss-data
-
