@@ -24,12 +24,12 @@ spec:
                     values:
                       - "true"
           requiredDuringSchedulingIgnoredDuringExecution:
-            - nodeSelectorTerms:
-                - matchExpressions:
-                    - key: node.longhorn.io/ready
-                      operator: In
-                      values:
-                        - "true"
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: longhorn-ok
+                    operator: In
+                    values:
+                      - "true"
       tolerations:
         - key: "gpu-only"
           operator: "Equal"
