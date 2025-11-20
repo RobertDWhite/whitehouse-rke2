@@ -15,15 +15,19 @@ spec:
     spec:
       initContainers:
         - name: install-ollamasummarizer
-          image: alpine/git
+          image: alpine:3.20
           command:
             - sh
             - -c
             - |
-              echo "Installing xExtension-OllamaSummarizer..." && \
-              rm -rf /config/www/freshrss/extensions/xExtension-OllamaSummarizer && \
-              git clone https://github.com/fspv/xExtension-OllamaSummarizer.git /config/www/freshrss/extensions/xExtension-OllamaSummarizer --depth 1 || true && \
-              chown -R 1000:1000 /config/www/freshrss/extensions || true
+              set -eux
+              echo "Installing xExtension-OllamaSummarizer..."
+              apk add --no-cache git php84-cli php84-phar php84-curl php84-openssl php84-dom php84-json composer
+              rm -rf /config/www/freshrss/extensions/xExtension-OllamaSummarizer
+              git clone https://github.com/fspv/xExtension-OllamaSummarizer.git /config/www/freshrss/extensions/xExtension-OllamaSummarizer --depth 1
+              cd /config/www/freshrss/extensions/xExtension-OllamaSummarizer
+              composer install --no-dev --optimize-autoloader
+              chown -R 1000:1000 /config/www/freshrss/extensions
           volumeMounts:
             - name: data
               mountPath: /config
