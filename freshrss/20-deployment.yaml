@@ -14,34 +14,18 @@ spec:
         app: freshrss
     spec:
       initContainers:
-        - name: install-ollamasummarizer
+        - name: install-feeddigest
           image: alpine:3.20
           command:
             - sh
             - -c
             - |
               set -eux
-              echo "Installing xExtension-OllamaSummarizer..."
-              apk add --no-cache git php84-cli php84-phar php84-curl php84-openssl php84-dom php84-json composer
-              rm -rf /config/www/freshrss/extensions/xExtension-OllamaSummarizer
-              git clone https://github.com/fspv/xExtension-OllamaSummarizer.git /config/www/freshrss/extensions/xExtension-OllamaSummarizer --depth 1
-              cd /config/www/freshrss/extensions/xExtension-OllamaSummarizer
-              composer install --no-dev --optimize-autoloader
+              echo "Installing xExtension-FeedDigest (with local LLM/Ollama support)..."
+              apk add --no-cache git
+              rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest
+              git clone https://github.com/fengchang/xExtension-FeedDigest.git /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1
               chown -R 1000:1000 /config/www/freshrss/extensions
-          volumeMounts:
-            - name: data
-              mountPath: /config
-
-        - name: install-feeddigest
-          image: alpine/git
-          command:
-            - sh
-            - -c
-            - |
-              echo "Installing FeedDigest..." && \
-              rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest.git /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1 || true && \
-              chown -R 1000:1000 /config/www/freshrss/extensions || true
           volumeMounts:
             - name: data
               mountPath: /config
