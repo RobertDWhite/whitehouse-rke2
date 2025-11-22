@@ -1,61 +1,140 @@
 global:
   image:
-    tag: v3.0.11
+    tag: v3.1.4
 
 configs:
   cm:
-    configManagementPlugins: |
-      - name: ksops
-        generate:
-          command: ["/usr/local/bin/ksops"]
-          args: ["-f", "."]
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    accounts.readonly: apiKey
+
+  rbac:
+    policy.csv: |
+      g, readonly, role:readonly
 
 repoServer:
-  extraEnv:
-    - name: ARGOCD_EXEC_ENABLED
-      value: "true"
-
-    - name: ARGOCD_KUSTOMIZE_PLUGIN_HOME
-      value: /usr/local/bin
-
+  replicas: 4
   extraArgs:
     - --loglevel=debug
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: /etc/sops/age/key.txt
+    - name: XDG_CONFIG_HOME
+      value: /home/argocd/.config
 
   volumes:
     - name: custom-tools
       emptyDir: {}
-
     - name: sops-age
       secret:
         secretName: sops-age
 
+  # -----------------------------------------------------
+  # Init container installs KSOPS tools + Helm
+  # -----------------------------------------------------
   initContainers:
-    - name: install-ksops
+    - name: install-tools
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
       args:
         - |
-          echo "Installing KSOPS..."
-          cp /usr/local/bin/ksops /custom-tools/ && chmod +x /custom-tools/ksops
-          cp /usr/local/bin/kustomize /custom-tools/ && chmod +x /custom-tools/kustomize
-          echo "Done."
+          set -e
+          echo "Installing KSOPS + Helm in /custom-tools ..."
+
+          # Copy KSOPS + Kustomize + SOPS (already in image)
+          cp /usr/local/bin/ksops /custom-tools/ksops
+          cp /usr/local/bin/kustomize /custom-tools/kustomize
+          cp /usr/local/bin/sops /custom-tools/sops
+
+          # Install Helm v3.15.3
+          wget -qO /tmp/helm.tar.gz https://get.helm.sh/helm-v3.15.3-linux-amd64.tar.gz
+          tar -zxvf /tmp/helm.tar.gz -C /tmp
+          mv /tmp/linux-amd64/helm /custom-tools/helm
+          chmod +x /custom-tools/helm
+          rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+
+          echo "KSOPS + Helm install complete."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
 
+  # -----------------------------------------------------
+  # Mount all binaries into /usr/local/bin for repo-server
+  # -----------------------------------------------------
   volumeMounts:
     - mountPath: /usr/local/bin/kustomize
       name: custom-tools
       subPath: kustomize
-
     - mountPath: /usr/local/bin/ksops
       name: custom-tools
       subPath: ksops
-
+    - mountPath: /usr/local/bin/sops
+      name: custom-tools
+      subPath: sops
+    - mountPath: /usr/local/bin/helm
+      name: custom-tools
+      subPath: helm
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
-
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
+
+server:
+  replicas: 2
+  extraArgs:
+    - --loglevel=debug
+  service:
+    type: ClusterIP
+    ports:
+      - name: https
+        port: 443
+        targetPort: 8080
+
+  resources:
+    requests:
+      cpu: 2
+      memory: 2G
+    limits:
+      cpu: 4
+      memory: 5G
+
+  livenessProbe:
+    httpGet:
+      path: /healthz?full=true
+      port: 8080
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 10
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: 8080
+    initialDelaySeconds: 20
+    timeoutSeconds: 5
+    periodSeconds: 15
+    failureThreshold: 10
+
+  certificate:
+    enabled: true
+    domain: argo.white.fm
+    secretName: argocd-white-fm-tls
+    issuer:
+      group: cert-manager.io
+      kind: ClusterIssuer
+      name: letsencrypt-dns
+
+  extraVolumes:
+    - name: argocd-tls
+      secret:
+        secretName: argocd-white-fm-tls
+
+  extraVolumeMounts:
+    - name: argocd-tls
+      mountPath: /app/config/tls
+      readOnly: true
+
+applicationController:
+  replicas: 3
