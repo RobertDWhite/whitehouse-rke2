@@ -22,17 +22,17 @@ spec:
             - -c
             - |
               echo "Installing FreshRSS AI Assistant..." && \
-              mkdir -p /config/www/extensions && \
-              rm -rf /config/www/extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-ai-assistant /config/www/extensions/xExtension-AIAssistant --depth 1 || true && \
-              if [ -d /config/www/extensions/xExtension-AIAssistant/freshrss-ai-assistant ]; then \
-                mv /config/www/extensions/xExtension-AIAssistant/freshrss-ai-assistant/* /config/www/extensions/xExtension-AIAssistant/; \
-                rm -rf /config/www/extensions/xExtension-AIAssistant/freshrss-ai-assistant; \
+              mkdir -p /config/www/freshrss/extensions && \
+              rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant && \
+              git clone https://github.com/cvlc/freshrss-ai-assistant /config/www/freshrss/extensions/xExtension-AIAssistant --depth 1 || true && \
+              if [ -d /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant ]; then \
+                mv /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant/* /config/www/freshrss/extensions/xExtension-AIAssistant/; \
+                rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant; \
               fi && \
-              chown -R 1000:1000 /config/www/extensions
+              chown -R 1000:1000 /config/www/freshrss/extensions
           volumeMounts:
             - name: extensions
-              mountPath: /config/www/extensions
+              mountPath: /config/www/freshrss/extensions
 
         - name: install-feeddigest
           image: alpine/git
@@ -41,17 +41,17 @@ spec:
             - -c
             - |
               echo "Installing FeedDigest..." && \
-              mkdir -p /config/www/extensions && \
-              rm -rf /config/www/extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest /config/www/extensions/xExtension-FeedDigest --depth 1 || true && \
-              if [ -d /config/www/extensions/xExtension-FeedDigest/xExtension-FeedDigest ]; then \
-                mv /config/www/extensions/xExtension-FeedDigest/xExtension-FeedDigest/* /config/www/extensions/xExtension-FeedDigest/; \
-                rm -rf /config/www/extensions/xExtension-FeedDigest/xExtension-FeedDigest; \
+              mkdir -p /config/www/freshrss/extensions && \
+              rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest && \
+              git clone https://github.com/fengchang/xExtension-FeedDigest /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1 || true && \
+              if [ -d /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest ]; then \
+                mv /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest/* /config/www/freshrss/extensions/xExtension-FeedDigest/; \
+                rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest; \
               fi && \
-              chown -R 1000:1000 /config/www/extensions
+              chown -R 1000:1000 /config/www/freshrss/extensions
           volumeMounts:
             - name: extensions
-              mountPath: /config/www/extensions
+              mountPath: /config/www/freshrss/extensions
 
         - name: install-wordhighlighter
           image: alpine/git
@@ -60,18 +60,18 @@ spec:
             - -c
             - |
               echo "Installing WordHighlighter..." && \
-              mkdir -p /config/www/extensions && \
-              rm -rf /config/www/extensions/xExtension-WordHighlighter && \
+              mkdir -p /config/www/freshrss/extensions && \
+              rm -rf /config/www/freshrss/extensions/xExtension-WordHighlighter && \
               git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions --depth 1 || true && \
-              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /config/www/extensions/xExtension-WordHighlighter && \
-              if [ -d /config/www/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter ]; then \
-                mv /config/www/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter/* /config/www/extensions/xExtension-WordHighlighter/; \
-                rm -rf /config/www/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter; \
+              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /config/www/freshrss/extensions/xExtension-WordHighlighter && \
+              if [ -d /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter ]; then \
+                mv /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter/* /config/www/freshrss/extensions/xExtension-WordHighlighter/; \
+                rm -rf /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter; \
               fi && \
-              chown -R 1000:1000 /config/www/extensions
+              chown -R 1000:1000 /config/www/freshrss/extensions
           volumeMounts:
             - name: extensions
-              mountPath: /config/www/extensions
+              mountPath: /config/www/freshrss/extensions
 
       containers:
         - name: freshrss
@@ -89,7 +89,7 @@ spec:
             - name: data
               mountPath: /config
             - name: extensions
-              mountPath: /config/www/extensions
+              mountPath: /config/www/freshrss/extensions
 
       volumes:
         - name: data
