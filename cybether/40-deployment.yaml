@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybether-backend
+  namespace: cybether
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cybether-backend
+  template:
+    metadata:
+      labels:
+        app: cybether-backend
+    spec:
+      containers:
+        - name: cybether-backend
+          image: ghcr.io/darkchariot/cybether-backend:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://cybether:change_me@cybether-postgres.cybether.svc.cluster.local:5432/cybether"
+            - name: FLASK_ENV
+              value: "production"
