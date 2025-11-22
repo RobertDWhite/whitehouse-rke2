@@ -30,11 +30,8 @@ spec:
                     operator: In
                     values:
                       - "true"
-      tolerations:
-        - key: "gpu-only"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
+      tolerations: []
+
       containers:
         - name: ollama
           image: ollama/ollama:0.13.0 # renovate: datasource=docker depName=ollama/ollama
@@ -44,16 +41,17 @@ spec:
             - name: OLLAMA_API
               value: "1"
           resources:
-            limits:
-              cpu: "8"
-              memory: "16Gi"
-              nvidia.com/gpu: 1
             requests:
               cpu: "1"
               memory: "4Gi"
+            limits:
+              cpu: "8"
+              memory: "16Gi"
+
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
+
       volumes:
         - name: ollama-data
           persistentVolumeClaim:
