@@ -15,11 +15,41 @@ spec:
     spec:
       containers:
         - name: cybether-backend
+          # renovate: datasource=docker depName=ghcr.io/darkchariot/cybether-backend versioning=semver
           image: ghcr.io/darkchariot/cybether-backend:latest
+
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}";
+              exec gunicorn --bind 0.0.0.0:5000 wsgi:app
+
           ports:
             - containerPort: 5000
+
           env:
-            - name: DATABASE_URL
-              value: "postgresql://cybether:change_me@cybether-postgres.cybether.svc.cluster.local:5432/cybether"
+            - name: DB_HOST
+              value: "cybether-postgres.cybether.svc.cluster.local"
+            - name: DB_PORT
+              value: "5432"
+
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: POSTGRES_USER
+
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: POSTGRES_PASSWORD
+
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: POSTGRES_DB
+
             - name: FLASK_ENV
               value: "production"
