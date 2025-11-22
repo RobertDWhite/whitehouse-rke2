@@ -15,14 +15,14 @@
       "datasourceTemplate": "helm"
     },
     {
-  "customType": "regex",
-  "managerFilePatterns": [
-    ".*\\.ya?ml$"
-  ],
-  "matchStrings": [
-    "image:\\s*(?<depName>[a-z0-9\\-]+(?:\\/[a-z0-9\\-]+)+):(?<currentValue>v?[0-9]+)"
-  ],
-  "datasourceTemplate": "docker"
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>[a-z0-9\\-]+(?:\\/[a-z0-9\\-]+)+):(?<currentValue>v?[0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
@@ -99,26 +99,40 @@
   ],
   "packageRules": [
     {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "automerge": true
     },
     {
-      "matchManagers": ["custom.regex"],
+      "matchManagers": [
+        "custom.regex"
+      ],
       "groupName": "Helm chart updates",
       "automerge": false
     },
     {
-      "matchManagers": ["docker"],
+      "matchManagers": [
+        "docker"
+      ],
       "automerge": false,
-      "matchPackageNames": ["/^ghcr\\.io/.*/"]
+      "matchPackageNames": [
+        "/^ghcr\\.io/.*/"
+      ]
     },
     {
-      "matchDatasources": ["docker"],
-      "matchPackagePrefixes": ["ghcr.io/sdr-enthusiasts/"],
+      "matchDatasources": [
+        "docker"
+      ],
       "groupName": "SDR Enthusiasts container updates",
-      "automerge": false
+      "automerge": false,
+      "matchPackageNames": [
+        "ghcr.io/sdr-enthusiasts/{/,}**"
+      ]
     }
   ]
 }
-
