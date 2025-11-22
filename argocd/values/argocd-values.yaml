@@ -33,11 +33,12 @@ repoServer:
     - name: install-ksops
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
-      args: |
-        echo "Installing KSOPS..."
-        cp /usr/local/bin/ksops /custom-tools/ && chmod +x /custom-tools/ksops
-        cp /usr/local/bin/kustomize /custom-tools/ && chmod +x /custom-tools/kustomize
-        echo "Done."
+      args:
+        - |
+          echo "Installing KSOPS..."
+          cp /usr/local/bin/ksops /custom-tools/ && chmod +x /custom-tools/ksops
+          cp /usr/local/bin/kustomize /custom-tools/ && chmod +x /custom-tools/kustomize
+          echo "Done."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
