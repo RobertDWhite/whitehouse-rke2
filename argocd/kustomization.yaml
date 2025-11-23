@@ -3,16 +3,15 @@ kind: Kustomization
 
 resources:
   - allow-cloudflared-to-argo.yaml
- # - plugins/ksops-cmp-plugin.yaml
 
 helmCharts:
   - name: argo-cd
-    releaseName: argocd
-    namespace: argocd
-    version: 9.1.4
     repo: https://argoproj.github.io/argo-helm
-    valuesFile: argocd-values.yaml
-    includeCRDs: true
+    # renovate: datasource=helm registryUrl=https://argoproj.github.io/argo-helm depName=argo-cd
+    version: 5.52.1
+    releaseName: argocd
+    valuesFile: values/argocd-values.yaml
+    namespace: argocd
 
 
 
