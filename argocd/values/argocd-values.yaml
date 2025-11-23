@@ -1,3 +1,31 @@
+extraObjects:
+  - apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: argocd
+      namespace: argocd
+      annotations:
+        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+        cert-manager.io/cluster-issuer: letsencrypt-dns
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    spec:
+      ingressClassName: nginx
+      tls:
+        - hosts:
+            - argocd.white.fm
+          secretName: argocd-white-fm-tls
+      rules:
+        - host: argocd.white.fm
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: argocd-server
+                    port:
+                      number: 443
+                      
 global:
   image:
     tag: v3.2.0
@@ -97,24 +125,6 @@ repoServer:
 
 server:
   replicas: 2
-
-  ingress:
-    enabled: true
-    ingressClassName: nginx
-
-    hosts:
-      - argo.white.fm
-
-    tls:
-      - hosts:
-          - argo.white.fm
-        secretName: argocd-tls
-
-    annotations:
-      kubernetes.io/tls-acme: "true"
-      cert-manager.io/cluster-issuer: "letsencrypt-production"
-      nginx.ingress.kubernetes.io/ssl-redirect: "true"
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
 
 applicationController:
   replicas: 2
