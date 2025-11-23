@@ -65,7 +65,6 @@ repoServer:
           cp /usr/local/bin/kustomize /custom-tools/kustomize
           cp /usr/local/bin/kustomize-sops /custom-tools/kustomize-sops
 
-          # the ksops image has sops go lib but no CLI
           cp /usr/local/bin/kustomize-sops /custom-tools/sops
 
           chmod +x /custom-tools/*
@@ -116,7 +115,8 @@ server:
 
   service:
     type: ClusterIP
-    port: 80
+    ports:
+      http: 80
 
 applicationController:
   replicas: 2
