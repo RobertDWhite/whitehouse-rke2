@@ -51,8 +51,6 @@ repoServer:
       emptyDir: {}
 
   initContainers:
-
-    # Install ksops, kustomize, kustomize-sops, and sops binary
     - name: install-tools
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
@@ -67,18 +65,15 @@ repoServer:
           cp /usr/local/bin/kustomize /custom-tools/kustomize
           cp /usr/local/bin/kustomize-sops /custom-tools/kustomize-sops
 
-          # The KSOPS image includes the sops golang library
-          # but not the CLI, so we use the plugin version
+          # the ksops image has sops go lib but no CLI
           cp /usr/local/bin/kustomize-sops /custom-tools/sops
 
           chmod +x /custom-tools/*
-
           echo "[INIT] Tools installed."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
 
-    # Install KSOPS plugin file
     - name: install-ksops-plugin
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
@@ -88,10 +83,7 @@ repoServer:
           echo "[INIT] Installing KSOPS plugin..."
 
           mkdir -p /plugins/viaduct.ai/v1/ksops
-
-          # copy ksops executable as Kustomize plugin
           cp /usr/local/bin/ksops /plugins/viaduct.ai/v1/ksops/Ksops
-
           chmod +x /plugins/viaduct.ai/v1/ksops/Ksops
 
           echo "[INIT] KSOPS plugin installed."
@@ -103,35 +95,28 @@ repoServer:
     - mountPath: /usr/local/bin/ksops
       name: custom-tools
       subPath: ksops
-
     - mountPath: /usr/local/bin/kustomize
       name: custom-tools
       subPath: kustomize
-
     - mountPath: /usr/local/bin/sops
       name: custom-tools
       subPath: sops
-
     - mountPath: /home/argocd/.config/kustomize/plugin
       name: kustomize-plugins
-
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
-
     - mountPath: /home/argocd/.config/sops/age
       name: sops-age
       readOnly: true
 
 server:
   replicas: 2
-
   insecure: true
+
   service:
     type: ClusterIP
-    ports:
-      http: 80
-
+    port: 80
 
 applicationController:
   replicas: 2
