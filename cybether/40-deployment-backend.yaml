@@ -15,14 +15,9 @@ spec:
     spec:
       containers:
         - name: cybether-backend
-          # renovate: datasource=docker depName=ghcr.io/darkchariot/cybether-backend versioning=semver
-          image: ghcr.io/darkchariot/cybether-backend:latest
 
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}";
-              exec gunicorn --bind 0.0.0.0:5000 wsgi:app
+          # renovate: datasource=docker depName=registry.white.fm/cybether/backend
+          image: registry.white.fm/cybether/backend:1.0.0
 
           ports:
             - containerPort: 5000
