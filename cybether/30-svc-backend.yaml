@@ -10,27 +10,3 @@ spec:
       targetPort: 5000
   selector:
     app: cybether-backend
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cybether-frontend
-  namespace: cybether
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cybether-frontend
-  template:
-    metadata:
-      labels:
-        app: cybether-frontend
-    spec:
-      containers:
-        - name: cybether-frontend
-          image: ghcr.io/darkchariot/cybether-frontend:latest
-          ports:
-            - containerPort: 3000
-          env:
-            - name: VITE_API_URL
-              value: "https://cybether.white.fm/api"

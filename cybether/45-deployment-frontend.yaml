@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cybether-frontend
+  namespace: cybether
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cybether-frontend
+  template:
+    metadata:
+      labels:
+        app: cybether-frontend
+    spec:
+      containers:
+        - name: cybether-frontend
+          # renovate: depName=registry.white.fm/cybether/frontend
+          image: registry.white.fm/cybether/frontend:1.0.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: VITE_API_URL
+              value: "https://cybether.white.fm/api"
