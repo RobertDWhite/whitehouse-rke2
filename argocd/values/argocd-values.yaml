@@ -7,7 +7,7 @@ extraObjects:
       annotations:
         nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
         cert-manager.io/cluster-issuer: letsencrypt-dns
-        nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
     spec:
       ingressClassName: nginx
       tls:
@@ -24,7 +24,7 @@ extraObjects:
                   service:
                     name: argocd-server
                     port:
-                      number: 80
+                      number: 443
 
 global:
   image:
@@ -110,10 +110,7 @@ repoServer:
       readOnly: true
 
 server:
-  extraArgs:
-    - --insecure
   replicas: 2
-  insecure: true
 
   service:
     type: ClusterIP
