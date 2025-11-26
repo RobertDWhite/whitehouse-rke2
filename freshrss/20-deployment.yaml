@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: freshrss
   namespace: freshrss
+  annotations:
+    renovatebot/update-container-image: "true"
 spec:
   replicas: 1
   selector:
@@ -75,7 +77,7 @@ spec:
 
       containers:
         - name: freshrss
-          image: lscr.io/linuxserver/freshrss:1.27.1-ls285
+          image: lscr.io/linuxserver/freshrss:1.27.1-ls285 # renovate: datasource=docker depName=lscr.io/linuxserver/freshrss
           ports:
             - containerPort: 80
           env:
