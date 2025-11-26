@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cyberchef
+  annotations:
+    renovatebot/update-container-image: "true"
 spec:
   replicas: 1
   selector:
@@ -14,7 +16,7 @@ spec:
     spec:
       containers:
         - name: cyberchef
-          image: mpepping/cyberchef:latest
+          image: ghcr.io/gchq/cyberchef:v10.19.4 # renovate: datasource=github-releases depName=gchq/CyberChef
           ports:
             - containerPort: 8000
           resources:
