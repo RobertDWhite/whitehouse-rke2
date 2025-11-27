@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns-and-kubernetes
+  namespace: authentik
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+      - namespaceSelector: {}
+    ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+  - to:
+      - ipBlock:
+          cidr: 10.43.0.1/32
+    ports:
+      - protocol: TCP
+        port: 443
+  - to:
+      - namespaceSelector: {}
