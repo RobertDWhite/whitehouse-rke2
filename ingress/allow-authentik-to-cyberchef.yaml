@@ -4,16 +4,17 @@ metadata:
   name: allow-authentik-to-cyberchef
   namespace: cyberchef
 spec:
-  podSelector:
-    matchLabels:
-      app: cyberchef
+  podSelector: {}
+  policyTypes:
+    - Ingress
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: authentik
+              name: authentik
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: authentik
       ports:
         - protocol: TCP
           port: 8000
-  policyTypes:
-    - Ingress
