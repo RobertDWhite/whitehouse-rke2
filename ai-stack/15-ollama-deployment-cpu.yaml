@@ -19,6 +19,7 @@ spec:
         type: cpu
     spec:
       priorityClassName: low-priority
+
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -31,14 +32,19 @@ spec:
                       values:
                         - ollama
                 topologyKey: "kubernetes.io/hostname"
+
       containers:
         - name: ollama
           image: ollama/ollama:0.13.0 # renovate: datasource=docker depName=ollama/ollama
           ports:
             - containerPort: 11434
+
           env:
-            - name: OLLAMA_API
+            - name: OLLAMA_OPENAI_COMPAT
               value: "1"
+            - name: OLLAMA_API_KEY
+              value: "dummy"
+
           resources:
             limits:
               cpu: "8"
@@ -46,9 +52,11 @@ spec:
             requests:
               cpu: "1"
               memory: "4Gi"
+
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
+
       volumes:
         - name: ollama-data
           persistentVolumeClaim:
