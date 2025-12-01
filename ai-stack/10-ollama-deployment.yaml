@@ -21,15 +21,14 @@ spec:
                 matchExpressions:
                   - key: nvidia.com/gpu.present
                     operator: In
-                    values:
-                      - "true"
+                    values: ["true"]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
                   - key: longhorn-ok
                     operator: In
-                    values:
-                      - "true"
+                    values: ["true"]
+
       tolerations: []
 
       containers:
@@ -46,13 +45,13 @@ spec:
 
           resources:
             requests:
-              nvidia.com/gpu: 1
               cpu: "1"
               memory: "4Gi"
+              nvidia.com/gpu: 1
             limits:
-              nvidia.com/gpu: 1 
               cpu: "8"
               memory: "16Gi"
+              nvidia.com/gpu: 1
 
           volumeMounts:
             - name: ollama-data
