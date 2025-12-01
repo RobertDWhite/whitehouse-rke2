@@ -1,8 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "docker:pinDigests"
   ],
+
   "customManagers": [
     {
       "customType": "regex",
@@ -95,8 +97,17 @@
       ],
       "depNameTemplate": "longhorn/longhorn",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["ai-stack/.*\\.ya?ml$"],
+      "matchStrings": [
+        "image:\\s*(?<depName>ghcr\\.io/open-webui/open-webui):main@sha256:(?<currentDigest>[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
+
   "packageRules": [
     {
       "matchManagers": [
@@ -133,6 +144,14 @@
       "matchPackageNames": [
         "ghcr.io/sdr-enthusiasts/{/,}**"
       ]
+    },
+
+    {
+      "matchPackageNames": ["ghcr.io/open-webui/open-webui"],
+      "matchDatasources": ["docker"],
+      "matchTags": ["main"],
+      "groupName": "openwebui-digest-updates",
+      "automerge": false
     }
   ]
 }
