@@ -37,9 +37,13 @@ spec:
           image: ollama/ollama:0.13.0 # renovate: datasource=docker depName=ollama/ollama
           ports:
             - containerPort: 11434
+
           env:
-            - name: OLLAMA_API
+            - name: OLLAMA_OPENAI_COMPAT
               value: "1"
+            - name: OLLAMA_API_KEY
+              value: "dummy"
+
           resources:
             requests:
               cpu: "1"
