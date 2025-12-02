@@ -13,15 +13,6 @@ spec:
       labels:
         app: ollama
     spec:
-      tolerations:
-        - key: "gpu-only"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
-        - key: "nvidia.com/gpu"
-          operator: "Exists"
-          effect: "NoSchedule"
-
       affinity:
         nodeAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -31,10 +22,18 @@ spec:
                   - key: nvidia.com/gpu.present
                     operator: In
                     values: ["true"]
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: longhorn-ok
+                    operator: In
+                    values: ["true"]
+
+      tolerations: []
 
       containers:
         - name: ollama
-          image: ollama/ollama:0.13.0
+          image: ollama/ollama:0.13.0 # renovate: datasource=docker depName=ollama/ollama
           ports:
             - containerPort: 11434
 
