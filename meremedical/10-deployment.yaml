@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meremedical
+  namespace: meremedical
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meremedical
+  template:
+    metadata:
+      labels:
+        app: meremedical
+    spec:
+      containers:
+        - name: meremedical
+          image: ghcr.io/jimbrig/meremedical:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
