@@ -17,6 +17,9 @@ spec:
         - name: convos
           image: ghcr.io/convos-chat/convos:stable
           imagePullPolicy: IfNotPresent
+          env:
+            - name: CONVOS_REVERSE_PROXY
+              value: "1"
           ports:
             - containerPort: 3000
           volumeMounts:
