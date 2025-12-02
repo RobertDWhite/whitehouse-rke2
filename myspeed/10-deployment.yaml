@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myspeed
+  namespace: myspeed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myspeed
+  template:
+    metadata:
+      labels:
+        app: myspeed
+    spec:
+      containers:
+        - name: myspeed
+          image: germannewsmaker/myspeed:1.0.9
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5216
+          volumeMounts:
+            - name: myspeed-data
+              mountPath: /myspeed/data
+      volumes:
+        - name: myspeed-data
+          persistentVolumeClaim:
+            claimName: myspeed-data
