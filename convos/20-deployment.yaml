@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: convos
+  namespace: convos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: convos
+  template:
+    metadata:
+      labels:
+        app: convos
+    spec:
+      containers:
+        - name: convos
+          image: ghcr.io/convos-chat/convos:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: convos-data
