@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: convos
+  namespace: convos
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: irc.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: convos
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - irc.white.fm
+      secretName: convos-tls
