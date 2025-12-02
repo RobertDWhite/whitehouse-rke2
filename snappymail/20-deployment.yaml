@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snappymail
+  namespace: snappymail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snappymail
+  template:
+    metadata:
+      labels:
+        app: snappymail
+    spec:
+      containers:
+        - name: snappymail
+          image: snappymail/snappymail:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: snappymail-data
