@@ -15,7 +15,10 @@ spec:
     spec:
       containers:
         - name: meremedical
-          image: ghcr.io/jimbrig/meremedical:latest
+          image: cfu288/mere-medical:2025.11.21
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: meremedical-env
