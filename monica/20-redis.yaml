@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monica-redis
+  namespace: monica
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monica-redis
+  template:
+    metadata:
+      labels:
+        app: monica-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command: ["redis-server", "--appendonly", "no"]

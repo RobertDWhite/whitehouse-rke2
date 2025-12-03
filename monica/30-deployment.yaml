@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monica
+  namespace: monica
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monica
+  template:
+    metadata:
+      labels:
+        app: monica
+    spec:
+      containers:
+        - name: monica-fpm
+          image: monica:5.0-fpm
+          env:
+            - name: APP_KEY
+              value: base64:CHANGEME!!
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              value: monica-postgresql.monica.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_DATABASE
+              value: monica
+            - name: DB_USERNAME
+              value: monica
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monica-postgresql
+                  key: password
+            - name: REDIS_HOST
+              value: monica-redis
+            - name: REDIS_PORT
+              value: "6379"
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html/storage
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: data
+              mountPath: /var/www/html/storage
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: monica-data
+        - name: nginx-conf
+          configMap:
+            name: monica-nginx
