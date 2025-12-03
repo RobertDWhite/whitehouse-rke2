@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: monica-postgresql
+  namespace: monica
+spec:
+  serviceName: monica-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: monica-postgresql
+  template:
+    metadata:
+      labels:
+        app: monica-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: bitnami/postgresql:15
+          env:
+            - name: POSTGRESQL_USER
+              value: monica
+            - name: POSTGRESQL_DATABASE
+              value: monica
+            - name: POSTGRESQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monica-postgresql
+                  key: password
+            - name: POSTGRESQL_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monica-postgresql
+                  key: postgres-password
+          ports:
+            - name: pgsql
+              containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /bitnami/postgresql
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+          helm.sh/resource-policy: keep
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi
