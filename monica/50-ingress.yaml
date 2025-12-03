@@ -6,15 +6,8 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-
-    nginx.ingress.kubernetes.io/auth-url: "https://authentik.white.fm/outpost.goauthentik.io/auth/nginx"
-    nginx.ingress.kubernetes.io/auth-signin: "https://authentik.white.fm/outpost.goauthentik.io/start?rd=$escaped_request_uri"
-
-    nginx.ingress.kubernetes.io/auth-snippet: |
-      if ($request_uri ~* "\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|json|map)$") {
-        return 200;
-      }
-
+    authentik.ingress.manager/enabled: "true"
+    authentik.ingress.manager/provider: "monica"
 spec:
   ingressClassName: nginx
   tls:
