@@ -18,7 +18,19 @@ spec:
           image: monica:5.0-apache
           env:
             - name: APP_KEY
-              value: "base64:xbmPKt2XbqJ7uMi2Z6keTdfN2EzkRVvuvI+o6Y9YJsg="
+              valueFrom:
+                secretKeyRef:
+                  name: monica-app-secrets
+                  key: APP_KEY
+
+            - name: APP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: monica-app-secrets
+                  key: APP_URL
+
+            - name: TRUSTED_PROXIES
+              value: "*"
 
             - name: DB_CONNECTION
               value: pgsql
@@ -49,7 +61,7 @@ spec:
               value: redis
             - name: QUEUE_CONNECTION
               value: redis
-              
+
           ports:
             - containerPort: 80
 
