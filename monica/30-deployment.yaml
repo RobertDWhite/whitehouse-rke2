@@ -14,11 +14,12 @@ spec:
         app: monica
     spec:
       containers:
-        - name: monica-fpm
-          image: monica:5.0-fpm
+        - name: monica
+          image: docker.io/monicahq/monica:5.0.1
           env:
             - name: APP_KEY
               value: "base64:xbmPKt2XbqJ7uMi2Z6keTdfN2EzkRVvuvI+o6Y9YJsg="
+
             - name: DB_CONNECTION
               value: pgsql
             - name: DB_HOST
@@ -34,29 +35,20 @@ spec:
                 secretKeyRef:
                   name: monica-postgresql
                   key: password
+
             - name: REDIS_HOST
               value: monica-redis
             - name: REDIS_PORT
               value: "6379"
-          volumeMounts:
-            - name: data
-              mountPath: /var/www/html/storage
 
-        - name: nginx
-          image: nginx:1.27-alpine
           ports:
             - containerPort: 80
+
           volumeMounts:
             - name: data
               mountPath: /var/www/html/storage
-            - name: nginx-conf
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
 
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: monica-data
-        - name: nginx-conf
-          configMap:
-            name: monica-nginx
