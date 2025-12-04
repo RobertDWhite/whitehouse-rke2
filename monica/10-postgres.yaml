@@ -14,7 +14,18 @@ spec:
       labels:
         app: monica-postgresql
     spec:
-      securityContext: {}
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1001:1001 /bitnami/postgresql"]
+          volumeMounts:
+            - name: data
+              mountPath: /bitnami/postgresql
 
       containers:
         - name: postgresql
