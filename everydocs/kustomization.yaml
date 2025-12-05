@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: everydocs
+
+resources:
+  - 00-namespace.yaml
+  - 10-pv.yaml
+  - 11-pvc.yaml
+  - 20-deployment-mariadb.yaml
+  - 25-service-mariadb.yaml
+  - 30-deployment-everydocs.yaml
+  - 35-service-everydocs.yaml
+  - 40-configmap-web.yaml
+  - 45-everydocs-web.yaml
+  - 46-everydocs-web-service.yaml
+  - 50-ingress.yaml
+
+generators:
+  - ksops.yaml

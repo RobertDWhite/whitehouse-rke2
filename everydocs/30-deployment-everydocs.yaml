@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: everydocs-core
+  namespace: everydocs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: everydocs-core
+  template:
+    metadata:
+      labels:
+        app: everydocs-core
+    spec:
+      containers:
+      - name: everydocs-core
+        image: jonashellmann/everydocs:latest
+        env:
+        - name: SECRET_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              name: everydocs-secret
+              key: SECRET_KEY_BASE
+        - name: EVERYDOCS_DB_ADAPTER
+          value: mysql2
+        - name: EVERYDOCS_DB_NAME
+          value: everydocs
+        - name: EVERYDOCS_DB_USER
+          value: everydocs
+        - name: EVERYDOCS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: everydocs-secret
+              key: MYSQL_PASSWORD
+        - name: EVERYDOCS_DB_HOST
+          value: everydocs-db
+        - name: EVERYDOCS_DB_PORT
+          value: "3306"
+        ports:
+        - containerPort: 5678
+        volumeMounts:
+        - name: files
+          mountPath: /var/everydocs-files
+      volumes:
+      - name: files
+        persistentVolumeClaim:
+          claimName: pvc-everydocs-files
