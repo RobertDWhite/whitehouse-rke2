@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: everydocs-db
+  namespace: everydocs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: everydocs-db
+  template:
+    metadata:
+      labels:
+        app: everydocs-db
+    spec:
+      containers:
+      - name: mariadb
+        image: mariadb:10.7.3
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: everydocs-secret
+              key: MYSQL_ROOT_PASSWORD
+        - name: MYSQL_DATABASE
+          value: "everydocs"
+        - name: MYSQL_USER
+          value: "everydocs"
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: everydocs-secret
+              key: MYSQL_PASSWORD
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: data
+        emptyDir: {}
