@@ -54,21 +54,20 @@ repoServer:
     - name: install-tools
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
-      args:
-        - |
-          set -e
-          echo "[INIT] Installing ksops + kustomize + kustomize-sops + sops..."
+      args: |
+        set -e
+        echo "[INIT] Installing ksops + kustomize + kustomize-sops + sops..."
 
-          mkdir -p /custom-tools
+        mkdir -p /custom-tools
 
-          cp /usr/local/bin/ksops /custom-tools/ksops
-          cp /usr/local/bin/kustomize /custom-tools/kustomize
-          cp /usr/local/bin/kustomize-sops /custom-tools/kustomize-sops
+        cp /usr/local/bin/ksops /custom-tools/ksops
+        cp /usr/local/bin/kustomize /custom-tools/kustomize
+        cp /usr/local/bin/kustomize-sops /custom-tools/kustomize-sops
 
-          cp /usr/local/bin/kustomize-sops /custom-tools/sops
+        cp /usr/local/bin/kustomize-sops /custom-tools/sops
 
-          chmod +x /custom-tools/*
-          echo "[INIT] Tools installed."
+        chmod +x /custom-tools/*
+        echo "[INIT] Tools installed."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
@@ -76,16 +75,15 @@ repoServer:
     - name: install-ksops-plugin
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
-      args:
-        - |
-          set -e
-          echo "[INIT] Installing KSOPS plugin..."
+      args: |
+        set -e
+        echo "[INIT] Installing KSOPS plugin..."
 
-          mkdir -p /plugins/viaduct.ai/v1/ksops
-          cp /usr/local/bin/ksops /plugins/viaduct.ai/v1/ksops/Ksops
-          chmod +x /plugins/viaduct.ai/v1/ksops/Ksops
+        mkdir -p /plugins/viaduct.ai/v1/ksops
+        cp /usr/local/bin/ksops /plugins/viaduct.ai/v1/ksops/Ksops
+        chmod +x /plugins/viaduct.ai/v1/ksops/Ksops
 
-          echo "[INIT] KSOPS plugin installed."
+        echo "[INIT] KSOPS plugin installed."
       volumeMounts:
         - mountPath: /plugins
           name: kustomize-plugins
@@ -113,8 +111,7 @@ server:
   replicas: 2
 
   certificate:
-    enabled: true
-    secretName: argo-white-fm-tls
+    enabled: false
 
   service:
     type: ClusterIP
