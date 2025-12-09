@@ -12,7 +12,7 @@ spec:
     metadata:
       labels:
         app: ollama
-
+    spec:
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -29,13 +29,11 @@ spec:
           image: ollama/ollama:0.13.2 # renovate: datasource=docker depName=ollama/ollama
           ports:
             - containerPort: 11434
-
           env:
             - name: OLLAMA_OPENAI_COMPAT
               value: "1"
             - name: OLLAMA_API_KEY
               value: "dummy"
-
           resources:
             requests:
               cpu: "1"
@@ -43,7 +41,6 @@ spec:
             limits:
               cpu: "8"
               memory: "16Gi"
-
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
