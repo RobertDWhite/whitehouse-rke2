@@ -12,16 +12,9 @@ spec:
     metadata:
       labels:
         app: ollama
-    spec:
+
       affinity:
         nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: nvidia.com/gpu.present
-                    operator: In
-                    values: ["true"]
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
@@ -33,7 +26,7 @@ spec:
 
       containers:
         - name: ollama
-          image: ollama/ollama:0.13.0 # renovate: datasource=docker depName=ollama/ollama
+          image: ollama/ollama:0.13.2 # renovate: datasource=docker depName=ollama/ollama
           ports:
             - containerPort: 11434
 
@@ -48,7 +41,6 @@ spec:
               cpu: "1"
               memory: "4Gi"
             limits:
-              nvidia.com/gpu: 1
               cpu: "8"
               memory: "16Gi"
 
