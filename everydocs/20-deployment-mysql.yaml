@@ -14,8 +14,12 @@ spec:
         app: everydocs-db
     spec:
       containers:
-      - name: mariadb
-        image: mariadb:10.7.3
+      - name: mysql
+        image: mysql:8.0
+        args:
+          - "--default-authentication-plugin=mysql_native_password"
+          - "--character-set-server=utf8mb4"
+          - "--collation-server=utf8mb4_unicode_ci"
         env:
         - name: MYSQL_ROOT_PASSWORD
           valueFrom:
