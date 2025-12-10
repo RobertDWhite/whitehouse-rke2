@@ -38,8 +38,9 @@ spec:
         ports:
         - containerPort: 3306
         volumeMounts:
-        - name: data
+        - name: mysql-data
           mountPath: /var/lib/mysql
       volumes:
-      - name: data
-        emptyDir: {}
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: everydocs-mysql-pvc
