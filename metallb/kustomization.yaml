@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: metallb-system
+
+helmCharts:
+  - name: metallb
+    repo: https://metallb.github.io/metallb
+    # renovate: datasource=helm registryUrl=https://metallb.github.io/metallb depName=metallb
+    version: 0.14.5
+    releaseName: metallb
+    namespace: metallb-system
+    valuesFile: values.yaml
