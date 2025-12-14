@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Namespace
+  - 00-namespace.yaml
+
+  # Configuration
+  - 01-config-loki.yaml
+  - 02-config-prometheus.yaml
+  - 03-config-promtail.yaml
+
+  # Persistent storage
+  - 05-pvc-loki.yaml
+  - 06-pvc-prometheus.yaml
+  - 07-pvc-grafana.yaml
+
+  # Workloads
+  - 10-deploy-loki.yaml
+  - 11-deploy-prometheus.yaml
+  - 12-deploy-grafana.yaml
+  - 13-deploy-promtail.yaml
+
+  # Services
+  - 20-svc-loki.yaml
+  - 21-svc-prometheus.yaml
+  - 22-svc-grafana.yaml
+  - 23-svc-syslog-metallb.yaml
+
+  # Ingress
+  - 30-ingress-grafana.yaml
