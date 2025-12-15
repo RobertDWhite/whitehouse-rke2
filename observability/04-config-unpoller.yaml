@@ -6,7 +6,7 @@ metadata:
 data:
   up.conf: |
     ############################################################
-    # UniFi Poller Configuration (Production)
+    # UniFi Poller Configuration
     ############################################################
 
     [unifi]
@@ -15,7 +15,7 @@ data:
     default_pass = "${UP_UNIFI_DEFAULT_PASS}"
 
     save_sites     = true
-    save_dpi       = true
+    save_dpi       = false
     save_events    = false
     save_ids       = false
     save_alarms    = false
@@ -23,18 +23,13 @@ data:
     save_rogue     = false
 
     ############################################################
-    # InfluxDB v2 ONLY
-    # IMPORTANT: section name MUST be influxdb_v2
+    # InfluxDB DISABLED
     ############################################################
     [influxdb]
-    disable  = false
-    url      = "http://influxdb.observability.svc.cluster.local:8086"
-    db       = "unifi"
-    username = "robert"
-    password = "${UP_INFLUXDB_PASSWORD}"
+    disable = true
 
     ############################################################
-    # Prometheus Exporter
+    # Prometheus Exporter ENABLED
     ############################################################
     [prometheus]
     disable = false
