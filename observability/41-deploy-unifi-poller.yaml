@@ -20,25 +20,15 @@ spec:
           image: ghcr.io/unpoller/unpoller:v2.19.0
           ports:
             - containerPort: 9130
-
           envFrom:
             - secretRef:
                 name: unifi-poller
             - secretRef:
                 name: influxdb-unpoller
-
-          env:
-            - name: UP_CONFIG
-              value: "/dev/null"
-
-            - name: UP_INFLUXDB_V2
-              value: "true"
-            - name: UP_INFLUXDB_URL
-              value: "http://influxdb.observability.svc.cluster.local:8086"
-            - name: UP_INFLUXDB_ORG
-              value: "whitehouse"
-            - name: UP_INFLUXDB_BUCKET
-              value: "unifi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/unpoller/up.conf
+              subPath: up.conf
 
           resources:
             requests:
@@ -47,3 +37,8 @@ spec:
             limits:
               cpu: 100m
               memory: 256Mi
+
+      volumes:
+        - name: config
+          configMap:
+            name: unifi-poller-config
