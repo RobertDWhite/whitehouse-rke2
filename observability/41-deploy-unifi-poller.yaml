@@ -44,6 +44,11 @@ spec:
                 secretKeyRef:
                   name: influxdb
                   key: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+            - name: UP_INFLUXDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-unpoller
+                  key: token
             - name: UP_INFLUXDB_ORG
               value: whitehouse
             - name: UP_INFLUXDB_BUCKET
