@@ -21,12 +21,17 @@ spec:
           image: ghcr.io/unpoller/unpoller:v2.19.0
           ports:
             - containerPort: 9130
+
           envFrom:
             - secretRef:
                 name: unifi-poller
+            - secretRef:
+                name: influxdb-unpoller
+
           env:
             - name: UP_POLLER_DEBUG
               value: "false"
+
             - name: UP_UNIFI_DEFAULT_SAVE_DPI
               value: "true"
             - name: UP_UNIFI_DEFAULT_SAVE_EVENTS
@@ -39,20 +44,11 @@ spec:
               value: "2"
             - name: UP_INFLUXDB_URL
               value: "http://influxdb.observability.svc.cluster.local:8086"
-            - name: UP_INFLUXDB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: influxdb
-                  key: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
-            - name: UP_INFLUXDB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: influxdb
-                  key: token
             - name: UP_INFLUXDB_ORG
-              value: whitehouse
+              value: "whitehouse"
             - name: UP_INFLUXDB_BUCKET
-              value: unifi
+              value: "unifi"
+
           resources:
             requests:
               cpu: 25m
