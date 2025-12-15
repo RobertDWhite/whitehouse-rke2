@@ -13,31 +13,31 @@ data:
     # UniFi Controller
     ############################################################
     [unifi]
-    default_url = "https://10.99.5.1"
-    default_user = unpoller
-    default_pass = ${UP_UNIFI_DEFAULT_PASS}
+    default_url  = "https://10.99.5.1"
+    default_user = "unpoller"
+    default_pass = "${UP_UNIFI_DEFAULT_PASS}"
 
-    save_sites = true
-    save_dpi = true
-    save_events = false
-    save_ids = false
-    save_alarms = false
+    save_sites     = true
+    save_dpi       = true
+    save_events    = false
+    save_ids       = false
+    save_alarms    = false
     save_anomalies = false
-    save_rogue = false
+    save_rogue     = false
 
     ############################################################
     # InfluxDB v2 — Service DNS ONLY
     ############################################################
     [influxdb]
     disable = false
-    url = "http://influxdb.observability.svc.cluster.local:8086"
-    token = ${UP_INFLUXDB_TOKEN}
-    org = whitehouse
-    bucket = unifi
+    url     = "http://influxdb.observability.svc.cluster.local:8086"
+    token   = "${UP_INFLUXDB_TOKEN}"
+    org     = "whitehouse"
+    bucket  = "unifi"
 
     ############################################################
     # Prometheus Exporter (scraped via Service)
     ############################################################
     [prometheus]
     disable = false
-    listen = 0.0.0.0:9130
+    listen  = "0.0.0.0:9130"
