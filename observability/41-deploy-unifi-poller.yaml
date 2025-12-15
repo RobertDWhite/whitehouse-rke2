@@ -17,7 +17,6 @@ spec:
         observability: "true"
       containers:
         - name: unifi-poller
-          # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
           image: ghcr.io/unpoller/unpoller:v2.19.0
           ports:
             - containerPort: 9130
@@ -29,20 +28,11 @@ spec:
                 name: influxdb-unpoller
 
           env:
-            - name: UP_POLLER_DEBUG
-              value: "false"
+            - name: UP_CONFIG
+              value: "/dev/null"
+
             - name: UP_INFLUXDB_V2
               value: "true"
-            - name: UP_UNIFI_DEFAULT_SAVE_DPI
-              value: "true"
-            - name: UP_UNIFI_DEFAULT_SAVE_EVENTS
-              value: "false"
-            - name: UP_UNIFI_DEFAULT_SAVE_ALARMS
-              value: "false"
-            - name: UP_INFLUXDB_DISABLE
-              value: "false"
-            - name: UP_INFLUXDB_VERSION
-              value: "2"
             - name: UP_INFLUXDB_URL
               value: "http://influxdb.observability.svc.cluster.local:8086"
             - name: UP_INFLUXDB_ORG
