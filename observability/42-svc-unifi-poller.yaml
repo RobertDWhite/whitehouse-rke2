@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: unifi-poller
+  namespace: observability
+spec:
+  selector:
+    app: unifi-poller
+  ports:
+    - name: metrics
+      port: 9130
+      targetPort: 9130
