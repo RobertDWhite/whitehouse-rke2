@@ -3,14 +3,19 @@ kind: Service
 metadata:
   name: syslog
   namespace: observability
+  annotations:
+    metallb.universe.tf/address-pool: lan-pool
 spec:
   type: LoadBalancer
+  loadBalancerIP: 10.99.5.111
   selector:
     app: promtail
   ports:
     - name: syslog-tcp
       port: 1514
+      targetPort: 1514
       protocol: TCP
     - name: syslog-udp
       port: 1514
+      targetPort: 1514
       protocol: UDP
