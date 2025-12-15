@@ -1,4 +1,4 @@
-apiVersion: v1
+ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: unifi-poller-config
@@ -6,12 +6,9 @@ metadata:
 data:
   up.conf: |
     ############################################################
-    # UniFi Poller Configuration
+    # UniFi Poller Configuration (Production)
     ############################################################
 
-    ############################################################
-    # UniFi Controller
-    ############################################################
     [unifi]
     default_url  = "https://10.99.5.1"
     default_user = "unpoller"
@@ -26,9 +23,10 @@ data:
     save_rogue     = false
 
     ############################################################
-    # InfluxDB v2 — Service DNS ONLY
+    # InfluxDB v2 ONLY
+    # IMPORTANT: section name MUST be influxdb_v2
     ############################################################
-    [influxdb]
+    [influxdb_v2]
     disable = false
     url     = "http://influxdb.observability.svc.cluster.local:8086"
     token   = "${UP_INFLUXDB_TOKEN}"
@@ -36,7 +34,7 @@ data:
     bucket  = "unifi"
 
     ############################################################
-    # Prometheus Exporter (scraped via Service)
+    # Prometheus Exporter
     ############################################################
     [prometheus]
     disable = false
