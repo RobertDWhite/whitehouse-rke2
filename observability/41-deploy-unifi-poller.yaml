@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifi-poller
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unifi-poller
+  template:
+    metadata:
+      labels:
+        app: unifi-poller
+    spec:
+      nodeSelector:
+        observability: "true"
+      containers:
+        - name: unifi-poller
+          # renovate: datasource=docker depName=ghcr.io/unpoller/unpoller
+          image: ghcr.io/unpoller/unpoller:v2.19.0
+          ports:
+            - containerPort: 9130
+          envFrom:
+            - secretRef:
+                name: unifi-poller
+          env:
+            - name: UP_POLLER_DEBUG
+              value: "false"
+            - name: UP_UNIFI_DEFAULT_SAVE_DPI
+              value: "true"
+            - name: UP_UNIFI_DEFAULT_SAVE_EVENTS
+              value: "false"
+            - name: UP_UNIFI_DEFAULT_SAVE_ALARMS
+              value: "false"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
