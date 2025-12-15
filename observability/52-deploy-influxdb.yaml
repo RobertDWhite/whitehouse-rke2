@@ -13,10 +13,6 @@ spec:
       labels:
         app: influxdb
     spec:
-      nodeSelector:
-        observability: "true"
-      securityContext:
-        fsGroup: 1000
       containers:
         - name: influxdb
           image: influxdb:2.7
@@ -30,11 +26,11 @@ spec:
               mountPath: /var/lib/influxdb2
           resources:
             requests:
-              cpu: 50m
-              memory: 256Mi
+              cpu: 200m
+              memory: 512Mi
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: 1
+              memory: 2Gi
       volumes:
         - name: data
           persistentVolumeClaim:
