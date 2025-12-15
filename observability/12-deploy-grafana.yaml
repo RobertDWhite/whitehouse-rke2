@@ -20,6 +20,9 @@ spec:
       containers:
         - name: grafana
           image: grafana/grafana:latest
+          envFrom:
+            - secretRef:
+                name: grafana-admin
           ports:
             - containerPort: 3000
           env:
