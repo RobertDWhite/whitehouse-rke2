@@ -25,10 +25,6 @@ data:
             job: syslog
 
         pipeline_stages:
-          - regex:
-              source: __syslog_message_proc_id
-              expression: '^(?P<app>[a-zA-Z0-9._-]+)'
-          - labels:
-              app:
           - labels:
               host: __syslog_message_hostname
+              app: __syslog_message_sd_docker_tag
