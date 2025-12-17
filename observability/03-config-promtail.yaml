@@ -25,6 +25,8 @@ data:
             job: syslog
 
         pipeline_stages:
+          - regex:
+              expression: '^(?P<app>[^:]+):\s+(?P<msg>.*)$'
           - labels:
               host: __syslog_message_hostname
-              app: __syslog_message_app_name
+              app:
