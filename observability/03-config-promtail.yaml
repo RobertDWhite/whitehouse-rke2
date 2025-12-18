@@ -16,15 +16,17 @@ data:
       - url: http://loki:3100/loki/api/v1/push
 
     scrape_configs:
-      - job_name: syslog
-        syslog:
-          listen_address: 0.0.0.0:1514
-          idle_timeout: 60s
-          label_structured_data: true
-          labels:
-            job: syslog
+    - job_name: syslog
+      syslog:
+        listen_address: 0.0.0.0:1514
+        idle_timeout: 60s
+        labels:
+          job: syslog
 
-        pipeline_stages:
-          - labels:
-              host: __syslog_message_hostname
-              app: __syslog_message_app_name
+      pipeline_stages:
+        - regex:
+            expression: '^[A-Z][a-z]{2}\s+\d+\s+\d+:\d+:\d+\s+\S+\s+(?P<app>[^\[\]:]+)'
+        - labels:
+            app:
+        - labels:
+            host: __syslog_message_hostname
