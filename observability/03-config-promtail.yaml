@@ -23,9 +23,6 @@ data:
         labels:
           job: syslog
 
-    pipeline_stages:
-      - regex:
-          expression: '^[A-Z][a-z]{2}\s+\d+\s+\d+:\d+:\d+\s+(?P<host>\S+)\s+(?P<app>[^\[\]:]+)'
-      - labels:
-          host:
-          app:
+      pipeline_stages:
+        - labels:
+            host: __syslog_message_hostname
