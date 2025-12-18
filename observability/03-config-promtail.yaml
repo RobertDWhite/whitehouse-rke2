@@ -23,6 +23,6 @@ data:
         labels:
           job: syslog
 
-      pipeline_stages:
-        - labels:
-            host: __syslog_message_hostname
+      relabel_configs:
+        - source_labels: ['__syslog_message_hostname']
+          target_label: host
