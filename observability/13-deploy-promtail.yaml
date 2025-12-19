@@ -1,10 +1,9 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: promtail
   namespace: observability
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: promtail
@@ -15,20 +14,44 @@ spec:
     spec:
       nodeSelector:
         observability: "true"
+
+      serviceAccountName: promtail
+
       containers:
         - name: promtail
           image: grafana/promtail:latest
           args:
             - -config.file=/etc/promtail/promtail.yaml
           ports:
-            - containerPort: 1514
+            - name: syslog-tcp
+              containerPort: 1514
               protocol: TCP
-            - containerPort: 1514
+            - name: syslog-udp
+              containerPort: 1514
               protocol: UDP
+
           volumeMounts:
             - name: config
               mountPath: /etc/promtail
+              readOnly: true
+
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+
+            - name: containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+
       volumes:
         - name: config
           configMap:
             name: promtail-config
+
+        - name: varlog
+          hostPath:
+            path: /var/log
+
+        - name: containers
+          hostPath:
+            path: /var/lib/docker/containers
