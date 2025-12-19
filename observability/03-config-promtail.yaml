@@ -35,13 +35,16 @@ data:
           - localhost
         labels:
           job: kubernetes-pods
+          node: ${NODE_NAME}
           __path__: /var/log/pods/*/*/*.log
 
       pipeline_stages:
         - cri: {}
+
         - regex:
             source: filename
             expression: '^/var/log/pods/(?P<namespace>[^_]+)_(?P<pod>[^_]+)_[^/]+/(?P<container>[^/]+)/\d+\.log$'
+
         - labels:
             namespace:
             pod:
