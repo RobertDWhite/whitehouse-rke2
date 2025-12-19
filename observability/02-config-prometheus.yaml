@@ -12,7 +12,28 @@ data:
       - job_name: prometheus
         static_configs:
           - targets: ["localhost:9090"]
+
       - job_name: unifi-poller
         static_configs:
           - targets:
               - unifi-poller.observability.svc.cluster.local:9130
+
+      # =========================
+      # Argo CD metrics scraping
+      # =========================
+      - job_name: argocd
+        kubernetes_sd_configs:
+          - role: service
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-(server|repo-server|application-controller)
+
+          - source_labels: [__meta_kubernetes_service_port_name]
+            action: keep
+            regex: metrics
