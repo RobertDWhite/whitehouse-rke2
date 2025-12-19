@@ -36,6 +36,11 @@ data:
         - cri: {}
 
       relabel_configs:
+        # Drop noisy system namespaces (optional but recommended)
+        - action: drop
+          source_labels: [__meta_kubernetes_namespace]
+          regex: kube-system|kube-public|kube-node-lease
+
         - source_labels: [__meta_kubernetes_pod_node_name]
           target_label: node
 
@@ -49,7 +54,5 @@ data:
           target_label: container
 
         - action: replace
-          source_labels: [__meta_kubernetes_pod_uid, __meta_kubernetes_container_name]
-          separator: /
           target_label: __path__
-          replacement: /var/log/pods/*$1/*.log
+          replacement: /var/log/pods/*/*/*.log
