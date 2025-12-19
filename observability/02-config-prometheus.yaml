@@ -43,13 +43,13 @@ data:
           - role: endpoints
 
         relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
-            action: keep
-            regex: kube-system
-
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
             regex: rke2-coredns-metrics
+
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: kube-system
 
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
