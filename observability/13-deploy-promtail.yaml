@@ -1,211 +1,55 @@
-{
-  "uid": "syslog-loki-main",
-  "title": "Syslog + Kubernetes Logs",
-  "timezone": "browser",
-  "schemaVersion": 42,
-  "version": 15,
-  "refresh": "5s",
-  "tags": ["syslog", "loki", "observability", "kubernetes"],
-  "time": { "from": "now-6h", "to": "now" },
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
 
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
-        "enable": true,
-        "hide": true,
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
+      serviceAccountName: promtail
 
-  "templating": {
-    "list": [
-      {
-        "name": "host",
-        "label": "Host (Docker Node)",
-        "type": "query",
-        "datasource": "loki",
-        "query": "label_values({job=\"syslog\"}, host)",
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "refresh": 2
-      },
-      {
-        "name": "container",
-        "label": "Container",
-        "type": "query",
-        "datasource": "loki",
-        "query": "label_values({job=\"syslog\", host=~\"$host\"}, container)",
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "refresh": 2
-      },
-      {
-        "name": "search",
-        "label": "Search",
-        "type": "textbox",
-        "defaultValue": ""
-      },
+      containers:
+        - name: promtail
+          image: grafana/promtail:latest
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          ports:
+            - name: syslog-tcp
+              containerPort: 1514
+              protocol: TCP
+            - name: syslog-udp
+              containerPort: 1514
+              protocol: UDP
 
-      {
-        "name": "k8s_namespace",
-        "label": "K8s Namespace",
-        "type": "query",
-        "datasource": "loki",
-        "query": "label_values({job=\"kubernetes-pods\"}, namespace)",
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "refresh": 2
-      },
-      {
-        "name": "k8s_pod",
-        "label": "K8s Pod",
-        "type": "query",
-        "datasource": "loki",
-        "query": "label_values({job=\"kubernetes-pods\", namespace=~\"$k8s_namespace\"}, pod)",
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "refresh": 2
-      },
-      {
-        "name": "k8s_container",
-        "label": "K8s Container",
-        "type": "query",
-        "datasource": "loki",
-        "query": "label_values({job=\"kubernetes-pods\", pod=~\"$k8s_pod\"}, container)",
-        "multi": true,
-        "includeAll": true,
-        "allValue": ".*",
-        "refresh": 2
-      }
-    ]
-  },
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
 
-  "panels": [
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
 
-    /* ================= SYSLOG PANELS (UNCHANGED) ================= */
+            - name: containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
 
-    {
-      "id": 1,
-      "type": "logs",
-      "title": "Live Syslog",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 8 },
-      "targets": [
-        {
-          "expr": "{job=\"syslog\", host=~\"$host\", container=~\"$container\"} |= \"$search\" | line_format \"[{{.host}} / {{.container}}] {{__line__}}\"",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "showLabels": false,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
-      }
-    },
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
 
-    {
-      "id": 2,
-      "type": "timeseries",
-      "title": "Syslog Volume by Host",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 5 },
-      "targets": [
-        {
-          "expr": "sum by (host) (count_over_time({job=\"syslog\", host=~\"$host\"}[5m]))",
-          "legendFormat": "{{host}}",
-          "refId": "A"
-        }
-      ]
-    },
+        - name: varlog
+          hostPath:
+            path: /var/log
 
-    {
-      "id": 3,
-      "type": "barchart",
-      "title": "Syslog Volume by Container",
-      "datasource": "loki",
-      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 5 },
-      "targets": [
-        {
-          "expr": "sum by (container) (count_over_time({job=\"syslog\", container=~\"$container\"}[5m]))",
-          "legendFormat": "{{container}}",
-          "refId": "A"
-        }
-      ]
-    },
-
-    {
-      "id": 4,
-      "type": "logs",
-      "title": "Syslog Errors / Warnings",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 13, "w": 24, "h": 5 },
-      "targets": [
-        {
-          "expr": "{job=\"syslog\", host=~\"$host\", container=~\"$container\"} |~ \"(?i)(error|fail|panic|critical|denied|warn)\" | line_format \"[{{.host}} / {{.container}}] {{__line__}}\"",
-          "refId": "A"
-        }
-      ]
-    },
-
-    /* ================= KUBERNETES PANELS (NEW) ================= */
-
-    {
-      "id": 5,
-      "type": "logs",
-      "title": "Kubernetes Pod Logs",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
-      "targets": [
-        {
-          "expr": "{job=\"kubernetes-pods\", namespace=~\"$k8s_namespace\", pod=~\"$k8s_pod\", container=~\"$k8s_container\"} | line_format \"[{{.namespace}} / {{.pod}} / {{.container}}] {{__line__}}\"",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "showLabels": false,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending"
-      }
-    },
-
-    {
-      "id": 6,
-      "type": "logs",
-      "title": "Kubernetes Errors / Warnings",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 5 },
-      "targets": [
-        {
-          "expr": "{job=\"kubernetes-pods\", namespace=~\"$k8s_namespace\"} |~ \"(?i)(error|fail|panic|critical|warn)\" | line_format \"[{{.namespace}} / {{.pod}} / {{.container}}] {{__line__}}\"",
-          "refId": "A"
-        }
-      ]
-    },
-
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "Kubernetes Log Volume by Namespace",
-      "datasource": "loki",
-      "gridPos": { "x": 0, "y": 31, "w": 24, "h": 5 },
-      "targets": [
-        {
-          "expr": "sum by (namespace) (count_over_time({job=\"kubernetes-pods\"}[5m]))",
-          "legendFormat": "{{namespace}}",
-          "refId": "A"
-        }
-      ]
-    }
-  ]
-}
+        - name: containers
+          hostPath:
+            path: /var/lib/docker/containers
