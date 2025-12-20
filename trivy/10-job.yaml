@@ -1,0 +1,31 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: trivy-k8s-scan
+  namespace: trivy
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: trivy
+      restartPolicy: Never
+      containers:
+        - name: trivy
+          image: aquasec/trivy:latest
+          command:
+            - trivy
+            - k8s
+            - cluster
+            - --scanners
+            - vuln,misconfig,secret
+            - --severity
+            - HIGH,CRITICAL
+            - --report
+            - summary
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
