@@ -38,6 +38,10 @@ data:
             action: keep
             regex: metrics
 
+      # =========================
+      # CoreDNS metrics scraping
+      # =========================
+
       - job_name: coredns
         kubernetes_sd_configs:
           - role: endpoints
@@ -54,3 +58,15 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: metrics
+
+      # =========================
+      # Pihole metrics scraping
+      # =========================
+
+      - job_name: pihole
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: pihole-exporter
