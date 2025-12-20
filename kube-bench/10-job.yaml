@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kube-bench
+  namespace: kube-bench
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      serviceAccountName: kube-bench
+      hostPID: true
+      restartPolicy: Never
+      containers:
+        - name: kube-bench
+          image: aquasec/kube-bench:latest
+          command:
+            - kube-bench
+            - run
+            - --benchmark
+            - rke2-cis-1.7
+          volumeMounts:
+            - name: etc
+              mountPath: /etc
+              readOnly: true
+            - name: var
+              mountPath: /var
+              readOnly: true
+            - name: rke2
+              mountPath: /var/lib/rancher/rke2
+              readOnly: true
+            - name: usr-bin
+              mountPath: /usr/local/mount-from-host/bin
+              readOnly: true
+
+      volumes:
+        - name: etc
+          hostPath:
+            path: /etc
+        - name: var
+          hostPath:
+            path: /var
+        - name: rke2
+          hostPath:
+            path: /var/lib/rancher/rke2
+        - name: usr-bin
+          hostPath:
+            path: /usr/bin
