@@ -19,6 +19,18 @@ spec:
           monitor:
             enabled: false
 
+        rbac:
+          extraRules:
+            - apiGroups:
+                - aquasecurity.github.io
+              resources:
+                - vulnerabilityreports
+                - configauditreports
+                - rbacassessmentreports
+              verbs:
+                - list
+                - watch
+
         customResourceState:
           enabled: true
           config:
