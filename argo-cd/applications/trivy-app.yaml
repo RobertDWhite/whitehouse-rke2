@@ -32,11 +32,19 @@ spec:
 
         rbacAssessmentReports:
           enabled: true
+
         metrics:
           enabled: true
+          service:
+            enabled: true
+            port: 8080
+            targetPort: 8080
+            name: metrics
+
         serviceMonitor:
           enabled: true
           namespace: observability
+          interval: 60s
           labels:
             release: prometheus
 
