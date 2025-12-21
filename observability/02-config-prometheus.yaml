@@ -90,3 +90,18 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: http
+
+
+      - job_name: trivy-operator
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: trivy-system
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: trivy-operator
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
