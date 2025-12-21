@@ -85,6 +85,32 @@ spec:
                       valueFrom:
                         path: [report, summary, failCount]
 
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ClusterVulnerabilityReport
+                  metrics:
+                    - name: trivy_cluster_vulnerabilities
+                      help: "Cluster-wide vulnerabilities by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, summary]
+                        labelsFromPath:
+                          severity: []
+                        valueFrom:
+                          path: []
+
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ClusterConfigAuditReport
+                  metrics:
+                    - name: trivy_cluster_configaudit_failures
+                      help: "Cluster config audit failures"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, failCount]
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
