@@ -48,7 +48,7 @@ spec:
               resources:
 
                 # =========================
-                # Namespaced Vulnerabilities
+                # Namespaced Vulnerabilities (FIXED)
                 # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
@@ -58,39 +58,18 @@ spec:
                     namespace: [metadata, namespace]
                   metrics:
                     - name: trivy_vulnerabilities
-                      help: "Trivy CRITICAL vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, criticalCount]
-                      labels:
-                        severity: critical
-
-                    - name: trivy_vulnerabilities
-                      help: "Trivy HIGH vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, highCount]
-                      labels:
-                        severity: high
-
-                    - name: trivy_vulnerabilities
-                      help: "Trivy MEDIUM vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, mediumCount]
-                      labels:
-                        severity: medium
-
-                    - name: trivy_vulnerabilities
-                      help: "Trivy LOW vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, lowCount]
-                      labels:
-                        severity: low
+                      help: "Trivy vulnerabilities by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, vulnerabilities]
+                        labelsFromPath:
+                          severity: [severity]
+                        valueFrom:
+                          path: []
 
                 # =========================
-                # Namespaced Config Audits
+                # Namespaced Config Audits (OK as-is)
                 # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
@@ -106,7 +85,7 @@ spec:
                         path: [report, summary, failCount]
 
                 # =========================
-                # Cluster Vulnerabilities
+                # Cluster Vulnerabilities (FIXED)
                 # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
@@ -114,39 +93,18 @@ spec:
                     kind: ClusterVulnerabilityReport
                   metrics:
                     - name: trivy_cluster_vulnerabilities
-                      help: "Cluster CRITICAL vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, criticalCount]
-                      labels:
-                        severity: critical
-
-                    - name: trivy_cluster_vulnerabilities
-                      help: "Cluster HIGH vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, highCount]
-                      labels:
-                        severity: high
-
-                    - name: trivy_cluster_vulnerabilities
-                      help: "Cluster MEDIUM vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, mediumCount]
-                      labels:
-                        severity: medium
-
-                    - name: trivy_cluster_vulnerabilities
-                      help: "Cluster LOW vulnerabilities"
-                      type: Gauge
-                      valueFrom:
-                        path: [report, summary, lowCount]
-                      labels:
-                        severity: low
+                      help: "Cluster vulnerabilities by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, vulnerabilities]
+                        labelsFromPath:
+                          severity: [severity]
+                        valueFrom:
+                          path: []
 
                 # =========================
-                # Cluster Config Audits
+                # Cluster Config Audits (OK as-is)
                 # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
