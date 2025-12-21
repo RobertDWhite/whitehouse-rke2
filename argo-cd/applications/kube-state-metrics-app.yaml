@@ -15,15 +15,14 @@ spec:
       values: |
         namespaceOverride: observability
 
-        resources: []
+        resources: {}
 
         prometheus:
           monitor:
             enabled: false
 
         extraArgs:
-          - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,state
-          ?fulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+          - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
 
         rbac:
           extraRules:
@@ -47,6 +46,10 @@ spec:
           config:
             spec:
               resources:
+
+                # =========================
+                # Namespaced Vulnerabilities
+                # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
                     version: v1alpha1
@@ -54,30 +57,41 @@ spec:
                   labelsFromPath:
                     namespace: [metadata, namespace]
                   metrics:
-                    - name: trivy_vulnerabilities_critical
+                    - name: trivy_vulnerabilities
                       help: "Trivy CRITICAL vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, criticalCount]
+                      labels:
+                        severity: critical
 
-                    - name: trivy_vulnerabilities_high
+                    - name: trivy_vulnerabilities
                       help: "Trivy HIGH vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, highCount]
+                      labels:
+                        severity: high
 
-                    - name: trivy_vulnerabilities_medium
+                    - name: trivy_vulnerabilities
                       help: "Trivy MEDIUM vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, mediumCount]
+                      labels:
+                        severity: medium
 
-                    - name: trivy_vulnerabilities_low
+                    - name: trivy_vulnerabilities
                       help: "Trivy LOW vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, lowCount]
+                      labels:
+                        severity: low
 
+                # =========================
+                # Namespaced Config Audits
+                # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
                     version: v1alpha1
@@ -91,22 +105,49 @@ spec:
                       valueFrom:
                         path: [report, summary, failCount]
 
+                # =========================
+                # Cluster Vulnerabilities
+                # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
                     version: v1alpha1
                     kind: ClusterVulnerabilityReport
                   metrics:
                     - name: trivy_cluster_vulnerabilities
-                      help: "Cluster-wide vulnerabilities by severity"
-                      each:
-                        type: Gauge
-                        gauge:
-                          path: [report, summary]
-                        labelsFromPath:
-                          severity: []
-                        valueFrom:
-                          path: []
+                      help: "Cluster CRITICAL vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, criticalCount]
+                      labels:
+                        severity: critical
 
+                    - name: trivy_cluster_vulnerabilities
+                      help: "Cluster HIGH vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, highCount]
+                      labels:
+                        severity: high
+
+                    - name: trivy_cluster_vulnerabilities
+                      help: "Cluster MEDIUM vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, mediumCount]
+                      labels:
+                        severity: medium
+
+                    - name: trivy_cluster_vulnerabilities
+                      help: "Cluster LOW vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, lowCount]
+                      labels:
+                        severity: low
+
+                # =========================
+                # Cluster Config Audits
+                # =========================
                 - groupVersionKind:
                     group: aquasecurity.github.io
                     version: v1alpha1
@@ -117,6 +158,7 @@ spec:
                       type: Gauge
                       valueFrom:
                         path: [report, summary, failCount]
+
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
