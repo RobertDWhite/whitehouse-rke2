@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-state-metrics
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-state-metrics
+    targetRevision: 5.20.0
+    helm:
+      releaseName: kube-state-metrics
+      values: |
+        namespaceOverride: observability
+
+        prometheus:
+          monitor:
+            enabled: false
+
+        customResourceState:
+          enabled: true
+          config:
+            spec:
+              resources:
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: VulnerabilityReport
+                  labelsFromPath:
+                    namespace: [metadata, namespace]
+                  metrics:
+                    - name: trivy_vulnerabilities
+                      help: "Trivy vulnerability count by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, summary]
+                        labelsFromPath:
+                          severity: []
+                        valueFrom:
+                          path: []
+
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ConfigAuditReport
+                  labelsFromPath:
+                    namespace: [metadata, namespace]
+                  metrics:
+                    - name: trivy_configaudit_failures
+                      help: "Trivy config audit failures"
+                      type: Gauge
+                      gauge:
+                        path: [report, summary, failCount]
+                      valueFrom:
+                        path: [report, summary, failCount]
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
