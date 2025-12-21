@@ -1,25 +1,48 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: trivy
+  name: trivy-operator
   namespace: argocd
 spec:
   project: default
 
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    targetRevision: main
-    path: trivy
+    repoURL: https://aquasecurity.github.io/helm-charts/
+    chart: trivy-operator
+    targetRevision: 0.25.0
+    helm:
+      releaseName: trivy-operator
+      values: |
+        trivy:
+          image:
+            repository: aquasec/trivy
+            tag: 0.68.2
+
+        operator:
+          scanJobsConcurrentLimit: 5
+
+        nodeCollector:
+          enabled: true
+
+        vulnerabilityReports:
+          enabled: true
+
+        configAuditReports:
+          enabled: true
+
+        rbacAssessmentReports:
+          enabled: true
+
+        serviceMonitor:
+          enabled: false
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: trivy
+    namespace: trivy-system
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-
     syncOptions:
       - CreateNamespace=true
-      - ApplyOutOfSyncOnly=true
