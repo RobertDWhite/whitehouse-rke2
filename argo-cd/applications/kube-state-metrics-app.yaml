@@ -43,37 +43,29 @@ spec:
                   labelsFromPath:
                     namespace: [metadata, namespace]
                   metrics:
-                    - name: trivy_vulnerabilities
-                      help: "Critical vulnerabilities"
+                    - name: trivy_vulnerabilities_critical
+                      help: "Trivy CRITICAL vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, criticalCount]
-                      labels:
-                        severity: critical
 
-                    - name: trivy_vulnerabilities
-                      help: "High vulnerabilities"
+                    - name: trivy_vulnerabilities_high
+                      help: "Trivy HIGH vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, highCount]
-                      labels:
-                        severity: high
 
-                    - name: trivy_vulnerabilities
-                      help: "Medium vulnerabilities"
+                    - name: trivy_vulnerabilities_medium
+                      help: "Trivy MEDIUM vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, mediumCount]
-                      labels:
-                        severity: medium
 
-                    - name: trivy_vulnerabilities
-                      help: "Low vulnerabilities"
+                    - name: trivy_vulnerabilities_low
+                      help: "Trivy LOW vulnerabilities"
                       type: Gauge
                       valueFrom:
                         path: [report, summary, lowCount]
-                      labels:
-                        severity: low
 
                 - groupVersionKind:
                     group: aquasecurity.github.io
