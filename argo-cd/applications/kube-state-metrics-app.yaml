@@ -44,15 +44,36 @@ spec:
                     namespace: [metadata, namespace]
                   metrics:
                     - name: trivy_vulnerabilities
-                      help: "Trivy vulnerability count by severity"
-                      each:
-                        type: Gauge
-                        gauge:
-                          path: [report, summary]
-                        labelsFromPath:
-                          severity: []
-                        valueFrom:
-                          path: []
+                      help: "Critical vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, criticalCount]
+                      labels:
+                        severity: critical
+
+                    - name: trivy_vulnerabilities
+                      help: "High vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, highCount]
+                      labels:
+                        severity: high
+
+                    - name: trivy_vulnerabilities
+                      help: "Medium vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, mediumCount]
+                      labels:
+                        severity: medium
+
+                    - name: trivy_vulnerabilities
+                      help: "Low vulnerabilities"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, lowCount]
+                      labels:
+                        severity: low
 
                 - groupVersionKind:
                     group: aquasecurity.github.io
@@ -64,8 +85,6 @@ spec:
                     - name: trivy_configaudit_failures
                       help: "Trivy config audit failures"
                       type: Gauge
-                      gauge:
-                        path: [report, summary, failCount]
                       valueFrom:
                         path: [report, summary, failCount]
 
