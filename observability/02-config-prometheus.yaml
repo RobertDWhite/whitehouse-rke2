@@ -76,17 +76,17 @@ data:
       # =========================
 
       - job_name: kube-state-metrics
-      kubernetes_sd_configs:
-        - role: endpoints
-      relabel_configs:
-        - source_labels: [__meta_kubernetes_namespace]
-          action: keep
-          regex: observability
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: observability
 
-        - source_labels: [__meta_kubernetes_service_name]
-          action: keep
-          regex: kube-state-metrics
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: kube-state-metrics
 
-        - source_labels: [__meta_kubernetes_endpoint_port_name]
-          action: keep
-          regex: http
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
