@@ -12,17 +12,10 @@ spec:
     helm:
       values: |
         installCRDs: true
-        metrics:
-          enabled: true
-
-        service:
-          enabled: true
-          labels:
-            app.kubernetes.io/name: cert-manager
 
         prometheus:
           enabled: true
-          
+
         extraArgs:
           - --feature-gates=ExperimentalCertificateSigningRequestControllers=true
   destination:
