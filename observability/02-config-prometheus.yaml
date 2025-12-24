@@ -125,3 +125,6 @@ data:
           - source_labels: [__meta_kubernetes_endpoint_port_name]
             action: keep
             regex: tcp-prometheus-servicemonitor
+          - action: keep
+            source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            regex: controller
