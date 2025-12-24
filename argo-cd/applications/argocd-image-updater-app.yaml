@@ -19,18 +19,29 @@ spec:
         fullnameOverride: argocd-image-updater
 
         image:
+          repository: quay.io/argoprojlabs/argocd-image-updater
           tag: v1.0.2
 
         config:
           logLevel: info
           interval: 2m
 
-        rbac:
-          enabled: true
-
         serviceAccount:
           create: true
           name: argocd-image-updater
+
+        rbac:
+          enabled: true
+          additionalRules:
+            - apiGroups: ["coordination.k8s.io"]
+              resources: ["leases"]
+              verbs:
+                - get
+                - list
+                - watch
+                - create
+                - update
+                - patch
 
         metrics:
           enabled: false
