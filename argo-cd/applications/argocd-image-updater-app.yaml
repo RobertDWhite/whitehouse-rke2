@@ -25,6 +25,8 @@ spec:
         config:
           logLevel: info
           interval: 2m
+          leaderElection:
+            enabled: false
 
         serviceAccount:
           create: true
@@ -32,16 +34,6 @@ spec:
 
         rbac:
           enabled: true
-          additionalRules:
-            - apiGroups: ["coordination.k8s.io"]
-              resources: ["leases"]
-              verbs:
-                - get
-                - list
-                - watch
-                - create
-                - update
-                - patch
 
         metrics:
           enabled: false
