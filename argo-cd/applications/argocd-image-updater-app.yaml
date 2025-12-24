@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: argocd-image-updater
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
 spec:
   project: default
 
@@ -12,6 +14,8 @@ spec:
     path: config
     directory:
       recurse: true
+      exclude: |
+        example-grafana-dashboard.json
 
   destination:
     server: https://kubernetes.default.svc
