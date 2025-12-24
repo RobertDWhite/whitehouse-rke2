@@ -1,27 +1,26 @@
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: imageupdaters.argocd-image-updater.argoproj.io
+  name: argocd-image-updater-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
-  group: argocd-image-updater.argoproj.io
-  scope: Namespaced
-  names:
-    plural: imageupdaters
-    singular: imageupdater
-    kind: ImageUpdater
-    shortNames:
-      - iu
-  versions:
-    - name: v1alpha1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            spec:
-              type: object
-              x-kubernetes-preserve-unknown-fields: true
-            status:
-              type: object
-              x-kubernetes-preserve-unknown-fields: true
+  project: default
+
+  source:
+    repoURL: https://github.com/argoproj-labs/argocd-image-updater.git
+    targetRevision: v1.0.2
+    path: manifests/crds
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Replace=true
+      - ApplyOutOfSyncOnly=true
