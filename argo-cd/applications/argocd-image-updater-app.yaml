@@ -6,45 +6,21 @@ metadata:
 spec:
   project: default
 
+  source:
+    repoURL: https://github.com/argoproj-labs/argocd-image-updater.git
+    targetRevision: stable
+    path: config
+    directory:
+      recurse: true
+
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
-
-  source:
-    repoURL: https://argoproj.github.io/argo-helm
-    chart: argocd-image-updater
-    targetRevision: 0.11.1
-    helm:
-      values: |
-        fullnameOverride: argocd-image-updater
-
-        image:
-          repository: quay.io/argoprojlabs/argocd-image-updater
-          tag: v1.0.2
-        extraArgs:
-          - --enable-controller=false
-        controller:
-          enabled: false 
-
-        config:
-          logLevel: info
-          interval: 2m
-          leaderElection:
-            enabled: false
-
-        serviceAccount:
-          create: true
-          name: argocd-image-updater
-
-        rbac:
-          enabled: true
-
-        metrics:
-          enabled: false
 
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false
+      - Replace=true
+      - SkipDryRunOnMissingResource=true
