@@ -37,6 +37,15 @@ spec:
 
         rbac:
           enabled: true
+          extraRules:
+            - apiGroups:
+                - argocd-image-updater.argoproj.io
+              resources:
+                - imageupdaters
+              verbs:
+                - get
+                - list
+                - watch
 
         metrics:
           enabled: false
