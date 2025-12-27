@@ -15,8 +15,11 @@ spec:
     spec:
       containers:
         - name: pihole-exporter
-          image: ekofr/pihole-exporter:latest
+          image: ekofr/pihole-exporter
           imagePullPolicy: IfNotPresent
+          args:
+            - -pihole_protocol=https
+            - -skip_tls_verification=true
           ports:
             - containerPort: 9617
           envFrom:
