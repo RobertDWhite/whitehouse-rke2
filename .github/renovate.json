@@ -20,6 +20,14 @@
       "datasourceTemplate": "helm"
     },
     {
+  "customType": "regex",
+  "managerFilePatterns": [".*\\.ya?ml$"],
+  "matchStrings": [
+    "repoURL:\\s*(?<registryUrl>https://[^\\s]+)\\s*\\n\\s*chart:\\s*(?<depName>[\\w-]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[\\w\\.\\-]+)"
+  ],
+  "datasourceTemplate": "helm"
+    },
+    {
       "customType": "regex",
       "managerFilePatterns": [" .*\\.ya?ml$"],
       "matchStrings": [
