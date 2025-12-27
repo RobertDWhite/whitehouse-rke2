@@ -55,6 +55,27 @@ resources:
   # Pihole Exporter
   - 110-deployment-pihole-exporter-a.yaml
   - 120-svc-pihole-exporter.yaml
-  
+
 generators:
   - ksops.yaml
+
+
+
+images:
+  - name: prom/prometheus
+    newTag: "v3.8.1"
+
+  - name: grafana/promtail
+    newTag: "latest"
+
+  - name: grafana/grafana
+    newTag: "12.3.1"
+
+  - name: influxdb
+    newTag: "2.7.12"
+
+  - name: ghcr.io/unpoller/unpoller
+    newTag: "v2.21.0"
+    
+  - name: ekofr/pihole-exporter
+    newTag: "v1.2.0"
