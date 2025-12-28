@@ -7,14 +7,15 @@ resources:
   - 20-deployment.yaml
   - 30-service.yaml
   - 40-ingress.yaml
-
+  - 50-metallb.yaml
+  
 commonLabels:
   app.kubernetes.io/name: convos
   app.kubernetes.io/instance: convos
-  
+
 generators:
   - ksops.yaml
 
 images:
-  - name: ghcr.io/thelounge/thelounge
-    newTag: 4.4.3
+  - name: znc
+    newTag: 1.9.2
