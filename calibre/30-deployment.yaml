@@ -29,6 +29,8 @@ spec:
           volumeMounts:
             - name: books
               mountPath: /books
+            - name: calibre-config
+              mountPath: /config
           resources:
             requests:
               cpu: 250m
@@ -40,3 +42,6 @@ spec:
         - name: books
           persistentVolumeClaim:
             claimName: calibre-books
+        - name: calibre-config
+          persistentVolumeClaim:
+            claimName: calibre-config
