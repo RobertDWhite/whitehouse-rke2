@@ -1,24 +1,31 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: convos
+  name: znc-admin
   namespace: convos
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
+
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: "authentik.authentik.svc.cluster.local"
+
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - znc.white.fm
+      secretName: znc-white-fm-tls
+
   rules:
-    - host: irc.white.fm
+    - host: znc.white.fm
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: thelounge
+                name: authentik-proxy
                 port:
-                  number: 80
-  tls:
-    - hosts:
-        - irc.white.fm
-      secretName: convos-tls
+                  number: 9443
