@@ -30,7 +30,32 @@ spec:
           volumeMounts:
             - name: thelounge-data
               mountPath: /var/opt/thelounge
-
+        - name: bootstrap-user
+          image: ghcr.io/thelounge/thelounge
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -d /var/opt/thelounge/users ]; then
+                echo "Bootstrapping The Lounge user"
+                printf "%s\n%s\n" "$LOUNGE_PASSWORD" "$LOUNGE_PASSWORD" | thelounge add "$LOUNGE_USER"
+              else
+                echo "User already exists, skipping"
+              fi
+          env:
+            - name: LOUNGE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: thelounge-bootstrap
+                  key: username
+            - name: LOUNGE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: thelounge-bootstrap
+                  key: password
+          volumeMounts:
+            - name: thelounge-data
+              mountPath: /var/opt/thelounge
       containers:
         - name: thelounge
           image: ghcr.io/thelounge/thelounge
