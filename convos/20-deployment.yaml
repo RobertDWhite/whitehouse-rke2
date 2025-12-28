@@ -1,92 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: thelounge
+  name: znc
   namespace: convos
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: thelounge
+      app: znc
   template:
     metadata:
       labels:
-        app: thelounge
+        app: znc
     spec:
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
-
-      initContainers:
-        - name: fix-permissions
-          image: busybox:1.36
-          command:
-            - sh
-            - -c
-            - |
-              chown -R 1000:1000 /var/opt/thelounge || true
-              chmod -R g+rwX /var/opt/thelounge || true
-          securityContext:
-            runAsUser: 0
-          volumeMounts:
-            - name: thelounge-data
-              mountPath: /var/opt/thelounge
-
       containers:
-        - name: thelounge
-          image: ghcr.io/thelounge/thelounge
+        - name: znc
+          image: znc
           imagePullPolicy: IfNotPresent
 
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-
-          env:
-            - name: HOME
-              value: /var/opt/thelounge
-            - name: THELOUNGE_HOME
-              value: /var/opt/thelounge
-            - name: LOUNGE_USER
-              valueFrom:
-                secretKeyRef:
-                  name: thelounge-bootstrap
-                  key: username
-            - name: LOUNGE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: thelounge-bootstrap
-                  key: password
-
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - sh
-                  - -c
-                  - |
-                    export HOME=/var/opt/thelounge
-
-                    until [ -f /var/opt/thelounge/config.js ]; do
-                      echo "Waiting for The Lounge config..."
-                      sleep 1
-                    done
-
-                    if [ -z "$(ls -A /var/opt/thelounge/users 2>/dev/null)" ]; then
-                      echo "Bootstrapping The Lounge user"
-                      printf "%s\n%s\n" "$LOUNGE_PASSWORD" "$LOUNGE_PASSWORD" | thelounge add "$LOUNGE_USER"
-                    else
-                      echo "User already exists, skipping bootstrap"
-                    fi
-
           ports:
-            - name: http
-              containerPort: 9000
+            - name: irc
+              containerPort: 6697
 
           volumeMounts:
-            - name: thelounge-data
-              mountPath: /var/opt/thelounge
+            - name: znc-data
+              mountPath: /znc-data
+
+          env:
+            - name: ZNC_DATADIR
+              value: /znc-data
 
       volumes:
-        - name: thelounge-data
+        - name: znc-data
           persistentVolumeClaim:
-            claimName: thelounge-data
+            claimName: znc-data
