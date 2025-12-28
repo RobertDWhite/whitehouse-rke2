@@ -3,10 +3,14 @@ kind: Service
 metadata:
   name: znc
   namespace: convos
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.120
 spec:
+  type: LoadBalancer
   selector:
     app: znc
   ports:
     - name: irc
+      protocol: TCP
       port: 6697
       targetPort: 6697
