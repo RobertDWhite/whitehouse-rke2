@@ -31,16 +31,16 @@ spec:
             - name: thelounge-data
               mountPath: /var/opt/thelounge
         - name: bootstrap-user
-          image: ghcr.io/thelounge/thelounge
+          image: ghcr.io/thelounge/thelounge:4.4.3
           command:
             - sh
             - -c
             - |
-              if [ ! -d /var/opt/thelounge/users ]; then
-                echo "Bootstrapping The Lounge user"
+              if [ -z "$(ls -A /var/opt/thelounge/users 2>/dev/null)" ]; then
+                echo "No users found, creating bootstrap user"
                 printf "%s\n%s\n" "$LOUNGE_PASSWORD" "$LOUNGE_PASSWORD" | thelounge add "$LOUNGE_USER"
               else
-                echo "User already exists, skipping"
+                echo "Users already exist, skipping bootstrap"
               fi
           env:
             - name: LOUNGE_USER
