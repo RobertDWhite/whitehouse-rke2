@@ -15,16 +15,16 @@ spec:
     spec:
       containers:
         - name: thelounge
-          image: ghcr.io/thelounge/thelounge:latest
+          image: ghcr.io/thelounge/thelounge
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9000
           volumeMounts:
             - name: thelounge-data
               mountPath: /var/opt/thelounge
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
       volumes:
         - name: thelounge-data
           persistentVolumeClaim:
