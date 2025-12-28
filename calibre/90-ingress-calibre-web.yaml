@@ -9,16 +9,6 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: calibre-web.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: calibre-web
-                port:
-                  number: 80
     - host: books.white.fm
       http:
         paths:
@@ -31,6 +21,5 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - calibre-web.white.fm
         - books.white.fm
       secretName: calibre-web-tls
