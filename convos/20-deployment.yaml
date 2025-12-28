@@ -1,31 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: convos
+  name: thelounge
   namespace: convos
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: convos
+      app: thelounge
   template:
     metadata:
       labels:
-        app: convos
+        app: thelounge
     spec:
       containers:
-        - name: convos
-          image: ghcr.io/convos-chat/convos
+        - name: thelounge
+          image: ghcr.io/thelounge/thelounge:latest
           imagePullPolicy: IfNotPresent
-          env:
-            - name: CONVOS_REVERSE_PROXY
-              value: "1"
           ports:
-            - containerPort: 3000
+            - containerPort: 9000
           volumeMounts:
-            - name: data
-              mountPath: /data
+            - name: thelounge-data
+              mountPath: /var/opt/thelounge
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
       volumes:
-        - name: data
+        - name: thelounge-data
           persistentVolumeClaim:
-            claimName: convos-data
+            claimName: thelounge-data
