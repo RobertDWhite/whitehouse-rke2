@@ -16,6 +16,7 @@ spec:
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
+
       initContainers:
         - name: fix-permissions
           image: busybox:1.36
@@ -31,21 +32,19 @@ spec:
             - name: thelounge-data
               mountPath: /var/opt/thelounge
 
-        - name: bootstrap-user
-          image: ghcr.io/thelounge/thelounge:4.4.3
-          command:
-            - sh
-            - -c
-            - |
-              export HOME=/var/opt/thelounge
-              if [ -z "$(ls -A /var/opt/thelounge/users 2>/dev/null)" ]; then
-                echo "No users found, creating bootstrap user"
-                printf "%s\n%s\n" "$LOUNGE_PASSWORD" "$LOUNGE_PASSWORD" | thelounge add "$LOUNGE_USER"
-              else
-                echo "Users already exist, skipping bootstrap"
-              fi
+      containers:
+        - name: thelounge
+          image: ghcr.io/thelounge/thelounge
+          imagePullPolicy: IfNotPresent
+
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+
           env:
             - name: HOME
+              value: /var/opt/thelounge
+            - name: THELOUNGE_HOME
               value: /var/opt/thelounge
             - name: LOUNGE_USER
               valueFrom:
@@ -57,21 +56,36 @@ spec:
                 secretKeyRef:
                   name: thelounge-bootstrap
                   key: password
-          volumeMounts:
-            - name: thelounge-data
-              mountPath: /var/opt/thelounge
-      containers:
-        - name: thelounge
-          image: ghcr.io/thelounge/thelounge
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-          imagePullPolicy: IfNotPresent
+
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    export HOME=/var/opt/thelounge
+
+                    until [ -f /var/opt/thelounge/config.js ]; do
+                      echo "Waiting for The Lounge config..."
+                      sleep 1
+                    done
+
+                    if [ -z "$(ls -A /var/opt/thelounge/users 2>/dev/null)" ]; then
+                      echo "Bootstrapping The Lounge user"
+                      printf "%s\n%s\n" "$LOUNGE_PASSWORD" "$LOUNGE_PASSWORD" | thelounge add "$LOUNGE_USER"
+                    else
+                      echo "User already exists, skipping bootstrap"
+                    fi
+
           ports:
-            - containerPort: 9000
+            - name: http
+              containerPort: 9000
+
           volumeMounts:
             - name: thelounge-data
               mountPath: /var/opt/thelounge
+
       volumes:
         - name: thelounge-data
           persistentVolumeClaim:
