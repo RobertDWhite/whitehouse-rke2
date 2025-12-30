@@ -4,10 +4,15 @@ kind: Kustomization
 namespace: paperless
 
 resources:
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
-  
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 11-deployment-redis.yaml
+  - 12-deployment-postgres.yaml
+  - 20-service.yaml
+  - 21-service-redis.yaml
+  - 22-service-postgres.yaml
+  - 50-ingress.yaml
+
 generators:
   - ksops.yaml
 
