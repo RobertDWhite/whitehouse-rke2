@@ -1,8 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: everydocs
-  namespace: everydocs
+  name: paperless
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
@@ -13,10 +12,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - everydocs.white.fm
-      secretName: everydocs-white-fm-tls
+        - paperless.white.fm
+      secretName: paperless-white-fm-tls
   rules:
-    - host: everydocs.white.fm
+    - host: paperless.white.fm
       http:
         paths:
           - path: /
