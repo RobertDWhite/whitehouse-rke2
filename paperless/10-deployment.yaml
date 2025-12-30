@@ -33,6 +33,10 @@ spec:
                 name: paperless-oidc
 
           env:
+            - name: PAPERLESS_CONSUMER_RECURSIVE
+              value: "true"
+            - name: PAPERLESS_CONSUMER_POLLING
+              value: "true"
             - name: PAPERLESS_REDIS
               value: redis://redis.paperless.svc.cluster.local:6379
             - name: PAPERLESS_DBHOST
@@ -63,6 +67,7 @@ spec:
               mountPath: /usr/src/paperless/media
             - name: consume
               mountPath: /usr/src/paperless/consume
+              readOnly: true
 
       volumes:
         - name: data
