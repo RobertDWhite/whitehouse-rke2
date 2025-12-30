@@ -40,7 +40,17 @@ spec:
               value: UTC
             - name: PAPERLESS_OCR_LANGUAGE
               value: eng
+            - name: PAPERLESS_DBUSER
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-db
+                  key: username
 
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-db
+                  key: password
           volumeMounts:
             - name: data
               mountPath: /usr/src/paperless/data
