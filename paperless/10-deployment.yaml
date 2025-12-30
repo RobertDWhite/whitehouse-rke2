@@ -13,9 +13,14 @@ spec:
       labels:
         app: paperless
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: paperless
           image: ghcr.io/paperless-ngx/paperless-ngx
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
           ports:
             - containerPort: 8000
 
