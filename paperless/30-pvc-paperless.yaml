@@ -4,6 +4,7 @@ metadata:
   name: paperless-data
   namespace: paperless
 spec:
+  storageClassName: longhorn-retain
   accessModes:
     - ReadWriteOnce
   resources:
@@ -16,13 +17,13 @@ metadata:
   name: paperless-media
   namespace: paperless
 spec:
+  storageClassName: longhorn-retain
   accessModes:
     - ReadWriteMany
   resources:
     requests:
-      storage: 500Gi
+      storage: 750Gi
   volumeName: pv-paperless-syno-media
-  storageClassName: ""
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -30,6 +31,7 @@ metadata:
   name: paperless-consume
   namespace: paperless
 spec:
+  storageClassName: longhorn-retain
   accessModes:
     - ReadWriteOnce
   resources:
