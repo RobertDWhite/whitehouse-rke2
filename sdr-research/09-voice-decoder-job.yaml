@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: voice-decoder
+  namespace: sdr-research
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: whisper
+          image: ghcr.io/ggerganov/whisper.cpp:latest
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+          command:
+            - /bin/sh
+            - -c
+            - |
+              for f in /data/audio/voice/*.wav; do
+                whisper "$f" --model base --output-txt
+              done
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
