@@ -31,8 +31,10 @@ spec:
             - /bin/sh
             - -c
             - |
-              mkdir -p /data/iq
+              set -e
               echo "Using RTL-SDR serial: $RTL_SDR_SERIAL"
+              mkdir -p /data/iq
+
               while true; do
                 rtl_sdr \
                   -d "$RTL_SDR_SERIAL" \
