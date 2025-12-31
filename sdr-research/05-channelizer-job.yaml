@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: channelizer
+  namespace: sdr-research
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: channelizer
+          image: gnuradio/ci-debian-11-3.10
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - /bin/bash
+            - -c
+            - |
+              python /scripts/channelize.py
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: channelizer-scripts
+            defaultMode: 0755

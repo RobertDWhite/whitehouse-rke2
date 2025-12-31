@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cw-extractor-scripts
+  namespace: sdr-research
+data:
+  cw_extract.py: |
+    #!/usr/bin/env python3
+    import os, json, wave
+    import numpy as np
+    from scipy.signal import butter, lfilter
+
+    SAMPLE_RATE = 2_400_000
+    AUDIO_RATE = 8000
+    CW_FILTER_HZ = 200
+    TONE_HZ = 700
+
+    IQ_DIR = "/data/iq"
+    DET_DIR = "/data/detections"
+    OUT_DIR = "/data/audio/cw"
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    def read_iq(path):
+        raw = np.fromfile(path, dtype=np.uint8)
+        i = (raw[0::2] - 127.5) / 127.5
+        q = (raw[1::2] - 127.5) / 127.5
+        return i + 1j * q
+
+    def bandpass(sig, low, high, fs):
+        b, a = butter(4, [low/fs*2, high/fs*2], btype="band")
+        return lfilter(b, a, sig)
+
+    def write_wav(path, audio):
+        audio = np.int16(audio / np.max(np.abs(audio)) * 32767)
+        with wave.open(path, "w") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(AUDIO_RATE)
+            w.writeframes(audio.tobytes())
+
+    for det_file in os.listdir(DET_DIR):
+        if not det_file.endswith(".json"):
+            continue
+
+        with open(os.path.join(DET_DIR, det_file)) as f:
+            data = json.load(f)
+
+        iq_file = os.path.join(IQ_DIR, data["source_file"])
+        if not os.path.exists(iq_file):
+            continue
+
+        iq = read_iq(iq_file)
+
+        for d in data["detections"]:
+            if d["mode"] != "CW":
+                continue
+
+            freq = d["frequency_offset_hz"]
+
+            # Frequency shift
+            t = np.arange(len(iq)) / SAMPLE_RATE
+            shifted = iq * np.exp(-2j * np.pi * freq * t)
+
+            # Narrow CW filter
+            cw = bandpass(
+                np.real(shifted),
+                TONE_HZ - CW_FILTER_HZ/2,
+                TONE_HZ + CW_FILTER_HZ/2,
+                SAMPLE_RATE
+            )
+
+            # Downsample
+            decim = int(SAMPLE_RATE / AUDIO_RATE)
+            audio = cw[::decim]
+
+            out = os.path.join(
+                OUT_DIR,
+                f"{data['source_file'].replace('.iq','')}_{int(freq)}.wav"
+            )
+
+            write_wav(out, audio)
+            print(f"Wrote {out}")
