@@ -21,8 +21,9 @@ spec:
             - |
               apt-get update
               apt-get install -y multimon-ng sox
-              chmod +x /scripts/cw_decode.sh
-              /scripts/cw_decode.sh
+              cp /scripts/cw_decode.sh /tmp/cw_decode.sh
+              chmod +x /tmp/cw_decode.sh
+              /tmp/cw_decode.sh
       volumes:
         - name: artifacts
           persistentVolumeClaim:
