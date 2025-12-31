@@ -1,12 +1,19 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: cw-decoder
   namespace: sdr-research
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cw-decoder
   template:
+    metadata:
+      labels:
+        app: cw-decoder
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Always
       containers:
         - name: cw-decoder
           image: debian:stable-slim
@@ -19,11 +26,22 @@ spec:
             - /bin/sh
             - -c
             - |
+              set -e
+
+              echo "Installing CW decoder dependencies (once per pod start)"
               apt-get update
-              apt-get install -y multimon-ng sox
+              apt-get install -y --no-install-recommends multimon-ng sox
+              rm -rf /var/lib/apt/lists/*
+
               cp /scripts/cw_decode.sh /tmp/cw_decode.sh
               chmod +x /tmp/cw_decode.sh
-              /tmp/cw_decode.sh
+
+              echo "Starting CW decoder deployment loop"
+              while true; do
+                /tmp/cw_decode.sh
+                echo "CW decode pass complete, sleeping..."
+                sleep 10
+              done
       volumes:
         - name: artifacts
           persistentVolumeClaim:

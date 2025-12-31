@@ -1,12 +1,19 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: channelizer
   namespace: sdr-research
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: channelizer
   template:
+    metadata:
+      labels:
+        app: channelizer
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Always
       containers:
         - name: channelizer
           image: gnuradio/gnuradio
@@ -19,7 +26,12 @@ spec:
             - /bin/bash
             - -c
             - |
-              python /scripts/channelize.py
+              echo "Starting channelizer deployment"
+              while true; do
+                python /scripts/channelize.py
+                echo "Channelizer cycle complete, sleeping..."
+                sleep 5
+              done
       volumes:
         - name: artifacts
           persistentVolumeClaim:
