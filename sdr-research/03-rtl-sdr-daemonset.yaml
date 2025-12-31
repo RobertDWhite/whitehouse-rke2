@@ -22,6 +22,13 @@ spec:
           ports:
             - containerPort: 1234
               name: rtl-tcp
+          env:
+            - name: RTL_DEVICE_INDEX
+              value: "0"
+            - name: RTL_SAMPLE_RATE
+              value: "2400000"
+            - name: RTL_GAIN
+              value: "auto"
           volumeMounts:
             - name: usb
               mountPath: /dev/bus/usb
@@ -29,8 +36,12 @@ spec:
             - /bin/sh
             - -c
             - |
-              echo "Starting rtl_tcp on device index 0"
-              rtl_tcp -d 0 -a 0.0.0.0 -p 1234
+              echo "Starting rtl_tcp for VHF/UHF ham bands"
+              rtl_tcp \
+                -d ${RTL_DEVICE_INDEX} \
+                -a 0.0.0.0 \
+                -p 1234 \
+                -s ${RTL_SAMPLE_RATE}
       volumes:
         - name: usb
           hostPath:
