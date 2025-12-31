@@ -1,53 +1,37 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: rtl-sdr-capture
+  name: rtl-sdr-tcp
   namespace: sdr-research
 spec:
   selector:
     matchLabels:
-      app: rtl-sdr
+      app: rtl-sdr-tcp
   template:
     metadata:
       labels:
-        app: rtl-sdr
+        app: rtl-sdr-tcp
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-14
       containers:
-        - name: rtl-sdr
+        - name: rtl-tcp
           image: legacycode/rtlsdr:latest
           securityContext:
             privileged: true
-          env:
-            - name: RTL_SDR_SERIAL
-              value: "00000001"
+          ports:
+            - containerPort: 1234
+              name: rtl-tcp
           volumeMounts:
-            - name: artifacts
-              mountPath: /data
             - name: usb
               mountPath: /dev/bus/usb
           command:
             - /bin/sh
             - -c
             - |
-              set -e
-              echo "Using RTL-SDR serial: $RTL_SDR_SERIAL"
-              mkdir -p /data/iq
-
-              while true; do
-                rtl_sdr \
-                  -d "serial=$RTL_SDR_SERIAL" \
-                  -f 7020000 \
-                  -s 2400000 \
-                  -g 40 \
-                  /data/iq/cw_$(date +%s).iq
-                sleep 1
-              done
+              echo "Starting rtl_tcp on device index 0"
+              rtl_tcp -d 0 -a 0.0.0.0 -p 1234
       volumes:
-        - name: artifacts
-          persistentVolumeClaim:
-            claimName: sdr-artifacts
         - name: usb
           hostPath:
             path: /dev/bus/usb
