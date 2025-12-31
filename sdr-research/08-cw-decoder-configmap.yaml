@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cw-decoder-scripts
+  namespace: sdr-research
+data:
+  cw_decode.sh: |
+    #!/bin/sh
+    set -e
+
+    AUDIO_DIR="/data/audio/cw"
+    OUT_DIR="/data/text/cw"
+
+    mkdir -p "$OUT_DIR"
+
+    for f in "$AUDIO_DIR"/*.wav; do
+      [ -e "$f" ] || continue
+
+      base=$(basename "$f" .wav)
+      out="$OUT_DIR/$base.txt"
+
+      if [ -f "$out" ]; then
+        echo "Skipping $f (already decoded)"
+        continue
+      fi
+
+      echo "Decoding $f"
+      multimon-ng -q -t wav -a CW "$f" > "$out"
+    done
