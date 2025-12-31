@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cw-decoder
+  namespace: sdr-research
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: cw-decoder
+          image: debian:stable-slim
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - /bin/sh
+            - -c
+            - |
+              apt-get update
+              apt-get install -y multimon-ng sox
+              chmod +x /scripts/cw_decode.sh
+              /scripts/cw_decode.sh
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: cw-decoder-scripts
+            defaultMode: 0755

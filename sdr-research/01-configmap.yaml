@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frequency-policy
+  namespace: sdr-research
+data:
+  policy.yaml: |
+    allowed_bands:
+      - name: "40m CW"
+        min_hz: 7000000
+        max_hz: 7040000
+        modes: ["CW"]
+
+      - name: "2m FM"
+        min_hz: 144000000
+        max_hz: 148000000
+        modes: ["FM"]
+
+    retention_hours: 48
