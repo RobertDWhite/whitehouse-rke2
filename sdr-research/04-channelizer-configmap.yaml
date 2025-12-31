@@ -8,60 +8,79 @@ data:
     #!/usr/bin/env python3
     import os, json
     import numpy as np
-    from scipy.signal import welch, find_peaks
+    from gnuradio import gr, blocks
+    import osmosdr
+    from scipy.signal import find_peaks
 
     SAMPLE_RATE = 2_400_000
     FFT_SIZE = 4096
     CW_MAX_BW_HZ = 300
     VOICE_MIN_BW_HZ = 5000
     ENERGY_THRESHOLD_DB = -50
+    CAPTURE_SECONDS = 2
 
-    IQ_DIR = "/data/iq"
     OUT_DIR = "/data/detections"
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    def read_iq(path):
-        raw = np.fromfile(path, dtype=np.uint8)
-        i = (raw[0::2] - 127.5) / 127.5
-        q = (raw[1::2] - 127.5) / 127.5
-        return i + 1j * q
+    class Channelizer(gr.top_block):
+        def __init__(self):
+            gr.top_block.__init__(self, "Streaming Channelizer")
 
-    def spectrum(iq):
-        f, p = welch(iq, fs=SAMPLE_RATE, nperseg=FFT_SIZE, return_onesided=False)
-        return np.fft.fftshift(f), np.fft.fftshift(10 * np.log10(p + 1e-12))
+            self.src = osmosdr.source(
+                args="rtl_tcp=rtl-tcp.sdr-research.svc.cluster.local:1234"
+            )
+            self.src.set_sample_rate(SAMPLE_RATE)
+            self.src.set_gain(40)
 
-    def detect(freqs, power):
-        results = []
-        peaks, props = find_peaks(power, height=ENERGY_THRESHOLD_DB)
-        for p in peaks:
-            l, r = p, p
-            while l > 0 and power[l] > power[p] - 6:
-                l -= 1
-            while r < len(power)-1 and power[r] > power[p] - 6:
-                r += 1
-            bw = abs(freqs[r] - freqs[l])
-            if bw < CW_MAX_BW_HZ:
-                mode = "CW"
-            elif bw > VOICE_MIN_BW_HZ:
-                mode = "VOICE"
-            else:
-                continue
-            results.append({
-                "frequency_offset_hz": float(freqs[p]),
-                "bandwidth_hz": float(bw),
-                "mode": mode
-            })
-        return results
+            self.head = blocks.head(
+                gr.sizeof_gr_complex,
+                int(SAMPLE_RATE * CAPTURE_SECONDS)
+            )
+            self.sink = blocks.vector_sink_c()
 
-    for f in os.listdir(IQ_DIR):
-        if not f.endswith(".iq"):
-            continue
-        iq = read_iq(os.path.join(IQ_DIR, f))
-        freqs, power = spectrum(iq)
+            self.connect(self.src, self.head, self.sink)
+
+        def detect(self):
+            self.run()
+            iq = np.array(self.sink.data())
+
+            fft = np.fft.fftshift(np.fft.fft(iq, FFT_SIZE))
+            power = 20 * np.log10(np.abs(fft) + 1e-12)
+            freqs = np.fft.fftshift(
+                np.fft.fftfreq(FFT_SIZE, d=1/SAMPLE_RATE)
+            )
+
+            peaks, props = find_peaks(power, height=ENERGY_THRESHOLD_DB)
+
+            results = []
+            for p in peaks:
+                bw = SAMPLE_RATE / FFT_SIZE
+                if bw < CW_MAX_BW_HZ:
+                    mode = "CW"
+                elif bw > VOICE_MIN_BW_HZ:
+                    mode = "VOICE"
+                else:
+                    continue
+
+                results.append({
+                    "frequency_offset_hz": float(freqs[p]),
+                    "bandwidth_hz": float(bw),
+                    "mode": mode
+                })
+
+            return results
+
+    if __name__ == "__main__":
+        ch = Channelizer()
+        detections = ch.detect()
+
         out = {
-            "source_file": f,
-            "detections": detect(freqs, power)
+            "source": "rtl_tcp",
+            "detections": detections
         }
-        with open(os.path.join(OUT_DIR, f.replace(".iq", ".json")), "w") as o:
-            json.dump(out, o, indent=2)
-        print(f"Processed {f}")
+
+        path = os.path.join(OUT_DIR, "detections.json")
+        with open(path, "w") as f:
+            json.dump(out, f, indent=2)
+
+        print(f"Wrote {path}")
