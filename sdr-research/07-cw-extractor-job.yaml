@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cw-extractor
+  namespace: sdr-research
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: cw-extractor
+          image: gnuradio/ci-debian-11-3.10
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - /bin/bash
+            - -c
+            - |
+              python /scripts/cw_extract.py
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: cw-extractor-scripts
+            defaultMode: 0755
