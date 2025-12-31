@@ -1,12 +1,19 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: cw-extractor
   namespace: sdr-research
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cw-extractor
   template:
+    metadata:
+      labels:
+        app: cw-extractor
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Always
       containers:
         - name: cw-extractor
           image: gnuradio/gnuradio
@@ -19,7 +26,12 @@ spec:
             - /bin/bash
             - -c
             - |
-              python /scripts/cw_extract.py
+              echo "Starting CW extractor deployment"
+              while true; do
+                python /scripts/cw_extract.py
+                echo "CW extraction cycle complete, sleeping..."
+                sleep 5
+              done
       volumes:
         - name: artifacts
           persistentVolumeClaim:

@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-decoder
+  template:
+    metadata:
+      labels:
+        app: voice-decoder
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: voice-decoder
+          image: linuxserver/faster-whisper
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /data/text/voice
+
+              echo "Starting voice decoder deployment"
+              while true; do
+                for f in /data/audio/voice/*.wav; do
+                  [ -e "$f" ] || continue
+                  base=$(basename "$f" .wav)
+                  out="/data/text/voice/$base.txt"
+
+                  # skip already decoded files
+                  [ -f "$out" ] && continue
+
+                  echo "Decoding $f"
+                  faster-whisper "$f" \
+                    --device cpu \
+                    --output_txt "$out"
+                done
+
+                sleep 10
+              done
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
