@@ -15,27 +15,36 @@ spec:
     spec:
       containers:
         - name: voice-decoder
-          image: ghcr.io/openai/whisper:latest
+          image: linuxserver/faster-whisper:latest
+          env:
+            - name: TZ
+              value: UTC
           volumeMounts:
             - name: artifacts
               mountPath: /data
           command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
               echo "Starting voice decoder deployment"
               mkdir -p /data/text/voice
+
               while true; do
                 for f in /data/audio/voice/*.wav; do
                   [ -f "$f" ] || continue
                   out="/data/text/voice/$(basename "$f" .wav).txt"
                   if [ ! -f "$out" ]; then
                     echo "Decoding $f"
-                    whisper "$f" \
-                      --model small \
-                      --language en \
-                      --output_format txt \
-                      --output_dir /data/text/voice
+                    python3 <<'EOF'
+from faster_whisper import WhisperModel
+
+model = WhisperModel("small", device="cpu")
+segments, info = model.transcribe("$f")
+
+with open("$out", "w") as o:
+    for s in segments:
+        o.write(s.text.strip() + "\n")
+EOF
                   fi
                 done
                 sleep 5
