@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: voice-decoder
+  template:
+    metadata:
+      labels:
+        app: voice-decoder
+    spec:
+      containers:
+        - name: voice-decoder
+          image: linuxserver/faster-whisper:latest
+          env:
+            - name: TZ
+              value: UTC
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - python3
+            - /scripts/transcribe.py
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: voice-decoder-scripts
+            defaultMode: 0755
