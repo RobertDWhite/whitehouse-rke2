@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-decoder-scripts
+  namespace: sdr-research
+data:
+  transcribe.py: |
+    import os
+    import time
+    from faster_whisper import WhisperModel
+
+    AUDIO_DIR = "/data/audio/voice"
+    TEXT_DIR = "/data/text/voice"
+    MODEL_NAME = "small"
+
+    os.makedirs(TEXT_DIR, exist_ok=True)
+
+    model = WhisperModel(MODEL_NAME, device="cpu")
+
+    print("Voice decoder started")
+
+    while True:
+        for fname in os.listdir(AUDIO_DIR):
+            if not fname.endswith(".wav"):
+                continue
+
+            wav_path = os.path.join(AUDIO_DIR, fname)
+            txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
+
+            if os.path.exists(txt_path):
+                continue
+
+            print(f"Transcribing {wav_path}")
+            segments, info = model.transcribe(wav_path)
+
+            with open(txt_path, "w") as f:
+                for seg in segments:
+                    f.write(seg.text.strip() + "\n")
+
+        time.sleep(5)
