@@ -13,10 +13,12 @@ spec:
       labels:
         app: voice-decoder
     spec:
-      restartPolicy: Always
       containers:
         - name: voice-decoder
           image: linuxserver/faster-whisper
+          env:
+            - name: TZ
+              value: UTC
           volumeMounts:
             - name: artifacts
               mountPath: /data
@@ -24,26 +26,22 @@ spec:
             - /bin/sh
             - -c
             - |
-              set -e
-              mkdir -p /data/text/voice
-
               echo "Starting voice decoder deployment"
+              mkdir -p /data/text/voice
               while true; do
                 for f in /data/audio/voice/*.wav; do
-                  [ -e "$f" ] || continue
-                  base=$(basename "$f" .wav)
-                  out="/data/text/voice/$base.txt"
-
-                  # skip already decoded files
-                  [ -f "$out" ] && continue
-
-                  echo "Decoding $f"
-                  faster-whisper "$f" \
-                    --device cpu \
-                    --output_txt "$out"
+                  [ -f "$f" ] || continue
+                  out="/data/text/voice/$(basename "$f" .wav).txt"
+                  if [ ! -f "$out" ]; then
+                    echo "Decoding $f"
+                    faster-whisper "$f" \
+                      --model small \
+                      --language en \
+                      --output_format txt \
+                      --output_dir /data/text/voice
+                  fi
                 done
-
-                sleep 10
+                sleep 5
               done
       volumes:
         - name: artifacts
