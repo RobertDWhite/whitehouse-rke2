@@ -15,15 +15,12 @@ spec:
     spec:
       containers:
         - name: voice-decoder
-          image: linuxserver/faster-whisper
-          env:
-            - name: TZ
-              value: UTC
+          image: ghcr.io/openai/whisper:latest
           volumeMounts:
             - name: artifacts
               mountPath: /data
           command:
-            - /bin/sh
+            - /bin/bash
             - -c
             - |
               echo "Starting voice decoder deployment"
@@ -34,7 +31,7 @@ spec:
                   out="/data/text/voice/$(basename "$f" .wav).txt"
                   if [ ! -f "$out" ]; then
                     echo "Decoding $f"
-                    faster-whisper "$f" \
+                    whisper "$f" \
                       --model small \
                       --language en \
                       --output_format txt \
