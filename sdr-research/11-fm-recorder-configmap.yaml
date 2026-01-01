@@ -13,7 +13,6 @@ data:
     CENTER_FREQ = 145_500_000     # 145.500 MHz
     SAMPLE_RATE = 2_400_000
     AUDIO_RATE = 48_000
-    FM_DEVIATION = 75_000
 
     OUT_DIR = "/data/audio/voice"
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -54,7 +53,8 @@ data:
                 outfile,
                 1,
                 AUDIO_RATE,
-                blocks.FORMAT_WAV
+                blocks.FORMAT_WAV,
+                blocks.FORMAT_PCM_16
             )
 
             self.connect(self.src, self.xlating, self.wbfm, self.sink)
