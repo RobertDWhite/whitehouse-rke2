@@ -13,13 +13,8 @@ spec:
       labels:
         app: immich-machine-learning
     spec:
-      tolerations:
-        - key: "gpu-only"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
       nodeSelector:
-        nvidia.com/gpu.present: "true"
+        gpu: "true"
       containers:
         - name: immich-ml
           image: ghcr.io/immich-app/immich-machine-learning
