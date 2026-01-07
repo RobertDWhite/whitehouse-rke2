@@ -18,9 +18,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: longhorn-ok
+                  - key: kubernetes.io/hostname
                     operator: In
-                    values: ["true"]
+                    values:
+                      - rke2-node-10
 
       tolerations: []
 
