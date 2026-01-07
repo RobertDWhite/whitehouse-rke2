@@ -87,17 +87,11 @@ spec:
           config:
             enabled: true
             type: persistentVolumeClaim
-            accessMode: ReadWriteOnce
-            size: 5Gi
-            storageClass: longhorn
+            existingClaim: tautulli-config
             advancedMounts:
               tautulli:
                 app:
                   - path: /config
-            annotations:
-              argocd.argoproj.io/sync-options: Delete=false,Prune=false
-              helm.sh/resource-policy: keep
-            retain: true
   destination:
     server: https://kubernetes.default.svc
     namespace: tautulli
