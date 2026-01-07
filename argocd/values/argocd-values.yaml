@@ -37,57 +37,31 @@ configs:
 repoServer:
   replicas: 2
 
-  extraEnv:
-    - name: ARGOCD_EXEC_ENABLED
-      value: "true"
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: /etc/sops/age/key.txt
+
   volumes:
     - name: custom-tools
       emptyDir: {}
     - name: sops-age
       secret:
         secretName: sops-age
-    - name: kustomize-plugins
-      emptyDir: {}
 
   initContainers:
-    - name: install-tools
+    - name: install-ksops
       image: viaductoss/ksops:v4.3.3
       command: ["/bin/sh", "-c"]
       args:
         - |
           set -e
-          echo "[INIT] Installing ksops + kustomize + kustomize-sops + sops..."
-
-          mkdir -p /custom-tools
-
+          echo "[INIT] Installing ksops + kustomize"
           cp /usr/local/bin/ksops /custom-tools/ksops
           cp /usr/local/bin/kustomize /custom-tools/kustomize
-          cp /usr/local/bin/kustomize-sops /custom-tools/kustomize-sops
-
-          cp /usr/local/bin/kustomize-sops /custom-tools/sops
-
           chmod +x /custom-tools/*
-          echo "[INIT] Tools installed."
       volumeMounts:
         - mountPath: /custom-tools
           name: custom-tools
-
-    - name: install-ksops-plugin
-      image: viaductoss/ksops:v4.3.3
-      command: ["/bin/sh", "-c"]
-      args:
-        - |
-          set -e
-          echo "[INIT] Installing KSOPS plugin..."
-
-          mkdir -p /plugins/viaduct.ai/v1/ksops
-          cp /usr/local/bin/ksops /plugins/viaduct.ai/v1/ksops/Ksops
-          chmod +x /plugins/viaduct.ai/v1/ksops/Ksops
-
-          echo "[INIT] KSOPS plugin installed."
-      volumeMounts:
-        - mountPath: /plugins
-          name: kustomize-plugins
 
   volumeMounts:
     - mountPath: /usr/local/bin/ksops
@@ -96,18 +70,9 @@ repoServer:
     - mountPath: /usr/local/bin/kustomize
       name: custom-tools
       subPath: kustomize
-    - mountPath: /usr/local/bin/sops
-      name: custom-tools
-      subPath: sops
-    - mountPath: /home/argocd/.config/kustomize/plugin
-      name: kustomize-plugins
     - mountPath: /etc/sops/age
       name: sops-age
       readOnly: true
-    - mountPath: /home/argocd/.config/sops/age
-      name: sops-age
-      readOnly: true
-
 server:
   replicas: 2
 
