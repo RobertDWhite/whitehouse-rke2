@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storage
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/whitehouse-rke2/whitehouse-rke2.git
+    targetRevision: main
+    path: storage
+    kustomize:
+      prune: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
