@@ -1,7 +1,10 @@
-# ---------------------------
-# Authentik 2025.8.4 values
-# ---------------------------
+# ===========================
+# Authentik
+# ===========================
 
+# ---------------------------
+# PostgreSQL (existing PVC)
+# ---------------------------
 postgresql:
   enabled: true
   auth:
@@ -10,37 +13,39 @@ postgresql:
       userKey: POSTGRES_USER
       passwordKey: password
       databaseKey: POSTGRES_DB
+
   primary:
     persistence:
       enabled: true
-      size: 10Gi
-      storageClass: longhorn
-      annotations:
-        argocd.argoproj.io/sync-options: Delete=false,Prune=false
-        helm.sh/resource-policy: keep
+      existingClaim: authentik-postgres
+
     resources:
       requests:
         cpu: 1000m
         memory: 2Gi
 
+
+# ---------------------------
+# Redis (existing PVC)
+# ---------------------------
 redis:
   enabled: true
   architecture: standalone
+
   auth:
     existingSecret: authentik-env
     existingSecretPasswordKey: redis-password
+
   master:
     persistence:
       enabled: true
-      size: 2Gi
-      storageClass: longhorn
-      annotations:
-        argocd.argoproj.io/sync-options: Delete=false,Prune=false
-        helm.sh/resource-policy: keep
+      existingClaim: redis-data
+
     resources:
       requests:
         cpu: 500m
         memory: 512Mi
+
 
 # ---------------------------
 # Authentik Server
@@ -49,6 +54,22 @@ server:
   envFrom:
     - secretRef:
         name: authentik-env
+
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+  persistence:
+    enabled: true
+    existingClaim: authentik-media
+
+  service:
+    type: ClusterIP
+    port: 9000
+
   ingress:
     enabled: true
     ingressClassName: nginx
@@ -65,24 +86,6 @@ server:
           - auth.white.fm
           - auth.whitematter.tech
           - auth.w3rdw.radio
-  replicaCount: 2
-  resources:
-    requests:
-      cpu: 1000m
-      memory: 1Gi
-
-  persistence:
-    enabled: true
-    accessModes: [ReadWriteOnce]
-    size: 5Gi
-    storageClass: longhorn
-    annotations:
-      argocd.argoproj.io/sync-options: Delete=false,Prune=false
-      helm.sh/resource-policy: keep
-
-  service:
-    type: ClusterIP
-    port: 9000
 
 
 # ---------------------------
@@ -92,29 +95,21 @@ worker:
   envFrom:
     - secretRef:
         name: authentik-env
+
   replicaCount: 2
+
   resources:
     requests:
       cpu: 500m
       memory: 1Gi
 
-# ---------------------------
-# Global persistence
-# ---------------------------
-persistence:
-  enabled: true
-  accessModes: [ReadWriteOnce]
-  size: 5Gi
-  storageClass: longhorn
-  annotations:
-    argocd.argoproj.io/sync-options: Delete=false,Prune=false
-    helm.sh/resource-policy: keep
 
 # ---------------------------
 # Security Contexts
 # ---------------------------
 podSecurityContext:
   fsGroup: 1000
+
 securityContext:
   runAsUser: 1000
   runAsGroup: 1000
