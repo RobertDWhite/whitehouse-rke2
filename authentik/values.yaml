@@ -18,9 +18,8 @@ postgresql:
   primary:
     persistence:
       enabled: true
-      existingClaim: authentik-postgres
-      annotations:
-        helm.sh/resource-policy: keep
+      storageClass: longhorn
+      size: 10Gi
 
     resources:
       requests:
@@ -42,9 +41,8 @@ redis:
   master:
     persistence:
       enabled: true
-      existingClaim: redis-data
-      annotations:
-        helm.sh/resource-policy: keep
+      storageClass: longhorn
+      size: 5Gi
 
     resources:
       requests:
@@ -69,9 +67,8 @@ server:
 
   persistence:
     enabled: true
-    existingClaim: authentik-media
-    annotations:
-      helm.sh/resource-policy: keep
+    storageClass: longhorn
+    size: 5Gi
 
   service:
     type: ClusterIP
