@@ -22,9 +22,22 @@ spec:
         - name: postgres
           image: postgres
           imagePullPolicy: IfNotPresent
+
           env:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_POSTGRESQL__USER
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_POSTGRESQL__NAME
+
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -40,26 +53,41 @@ spec:
                 secretKeyRef:
                   name: authentik-env
                   key: AUTHENTIK_POSTGRESQL__NAME
+
           ports:
             - containerPort: 5432
               name: postgres
+
           volumeMounts:
             - name: pgdata
               mountPath: /var/lib/postgresql/data
+
           readinessProbe:
             exec:
-              command: ["pg_isready", "-q"]
+              command:
+                - pg_isready
+                - -U
+                - authentik
+                - -d
+                - authentik
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
+
           livenessProbe:
             exec:
-              command: ["pg_isready", "-q"]
+              command:
+                - pg_isready
+                - -U
+                - authentik
+                - -d
+                - authentik
             initialDelaySeconds: 40
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
+
           resources:
             requests:
               cpu: 250m
@@ -67,8 +95,8 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+
       volumes:
         - name: pgdata
           persistentVolumeClaim:
             claimName: authentik-postgres
-
