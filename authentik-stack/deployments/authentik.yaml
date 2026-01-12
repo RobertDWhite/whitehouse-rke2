@@ -29,6 +29,16 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+
+      initContainers:
+        - name: migrate
+          image: ghcr.io/goauthentik/server
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          envFrom:
+            - secretRef:
+                name: authentik-env
+
       containers:
         - name: server
           image: ghcr.io/goauthentik/server
@@ -51,12 +61,34 @@ spec:
               value: "0.0.0.0:9443"
             - name: AUTHENTIK_REDIS__PORT
               value: "6379"
+
             - name: AUTHENTIK_TLS__CERTIFICATE
               value: /certs/tls.crt
             - name: AUTHENTIK_TLS__KEY
               value: /certs/tls.key
+
             - name: AUTHENTIK_HEALTHCHECK__ENABLED
               value: "true"
+
+            # BOOTSTRAP (MUST EXIST ON FIRST RUN)
+            - name: AUTHENTIK_BOOTSTRAP_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_BOOTSTRAP_EMAIL
+
+            - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_BOOTSTRAP_PASSWORD
+
+            - name: AUTHENTIK_BOOTSTRAP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-env
+                  key: AUTHENTIK_BOOTSTRAP_TOKEN
+
           volumeMounts:
             - name: media
               mountPath: /media
@@ -70,6 +102,7 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+
       volumes:
         - name: media
           persistentVolumeClaim:
@@ -77,25 +110,3 @@ spec:
         - name: tls
           secret:
             secretName: auth-white-fm-tls
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchExpressions:
-                    - key: app.kubernetes.io/component
-                      operator: In
-                      values: ["server"]
-                    - key: app.kubernetes.io/name
-                      operator: In
-                      values: ["authentik"]
-                topologyKey: kubernetes.io/hostname
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: authentik
-              app.kubernetes.io/component: server
