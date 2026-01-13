@@ -70,16 +70,19 @@ server:
     storageClass: longhorn
     size: 5Gi
 
+  # --- Service exposes HTTPS only ---
   service:
     type: ClusterIP
     ports:
       - name: https
         port: 9443
         targetPort: https
-    
+
+  # --- Ingress MUST explicitly target the HTTPS service port ---
   ingress:
     enabled: true
     ingressClassName: nginx
+    servicePort: https
     annotations:
       nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       cert-manager.io/cluster-issuer: letsencrypt-dns
