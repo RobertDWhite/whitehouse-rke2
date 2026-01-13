@@ -72,8 +72,10 @@ server:
 
   service:
     type: ClusterIP
-    port: 9443
-    portName: https
+    ports:
+      - name: https
+        port: 9443
+        targetPort: https
     
   ingress:
     enabled: true
