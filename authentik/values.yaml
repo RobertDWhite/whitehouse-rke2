@@ -72,12 +72,14 @@ server:
 
   service:
     type: ClusterIP
-    port: 9000
-
+    port: 9443
+    portName: https
+    
   ingress:
     enabled: true
     ingressClassName: nginx
     annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       cert-manager.io/cluster-issuer: letsencrypt-dns
     hosts:
       - auth.white.fm
