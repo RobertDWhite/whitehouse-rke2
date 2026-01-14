@@ -2,6 +2,11 @@
 # Authentik
 # ===========================
 
+authentik:
+  enabled: true
+  existingSecret:
+    secretName: authentik-env
+
 # ---------------------------
 # PostgreSQL
 # ---------------------------
@@ -26,7 +31,6 @@ postgresql:
         cpu: 1000m
         memory: 2Gi
 
-
 # ---------------------------
 # Redis
 # ---------------------------
@@ -49,16 +53,16 @@ redis:
         cpu: 500m
         memory: 512Mi
 
-
 # ---------------------------
 # Authentik Server
 # ---------------------------
 server:
+  enabled: true
+  replicas: 2
+
   envFrom:
     - secretRef:
         name: authentik-env
-
-  replicaCount: 2
 
   resources:
     requests:
@@ -70,20 +74,29 @@ server:
     storageClass: longhorn
     size: 5Gi
 
+  containerPorts:
+    https: 9443
+
   service:
     type: ClusterIP
-    port: 9000
+    servicePortHttps: 443
+    servicePortHttpsName: https
 
   ingress:
     enabled: true
     ingressClassName: nginx
+    https: true
+
     annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
       cert-manager.io/cluster-issuer: letsencrypt-dns
+
     hosts:
       - auth.white.fm
+
     paths:
       - /
-    pathType: Prefix
+
     tls:
       - secretName: auth-white-fm-tls
         hosts:
@@ -91,22 +104,21 @@ server:
           - auth.whitematter.tech
           - auth.w3rdw.radio
 
-
 # ---------------------------
 # Authentik Worker
 # ---------------------------
 worker:
+  enabled: true
+  replicas: 2
+
   envFrom:
     - secretRef:
         name: authentik-env
-
-  replicaCount: 2
 
   resources:
     requests:
       cpu: 500m
       memory: 1Gi
-
 
 # ---------------------------
 # Security Contexts
