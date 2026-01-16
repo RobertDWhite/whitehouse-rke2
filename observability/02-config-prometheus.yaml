@@ -109,9 +109,13 @@ data:
       # =========================
       # ingress-nginx metrics scraping
       # =========================
-      - job_name: ingress-nginx-controller
+      - job_name: ingress-nginx-dashboard-14314
         kubernetes_sd_configs:
           - role: pod
+
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
 
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
@@ -126,12 +130,6 @@ data:
             action: keep
             regex: "10254"
 
-          - target_label: __metrics_path__
-            replacement: /metrics
-
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: controller_namespace
-
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
 
@@ -140,6 +138,17 @@ data:
 
           - target_label: controller_class
             replacement: nginx
+
+          - source_labels: [__meta_kubernetes_ingress_name]
+            target_label: ingress
+            regex: (.+)
+            replacement: $1
+            action: replace
+
+          - target_label: ingress
+            replacement: "__all__"
+            action: replace
+            regex: ""
 
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
