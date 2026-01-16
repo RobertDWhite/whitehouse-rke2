@@ -109,7 +109,7 @@ data:
       # =========================
       # ingress-nginx metrics scraping
       # =========================
-      - job_name: ingress-nginx-dashboard-14314
+      - job_name: rke2-ingress-nginx
         kubernetes_sd_configs:
           - role: pod
 
@@ -120,11 +120,11 @@ data:
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             action: keep
-            regex: ingress-nginx
+            regex: kube-system
 
-          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          - source_labels: [__meta_kubernetes_pod_name]
             action: keep
-            regex: controller
+            regex: rke2-ingress-nginx-controller-.*
 
           - source_labels: [__meta_kubernetes_pod_container_port_number]
             action: keep
@@ -139,16 +139,8 @@ data:
           - target_label: controller_class
             replacement: nginx
 
-          - source_labels: [__meta_kubernetes_ingress_name]
-            target_label: ingress
-            regex: (.+)
-            replacement: $1
-            action: replace
-
           - target_label: ingress
             replacement: "__all__"
-            action: replace
-            regex: ""
 
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
