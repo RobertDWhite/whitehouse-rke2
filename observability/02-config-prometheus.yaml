@@ -114,31 +114,32 @@ data:
           - role: pod
 
         relabel_configs:
-          # Only ingress-nginx namespace
           - source_labels: [__meta_kubernetes_namespace]
             action: keep
             regex: ingress-nginx
 
-          # Only controller pods
           - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
             action: keep
             regex: controller
 
-          # Only metrics port
           - source_labels: [__meta_kubernetes_pod_container_port_number]
             action: keep
             regex: "10254"
 
-          # Set metrics path
           - target_label: __metrics_path__
             replacement: /metrics
 
-          # Useful labels for your dashboard
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: controller_namespace
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: controller_pod
 
-          - source_labels: [__meta_kubernetes_namespace]
-            target_label: controller_namespace
+          - target_label: controller_class
+            replacement: nginx
 
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
