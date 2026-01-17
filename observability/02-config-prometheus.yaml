@@ -146,6 +146,29 @@ data:
             regex: __meta_kubernetes_pod_label_(.+)
 
       # =========================
+      # exporter data
+      # =========================
+      - job_name: "sonarr-exporter"
+        static_configs:
+          - targets: ["10.100.1.20:9707"]
+
+      - job_name: "radarr-exporter"
+        static_configs:
+          - targets: ["10.100.1.20:9708"]
+
+      - job_name: "prowlarr-exporter"
+        static_configs:
+          - targets: ["10.100.1.20:9709"]
+
+      - job_name: "bazarr-exporter"
+        static_configs:
+          - targets: ["10.100.1.20:9712"]
+
+      - job_name: "readarr-exporter"
+        static_configs:
+          - targets: ["10.100.1.20:9713"]
+
+      # =========================
       # cert-manager metrics scraping
       # =========================
       - job_name: cert-manager
@@ -175,3 +198,6 @@ data:
           # Preserve labels for Grafana dashboard
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
+
+
+    
