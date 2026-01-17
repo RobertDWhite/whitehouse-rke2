@@ -3,41 +3,47 @@
   "extends": [
     "config:recommended"
   ],
-
   "kustomize": {
-    "fileMatch": [
-      "kustomization\\.ya?ml$"
+    "managerFilePatterns": [
+      "/kustomization\\.ya?ml$/"
     ]
   },
-
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "repoURL:\\s*(?<registryUrl>.*?)\\s*\\n.*?chart:\\s*(?<depName>.*?)\\s*\\n.*?targetRevision:\\s*(?<currentValue>.*?)\\s"
       ],
       "datasourceTemplate": "helm"
     },
     {
-  "customType": "regex",
-  "managerFilePatterns": [".*\\.ya?ml$"],
-  "matchStrings": [
-    "repository:\\s*(?<depName>[a-z0-9./-]+)\\s*\\n\\s*tag:\\s*(?<currentValue>[\\w.-]+)"
-  ],
-  "datasourceTemplate": "docker"
-},
-    {
-  "customType": "regex",
-  "managerFilePatterns": [".*\\.ya?ml$"],
-  "matchStrings": [
-    "repoURL:\\s*(?<registryUrl>https://[^\\s]+)\\s*\\n\\s*chart:\\s*(?<depName>[\\w-]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[\\w\\.\\-]+)"
-  ],
-  "datasourceTemplate": "helm"
+      "customType": "regex",
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "repository:\\s*(?<depName>[a-z0-9./-]+)\\s*\\n\\s*tag:\\s*(?<currentValue>[\\w.-]+)"
+      ],
+      "datasourceTemplate": "docker"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        ".*\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "repoURL:\\s*(?<registryUrl>https://[^\\s]+)\\s*\\n\\s*chart:\\s*(?<depName>[\\w-]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[\\w\\.\\-]+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "image:\\s*(?<depName>[a-z0-9\\-]+(?:\\/[a-z0-9\\-]+)+):(?<currentValue>v?[0-9]+)"
       ],
@@ -45,7 +51,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "helmCharts:\\s*[- ]+name:\\s*(?<depName>.*?)\\s*\\n.*?repo:\\s*(?<registryUrl>.*?)\\s*\\n.*?version:\\s*(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -53,7 +61,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "version:\\s*(?<currentValue>v?[0-9].*?\\+rke2r[0-9]+)"
       ],
@@ -62,7 +72,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "image:\\s*(?<depName>ghcr\\.io/sdr-enthusiasts/[a-z0-9\\-]+):(?<currentValue>latest-build-[0-9]+)"
       ],
@@ -70,7 +82,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "image:\\s*(?<depName>ghcr\\.io/[a-z0-9\\-]+/[a-z0-9\\-]+):(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -78,7 +92,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "image:\\s*(?<depName>ghcr\\.io/[a-z0-9\\-]+/[a-z0-9\\-]+):(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -86,7 +102,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "image:\\s*(?<depName>[a-z0-9\\-]+(?:\\/[a-z0-9\\-]+)+):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -94,7 +112,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": [" .*\\.ya?ml$"],
+      "managerFilePatterns": [
+        " .*\\.ya?ml$"
+      ],
       "matchStrings": [
         "app\\.kubernetes\\.io/version:\\s*(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
       ],
@@ -102,46 +122,57 @@
       "datasourceTemplate": "github-releases"
     }
   ],
-
   "packageRules": [
     {
-      "matchManagers": ["github-actions"],
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "automerge": true
     },
-
     {
-      "matchManagers": ["custom.regex"],
+      "matchManagers": [
+        "custom.regex"
+      ],
       "groupName": "Helm chart updates",
       "automerge": false
     },
-
     {
-      "matchManagers": ["docker"],
+      "matchManagers": [
+        "docker"
+      ],
       "automerge": false,
       "matchPackageNames": [
         "/^ghcr\\.io/.*/"
       ]
     },
-
     {
-      "matchDatasources": ["docker"],
+      "matchDatasources": [
+        "docker"
+      ],
       "groupName": "SDR Enthusiasts container updates",
       "automerge": false,
       "matchPackageNames": [
         "ghcr.io/sdr-enthusiasts/{/,}**"
       ]
     },
-
     {
-      "matchManagers": ["kustomize"],
+      "matchManagers": [
+        "kustomize"
+      ],
       "groupName": "Kustomize image updates",
       "automerge": false
     },
-
     {
-      "matchManagers": ["kustomize"],
-      "matchPackageNames": ["lscr.io/linuxserver/**"],
+      "matchManagers": [
+        "kustomize"
+      ],
+      "matchPackageNames": [
+        "lscr.io/linuxserver/**"
+      ],
       "groupName": "LinuxServer Kustomize image updates",
       "automerge": false
     }
