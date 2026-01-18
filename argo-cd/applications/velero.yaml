@@ -14,8 +14,13 @@ spec:
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       ref: values
+      path: velero
+
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      path: velero
       directory:
-        recurse: true
+        recurse: false
 
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
@@ -23,7 +28,7 @@ spec:
       helm:
         releaseName: velero
         valueFiles:
-          - $values/velero/values.yaml
+          - $values/values.yaml
 
   syncPolicy:
     automated:
