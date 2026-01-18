@@ -10,6 +10,17 @@
   },
   "customManagers": [
     {
+  "customType": "regex",
+  "managerFilePatterns": [
+    "velero/values\\.ya?ml$"
+  ],
+  "matchStrings": [
+    "image:\\s*(?<depName>velero/velero-plugin-for-aws):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)",
+    "image:\\s*(?<depName>velero/velero-plugin-for-csi):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
+  ],
+  "datasourceTemplate": "docker"
+},
+    {
       "customType": "regex",
       "managerFilePatterns": [
         " .*\\.ya?ml$"
