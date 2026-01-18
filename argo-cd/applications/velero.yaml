@@ -14,6 +14,7 @@ spec:
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero
+      ref: values
       directory:
         recurse: false
 
@@ -23,7 +24,7 @@ spec:
       helm:
         releaseName: velero
         valueFiles:
-          - $values/velero/values.yaml
+          - $values/values.yaml
 
   syncPolicy:
     automated:
