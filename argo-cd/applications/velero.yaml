@@ -11,19 +11,24 @@ spec:
     namespace: velero
 
   sources:
+    # Secrets
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero-secrets
 
+    # Velero Helm chart
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
       targetRevision: 6.4.0
       helm:
         releaseName: velero
         values: |
+          upgradeCRDs: false
+
           credentials:
             existingSecret: cloud-credentials
 
+          configuration:
             backupStorageLocation:
               - name: default
                 provider: aws
@@ -39,7 +44,6 @@ spec:
                 provider: aws
 
           features: EnableCSI
-
           deployNodeAgent: true
           snapshotsEnabled: true
 
