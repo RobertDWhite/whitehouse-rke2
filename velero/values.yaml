@@ -1,0 +1,38 @@
+credentials:
+  existingSecret: cloud-credentials
+
+configuration:
+  provider: aws
+
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: velero-backups
+      default: true
+      config:
+        region: us-east-1
+        s3Url: https://minio-bucket.white.fm
+        s3ForcePathStyle: "true"
+
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+
+features: EnableCSI
+
+deployNodeAgent: true
+
+snapshotsEnabled: true
+
+initContainers:
+  - name: velero-plugin-for-aws
+    image: velero/velero-plugin-for-aws:v1.10.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+  - name: velero-plugin-for-csi
+    image: velero/velero-plugin-for-csi:v0.7.0
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
