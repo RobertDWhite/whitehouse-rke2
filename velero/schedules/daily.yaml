@@ -1,0 +1,26 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-critical
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  template:
+    includedNamespaces:
+      - authentik
+      - immich
+      - paperless
+      - matrix
+      - monica
+      - calibre
+      - audiobookshelf
+      - snappymail
+      - convos
+      - freshrss
+      - ombi
+      - uptime-kuma
+      - registry
+      - sdr-research
+      - ai-stack
+    snapshotVolumes: true
+    ttl: 168h # 7 days
