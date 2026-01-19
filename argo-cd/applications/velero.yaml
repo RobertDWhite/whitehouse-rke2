@@ -25,13 +25,13 @@ spec:
         values: |
           upgradeCRDs: false
 
-          credentials:
-            existingSecret: cloud-credentials
-
           server:
             extraArgs:
-              - --features=EnableCSI
-              - --uploader-type=kopia
+              - "--features=EnableCSI"
+              - "--uploader-type=kopia"
+
+          credentials:
+            existingSecret: cloud-credentials
 
           configuration:
             backupStorageLocation:
