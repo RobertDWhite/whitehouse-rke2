@@ -11,12 +11,12 @@ spec:
     namespace: velero
 
   sources:
-    # Secrets
+    # Secrets (SOPS / ksops)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero-secrets
-    
-    # Velero Backups
+
+    # Velero schedules / backups (YAMLs)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero
@@ -29,6 +29,11 @@ spec:
         releaseName: velero
         values: |
           upgradeCRDs: false
+
+          server:
+            extraArgs:
+              - --features=EnableCSI
+              - --uploader-type=kopia
 
           credentials:
             existingSecret: cloud-credentials
@@ -48,9 +53,7 @@ spec:
               - name: default
                 provider: aws
 
-          features: EnableCSI
           deployNodeAgent: true
-          snapshotsEnabled: true
 
           initContainers:
             - name: velero-plugin-for-aws
