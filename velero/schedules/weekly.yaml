@@ -1,0 +1,21 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-secondary
+  namespace: velero
+spec:
+  schedule: "0 2 * * 0"
+  template:
+    includedNamespaces:
+      - homepage
+      - homarr
+      - tautulli
+      - myspeed
+      - cyberchef
+      - observability
+      - postfix
+      - adsb
+      - cybether
+      - cloudflare
+    snapshotVolumes: true
+    ttl: 1176h # 49 days
