@@ -11,27 +11,27 @@ spec:
     namespace: velero
 
   sources:
+    # Secrets (SOPS / ksops)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero-secrets
 
+    # Velero Helm chart
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
       targetRevision: 6.4.0
       helm:
         releaseName: velero
-
-        parameters:
-          - name: server.extraArgs[0]
-            value: "--features=EnableCSI"
-          - name: server.extraArgs[1]
-            value: "--uploader-type=kopia"
-
         values: |
           upgradeCRDs: false
-          features: EnableCSI
+
           credentials:
             existingSecret: cloud-credentials
+
+          server:
+            extraArgs:
+              - --features=EnableCSI
+              - --uploader-type=kopia
 
           configuration:
             backupStorageLocation:
@@ -53,12 +53,6 @@ spec:
           initContainers:
             - name: velero-plugin-for-aws
               image: velero/velero-plugin-for-aws:v1.10.0
-              volumeMounts:
-                - mountPath: /target
-                  name: plugins
-
-            - name: velero-plugin-for-csi
-              image: velero/velero-plugin-for-csi:v0.7.0
               volumeMounts:
                 - mountPath: /target
                   name: plugins
