@@ -11,29 +11,28 @@ spec:
     namespace: velero
 
   sources:
-    # Secrets (SOPS / ksops)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero-secrets
 
-    # Velero schedules / backups (YAMLs)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
       path: velero
 
-    # Velero Helm chart
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
       targetRevision: 6.4.0
       helm:
         releaseName: velero
+
+        parameters:
+          - name: server.extraArgs[0]
+            value: "--features=EnableCSI"
+          - name: server.extraArgs[1]
+            value: "--uploader-type=kopia"
+
         values: |
           upgradeCRDs: false
-
-          server:
-            extraArgs:
-              - --features=EnableCSI
-              - --uploader-type=kopia
 
           credentials:
             existingSecret: cloud-credentials
