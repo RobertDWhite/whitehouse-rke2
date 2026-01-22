@@ -17,7 +17,12 @@ spec:
         preUpgradeChecker:
           job:
             enabled: false
-
+        csi:
+          attacherReplicaCount: 1
+          provisionerReplicaCount: 1
+          resizerReplicaCount: 1
+          snapshotter:
+            enabled: true
         defaultSettings:
           backupTarget: nfs://10.100.1.20:/volume1/longhorn-backups
   syncPolicy:
