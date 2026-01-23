@@ -24,19 +24,12 @@ spec:
         releaseName: velero
         values: |
           upgradeCRDs: false
-          snapshotsEnabled: true          
+
           server:
-            extraEnv:
-              - name: AWS_SSL_VERIFY
-                value: "false"
-              - name: SSL_CERT_FILE
-                value: ""
-              - name: AWS_CA_BUNDLE
-                value: ""
-          extraArgs:
-            - --features=EnableCSI
-            - --uploader-type=kopia
-            - --default-volumes-to-fs-backup=true
+            extraArgs:
+              - --uploader-type=kopia
+              - --default-volumes-to-fs-backup=true
+
           credentials:
             existingSecret: cloud-credentials
 
@@ -50,12 +43,6 @@ spec:
                   s3Url: https://10.100.1.20:9000
                   s3ForcePathStyle: "true"
                   insecureSkipTLSVerify: "true"
-
-            volumeSnapshotLocation:
-              - name: default
-                provider: velero.io/csi
-                config:
-                  snapshotClass: longhorn-snapshot
 
           deployNodeAgent: true
 
