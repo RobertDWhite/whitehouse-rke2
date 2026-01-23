@@ -26,10 +26,6 @@ spec:
           upgradeCRDs: false
           snapshotsEnabled: true          
           server:
-            extraArgs:
-              - "--features=EnableCSI"
-              - "--uploader-type=kopia"
-              - "--default-volumes-to-fs-backup=true"
             extraEnv:
               - name: AWS_SSL_VERIFY
                 value: "false"
@@ -37,7 +33,10 @@ spec:
                 value: ""
               - name: AWS_CA_BUNDLE
                 value: ""
-
+          extraArgs:
+            - --features=EnableCSI
+            - --uploader-type=kopia
+            - --default-volumes-to-fs-backup=true
           credentials:
             existingSecret: cloud-credentials
 
