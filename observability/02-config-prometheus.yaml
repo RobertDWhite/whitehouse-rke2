@@ -39,6 +39,19 @@ data:
 
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
+      # =========================
+      # MinIO metrics scraping
+      # =========================
+      - job_name: minio
+        scheme: https
+        metrics_path: /minio/v2/metrics/cluster
+
+        static_configs:
+          - targets:
+              - minio-bucket.white.fm:9000
+
+        tls_config:
+          insecure_skip_verify: true
 
       # =========================
       # Argo CD metrics scraping
