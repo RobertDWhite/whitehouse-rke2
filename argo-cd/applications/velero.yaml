@@ -50,6 +50,14 @@ spec:
                 - mountPath: /target
                   name: plugins
 
+          metrics:
+            enabled: true
+
+            serviceMonitor:
+              enabled: true
+              autodetect: true
+              additionalLabels:
+                release: prometheus
   syncPolicy:
     automated:
       prune: true
