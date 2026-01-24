@@ -25,15 +25,12 @@ spec:
         values: |
           upgradeCRDs: false
 
-          configuration:
-            args:
-              - --uploader-type=kopia
-              - --default-volumes-to-fs-backup=true
-
           credentials:
             existingSecret: cloud-credentials
 
           configuration:
+            uploaderType: kopia
+            defaultVolumesToFsBackup: true
             backupStorageLocation:
               - name: default
                 provider: aws
