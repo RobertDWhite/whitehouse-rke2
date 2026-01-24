@@ -17,6 +17,28 @@ data:
         static_configs:
           - targets:
               - unifi-poller.observability.svc.cluster.local:9130
+      # =========================
+      # Velero metrics scraping
+      # =========================
+      - job_name: velero
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: velero
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: velero
+
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http-monitoring
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
 
       # =========================
       # Argo CD metrics scraping
