@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  minio.override: |
+    hosts {
+      10.100.1.20 minio-bucket.white.fm
+      fallthrough
+    }
