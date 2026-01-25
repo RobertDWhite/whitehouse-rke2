@@ -1,0 +1,27 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-coredns
+  namespace: kube-system
+spec:
+  valuesContent: |
+    servers:
+      - zones:
+          - zone: elb.amazonaws.com
+        forward:
+          to:
+            - 1.1.1.1
+            - 8.8.8.8
+
+      - zones:
+          - zone: amazonaws.com
+        forward:
+          to:
+            - 1.1.1.1
+            - 8.8.8.8
+
+      - zones:
+          - zone: .
+        forward:
+          to:
+            - 10.99.5.2
