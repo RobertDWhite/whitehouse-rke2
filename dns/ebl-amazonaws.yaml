@@ -5,23 +5,31 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |
-    servers:
-      - zones:
-          - zone: elb.amazonaws.com
-        forward:
-          to:
-            - 1.1.1.1
-            - 8.8.8.8
+    corefile: |
+      elb.amazonaws.com:53 {
+          errors
+          cache 30
+          forward . 1.1.1.1 8.8.8.8
+      }
 
-      - zones:
-          - zone: amazonaws.com
-        forward:
-          to:
-            - 1.1.1.1
-            - 8.8.8.8
+      amazonaws.com:53 {
+          errors
+          cache 30
+          forward . 1.1.1.1 8.8.8.8
+      }
 
-      - zones:
-          - zone: .
-        forward:
-          to:
-            - 10.99.5.2
+      .:53 {
+          errors
+          health
+          ready
+          kubernetes cluster.local in-addr.arpa ip6.arpa {
+              pods insecure
+              fallthrough in-addr.arpa ip6.arpa
+          }
+          prometheus 0.0.0.0:9153
+          forward . 10.99.5.2
+          cache 30
+          loop
+          reload
+          loadbalance
+      }
