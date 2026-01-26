@@ -17,26 +17,28 @@ spec:
       runtimeClassName: nvidia
       nodeSelector:
         kubernetes.io/hostname: rke2-node-10
-      tolerations:
-        - key: "gpu-only"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
-      priorityClassName: "system-node-critical"
+      priorityClassName: system-node-critical
       containers:
-      - image: nvcr.io/nvidia/k8s-device-plugin
-        name: nvidia-device-plugin-ctr
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: device-plugin
-          mountPath: /var/lib/kubelet/device-plugins
-        - name: dev-vol
-          mountPath: /dev
+        - name: nvidia-device-plugin-ctr
+          image: nvcr.io/nvidia/k8s-device-plugin:latest
+          args:
+            - --config-file=/etc/nvidia-device-plugin/config.yaml
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+            - name: dev-vol
+              mountPath: /dev
+            - name: config
+              mountPath: /etc/nvidia-device-plugin
       volumes:
-      - name: device-plugin
-        hostPath:
-          path: /var/lib/kubelet/device-plugins
-      - name: dev-vol
-        hostPath:
-          path: /dev
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins
+        - name: dev-vol
+          hostPath:
+            path: /dev
+        - name: config
+          configMap:
+            name: nvidia-device-plugin-config
