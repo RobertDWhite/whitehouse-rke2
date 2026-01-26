@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sd-webui
+  namespace: ai-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sd-webui
+  template:
+    metadata:
+      labels:
+        app: sd-webui
+    spec:
+      nodeSelector:
+        gpu: "true"
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: sd-webui
+          image: automatic1111/stable-diffusion-webui:latest
+          ports:
+            - containerPort: 7860
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          env:
+            - name: COMMANDLINE_ARGS
+              value: "--api --listen --enable-insecure-extension-access"
