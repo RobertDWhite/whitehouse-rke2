@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sd-webui
-  namespace: ai-stack
+  name: invokeai
+  namespace: ai
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sd-webui
+      app: invokeai
   template:
     metadata:
       labels:
-        app: sd-webui
+        app: invokeai
     spec:
       nodeSelector:
         gpu: "true"
@@ -20,13 +20,24 @@ spec:
           operator: "Exists"
           effect: "NoSchedule"
       containers:
-        - name: sd-webui
-          image: aidockorg/stable-diffusion-webui-cuda
+        - name: invokeai
+          image: ghcr.io/invoke-ai/invokeai
           ports:
-            - containerPort: 7860
+            - containerPort: 9090
           resources:
             limits:
               nvidia.com/gpu: 1
           env:
-            - name: COMMANDLINE_ARGS
-              value: "--api --listen --enable-insecure-extension-access"
+            - name: INVOKEAI_ROOT
+              value: /invokeai
+            - name: INVOKEAI_HOST
+              value: "0.0.0.0"
+            - name: INVOKEAI_PORT
+              value: "9090"
+          volumeMounts:
+            - name: invokeai-data
+              mountPath: /invokeai
+      volumes:
+        - name: invokeai-data
+          persistentVolumeClaim:
+            claimName: invokeai-data
