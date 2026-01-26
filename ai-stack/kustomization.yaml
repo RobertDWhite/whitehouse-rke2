@@ -9,11 +9,14 @@ resources:
   - 10-ollama-deployment.yaml
 #  - 15-ollama-deployment-cpu.yaml
   - 20-openwebui-deployment.yaml
+  - 21-comfyui-deployment.yaml
   - 30-ollama-svc.yaml
   - 35-openwebui-svc.yaml
+  - 36-comfyui-svc.yaml
 #  - 40-ollama-pvc.yaml
   - 41-storageclass.yaml
 #  - 45-openwebui-pvc.yaml
+#  - 46-comfyui-pvc.yaml
   - 50-ollama-ingress.yaml
   - 55-openwebui-ingress.yaml
 
@@ -25,6 +28,9 @@ commonLabels:
 images:
   - name: ollama/ollama
     newTag: "0.15.0"
+
+  - name: ghcr.io/comfyanonymous/comfyui
+    newTag: "0.10.0"
 
   - name: ghcr.io/open-webui/open-webui
     newTag: "main"
