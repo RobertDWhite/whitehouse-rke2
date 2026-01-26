@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: invokeai
+  name: localai
   namespace: ai
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: invokeai
+      app: localai
   template:
     metadata:
       labels:
-        app: invokeai
+        app: localai
     spec:
       nodeSelector:
         gpu: "true"
@@ -20,24 +20,24 @@ spec:
           operator: "Exists"
           effect: "NoSchedule"
       containers:
-        - name: invokeai
-          image: ghcr.io/invoke-ai/invokeai
+        - name: localai
+          image: ghcr.io/mudler/localai
           ports:
-            - containerPort: 9090
+            - containerPort: 8080
           resources:
             limits:
               nvidia.com/gpu: 1
-          env:
-            - name: INVOKEAI_ROOT
-              value: /invokeai
-            - name: INVOKEAI_HOST
-              value: "0.0.0.0"
-            - name: INVOKEAI_PORT
-              value: "9090"
           volumeMounts:
-            - name: invokeai-data
-              mountPath: /invokeai
+            - name: models
+              mountPath: /root/.localai/models
+          env:
+              value: "/root/.localai/models"
+            # optional: enable CUDA
+            - name: LOCALAI_OPENCL
+              value: "false"
+            - name: LOCALAI_CUDA
+              value: "true"
       volumes:
-        - name: invokeai-data
+        - name: models
           persistentVolumeClaim:
-            claimName: invokeai-data
+            claimName: localai-models
