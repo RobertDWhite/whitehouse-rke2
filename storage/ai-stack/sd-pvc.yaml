@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: comfyui-pvc
+  name: sd-webui-data
   namespace: ai-stack
 spec:
-  storageClassName: longhorn
   accessModes:
     - ReadWriteOnce
+  storageClassName: longhorn   # CHANGE if needed
   resources:
     requests:
       storage: 100Gi
