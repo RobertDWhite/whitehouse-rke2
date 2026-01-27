@@ -20,7 +20,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 33,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -38,7 +38,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -179,7 +180,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sort_desc( sum(certmanager_certificate_expiration_timestamp_seconds{exported_namespace=~\"$Namespace\"} - time()) BY (name,exported_namespace) )",
           "instant": true,
@@ -200,7 +202,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -285,7 +288,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(certmanager_certificate_ready_status) BY (condition)",
           "format": "time_series",
@@ -300,7 +304,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -387,7 +392,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(certmanager_certificate_expiration_timestamp_seconds{exported_namespace=~\"$Namespace\"} - time()) BY (name,exported_namespace)",
           "instant": false,
@@ -414,7 +420,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -498,7 +505,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -510,7 +518,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -571,7 +580,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(certmanager_http_acme_client_request_count)",
           "instant": true,
@@ -583,7 +593,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -666,7 +677,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/directory\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -678,7 +690,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -761,7 +774,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/cert\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -773,7 +787,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -856,7 +871,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/new-acct\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -868,7 +884,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -951,7 +968,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/order\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -963,7 +981,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1046,7 +1065,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/new-order\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -1058,7 +1078,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1141,7 +1162,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/authz-v3\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -1153,7 +1175,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1236,7 +1259,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/chall-v3\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -1248,7 +1272,8 @@
     },
     {
       "datasource": {
-        "uid": "$Datasource"
+        "type": "prometheus",
+"uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1331,7 +1356,8 @@
       "targets": [
         {
           "datasource": {
-            "uid": "$Datasource"
+            "type": "prometheus",
+"uid": "prometheus"
           },
           "expr": "sum(rate(certmanager_http_acme_client_request_count{path=\"/acme/finalize\"}[2m])) BY (status)",
           "legendFormat": "{{status}}",
@@ -1405,5 +1431,5 @@
   "timezone": "browser",
   "title": "cert-manager",
   "uid": "u6M5igpWk",
-  "version": 2
+  "version": 1
 }
