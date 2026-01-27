@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sd-webui
+  name: localai
   namespace: ai-stack
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sd-webui
+      app: localai
   template:
     metadata:
       labels:
-        app: sd-webui
+        app: localai
     spec:
       nodeSelector:
         gpu: "true"
@@ -20,13 +20,25 @@ spec:
           operator: "Exists"
           effect: "NoSchedule"
       containers:
-        - name: sd-webui
-          image: aidockorg/stable-diffusion-webui-cuda
+        - name: localai
+          image: quay.io/go-skynet/local-ai
           ports:
-            - containerPort: 7860
+            - containerPort: 8080
           resources:
             limits:
               nvidia.com/gpu: 1
+          volumeMounts:
+            - name: models
+              mountPath: /root/.localai/models
           env:
-            - name: COMMANDLINE_ARGS
-              value: "--api --listen --enable-insecure-extension-access"
+            - name: LOCALAI_MODEL_DIR
+              value: "/root/.localai/models"
+            # optional: enable CUDA
+            - name: LOCALAI_OPENCL
+              value: "false"
+            - name: LOCALAI_CUDA
+              value: "true"
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: localai-models
