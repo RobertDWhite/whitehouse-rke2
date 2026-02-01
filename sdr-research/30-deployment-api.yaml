@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-viewer-api
+  namespace: sdr-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sdr-viewer-api
+  template:
+    metadata:
+      labels:
+        app: sdr-viewer-api
+    spec:
+      containers:
+        - name: api
+          image: registry.white.fm:5000/sdr-viewer-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: database-url
+            - name: AUDIO_BASE_PATH
+              value: /data/audio
+            - name: TEXT_BASE_PATH
+              value: /data/text
+            - name: CACHE_PATH
+              value: /cache
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+              readOnly: true
+            - name: cache
+              mountPath: /cache
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: cache
+          persistentVolumeClaim:
+            claimName: sdr-viewer-cache

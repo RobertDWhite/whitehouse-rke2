@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-viewer-ui
+  namespace: sdr-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sdr-viewer-ui
+  template:
+    metadata:
+      labels:
+        app: sdr-viewer-ui
+    spec:
+      containers:
+        - name: ui
+          image: registry.white.fm:5000/sdr-viewer-ui:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
