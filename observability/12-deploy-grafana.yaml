@@ -30,6 +30,34 @@ spec:
               value: admin
             - name: GF_SECURITY_ADMIN_PASSWORD
               value: admin
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.white.fm"
+
+            - name: GF_AUTH_GENERIC_OAUTH_ENABLED
+              value: "true"
+            - name: GF_AUTH_GENERIC_OAUTH_NAME
+              value: "Authentik"
+            - name: GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP
+              value: "true"
+
+            - name: GF_AUTH_GENERIC_OAUTH_SCOPES
+              value: "openid profile email"
+
+            - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
+              value: "https://auth.white.fm/application/o/authorize/"
+            - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
+              value: "https://auth.white.fm/application/o/token/"
+            - name: GF_AUTH_GENERIC_OAUTH_API_URL
+              value: "https://auth.white.fm/application/o/userinfo/"
+
+            - name: GF_AUTH_GENERIC_OAUTH_LOGIN_ATTRIBUTE_PATH
+              value: "preferred_username || username || email"
+
+            - name: GF_AUTH_GENERIC_OAUTH_EMAIL_ATTRIBUTE_PATH
+              value: "email"
+
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
