@@ -4,9 +4,12 @@ kind: Kustomization
 namespace: sdr-research
 
 resources:
+  # Core infrastructure
   - 00-namespace.yaml
   - 01-configmap.yaml
- # - 02-pvc-artifacts.yaml
+  - 02-pvc-artifacts.yaml
+
+  # SDR capture pipeline
   - 03-rtl-sdr-daemonset.yaml
   - 03b-rtl-tcp-service.yaml
   - 04-channelizer-configmap.yaml
@@ -20,9 +23,25 @@ resources:
   - 11-fm-recorder-configmap.yaml
   - 12-fm-recorder-deployment.yaml
 
+  # Web viewer
+  - 20-pvc-cache.yaml
+  - 21-postgres-statefulset.yaml
+  - 22-secret.sops.yaml
+  - 30-deployment-api.yaml
+  - 31-service-api.yaml
+  - 32-deployment-ui.yaml
+  - 33-service-ui.yaml
+  - 40-ingress.yaml
+  - 41-authentik-service.yaml
 
 images:
   - name: librespace/gnuradio
     newTag: "3.10.5.1"
   - name: linuxserver/faster-whisper
-    newTag: "3.1.0"
+    newTag: "3.0.2"
+  - name: registry.white.fm:5000/sdr-viewer-api
+    newTag: latest
+  - name: registry.white.fm:5000/sdr-viewer-ui
+    newTag: latest
+  - name: postgres
+    newTag: "15"
