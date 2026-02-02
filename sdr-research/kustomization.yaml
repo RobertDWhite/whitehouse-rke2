@@ -26,13 +26,16 @@ resources:
   # Web viewer
   - 20-pvc-cache.yaml
   - 21-postgres-statefulset.yaml
-  - 22-secret.sops.yaml
+  # 22-secret.sops.yaml - handled by ksops generator
   - 30-deployment-api.yaml
   - 31-service-api.yaml
   - 32-deployment-ui.yaml
   - 33-service-ui.yaml
   - 40-ingress.yaml
   - 41-authentik-service.yaml
+
+generators:
+  - ksops.yaml
 
 images:
   - name: librespace/gnuradio
