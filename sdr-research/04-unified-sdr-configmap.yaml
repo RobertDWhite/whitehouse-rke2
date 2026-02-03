@@ -29,6 +29,7 @@ data:
     SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-40"))
     TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
     MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
+    RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-30"))
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
     FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
@@ -180,28 +181,33 @@ data:
                                              NBFM_DEV * 2, NBFM_DEV * 0.5)
             self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
                 decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
+            self.rf_squelch_fixed = analog.pwr_squelch_cc(
+                RF_SQUELCH_DB, 0.001, 10, False)
             self.nbfm_fixed = analog.nbfm_rx(
                 audio_rate=AUDIO_RATE_FM,
                 quad_rate=AUDIO_RATE_FM,
                 tau=75e-6, max_dev=NBFM_DEV)
             self.rec_fixed = SquelchRecorder(
                 self.fixed_freq, AUDIO_RATE_FM, VOICE_DIR)
-            self.connect(self.src, self.xlate_fixed, self.nbfm_fixed, self.rec_fixed)
+            self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
+                         self.nbfm_fixed, self.rec_fixed)
 
             # --- Dynamic FM slots ---
             self.dyn_fm = []
             for i in range(NUM_DYN_FM):
                 xlate = filter.freq_xlating_fir_filter_ccf(
                     decim_fm, taps_fm, 0, SAMPLE_RATE)
+                rf_squelch = analog.pwr_squelch_cc(
+                    RF_SQUELCH_DB, 0.001, 10, False)
                 nbfm = analog.nbfm_rx(
                     audio_rate=AUDIO_RATE_FM,
                     quad_rate=AUDIO_RATE_FM,
                     tau=75e-6, max_dev=NBFM_DEV)
                 null = blocks.null_sink(gr.sizeof_float)
-                self.connect(self.src, xlate, nbfm, null)
+                self.connect(self.src, xlate, rf_squelch, nbfm, null)
                 self.dyn_fm.append({
-                    "xlate": xlate, "nbfm": nbfm,
-                    "sink": null, "recorder": None,
+                    "xlate": xlate, "rf_squelch": rf_squelch,
+                    "nbfm": nbfm, "sink": null, "recorder": None,
                     "freq": None, "idx": i
                 })
 
@@ -413,6 +419,7 @@ data:
         print(f"  Fixed monitor:  145.500 MHz (NBFM)", flush=True)
         print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
         print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
+        print(f"  RF squelch:     {RF_SQUELCH_DB} dB", flush=True)
         print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
         print("=" * 60, flush=True)
 
