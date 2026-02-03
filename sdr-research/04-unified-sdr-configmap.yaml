@@ -192,6 +192,10 @@ data:
             self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
                          self.nbfm_fixed, self.rec_fixed)
 
+            # --- RF power probe on fixed channel (for threshold tuning) ---
+            self.rf_probe_fixed = blocks.probe_signal_c()
+            self.connect(self.xlate_fixed, self.rf_probe_fixed)
+
             # --- Dynamic FM slots ---
             self.dyn_fm = []
             for i in range(NUM_DYN_FM):
@@ -409,6 +413,29 @@ data:
                 self.tb.retune(DWELL_CENTER)
 
     # ---------------------------------------------------------------------------
+    # RF power monitor (background thread — logs noise floor for squelch tuning)
+    # ---------------------------------------------------------------------------
+    class RFPowerMonitor(threading.Thread):
+        def __init__(self, tb):
+            super().__init__(daemon=True)
+            self.tb = tb
+
+        def run(self):
+            time.sleep(3)  # let flowgraph settle
+            while True:
+                try:
+                    sample = self.tb.rf_probe_fixed.level()
+                    pwr = abs(sample) ** 2
+                    pwr_db = 10.0 * math.log10(pwr + 1e-30)
+                    unmute = "OPEN" if pwr_db > RF_SQUELCH_DB else "closed"
+                    print(f"[RF-PWR] 145.500 MHz: {pwr_db:.1f} dB  "
+                          f"(thresh {RF_SQUELCH_DB:.0f} dB → {unmute})",
+                          flush=True)
+                except Exception as e:
+                    print(f"[RF-PWR] Probe error: {e}", flush=True)
+                time.sleep(5)
+
+    # ---------------------------------------------------------------------------
     # Main
     # ---------------------------------------------------------------------------
     def main():
@@ -430,6 +457,9 @@ data:
 
         scanner = ScanScheduler(tb)
         scanner.start()
+
+        rf_mon = RFPowerMonitor(tb)
+        rf_mon.start()
 
         tb.start()
         print("[MAIN] Flowgraph running", flush=True)
