@@ -1,0 +1,440 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unified-sdr-scripts
+  namespace: sdr-research
+data:
+  unified_sdr.py: |
+    #!/usr/bin/env python3
+    """
+    Unified SDR flowgraph — single rtl_tcp connection serving FFT detection,
+    fixed 145.500 voice monitor, dynamic FM channels, and dynamic CW channels.
+    """
+    import os, sys, json, time, wave, struct, threading, math
+    import numpy as np
+    from gnuradio import gr, blocks, filter, analog
+
+    # ---------------------------------------------------------------------------
+    # Configuration (all overridable via environment)
+    # ---------------------------------------------------------------------------
+    RTL_TCP_HOST   = os.getenv("RTL_TCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
+    RTL_TCP_PORT   = int(os.getenv("RTL_TCP_PORT", "1234"))
+    SAMPLE_RATE    = int(os.getenv("SAMPLE_RATE", "2400000"))
+    DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "145000000"))
+    SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[147000000, 432000000]"))
+    DWELL_SEC      = float(os.getenv("DWELL_SEC", "55"))
+    SCAN_SEC       = float(os.getenv("SCAN_SEC", "2"))
+
+    SQUELCH_OPEN   = float(os.getenv("SQUELCH_OPEN_DB", "-35"))
+    SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-40"))
+    TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
+    MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
+
+    FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
+    FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
+    ENERGY_THRESH  = float(os.getenv("ENERGY_THRESH_DB", "-50"))
+
+    AUDIO_RATE_FM  = 48000
+    AUDIO_RATE_CW  = 8000
+    NBFM_DEV       = 5000
+    CW_BW          = 200
+    FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
+
+    NUM_DYN_FM     = 4
+    NUM_DYN_CW     = 2
+
+    VOICE_DIR      = "/data/audio/voice"
+    CW_DIR         = "/data/audio/cw"
+    DET_DIR        = "/data/detections"
+    for d in (VOICE_DIR, CW_DIR, DET_DIR):
+        os.makedirs(d, exist_ok=True)
+
+    # ---------------------------------------------------------------------------
+    # SquelchRecorder — custom sync block that opens/closes WAV per transmission
+    # ---------------------------------------------------------------------------
+    class SquelchRecorder(gr.sync_block):
+        """State-machine recorder: IDLE → RECORDING → IDLE based on RMS power."""
+
+        IDLE, RECORDING = 0, 1
+
+        def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
+                     open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
+                     tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC):
+            gr.sync_block.__init__(self, name="SquelchRecorder",
+                                   in_sig=[np.float32], out_sig=None)
+            self.freq_hz      = freq_hz
+            self.audio_rate   = audio_rate
+            self.out_dir      = out_dir
+            self.is_cw        = is_cw
+            self.open_thresh  = 10 ** (open_db / 20.0)
+            self.close_thresh = 10 ** (close_db / 20.0)
+            self.tail_samples = int(tail_seconds * audio_rate)
+            self.min_samples  = int(min_seconds * audio_rate)
+
+            self.state         = self.IDLE
+            self.wf            = None
+            self.samples_written = 0
+            self.tail_counter  = 0
+            self._lock         = threading.Lock()
+
+        def _open_wav(self):
+            if self.is_cw:
+                path = os.path.join(self.out_dir, f"cw_{self.freq_hz}.wav")
+            else:
+                ts = int(time.time())
+                path = os.path.join(self.out_dir, f"{self.freq_hz}_{ts}.wav")
+            self.wf = wave.open(path, "wb")
+            self.wf.setnchannels(1)
+            self.wf.setsampwidth(2)
+            self.wf.setframerate(self.audio_rate)
+            self.samples_written = 0
+            self.current_path = path
+            print(f"[REC] Opened {path}", flush=True)
+
+        def _close_wav(self):
+            if self.wf is None:
+                return
+            self.wf.close()
+            if self.samples_written < self.min_samples:
+                try:
+                    os.remove(self.current_path)
+                    print(f"[REC] Discarded short recording {self.current_path}", flush=True)
+                except OSError:
+                    pass
+            else:
+                print(f"[REC] Closed {self.current_path} "
+                      f"({self.samples_written / self.audio_rate:.1f}s)", flush=True)
+            self.wf = None
+
+        def close_if_recording(self):
+            """Force-close for retune."""
+            with self._lock:
+                if self.state == self.RECORDING:
+                    self._close_wav()
+                    self.state = self.IDLE
+
+        def work(self, input_items, output_items):
+            samples = input_items[0]
+            n = len(samples)
+            rms = math.sqrt(np.mean(samples ** 2) + 1e-30)
+
+            with self._lock:
+                if self.state == self.IDLE:
+                    if rms > self.open_thresh:
+                        self._open_wav()
+                        self.state = self.RECORDING
+                        self.tail_counter = 0
+                elif self.state == self.RECORDING:
+                    if rms < self.close_thresh:
+                        self.tail_counter += n
+                        if self.tail_counter >= self.tail_samples:
+                            self._close_wav()
+                            self.state = self.IDLE
+                            return n
+                    else:
+                        self.tail_counter = 0
+
+                if self.state == self.RECORDING and self.wf is not None:
+                    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
+                    self.wf.writeframes(pcm.tobytes())
+                    self.samples_written += n
+
+            return n
+
+    # ---------------------------------------------------------------------------
+    # Flowgraph
+    # ---------------------------------------------------------------------------
+    class UnifiedSDR(gr.top_block):
+        def __init__(self):
+            gr.top_block.__init__(self, "Unified SDR")
+
+            # --- Source ---
+            self.src = blocks.null_source(gr.sizeof_gr_complex)
+            try:
+                import osmosdr
+                self.src = osmosdr.source(
+                    args=f"rtl_tcp={RTL_TCP_HOST}:{RTL_TCP_PORT}"
+                )
+                self.src.set_sample_rate(SAMPLE_RATE)
+                self.src.set_center_freq(DWELL_CENTER)
+                self.src.set_gain_mode(True)
+                print(f"[INIT] Connected to rtl_tcp at {RTL_TCP_HOST}:{RTL_TCP_PORT}", flush=True)
+            except Exception as e:
+                print(f"[INIT] osmosdr.source failed: {e}", flush=True)
+                sys.exit(1)
+
+            # --- FFT energy-detection path ---
+            self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
+            self.fft     = blocks.fft_vcc(FFT_SIZE, True,
+                                          filter.firdes.window(filter.firdes.WIN_BLACKMAN_HARRIS,
+                                                               FFT_SIZE, 0),
+                                          True)
+            self.fft_mag = blocks.complex_to_mag_squared(FFT_SIZE)
+            self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
+            self.connect(self.src, self.fft_s2v, self.fft, self.fft_mag, self.fft_sink)
+
+            # --- Fixed 145.500 voice monitor ---
+            self.fixed_freq = 145500000
+            offset_fixed = self.fixed_freq - DWELL_CENTER
+            decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
+            taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                             NBFM_DEV * 2, NBFM_DEV * 0.5)
+            self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
+                decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
+            self.nbfm_fixed = analog.nbfm_rx(
+                audio_rate=AUDIO_RATE_FM,
+                quad_rate=AUDIO_RATE_FM,
+                tau=75e-6, max_dev=NBFM_DEV)
+            self.rec_fixed = SquelchRecorder(
+                self.fixed_freq, AUDIO_RATE_FM, VOICE_DIR)
+            self.connect(self.src, self.xlate_fixed, self.nbfm_fixed, self.rec_fixed)
+
+            # --- Dynamic FM slots ---
+            self.dyn_fm = []
+            for i in range(NUM_DYN_FM):
+                xlate = filter.freq_xlating_fir_filter_ccf(
+                    decim_fm, taps_fm, 0, SAMPLE_RATE)
+                nbfm = analog.nbfm_rx(
+                    audio_rate=AUDIO_RATE_FM,
+                    quad_rate=AUDIO_RATE_FM,
+                    tau=75e-6, max_dev=NBFM_DEV)
+                null = blocks.null_sink(gr.sizeof_float)
+                self.connect(self.src, xlate, nbfm, null)
+                self.dyn_fm.append({
+                    "xlate": xlate, "nbfm": nbfm,
+                    "sink": null, "recorder": None,
+                    "freq": None, "idx": i
+                })
+
+            # --- Dynamic CW slots ---
+            decim_cw = int(SAMPLE_RATE / AUDIO_RATE_CW)
+            taps_cw = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                             CW_BW, 50)
+            self.dyn_cw = []
+            for i in range(NUM_DYN_CW):
+                xlate = filter.freq_xlating_fir_filter_ccf(
+                    decim_cw, taps_cw, 0, SAMPLE_RATE)
+                c2mag = blocks.complex_to_mag()
+                null = blocks.null_sink(gr.sizeof_float)
+                self.connect(self.src, xlate, c2mag, null)
+                self.dyn_cw.append({
+                    "xlate": xlate, "c2mag": c2mag,
+                    "sink": null, "recorder": None,
+                    "freq": None, "idx": i
+                })
+
+            self.all_recorders = [self.rec_fixed]
+
+        # --- Dynamic channel management ---
+        def _assign_fm_slot(self, freq_hz):
+            """Assign a detected FM frequency to an available dynamic slot."""
+            for slot in self.dyn_fm:
+                if slot["freq"] == freq_hz:
+                    return  # already assigned
+            for slot in self.dyn_fm:
+                if slot["freq"] is None:
+                    offset = freq_hz - DWELL_CENTER
+                    rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
+                    self.lock()
+                    self.disconnect(slot["nbfm"], slot["sink"])
+                    slot["xlate"].set_center_freq(offset)
+                    self.connect(slot["nbfm"], rec)
+                    self.unlock()
+                    slot["sink"] = rec
+                    slot["recorder"] = rec
+                    slot["freq"] = freq_hz
+                    self.all_recorders.append(rec)
+                    print(f"[DYN] FM slot {slot['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
+                    return
+            print(f"[DYN] No free FM slot for {freq_hz/1e6:.4f} MHz", flush=True)
+
+        def _assign_cw_slot(self, freq_hz):
+            """Assign a detected CW frequency to an available dynamic slot."""
+            for slot in self.dyn_cw:
+                if slot["freq"] == freq_hz:
+                    return
+            for slot in self.dyn_cw:
+                if slot["freq"] is None:
+                    offset = freq_hz - DWELL_CENTER
+                    rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, CW_DIR, is_cw=True)
+                    self.lock()
+                    self.disconnect(slot["c2mag"], slot["sink"])
+                    slot["xlate"].set_center_freq(offset)
+                    self.connect(slot["c2mag"], rec)
+                    self.unlock()
+                    slot["sink"] = rec
+                    slot["recorder"] = rec
+                    slot["freq"] = freq_hz
+                    self.all_recorders.append(rec)
+                    print(f"[DYN] CW slot {slot['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
+                    return
+            print(f"[DYN] No free CW slot for {freq_hz/1e6:.4f} MHz", flush=True)
+
+        def close_all_recordings(self):
+            for r in self.all_recorders:
+                r.close_if_recording()
+
+        def retune(self, center_hz):
+            self.src.set_center_freq(center_hz)
+
+    # ---------------------------------------------------------------------------
+    # FFT energy detector (background thread)
+    # ---------------------------------------------------------------------------
+    class FFTDetector(threading.Thread):
+        def __init__(self, tb):
+            super().__init__(daemon=True)
+            self.tb = tb
+            self.detections = []
+
+        def run(self):
+            while True:
+                time.sleep(FFT_INTERVAL)
+                try:
+                    self._scan_fft()
+                except Exception as e:
+                    print(f"[FFT] Error: {e}", flush=True)
+
+        def _scan_fft(self):
+            data = self.tb.fft_sink.data()
+            if len(data) < FFT_SIZE:
+                return
+
+            # Take the last complete FFT frame
+            frame = np.array(data[-FFT_SIZE:])
+            self.tb.fft_sink.reset()
+
+            power_db = 10.0 * np.log10(frame + 1e-30)
+            # FFT bins are already shifted by fft_vcc with shift=True
+            freqs = np.linspace(
+                DWELL_CENTER - SAMPLE_RATE / 2,
+                DWELL_CENTER + SAMPLE_RATE / 2,
+                FFT_SIZE, endpoint=False)
+
+            detections = []
+            # Find peaks above threshold
+            above = power_db > ENERGY_THRESH
+            if not np.any(above):
+                self.detections = []
+                self._write_detections()
+                return
+
+            # Group contiguous bins above threshold
+            regions = []
+            in_region = False
+            start = 0
+            for i in range(FFT_SIZE):
+                if above[i] and not in_region:
+                    start = i
+                    in_region = True
+                elif not above[i] and in_region:
+                    regions.append((start, i))
+                    in_region = False
+            if in_region:
+                regions.append((start, FFT_SIZE))
+
+            for (s, e) in regions:
+                peak_idx = s + np.argmax(power_db[s:e])
+                peak_freq = freqs[peak_idx]
+                peak_power = float(power_db[peak_idx])
+                bw = float(freqs[min(e, FFT_SIZE - 1)] - freqs[s])
+
+                if bw > FM_BW_THRESH:
+                    mode = "FM"
+                else:
+                    mode = "CW"
+
+                detections.append({
+                    "frequency_hz": float(peak_freq),
+                    "power_db": peak_power,
+                    "bandwidth_hz": bw,
+                    "mode": mode
+                })
+
+                # Assign to dynamic slot
+                if mode == "FM" and abs(peak_freq - 145500000) > 15000:
+                    self.tb._assign_fm_slot(int(round(peak_freq)))
+                elif mode == "CW":
+                    self.tb._assign_cw_slot(int(round(peak_freq)))
+
+            self.detections = detections
+            self._write_detections()
+
+        def _write_detections(self):
+            out = {
+                "source": "unified_sdr",
+                "sample_rate": SAMPLE_RATE,
+                "center_freq_hz": DWELL_CENTER,
+                "timestamp": time.time(),
+                "detections": self.detections
+            }
+            path = os.path.join(DET_DIR, "detections.json")
+            tmp = path + ".tmp"
+            try:
+                with open(tmp, "w") as f:
+                    json.dump(out, f, indent=2)
+                os.replace(tmp, path)
+            except Exception as e:
+                print(f"[FFT] Write error: {e}", flush=True)
+
+    # ---------------------------------------------------------------------------
+    # Scan scheduler (background thread)
+    # ---------------------------------------------------------------------------
+    class ScanScheduler(threading.Thread):
+        def __init__(self, tb):
+            super().__init__(daemon=True)
+            self.tb = tb
+
+        def run(self):
+            while True:
+                # Dwell on primary band
+                time.sleep(DWELL_SEC)
+
+                if not SCAN_CENTERS:
+                    continue
+
+                # Scan secondary bands
+                for center in SCAN_CENTERS:
+                    print(f"[SCAN] Retuning to {center/1e6:.1f} MHz", flush=True)
+                    self.tb.close_all_recordings()
+                    self.tb.retune(center)
+                    time.sleep(SCAN_SEC)
+
+                # Return to primary
+                print(f"[SCAN] Returning to {DWELL_CENTER/1e6:.1f} MHz", flush=True)
+                self.tb.retune(DWELL_CENTER)
+
+    # ---------------------------------------------------------------------------
+    # Main
+    # ---------------------------------------------------------------------------
+    def main():
+        print("=" * 60, flush=True)
+        print("  Unified SDR Flowgraph", flush=True)
+        print(f"  Primary center: {DWELL_CENTER/1e6:.3f} MHz", flush=True)
+        print(f"  Sample rate:    {SAMPLE_RATE/1e6:.1f} MS/s", flush=True)
+        print(f"  Fixed monitor:  145.500 MHz (NBFM)", flush=True)
+        print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
+        print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
+        print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
+        print("=" * 60, flush=True)
+
+        tb = UnifiedSDR()
+
+        fft_det = FFTDetector(tb)
+        fft_det.start()
+
+        scanner = ScanScheduler(tb)
+        scanner.start()
+
+        tb.start()
+        print("[MAIN] Flowgraph running", flush=True)
+
+        try:
+            tb.wait()
+        except KeyboardInterrupt:
+            print("[MAIN] Shutting down...", flush=True)
+            tb.close_all_recordings()
+            tb.stop()
+            tb.wait()
+
+    if __name__ == "__main__":
+        main()
