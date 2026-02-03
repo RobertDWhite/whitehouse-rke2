@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr
+  template:
+    metadata:
+      labels:
+        app: unified-sdr
+    spec:
+      containers:
+        - name: unified-sdr
+          image: librespace/gnuradio
+          command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
+          env:
+            - name: RTL_TCP_HOST
+              value: "rtl-tcp.sdr-research.svc.cluster.local"
+            - name: RTL_TCP_PORT
+              value: "1234"
+            - name: SAMPLE_RATE
+              value: "2400000"
+            - name: DWELL_CENTER_HZ
+              value: "145000000"
+            - name: SCAN_CENTERS
+              value: "[147000000, 432000000]"
+            - name: DWELL_SEC
+              value: "55"
+            - name: SCAN_SEC
+              value: "2"
+            - name: SQUELCH_OPEN_DB
+              value: "-35"
+            - name: SQUELCH_CLOSE_DB
+              value: "-40"
+            - name: TAIL_SEC
+              value: "1.5"
+            - name: MIN_REC_SEC
+              value: "0.5"
+            - name: FFT_SIZE
+              value: "4096"
+            - name: FFT_INTERVAL
+              value: "1.0"
+            - name: ENERGY_THRESH_DB
+              value: "-50"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: unified-sdr-scripts
+            defaultMode: 0755
