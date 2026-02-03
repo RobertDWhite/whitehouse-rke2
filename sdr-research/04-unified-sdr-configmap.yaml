@@ -213,7 +213,7 @@ data:
                 self.dyn_fm.append({
                     "xlate": xlate, "rf_squelch": rf_squelch,
                     "nbfm": nbfm, "sink": null, "recorder": None,
-                    "freq": None, "idx": i
+                    "freq": None, "assigned_at": None, "idx": i
                 })
 
             # --- Dynamic CW slots ---
@@ -230,55 +230,125 @@ data:
                 self.dyn_cw.append({
                     "xlate": xlate, "c2mag": c2mag,
                     "sink": null, "recorder": None,
-                    "freq": None, "idx": i
+                    "freq": None, "assigned_at": None, "idx": i
                 })
 
             self.all_recorders = [self.rec_fixed]
 
         # --- Dynamic channel management ---
+        def _evict_stale_slot(self, slots, mode):
+            """Evict the oldest idle slot. Returns the freed slot, or None."""
+            now = time.time()
+            best = None
+            best_age = 0
+            for slot in slots:
+                if slot["freq"] is None:
+                    continue
+                rec = slot.get("recorder")
+                # Only evict slots that are IDLE (not actively recording)
+                if rec is not None and rec.state == SquelchRecorder.RECORDING:
+                    continue
+                age = now - slot.get("assigned_at", now)
+                if age > SLOT_RECYCLE_SEC and age > best_age:
+                    best = slot
+                    best_age = age
+            if best is not None:
+                print(f"[DYN] Recycling {mode} slot {best['idx']} "
+                      f"({best['freq']/1e6:.4f} MHz, idle {best_age:.0f}s)",
+                      flush=True)
+                self._free_fm_slot(best) if mode == "FM" else self._free_cw_slot(best)
+            return best
+
+        def _free_fm_slot(self, slot):
+            """Disconnect recorder and reset an FM slot."""
+            if slot["recorder"] is not None:
+                slot["recorder"].close_if_recording()
+                if slot["recorder"] in self.all_recorders:
+                    self.all_recorders.remove(slot["recorder"])
+            null = blocks.null_sink(gr.sizeof_float)
+            self.lock()
+            self.disconnect(slot["nbfm"], slot["sink"])
+            self.connect(slot["nbfm"], null)
+            self.unlock()
+            slot["sink"] = null
+            slot["recorder"] = None
+            slot["freq"] = None
+            slot["assigned_at"] = None
+
+        def _free_cw_slot(self, slot):
+            """Disconnect recorder and reset a CW slot."""
+            if slot["recorder"] is not None:
+                slot["recorder"].close_if_recording()
+                if slot["recorder"] in self.all_recorders:
+                    self.all_recorders.remove(slot["recorder"])
+            null = blocks.null_sink(gr.sizeof_float)
+            self.lock()
+            self.disconnect(slot["c2mag"], slot["sink"])
+            self.connect(slot["c2mag"], null)
+            self.unlock()
+            slot["sink"] = null
+            slot["recorder"] = None
+            slot["freq"] = None
+            slot["assigned_at"] = None
+
         def _assign_fm_slot(self, freq_hz):
             """Assign a detected FM frequency to an available dynamic slot."""
             for slot in self.dyn_fm:
                 if slot["freq"] == freq_hz:
+                    slot["assigned_at"] = time.time()  # refresh
                     return  # already assigned
+            # Find a free slot, or evict the oldest idle one
+            target = None
             for slot in self.dyn_fm:
                 if slot["freq"] is None:
-                    offset = freq_hz - DWELL_CENTER
-                    rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
-                    self.lock()
-                    self.disconnect(slot["nbfm"], slot["sink"])
-                    slot["xlate"].set_center_freq(offset)
-                    self.connect(slot["nbfm"], rec)
-                    self.unlock()
-                    slot["sink"] = rec
-                    slot["recorder"] = rec
-                    slot["freq"] = freq_hz
-                    self.all_recorders.append(rec)
-                    print(f"[DYN] FM slot {slot['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
-                    return
-            print(f"[DYN] No free FM slot for {freq_hz/1e6:.4f} MHz", flush=True)
+                    target = slot
+                    break
+            if target is None:
+                target = self._evict_stale_slot(self.dyn_fm, "FM")
+            if target is None:
+                return  # all slots busy with active recordings
+            offset = freq_hz - DWELL_CENTER
+            rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
+            self.lock()
+            self.disconnect(target["nbfm"], target["sink"])
+            target["xlate"].set_center_freq(offset)
+            self.connect(target["nbfm"], rec)
+            self.unlock()
+            target["sink"] = rec
+            target["recorder"] = rec
+            target["freq"] = freq_hz
+            target["assigned_at"] = time.time()
+            self.all_recorders.append(rec)
+            print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
 
         def _assign_cw_slot(self, freq_hz):
             """Assign a detected CW frequency to an available dynamic slot."""
             for slot in self.dyn_cw:
                 if slot["freq"] == freq_hz:
+                    slot["assigned_at"] = time.time()
                     return
+            target = None
             for slot in self.dyn_cw:
                 if slot["freq"] is None:
-                    offset = freq_hz - DWELL_CENTER
-                    rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, CW_DIR, is_cw=True)
-                    self.lock()
-                    self.disconnect(slot["c2mag"], slot["sink"])
-                    slot["xlate"].set_center_freq(offset)
-                    self.connect(slot["c2mag"], rec)
-                    self.unlock()
-                    slot["sink"] = rec
-                    slot["recorder"] = rec
-                    slot["freq"] = freq_hz
-                    self.all_recorders.append(rec)
-                    print(f"[DYN] CW slot {slot['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
-                    return
-            print(f"[DYN] No free CW slot for {freq_hz/1e6:.4f} MHz", flush=True)
+                    target = slot
+                    break
+            if target is None:
+                target = self._evict_stale_slot(self.dyn_cw, "CW")
+            if target is None:
+                return
+            offset = freq_hz - DWELL_CENTER
+            rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, CW_DIR, is_cw=True)
+            self.lock()
+            self.disconnect(target["c2mag"], target["sink"])
+            target["xlate"].set_center_freq(offset)
+            self.connect(target["c2mag"], rec)
+            self.unlock()
+            target["sink"] = rec
+            target["recorder"] = rec
+            target["freq"] = freq_hz
+            target["assigned_at"] = time.time()
+            self.all_recorders.append(rec)
+            print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
 
         def close_all_recordings(self):
             for r in self.all_recorders:
