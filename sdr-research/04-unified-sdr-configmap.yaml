@@ -12,7 +12,7 @@ data:
     """
     import os, sys, json, time, wave, struct, threading, math
     import numpy as np
-    from gnuradio import gr, blocks, filter, analog
+    from gnuradio import gr, blocks, filter, analog, fft
 
     # ---------------------------------------------------------------------------
     # Configuration (all overridable via environment)
@@ -165,10 +165,10 @@ data:
 
             # --- FFT energy-detection path ---
             self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
-            self.fft     = blocks.fft_vcc(FFT_SIZE, True,
-                                          filter.firdes.window(filter.firdes.WIN_BLACKMAN_HARRIS,
-                                                               FFT_SIZE, 0),
-                                          True)
+            self.fft     = fft.fft_vcc(FFT_SIZE, True,
+                                        filter.firdes.window(filter.firdes.WIN_BLACKMAN_HARRIS,
+                                                             FFT_SIZE, 0),
+                                        True)
             self.fft_mag = blocks.complex_to_mag_squared(FFT_SIZE)
             self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
             self.connect(self.src, self.fft_s2v, self.fft, self.fft_mag, self.fft_sink)
