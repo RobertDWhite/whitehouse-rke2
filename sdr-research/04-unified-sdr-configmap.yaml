@@ -166,8 +166,7 @@ data:
             # --- FFT energy-detection path ---
             self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
             self.fft     = fft.fft_vcc(FFT_SIZE, True,
-                                        filter.firdes.window(filter.firdes.WIN_BLACKMAN_HARRIS,
-                                                             FFT_SIZE, 0),
+                                        fft.window.blackmanharris(FFT_SIZE),
                                         True)
             self.fft_mag = blocks.complex_to_mag_squared(FFT_SIZE)
             self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
