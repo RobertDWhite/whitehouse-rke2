@@ -33,7 +33,7 @@ data:
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
     FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
-    ENERGY_THRESH  = float(os.getenv("ENERGY_THRESH_DB", "-50"))
+    ENERGY_THRESH  = float(os.getenv("ENERGY_THRESH_DB", "10"))
 
     AUDIO_RATE_FM  = 48000
     AUDIO_RATE_CW  = 8000
@@ -390,9 +390,12 @@ data:
                 DWELL_CENTER + SAMPLE_RATE / 2,
                 FFT_SIZE, endpoint=False)
 
+            # Use median noise floor as baseline; detect peaks above it
+            noise_floor = float(np.median(power_db))
+            threshold = noise_floor + ENERGY_THRESH
+            above = power_db > threshold
+
             detections = []
-            # Find peaks above threshold
-            above = power_db > ENERGY_THRESH
             if not np.any(above):
                 self.detections = []
                 self._write_detections()
