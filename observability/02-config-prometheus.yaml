@@ -56,19 +56,44 @@ data:
       # =========================
       # Argo CD metrics scraping
       # =========================
-      - job_name: argocd
+      - job_name: argocd-server-metrics
         kubernetes_sd_configs:
           - role: service
-
         relabel_configs:
           - source_labels: [__meta_kubernetes_namespace]
             action: keep
             regex: argocd
-
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
-            regex: argocd-(server|repo-server|application-controller)-metrics
+            regex: argocd-server-metrics
+          - source_labels: [__meta_kubernetes_service_port_name]
+            action: keep
+            regex: http-metrics
 
+      - job_name: argocd-metrics
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-application-controller-metrics
+          - source_labels: [__meta_kubernetes_service_port_name]
+            action: keep
+            regex: http-metrics
+
+      - job_name: argocd-repo-server
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-repo-server-metrics
           - source_labels: [__meta_kubernetes_service_port_name]
             action: keep
             regex: http-metrics
