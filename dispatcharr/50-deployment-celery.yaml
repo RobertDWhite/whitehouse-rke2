@@ -45,3 +45,8 @@ spec:
               value: redis
             - name: CELERY_BROKER_URL
               value: redis://redis:6379/0
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: SECRET_KEY
