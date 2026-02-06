@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: falco
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: falco
+    repoURL: https://falcosecurity.github.io/charts
+    targetRevision: 4.17.0
+    helm:
+      values: |
+        driver:
+          kind: modern_ebpf
+
+        falco:
+          metrics_enabled: true
+          metrics:
+            enabled: true
+
+          http_output:
+            enabled: true
+            url: ""
+
+        falcosidekick:
+          enabled: true
+          config:
+            loki:
+              hostport: "http://loki.observability.svc.cluster.local:3100"
+          webui:
+            enabled: true
+            replicaCount: 1
+
+        tolerations:
+          - effect: NoSchedule
+            operator: Exists
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: falco
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

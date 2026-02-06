@@ -229,6 +229,45 @@ data:
           - targets: ["10.100.1.20:9713"]
 
       # =========================
+      # CrowdSec LAPI metrics
+      # =========================
+      - job_name: crowdsec
+        static_configs:
+          - targets:
+              - crowdsec-service.crowdsec.svc.cluster.local:6060
+
+      # =========================
+      # Falco metrics scraping
+      # =========================
+      - job_name: falco
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: falco
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: falco
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      - job_name: falcosidekick
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: falco
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: falco-falcosidekick
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
+
+      # =========================
       # cert-manager metrics scraping
       # =========================
       - job_name: cert-manager
