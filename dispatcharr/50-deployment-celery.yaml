@@ -22,7 +22,7 @@ spec:
           command:
             - bash
             - -c
-            - "cd /app && nice -n 5 celery -A dispatcharr worker -l info"
+            - "echo SECRET_KEY=$SECRET_KEY && cd /app && nice -n 5 celery -A dispatcharr worker -l info"
           env:
             - name: POSTGRES_HOST
               value: db
