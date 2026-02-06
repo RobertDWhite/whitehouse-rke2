@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 10-pvc.yaml
+  - 20-deployment-postgres.yaml
+  - 25-service-postgres.yaml
+  - 30-deployment-redis.yaml
+  - 35-service-redis.yaml
+  - 40-deployment-web.yaml
+  - 45-service-web.yaml
+  - 50-deployment-celery.yaml
+  - 60-ingress.yaml
+  - 70-metallb.yaml
+
+generators:
+  - ksops.yaml

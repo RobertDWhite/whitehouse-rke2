@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcharr-redis
+  namespace: dispatcharr
+  labels:
+    app: dispatcharr-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dispatcharr-redis
+  template:
+    metadata:
+      labels:
+        app: dispatcharr-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:latest
+          ports:
+            - containerPort: 6379

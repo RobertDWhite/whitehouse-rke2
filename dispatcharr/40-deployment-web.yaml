@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcharr-web
+  namespace: dispatcharr
+  labels:
+    app: dispatcharr-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dispatcharr-web
+  template:
+    metadata:
+      labels:
+        app: dispatcharr-web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/dispatcharr/dispatcharr:latest
+          ports:
+            - containerPort: 9191
+          env:
+            - name: POSTGRES_HOST
+              value: db
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_HOST
+              value: redis
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/0
+            - name: DISPATCHARR_LOG_LEVEL
+              value: info
+          volumeMounts:
+            - name: dispatcharr-data
+              mountPath: /data
+      volumes:
+        - name: dispatcharr-data
+          persistentVolumeClaim:
+            claimName: dispatcharr-data
