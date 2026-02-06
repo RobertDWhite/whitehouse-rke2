@@ -45,6 +45,11 @@ spec:
               value: redis://redis:6379/0
             - name: DISPATCHARR_LOG_LEVEL
               value: info
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: SECRET_KEY
           volumeMounts:
             - name: dispatcharr-data
               mountPath: /data
