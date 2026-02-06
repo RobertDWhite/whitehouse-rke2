@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crowdsec
+  namespace: argocd
+spec:
+  project: default
+  source:
+    chart: crowdsec
+    repoURL: https://crowdsecurity.github.io/helm-charts
+    targetRevision: 0.16.0
+    helm:
+      values: |
+        container_runtime: containerd
+
+        agent:
+          acquisition:
+            - namespace: kube-system
+              podName: rke2-ingress-nginx-controller-*
+              program: nginx
+          env:
+            - name: COLLECTIONS
+              value: "crowdsecurity/linux crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
+
+        lapi:
+          persistentVolume:
+            data:
+              enabled: true
+              storageClassName: longhorn
+              size: 2Gi
+            config:
+              enabled: true
+              storageClassName: longhorn
+              size: 100Mi
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: false
+
+          dashboard:
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crowdsec
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
