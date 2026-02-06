@@ -22,7 +22,10 @@ spec:
           command:
             - bash
             - -c
-            - "echo SECRET_KEY=$SECRET_KEY && cd /app && nice -n 5 celery -A dispatcharr worker -l info"
+            - "cd /app && nice -n 5 celery -A dispatcharr worker -l info"
+          volumeMounts:
+            - name: dispatcharr-data
+              mountPath: /data
           env:
             - name: POSTGRES_HOST
               value: db
@@ -45,8 +48,19 @@ spec:
               value: redis
             - name: CELERY_BROKER_URL
               value: redis://redis:6379/0
+            - name: DISPATCHARR_LOG_LEVEL
+              value: info
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: dispatcharr-secret
                   key: SECRET_KEY
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: SECRET_KEY
+      volumes:
+        - name: dispatcharr-data
+          persistentVolumeClaim:
+            claimName: dispatcharr-data
