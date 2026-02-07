@@ -23,6 +23,7 @@ spec:
                 server:
                   auto_registration:
                     enabled: true
+                    token: $CS_LAPI_REGISTRATION_TOKEN
 
           agent:
             acquisition:
@@ -45,6 +46,11 @@ spec:
                   secretKeyRef:
                     name: crowdsec-enroll
                     key: ENROLL_INSTANCE_NAME
+              - name: CS_LAPI_REGISTRATION_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: crowdsec-lapi-secrets
+                    key: registrationToken
             persistentVolume:
               data:
                 enabled: true
