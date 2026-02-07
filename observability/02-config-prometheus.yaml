@@ -237,6 +237,14 @@ data:
               - crowdsec-service.crowdsec.svc.cluster.local:6060
 
       # =========================
+      # CrowdSec Agent metrics
+      # =========================
+      - job_name: crowdsec-agents
+        static_configs:
+          - targets:
+              - crowdsec-agent-service.crowdsec.svc.cluster.local:6060
+
+      # =========================
       # Falco metrics scraping
       # =========================
       - job_name: falco
