@@ -15,7 +15,6 @@ spec:
           kind: modern_ebpf
 
         falco:
-          metrics_enabled: true
           metrics:
             enabled: true
 
@@ -35,6 +34,16 @@ spec:
         tolerations:
           - effect: NoSchedule
             operator: Exists
+
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/arch
+                      operator: In
+                      values:
+                        - amd64
   destination:
     server: https://kubernetes.default.svc
     namespace: falco
