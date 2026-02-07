@@ -24,6 +24,34 @@ spec:
                   auto_registration:
                     enabled: true
                     token: $CS_LAPI_REGISTRATION_TOKEN
+                    allowed_ranges:
+                      - 10.42.0.0/16
+                      - 10.43.0.0/16
+                      - 10.99.5.0/24
+            notifications/http.yaml: |
+              type: http
+              name: http_default
+              log_level: info
+              format: |
+                {{- range $Alert := . -}}
+                {{- range .Decisions -}}
+                {"streams":[{"stream":{"job":"crowdsec_decisions","source":"rke2-whitehouse"},"values":[[  "{{ now | unixEpoch }}000000000","country={{ $Alert.Source.Cn }} asname={{ $Alert.Source.AsName }} asnumber={{ $Alert.Source.AsNumber }} lat={{ $Alert.Source.Latitude }} lon={{ $Alert.Source.Longitude }} iprange={{ $Alert.Source.Range }} scenario={{ .Scenario }} type={{ .Type }} duration={{ .Duration }} scope={{ .Scope }} ip={{ .Value }}"]]}]}
+                {{ end -}}
+                {{- end -}}
+              url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+              method: POST
+              headers:
+                Content-Type: application/json
+            profiles.yaml: |
+              name: default_ip_remediation
+              filters:
+                - Alert.Remediation == true && Alert.GetScope() == "Ip"
+              decisions:
+                - type: ban
+                  duration: 4h
+              notifications:
+                - http_default
+              on_success: break
 
           agent:
             acquisition:
