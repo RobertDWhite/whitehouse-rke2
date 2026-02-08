@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openhamclock
+  namespace: openhamclock
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - hamclock.w3rdw.radio
+      secretName: hamclock-w3rdw-radio-tls
+  rules:
+    - host: hamclock.w3rdw.radio
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openhamclock
+                port:
+                  number: 3000

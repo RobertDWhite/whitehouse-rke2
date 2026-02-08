@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openhamclock
+  namespace: openhamclock
+  labels:
+    app: openhamclock
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openhamclock
+  template:
+    metadata:
+      labels:
+        app: openhamclock
+    spec:
+      containers:
+        - name: openhamclock
+          image: ggilman/openhamclock
+          ports:
+            - containerPort: 3000
+          env:
+            - name: TZ
+              value: "UTC"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: openhamclock-config
