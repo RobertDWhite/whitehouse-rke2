@@ -19,12 +19,20 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - -pihole_protocol=https
+            - -pihole_port=443
+            - -pihole_admin_context=
             - -skip_tls_verification=true
           ports:
             - containerPort: 9617
           envFrom:
             - secretRef:
                 name: pihole-exporter
+          env:
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-exporter
+                  key: PIHOLE_API_TOKEN
           resources:
             requests:
               cpu: 50m
