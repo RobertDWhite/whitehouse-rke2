@@ -11,7 +11,8 @@ data:
 
     AUDIO_DIR = "/data/audio/voice"
     TEXT_DIR = "/data/text/voice"
-    MODEL_NAME = "small"
+    MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+    MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "15"))
 
     os.makedirs(TEXT_DIR, exist_ok=True)
 
@@ -20,21 +21,35 @@ data:
     print("Voice decoder started")
 
     while True:
-        for fname in os.listdir(AUDIO_DIR):
+        for fname in sorted(os.listdir(AUDIO_DIR)):
             if not fname.endswith(".wav"):
                 continue
 
             wav_path = os.path.join(AUDIO_DIR, fname)
             txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
+            now = time.time()
 
             if os.path.exists(txt_path):
                 continue
+            if not os.path.isfile(wav_path):
+                continue
+            if now - os.path.getmtime(wav_path) < MIN_FILE_AGE_SEC:
+                # Skip files that may still be actively written by recorder.
+                continue
 
             print(f"Transcribing {wav_path}")
-            segments, info = model.transcribe(wav_path)
+            try:
+                segments, info = model.transcribe(wav_path)
+            except Exception as e:
+                print(f"Transcribe failed for {wav_path}: {e}")
+                continue
 
-            with open(txt_path, "w") as f:
+            tmp_path = txt_path + ".tmp"
+            with open(tmp_path, "w") as f:
                 for seg in segments:
-                    f.write(seg.text.strip() + "\n")
+                    line = seg.text.strip()
+                    if line:
+                        f.write(line + "\n")
+            os.replace(tmp_path, txt_path)
 
         time.sleep(5)

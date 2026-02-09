@@ -10,6 +10,7 @@ data:
 
     AUDIO_DIR="/data/audio/cw"
     OUT_DIR="/data/text/cw"
+    MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
 
     mkdir -p "$OUT_DIR"
 
@@ -18,12 +19,24 @@ data:
 
       base=$(basename "$f" .wav)
       out="$OUT_DIR/$base.txt"
+      tmp="$out.tmp"
+      now=$(date +%s)
+      mtime=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f")
+      age=$((now - mtime))
 
       if [ -f "$out" ]; then
         echo "Skipping $f (already decoded)"
         continue
       fi
+      if [ "$age" -lt "$MIN_FILE_AGE_SEC" ]; then
+        echo "Skipping $f (still changing: ${age}s old)"
+        continue
+      fi
 
       echo "Decoding $f"
-      multimon-ng -q -t wav -a CW "$f" > "$out"
+      if multimon-ng -q -t wav -a CW "$f" > "$tmp"; then
+        mv "$tmp" "$out"
+      else
+        rm -f "$tmp"
+      fi
     done
