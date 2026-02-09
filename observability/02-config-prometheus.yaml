@@ -7,6 +7,8 @@ data:
   prometheus.yml: |
     global:
       scrape_interval: 15s
+      external_labels:
+        origin_prometheus: whitehouse-rke2
 
     scrape_configs:
       - job_name: prometheus
@@ -151,6 +153,38 @@ data:
             action: keep
             regex: http
 
+      # =========================
+      # Kubelet and cAdvisor scraping (required by RKE2 dashboard)
+      # =========================
+      - job_name: kubelet
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+
+      - job_name: cadvisor
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
 
       - job_name: trivy-operator
         kubernetes_sd_configs:
@@ -186,21 +220,22 @@ data:
             action: keep
             regex: rke2-ingress-nginx-controller-.*
 
-          - source_labels: [__meta_kubernetes_pod_container_port_number]
+          # Keep a single discovered port per pod, then rewrite to 10254.
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
             action: keep
-            regex: "10254"
+            regex: http
+
+          - source_labels: [__address__]
+            action: replace
+            target_label: __address__
+            regex: ([^:]+)(?::\d+)?
+            replacement: $1:10254
 
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
 
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: controller_pod
-
-          - target_label: controller_class
-            replacement: nginx
-
-          - target_label: ingress
-            replacement: "__all__"
 
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
