@@ -17,6 +17,9 @@ spec:
       containers:
         - name: cw-decoder
           image: debian:stable-slim
+          env:
+            - name: MIN_FILE_AGE_SEC
+              value: "15"
           volumeMounts:
             - name: artifacts
               mountPath: /data
