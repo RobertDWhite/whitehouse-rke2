@@ -153,6 +153,9 @@ data:
             action: keep
             regex: http
 
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
+
       # =========================
       # Kubelet and cAdvisor scraping (required by RKE2 dashboard)
       # =========================
@@ -170,6 +173,8 @@ data:
             regex: (.+)
             target_label: __metrics_path__
             replacement: /api/v1/nodes/$1/proxy/metrics
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
 
       - job_name: cadvisor
         scheme: https
@@ -185,6 +190,8 @@ data:
             regex: (.+)
             target_label: __metrics_path__
             replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
 
       - job_name: trivy-operator
         kubernetes_sd_configs:
@@ -236,6 +243,9 @@ data:
 
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: controller_pod
+
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
 
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
