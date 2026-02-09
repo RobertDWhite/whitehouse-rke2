@@ -41,9 +41,12 @@ data:
     CW_BW          = 200
     FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
 
-    NUM_DYN_FM     = 4
-    NUM_DYN_CW     = 2
+    NUM_DYN_FM     = int(os.getenv("NUM_DYN_FM", "8"))
+    NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
     SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "10"))
+    CLEAR_SLOTS_ON_RETUNE = os.getenv("CLEAR_SLOTS_ON_RETUNE", "true").lower() in (
+        "1", "true", "yes", "on"
+    )
 
     VOICE_DIR      = "/data/audio/voice"
     CW_DIR         = "/data/audio/cw"
@@ -75,13 +78,15 @@ data:
 
             self.state         = self.IDLE
             self.wf            = None
+            self.current_path  = None
             self.samples_written = 0
             self.tail_counter  = 0
             self._lock         = threading.Lock()
 
         def _open_wav(self):
             if self.is_cw:
-                path = os.path.join(self.out_dir, f"cw_{self.freq_hz}.wav")
+                ts = int(time.time())
+                path = os.path.join(self.out_dir, f"cw_{self.freq_hz}_{ts}.wav")
             else:
                 ts = int(time.time())
                 path = os.path.join(self.out_dir, f"{self.freq_hz}_{ts}.wav")
@@ -149,6 +154,8 @@ data:
     class UnifiedSDR(gr.top_block):
         def __init__(self):
             gr.top_block.__init__(self, "Unified SDR")
+            self._state_lock = threading.Lock()
+            self.current_center_hz = DWELL_CENTER
 
             # --- Source ---
             self.src = blocks.null_source(gr.sizeof_gr_complex)
@@ -308,7 +315,7 @@ data:
                 target = self._evict_stale_slot(self.dyn_fm, "FM")
             if target is None:
                 return  # all slots busy with active recordings
-            offset = freq_hz - DWELL_CENTER
+            offset = freq_hz - self.get_center_hz()
             rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
             self.lock()
             self.disconnect(target["nbfm"], target["sink"])
@@ -337,7 +344,7 @@ data:
                 target = self._evict_stale_slot(self.dyn_cw, "CW")
             if target is None:
                 return
-            offset = freq_hz - DWELL_CENTER
+            offset = freq_hz - self.get_center_hz()
             rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, CW_DIR, is_cw=True)
             self.lock()
             self.disconnect(target["c2mag"], target["sink"])
@@ -355,8 +362,24 @@ data:
             for r in self.all_recorders:
                 r.close_if_recording()
 
+        def clear_dynamic_slots(self):
+            for slot in self.dyn_fm:
+                if slot["freq"] is not None:
+                    self._free_fm_slot(slot)
+            for slot in self.dyn_cw:
+                if slot["freq"] is not None:
+                    self._free_cw_slot(slot)
+
+        def get_center_hz(self):
+            with self._state_lock:
+                return self.current_center_hz
+
         def retune(self, center_hz):
+            self.lock()
             self.src.set_center_freq(center_hz)
+            self.unlock()
+            with self._state_lock:
+                self.current_center_hz = center_hz
 
     # ---------------------------------------------------------------------------
     # FFT energy detector (background thread)
@@ -386,9 +409,10 @@ data:
 
             power_db = 10.0 * np.log10(frame + 1e-30)
             # FFT bins are already shifted by fft_vcc with shift=True
+            center_hz = self.tb.get_center_hz()
             freqs = np.linspace(
-                DWELL_CENTER - SAMPLE_RATE / 2,
-                DWELL_CENTER + SAMPLE_RATE / 2,
+                center_hz - SAMPLE_RATE / 2,
+                center_hz + SAMPLE_RATE / 2,
                 FFT_SIZE, endpoint=False)
 
             # Use median noise floor as baseline; detect peaks above it
@@ -447,7 +471,7 @@ data:
             out = {
                 "source": "unified_sdr",
                 "sample_rate": SAMPLE_RATE,
-                "center_freq_hz": DWELL_CENTER,
+                "center_freq_hz": self.tb.get_center_hz(),
                 "timestamp": time.time(),
                 "detections": self.detections
             }
@@ -480,11 +504,15 @@ data:
                 for center in SCAN_CENTERS:
                     print(f"[SCAN] Retuning to {center/1e6:.1f} MHz", flush=True)
                     self.tb.close_all_recordings()
+                    if CLEAR_SLOTS_ON_RETUNE:
+                        self.tb.clear_dynamic_slots()
                     self.tb.retune(center)
                     time.sleep(SCAN_SEC)
 
                 # Return to primary
                 print(f"[SCAN] Returning to {DWELL_CENTER/1e6:.1f} MHz", flush=True)
+                if CLEAR_SLOTS_ON_RETUNE:
+                    self.tb.clear_dynamic_slots()
                 self.tb.retune(DWELL_CENTER)
 
     # ---------------------------------------------------------------------------
