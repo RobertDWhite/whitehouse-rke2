@@ -576,4 +576,14 @@ data:
             tb.wait()
 
     if __name__ == "__main__":
-        main()
+        while True:
+            try:
+                main()
+                print("[MAIN] Flowgraph exited unexpectedly; restarting in 5s", flush=True)
+                time.sleep(5)
+            except KeyboardInterrupt:
+                print("[MAIN] Interrupted; exiting", flush=True)
+                break
+            except Exception as e:
+                print(f"[MAIN] Fatal error: {e}; restarting in 5s", flush=True)
+                time.sleep(5)
