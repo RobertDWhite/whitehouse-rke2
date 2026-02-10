@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole-exporter-c
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole-exporter-c
+  template:
+    metadata:
+      labels:
+        app: pihole-exporter-c
+    spec:
+      containers:
+        - name: pihole-exporter
+          image: ekofr/pihole-exporter
+          imagePullPolicy: IfNotPresent
+          command:
+            - ./pihole-exporter
+          args:
+            - -pihole_hostname=10.99.5.2
+            - -pihole_protocol=https
+            - -pihole_port=443
+            - -skip_tls_verification=true
+          ports:
+            - containerPort: 9617
+          envFrom:
+            - secretRef:
+                name: pihole-exporter-c
+          env:
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-exporter-c
+                  key: PIHOLE_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
