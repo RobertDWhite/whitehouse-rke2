@@ -33,6 +33,12 @@ global:
 configs:
   cm:
     kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    accounts.api-bot: apiKey, login
+    accounts.api-bot.enabled: "true"
+    admin.enabled: "true"
+  rbac:
+    policy.csv: |
+      g, api-bot, role:admin
 
 repoServer:
   replicas: 2
@@ -97,4 +103,3 @@ controller:
 
   metrics:
     enabled: true
-
