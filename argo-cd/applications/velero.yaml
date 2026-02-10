@@ -40,6 +40,11 @@ spec:
                   s3Url: https://minio-bucket.white.fm:9000
                   s3ForcePathStyle: "true"
                   insecureSkipTLSVerify: "true"
+            volumeSnapshotLocation:
+              - name: default
+                provider: velero.io/csi
+                config:
+                  snapshotClass: longhorn-snapshot
 
           deployNodeAgent: true
 
