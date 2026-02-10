@@ -36,6 +36,9 @@ spec:
             - /bin/sh
             - -c
             - |
+              # Avoid USB transfer starvation under sustained rtl_tcp load.
+              echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
+              echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
               echo "Starting rtl_tcp for VHF/UHF ham bands"
               rtl_tcp \
                 -d ${RTL_DEVICE_SERIAL} \
