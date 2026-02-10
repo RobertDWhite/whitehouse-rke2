@@ -32,9 +32,6 @@ spec:
             - name: CACHE_PATH
               value: /cache
           volumeMounts:
-            - name: sdr-artifacts
-              mountPath: /data
-              readOnly: true
             - name: cache
               mountPath: /cache
           resources:
@@ -57,9 +54,6 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
       volumes:
-        - name: sdr-artifacts
-          persistentVolumeClaim:
-            claimName: sdr-artifacts
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
