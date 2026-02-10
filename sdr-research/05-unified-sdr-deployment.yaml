@@ -68,6 +68,8 @@ spec:
               mountPath: /data
             - name: scripts
               mountPath: /scripts
+            - name: dshm
+              mountPath: /dev/shm
       terminationGracePeriodSeconds: 10
       volumes:
         - name: artifacts
@@ -77,3 +79,7 @@ spec:
           configMap:
             name: unified-sdr-scripts
             defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
