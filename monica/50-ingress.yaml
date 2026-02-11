@@ -6,8 +6,9 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    authentik.ingress.manager/enabled: "true"
-    authentik.ingress.manager/provider: "monica"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false"
+    nginx.ingress.kubernetes.io/proxy-ssl-name: "authentik.authentik.svc.cluster.local"
 spec:
   ingressClassName: nginx
   tls:
@@ -22,6 +23,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: monica
+                name: authentik
                 port:
-                  number: 80
+                  number: 9443
