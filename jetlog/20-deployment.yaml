@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jetlog
+  namespace: jetlog
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jetlog
+  template:
+    metadata:
+      labels:
+        app: jetlog
+    spec:
+      containers:
+        - name: jetlog
+          image: pbogre/jetlog:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: JETLOG_PORT
+              value: "3000"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jetlog-env
+                  key: SECRET_KEY
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: jetlog-data
+              mountPath: /data
+      volumes:
+        - name: jetlog-data
+          persistentVolumeClaim:
+            claimName: jetlog-data
