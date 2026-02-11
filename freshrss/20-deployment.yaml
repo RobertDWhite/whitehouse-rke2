@@ -23,15 +23,33 @@ spec:
             - sh
             - -c
             - |
-              echo "Installing FreshRSS AI Assistant..." && \
-              mkdir -p /config/www/freshrss/extensions && \
-              rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant && \
-              git clone https://github.com/cvlc/freshrss-ai-assistant /config/www/freshrss/extensions/xExtension-AIAssistant --depth 1 || true && \
-              if [ -d /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant ]; then \
-                mv /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant/* /config/www/freshrss/extensions/xExtension-AIAssistant/; \
-                rm -rf /config/www/freshrss/extensions/xExtension-AIAssistant/freshrss-ai-assistant; \
-              fi && \
-              chown -R 1000:1000 /config/www/freshrss/extensions
+              set -eu
+              echo "Installing FreshRSS AI Assistant..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-AIAssistant"
+              TMP="/tmp/xExtension-AIAssistant"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if git clone https://github.com/cvlc/freshrss-ai-assistant "${TMP}" --depth 1; then
+                if [ -d "${TMP}/freshrss-ai-assistant" ]; then
+                  SRC="${TMP}/freshrss-ai-assistant"
+                else
+                  SRC="${TMP}"
+                fi
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "AI Assistant extension updated."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not update AI Assistant; keeping existing copy."
+              else
+                echo "ERROR: failed to install AI Assistant and no existing copy is available." >&2
+                exit 1
+              fi
           volumeMounts:
             - name: extensions
               mountPath: /config/www/freshrss/extensions
@@ -42,15 +60,33 @@ spec:
             - sh
             - -c
             - |
-              echo "Installing FeedDigest..." && \
-              mkdir -p /config/www/freshrss/extensions && \
-              rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest && \
-              git clone https://github.com/fengchang/xExtension-FeedDigest /config/www/freshrss/extensions/xExtension-FeedDigest --depth 1 || true && \
-              if [ -d /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest ]; then \
-                mv /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest/* /config/www/freshrss/extensions/xExtension-FeedDigest/; \
-                rm -rf /config/www/freshrss/extensions/xExtension-FeedDigest/xExtension-FeedDigest; \
-              fi && \
-              chown -R 1000:1000 /config/www/freshrss/extensions
+              set -eu
+              echo "Installing FeedDigest..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-FeedDigest"
+              TMP="/tmp/xExtension-FeedDigest"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if git clone https://github.com/fengchang/xExtension-FeedDigest "${TMP}" --depth 1; then
+                if [ -d "${TMP}/xExtension-FeedDigest" ]; then
+                  SRC="${TMP}/xExtension-FeedDigest"
+                else
+                  SRC="${TMP}"
+                fi
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "FeedDigest extension updated."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not update FeedDigest; keeping existing copy."
+              else
+                echo "ERROR: failed to install FeedDigest and no existing copy is available." >&2
+                exit 1
+              fi
           volumeMounts:
             - name: extensions
               mountPath: /config/www/freshrss/extensions
@@ -61,16 +97,29 @@ spec:
             - sh
             - -c
             - |
-              echo "Installing WordHighlighter..." && \
-              mkdir -p /config/www/freshrss/extensions && \
-              rm -rf /config/www/freshrss/extensions/xExtension-WordHighlighter && \
-              git clone https://github.com/FreshRSS/Extensions.git /tmp/freshrss-extensions --depth 1 || true && \
-              cp -r /tmp/freshrss-extensions/xExtension-WordHighlighter /config/www/freshrss/extensions/xExtension-WordHighlighter && \
-              if [ -d /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter ]; then \
-                mv /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter/* /config/www/freshrss/extensions/xExtension-WordHighlighter/; \
-                rm -rf /config/www/freshrss/extensions/xExtension-WordHighlighter/xExtension-WordHighlighter; \
-              fi && \
-              chown -R 1000:1000 /config/www/freshrss/extensions
+              set -eu
+              echo "Installing WordHighlighter..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-WordHighlighter"
+              TMP="/tmp/freshrss-extensions"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if git clone https://github.com/FreshRSS/Extensions.git "${TMP}" --depth 1; then
+                SRC="${TMP}/xExtension-WordHighlighter"
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "WordHighlighter extension updated."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not update WordHighlighter; keeping existing copy."
+              else
+                echo "ERROR: failed to install WordHighlighter and no existing copy is available." >&2
+                exit 1
+              fi
           volumeMounts:
             - name: extensions
               mountPath: /config/www/freshrss/extensions
