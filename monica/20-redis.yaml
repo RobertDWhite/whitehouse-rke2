@@ -1,21 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: monica-redis
+  name: redis
   namespace: monica
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: monica-redis
+      app: redis
   template:
     metadata:
       labels:
-        app: monica-redis
+        app: redis
     spec:
       containers:
         - name: redis
           image: redis:7-alpine
           ports:
             - containerPort: 6379
-          command: ["redis-server", "--appendonly", "no"]
+          command: ["redis-server", "--appendonly", "yes"]
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: monica-redis-data
