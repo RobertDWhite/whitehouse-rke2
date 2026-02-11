@@ -1,14 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: monica-data
+  name: monica-redis-data
   namespace: monica
-  annotations:
-    helm.sh/resource-policy: keep
 spec:
   accessModes:
     - ReadWriteOnce
   storageClassName: longhorn
   resources:
     requests:
-      storage: 5Gi
+      storage: 2Gi

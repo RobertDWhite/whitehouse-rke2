@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: monica
+  name: monica-queue
   namespace: monica
 spec:
   replicas: 1
@@ -9,15 +9,29 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app: monica
+      app: monica-queue
   template:
     metadata:
       labels:
-        app: monica
+        app: monica-queue
     spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - monica
+              topologyKey: kubernetes.io/hostname
       containers:
-        - name: monica
+        - name: monica-queue
           image: monica:5.0-apache
+          command:
+            - /bin/sh
+            - -lc
+            - php artisan queue:work --sleep=10 --timeout=0 --tries=3 --queue=high,default,low
           envFrom:
             - configMapRef:
                 name: monica-app-config
@@ -29,14 +43,9 @@ spec:
                 secretKeyRef:
                   name: monica-postgresql
                   key: password
-
-          ports:
-            - containerPort: 80
-
           volumeMounts:
             - name: data
               mountPath: /var/www/html/storage
-
       volumes:
         - name: data
           persistentVolumeClaim:

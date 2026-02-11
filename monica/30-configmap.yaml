@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monica-app-config
+  namespace: monica
+data:
+  APP_ENV: production
+  APP_DEBUG: "false"
+  TRUSTED_PROXIES: "*"
+  DB_CONNECTION: mysql
+  DB_HOST: mariadb
+  DB_PORT: "3306"
+  DB_DATABASE: monica
+  DB_USERNAME: monica
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  SESSION_DRIVER: redis
+  CACHE_DRIVER: redis
+  QUEUE_CONNECTION: redis
+  SCOUT_DRIVER: meilisearch
+  MEILISEARCH_HOST: http://meilisearch:7700
+  MEMCACHED_HOST: memcached
+  MAIL_MAILER: smtp
+  MAIL_HOST: mailpit
+  MAIL_PORT: "1025"
+  MAIL_ENCRYPTION: "null"
+  LOG_CHANNEL: stderr
