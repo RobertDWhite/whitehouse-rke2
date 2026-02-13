@@ -15,6 +15,7 @@ spec:
       labels:
         app: homarr
     spec:
+      automountServiceAccountToken: true
       serviceAccountName: homarr
       securityContext:
         fsGroup: 1000
@@ -28,6 +29,8 @@ spec:
               value: "UTC"
             - name: ENABLE_KUBERNETES
               value: "true"
+            - name: KUBERNETES_SERVICE_ACCOUNT_NAME
+              value: "homarr"
             - name: DATABASE_FILE
               value: /appdata/db/db.sqlite
             - name: ENABLE_DOCKER_INTEGRATION
