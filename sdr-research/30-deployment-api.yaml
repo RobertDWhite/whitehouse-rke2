@@ -41,6 +41,10 @@ spec:
               readOnly: true
             - name: cache
               mountPath: /cache
+            - name: api-overrides
+              mountPath: /app/app/services/audio.py
+              subPath: audio.py
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -67,3 +71,7 @@ spec:
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
+        - name: api-overrides
+          configMap:
+            name: sdr-viewer-api-overrides
+            defaultMode: 0444
