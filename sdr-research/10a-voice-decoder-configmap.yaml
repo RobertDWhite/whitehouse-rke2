@@ -7,6 +7,7 @@ data:
   transcribe.py: |
     import os
     import time
+    import wave
     from faster_whisper import WhisperModel
 
     AUDIO_DIR = "/data/audio/voice"
@@ -14,6 +15,7 @@ data:
     MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
     MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "120"))
     MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
+    MAX_TRANSCRIBE_SEC = int(os.getenv("MAX_TRANSCRIBE_SEC", "180"))
     RETRY_EMPTY_TRANSCRIPTS = os.getenv("RETRY_EMPTY_TRANSCRIPTS", "true").lower() in ("1", "true", "yes", "on")
 
     os.makedirs(TEXT_DIR, exist_ok=True)
@@ -36,9 +38,13 @@ data:
         for p in stale_paths:
             file_state.pop(p, None)
 
-        for fname in sorted(os.listdir(AUDIO_DIR)):
-            if not fname.endswith(".wav"):
-                continue
+        wav_names = [f for f in os.listdir(AUDIO_DIR) if f.endswith(".wav")]
+        wav_names.sort(
+            key=lambda n: os.path.getmtime(os.path.join(AUDIO_DIR, n)),
+            reverse=True,
+        )
+
+        for fname in wav_names:
 
             wav_path = os.path.join(AUDIO_DIR, fname)
             txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
@@ -66,6 +72,22 @@ data:
                 file_state[wav_path] = {"sig": sig, "since": now}
                 continue
             if now - prev["since"] < MIN_STABLE_SEC:
+                continue
+
+            try:
+                with wave.open(wav_path, "rb") as wf:
+                    fr = wf.getframerate()
+                    frames = wf.getnframes()
+                    duration_sec = (frames / fr) if fr > 0 else 0.0
+            except Exception as e:
+                print(f"Duration probe failed for {wav_path}: {e}")
+                continue
+
+            if duration_sec > MAX_TRANSCRIBE_SEC:
+                with open(txt_path + ".tmp", "w") as f:
+                    f.write("[recording too long for auto-transcribe]\n")
+                os.replace(txt_path + ".tmp", txt_path)
+                print(f"Marked long recording ({duration_sec:.1f}s): {wav_path}")
                 continue
 
             print(f"Transcribing {wav_path}")
