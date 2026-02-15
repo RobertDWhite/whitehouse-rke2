@@ -19,13 +19,18 @@ spec:
             - name: LOCALAI_BASE_URL
               value: "http://localai.ai-stack.svc.cluster.local:8080"
             - name: LOCALAI_IMAGE_MODEL_NAME
-              value: "sd-1.5-ggml"
+              value: "dreamshaper"
             - name: LOCALAI_IMAGE_MODEL_GALLERY_URL
-              value: "github:mudler/LocalAI/gallery/sd-ggml.yaml@master"
+              value: "github:mudler/LocalAI/gallery/dreamshaper.yaml@master"
             - name: LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS
               value: "7200"
             - name: LOCALAI_BOOTSTRAP_POLL_SECONDS
               value: "15"
+            - name: LOCALAI_MAX_INSTALL_ATTEMPTS
+              value: "4"
+          volumeMounts:
+            - name: models
+              mountPath: /models
           command:
             - /bin/sh
             - -lc
@@ -43,10 +48,11 @@ spec:
               model_name = os.getenv("LOCALAI_IMAGE_MODEL_NAME", "sd-1.5-ggml")
               model_gallery_url = os.getenv(
                   "LOCALAI_IMAGE_MODEL_GALLERY_URL",
-                  "github:mudler/LocalAI/gallery/sd-ggml.yaml@master",
+                  "github:mudler/LocalAI/gallery/dreamshaper.yaml@master",
               )
               timeout_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS", "7200"))
               poll_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_POLL_SECONDS", "15"))
+              max_install_attempts = int(os.getenv("LOCALAI_MAX_INSTALL_ATTEMPTS", "4"))
 
               def http_request(method, path, payload=None):
                   data = None
@@ -106,44 +112,69 @@ spec:
                   print(f"Model {model_name} already installed", flush=True)
                   sys.exit(0)
 
-              print(
-                  f"Installing model {model_name} from {model_gallery_url}",
-                  flush=True,
-              )
-              apply_response = http_request(
-                  "POST",
-                  "/models/apply",
-                  {"id": model_name, "url": model_gallery_url},
-              )
-              job_id = apply_response.get("uuid")
-              if not job_id:
-                  raise RuntimeError(f"Missing job UUID in response: {apply_response}")
+              last_error = None
+              for attempt in range(1, max_install_attempts + 1):
+                  # Remove failed partial downloads between attempts.
+                  try:
+                      for file_name in os.listdir("/models"):
+                          if file_name.endswith(".partial"):
+                              os.remove(os.path.join("/models", file_name))
+                  except Exception as exc:
+                      print(f"warning: failed to clean partial files: {exc}", flush=True)
 
-              deadline = time.time() + timeout_seconds
-              while time.time() < deadline:
-                  job_response = http_request("GET", f"/models/jobs/{job_id}")
-                  status = parse_job_status(job_response, job_id)
-                  processed = bool(status.get("processed"))
-                  error = status.get("error")
-                  message = status.get("message", "")
-                  progress = status.get("progress", 0)
                   print(
-                      f"job={job_id} processed={processed} progress={progress} message={message}",
+                      f"Installing model {model_name} from {model_gallery_url} (attempt {attempt}/{max_install_attempts})",
                       flush=True,
                   )
-                  if processed:
-                      if error not in (None, {}, ""):
-                          raise RuntimeError(f"Model install failed: {error} {message}")
-                      installed = get_installed_models()
-                      if model_name in installed:
-                          print(f"Model {model_name} installed successfully", flush=True)
-                          sys.exit(0)
-                      raise RuntimeError(
-                          f"Install job completed but model {model_name} is still missing"
-                      )
-                  time.sleep(poll_seconds)
+                  apply_response = http_request(
+                      "POST",
+                      "/models/apply",
+                      {"id": model_name, "url": model_gallery_url},
+                  )
+                  job_id = apply_response.get("uuid")
+                  if not job_id:
+                      raise RuntimeError(f"Missing job UUID in response: {apply_response}")
 
-              raise RuntimeError(
-                  f"Timed out waiting for model {model_name} install job {job_id}"
-              )
+                  deadline = time.time() + timeout_seconds
+                  while time.time() < deadline:
+                      job_response = http_request("GET", f"/models/jobs/{job_id}")
+                      status = parse_job_status(job_response, job_id)
+                      processed = bool(status.get("processed"))
+                      error = status.get("error")
+                      message = status.get("message", "")
+                      progress = status.get("progress", 0)
+                      print(
+                          f"job={job_id} processed={processed} progress={progress} message={message}",
+                          flush=True,
+                      )
+                      if processed:
+                          if error in (None, {}, ""):
+                              installed = get_installed_models()
+                              if model_name in installed:
+                                  print(f"Model {model_name} installed successfully", flush=True)
+                                  sys.exit(0)
+                              last_error = (
+                                  f"install job completed but model {model_name} is still missing"
+                              )
+                          else:
+                              last_error = f"{error} {message}"
+                          break
+                      time.sleep(poll_seconds)
+                  else:
+                      last_error = f"timed out waiting for model install job {job_id}"
+
+                  if last_error and "unexpected EOF" in str(last_error) and attempt < max_install_attempts:
+                      print(f"Retrying after transient error: {last_error}", flush=True)
+                      time.sleep(10)
+                      continue
+                  if attempt < max_install_attempts:
+                      print(f"Retrying after failure: {last_error}", flush=True)
+                      time.sleep(10)
+                      continue
+
+              raise RuntimeError(f"Failed to install model {model_name}: {last_error}")
               PY
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: localai-models
