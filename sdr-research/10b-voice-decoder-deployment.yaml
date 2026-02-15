@@ -21,6 +21,8 @@ spec:
         - name: voice-decoder
           image: linuxserver/faster-whisper:latest
           env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
             - name: TZ
               value: UTC
             - name: WHISPER_MODEL
@@ -29,6 +31,8 @@ spec:
               value: "120"
             - name: MIN_STABLE_SEC
               value: "30"
+            - name: MAX_TRANSCRIBE_SEC
+              value: "180"
             - name: RETRY_EMPTY_TRANSCRIPTS
               value: "true"
           volumeMounts:
