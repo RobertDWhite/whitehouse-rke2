@@ -12,44 +12,86 @@ data:
     AUDIO_DIR = "/data/audio/voice"
     TEXT_DIR = "/data/text/voice"
     MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
-    MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "15"))
+    MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "120"))
+    MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
+    RETRY_EMPTY_TRANSCRIPTS = os.getenv("RETRY_EMPTY_TRANSCRIPTS", "true").lower() in ("1", "true", "yes", "on")
 
     os.makedirs(TEXT_DIR, exist_ok=True)
 
     model = WhisperModel(MODEL_NAME, device="cpu")
+    file_state = {}
 
     print("Voice decoder started")
 
     while True:
+        now = time.time()
+
+        # Cleanup state for files that no longer exist.
+        current_wavs = {
+            os.path.join(AUDIO_DIR, f)
+            for f in os.listdir(AUDIO_DIR)
+            if f.endswith(".wav")
+        }
+        stale_paths = [p for p in file_state.keys() if p not in current_wavs]
+        for p in stale_paths:
+            file_state.pop(p, None)
+
         for fname in sorted(os.listdir(AUDIO_DIR)):
             if not fname.endswith(".wav"):
                 continue
 
             wav_path = os.path.join(AUDIO_DIR, fname)
             txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
-            now = time.time()
 
-            if os.path.exists(txt_path):
-                continue
             if not os.path.isfile(wav_path):
                 continue
             if now - os.path.getmtime(wav_path) < MIN_FILE_AGE_SEC:
                 # Skip files that may still be actively written by recorder.
                 continue
 
+            if os.path.exists(txt_path):
+                if os.path.getsize(txt_path) > 0:
+                    continue
+                if not RETRY_EMPTY_TRANSCRIPTS:
+                    continue
+                try:
+                    os.remove(txt_path)
+                except OSError:
+                    pass
+
+            st = os.stat(wav_path)
+            sig = (st.st_size, int(st.st_mtime))
+            prev = file_state.get(wav_path)
+            if prev is None or prev["sig"] != sig:
+                file_state[wav_path] = {"sig": sig, "since": now}
+                continue
+            if now - prev["since"] < MIN_STABLE_SEC:
+                continue
+
             print(f"Transcribing {wav_path}")
             try:
-                segments, info = model.transcribe(wav_path)
+                segments, _ = model.transcribe(
+                    wav_path,
+                    vad_filter=True,
+                    condition_on_previous_text=False,
+                )
             except Exception as e:
                 print(f"Transcribe failed for {wav_path}: {e}")
                 continue
 
+            lines = []
+            for seg in segments:
+                line = seg.text.strip()
+                if line:
+                    lines.append(line)
+
             tmp_path = txt_path + ".tmp"
             with open(tmp_path, "w") as f:
-                for seg in segments:
-                    line = seg.text.strip()
-                    if line:
-                        f.write(line + "\n")
+                if lines:
+                    f.write("\n".join(lines) + "\n")
+                else:
+                    f.write("[no speech detected]\n")
             os.replace(tmp_path, txt_path)
+            print(f"Wrote transcript ({len(lines)} lines) for {wav_path}")
 
         time.sleep(5)
