@@ -5,6 +5,8 @@ metadata:
   namespace: sdr-research
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: cw-decoder
@@ -14,7 +16,7 @@ spec:
         app: cw-decoder
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-11
+        kubernetes.io/hostname: rke2-node-14
       restartPolicy: Always
       containers:
         - name: cw-decoder

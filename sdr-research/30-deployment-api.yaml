@@ -5,6 +5,8 @@ metadata:
   namespace: sdr-research
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: sdr-viewer-api
@@ -14,7 +16,7 @@ spec:
         app: sdr-viewer-api
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-11
+        kubernetes.io/hostname: rke2-node-14
       containers:
         - name: api
           image: registry.white.fm/sdr-viewer-api
