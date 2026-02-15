@@ -28,9 +28,6 @@ spec:
               value: "15"
             - name: LOCALAI_MAX_INSTALL_ATTEMPTS
               value: "4"
-          volumeMounts:
-            - name: models
-              mountPath: /models
           command:
             - /bin/sh
             - -lc
@@ -45,7 +42,7 @@ spec:
               import urllib.request
 
               base_url = os.getenv("LOCALAI_BASE_URL", "http://localai:8080").rstrip("/")
-              model_name = os.getenv("LOCALAI_IMAGE_MODEL_NAME", "sd-1.5-ggml")
+              model_name = os.getenv("LOCALAI_IMAGE_MODEL_NAME", "dreamshaper")
               model_gallery_url = os.getenv(
                   "LOCALAI_IMAGE_MODEL_GALLERY_URL",
                   "github:mudler/LocalAI/gallery/dreamshaper.yaml@master",
@@ -114,14 +111,6 @@ spec:
 
               last_error = None
               for attempt in range(1, max_install_attempts + 1):
-                  # Remove failed partial downloads between attempts.
-                  try:
-                      for file_name in os.listdir("/models"):
-                          if file_name.endswith(".partial"):
-                              os.remove(os.path.join("/models", file_name))
-                  except Exception as exc:
-                      print(f"warning: failed to clean partial files: {exc}", flush=True)
-
                   print(
                       f"Installing model {model_name} from {model_gallery_url} (attempt {attempt}/{max_install_attempts})",
                       flush=True,
@@ -174,7 +163,3 @@ spec:
 
               raise RuntimeError(f"Failed to install model {model_name}: {last_error}")
               PY
-      volumes:
-        - name: models
-          persistentVolumeClaim:
-            claimName: localai-models
