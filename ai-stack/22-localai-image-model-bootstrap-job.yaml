@@ -1,0 +1,149 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: localai-image-model-bootstrap
+  namespace: ai-stack
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: python:3.12-alpine
+          env:
+            - name: LOCALAI_BASE_URL
+              value: "http://localai.ai-stack.svc.cluster.local:8080"
+            - name: LOCALAI_IMAGE_MODEL_NAME
+              value: "sd-1.5-ggml"
+            - name: LOCALAI_IMAGE_MODEL_GALLERY_URL
+              value: "github:mudler/LocalAI/gallery/sd-ggml.yaml@master"
+            - name: LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS
+              value: "7200"
+            - name: LOCALAI_BOOTSTRAP_POLL_SECONDS
+              value: "15"
+          command:
+            - /bin/sh
+            - -lc
+          args:
+            - |
+              python - <<'PY'
+              import json
+              import os
+              import sys
+              import time
+              import urllib.error
+              import urllib.request
+
+              base_url = os.getenv("LOCALAI_BASE_URL", "http://localai:8080").rstrip("/")
+              model_name = os.getenv("LOCALAI_IMAGE_MODEL_NAME", "sd-1.5-ggml")
+              model_gallery_url = os.getenv(
+                  "LOCALAI_IMAGE_MODEL_GALLERY_URL",
+                  "github:mudler/LocalAI/gallery/sd-ggml.yaml@master",
+              )
+              timeout_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS", "7200"))
+              poll_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_POLL_SECONDS", "15"))
+
+              def http_request(method, path, payload=None):
+                  data = None
+                  headers = {}
+                  if payload is not None:
+                      data = json.dumps(payload).encode("utf-8")
+                      headers["Content-Type"] = "application/json"
+                  req = urllib.request.Request(
+                      f"{base_url}{path}",
+                      data=data,
+                      method=method,
+                      headers=headers,
+                  )
+                  with urllib.request.urlopen(req, timeout=30) as resp:
+                      body = resp.read().decode("utf-8")
+                  if not body:
+                      return {}
+                  return json.loads(body)
+
+              def get_installed_models():
+                  response = http_request("GET", "/v1/models")
+                  data = response.get("data", [])
+                  names = set()
+                  for item in data:
+                      if isinstance(item, dict):
+                          if item.get("id"):
+                              names.add(str(item["id"]))
+                          if item.get("name"):
+                              names.add(str(item["name"]))
+                  return names
+
+              def wait_for_localai_ready():
+                  deadline = time.time() + 300
+                  while time.time() < deadline:
+                      try:
+                          get_installed_models()
+                          return
+                      except Exception as exc:
+                          print(f"LocalAI not ready yet: {exc}", flush=True)
+                          time.sleep(5)
+                  raise RuntimeError("Timed out waiting for LocalAI readiness")
+
+              def parse_job_status(job_response, job_id):
+                  if isinstance(job_response, dict) and "processed" in job_response:
+                      return job_response
+                  if isinstance(job_response, dict) and job_id in job_response:
+                      return job_response[job_id]
+                  if isinstance(job_response, dict):
+                      for value in job_response.values():
+                          if isinstance(value, dict) and "processed" in value:
+                              return value
+                  raise RuntimeError(f"Unexpected job payload: {job_response}")
+
+              wait_for_localai_ready()
+              installed = get_installed_models()
+              if model_name in installed:
+                  print(f"Model {model_name} already installed", flush=True)
+                  sys.exit(0)
+
+              print(
+                  f"Installing model {model_name} from {model_gallery_url}",
+                  flush=True,
+              )
+              apply_response = http_request(
+                  "POST",
+                  "/models/apply",
+                  {"id": model_name, "url": model_gallery_url},
+              )
+              job_id = apply_response.get("uuid")
+              if not job_id:
+                  raise RuntimeError(f"Missing job UUID in response: {apply_response}")
+
+              deadline = time.time() + timeout_seconds
+              while time.time() < deadline:
+                  job_response = http_request("GET", f"/models/jobs/{job_id}")
+                  status = parse_job_status(job_response, job_id)
+                  processed = bool(status.get("processed"))
+                  error = status.get("error")
+                  message = status.get("message", "")
+                  progress = status.get("progress", 0)
+                  print(
+                      f"job={job_id} processed={processed} progress={progress} message={message}",
+                      flush=True,
+                  )
+                  if processed:
+                      if error not in (None, {}, ""):
+                          raise RuntimeError(f"Model install failed: {error} {message}")
+                      installed = get_installed_models()
+                      if model_name in installed:
+                          print(f"Model {model_name} installed successfully", flush=True)
+                          sys.exit(0)
+                      raise RuntimeError(
+                          f"Install job completed but model {model_name} is still missing"
+                      )
+                  time.sleep(poll_seconds)
+
+              raise RuntimeError(
+                  f"Timed out waiting for model {model_name} install job {job_id}"
+              )
+              PY
