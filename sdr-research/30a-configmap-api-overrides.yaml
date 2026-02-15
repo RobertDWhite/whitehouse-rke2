@@ -46,16 +46,16 @@ data:
         audio_path: str,
         output_path: str,
         figsize: tuple = (12, 4),
-        max_seconds: int = 300,
+        max_seconds: int = 90,
     ):
         """Generate spectrogram image and save to file."""
         # Bound decode duration to avoid huge memory/latency on very long captures.
-        y, sr = librosa.load(audio_path, sr=16000, mono=True, duration=max_seconds)
+        y, sr = librosa.load(audio_path, sr=8000, mono=True, duration=max_seconds)
 
         # Compute spectrogram
         hop_length = max(256, len(y) // 2000) if len(y) else 256
         D = librosa.amplitude_to_db(
-            np.abs(librosa.stft(y, n_fft=1024, hop_length=hop_length)),
+            np.abs(librosa.stft(y, n_fft=512, hop_length=hop_length)),
             ref=np.max,
         )
 
