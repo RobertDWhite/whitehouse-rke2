@@ -139,6 +139,16 @@ spec:
                       if result.returncode == 0:
                           print(f"Prefetch complete: {target_path}", flush=True)
                           return
+                      if (
+                          "416 Requested Range Not Satisfiable" in (result.stderr or "")
+                          and os.path.exists(target_path)
+                          and os.path.getsize(target_path) > 0
+                      ):
+                          print(
+                              f"Prefetch already complete (HTTP 416 with existing file): {target_path}",
+                              flush=True,
+                          )
+                          return
                       print(
                           f"prefetch failed rc={result.returncode}: {result.stderr.strip()}",
                           flush=True,
