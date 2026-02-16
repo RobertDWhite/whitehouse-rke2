@@ -99,3 +99,512 @@ data:
             })
 
         return segments
+  files.py: |
+    import os
+    import re
+    from datetime import datetime
+    from typing import Optional, List
+
+    from fastapi import APIRouter, Depends, HTTPException, Query, Request
+    from fastapi.responses import StreamingResponse, FileResponse
+    from pydantic import BaseModel
+    from sqlalchemy import desc, func, or_
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording
+
+    router = APIRouter()
+
+    CALLSIGN_PATTERN = re.compile(r"\b(?:[AKNW][A-Z]?\d[A-Z]{1,3})\b", re.IGNORECASE)
+
+
+    def _normalize_callsign(value: str) -> str:
+        return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+
+    def _callsign_hints() -> List[str]:
+        raw = os.getenv("CALLSIGN_HINTS", "w3rdw")
+        hints: List[str] = []
+        for token in raw.split(","):
+            normalized = _normalize_callsign(token.strip())
+            if normalized:
+                hints.append(normalized)
+        return hints
+
+
+    def extract_callsign_tags(transcript: Optional[str]) -> List[str]:
+        if not transcript:
+            return []
+
+        tags: List[str] = []
+        seen = set()
+
+        for match in CALLSIGN_PATTERN.finditer(transcript):
+            tag = _normalize_callsign(match.group(0))
+            if tag and tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+
+        normalized_text = _normalize_callsign(transcript)
+        for hint in _callsign_hints():
+            if hint in normalized_text and hint not in seen:
+                seen.add(hint)
+                tags.append(hint)
+
+        return tags
+
+
+    class BulkDeleteRequest(BaseModel):
+        ids: List[int]
+
+
+    class BulkDeleteFilteredRequest(BaseModel):
+        mode: Optional[str] = None
+        frequency_min: Optional[float] = None
+        frequency_max: Optional[float] = None
+        q: Optional[str] = None
+        callsign: Optional[str] = None
+        date_from: Optional[datetime] = None
+        date_to: Optional[datetime] = None
+        duration_min: Optional[float] = None
+        duration_max: Optional[float] = None
+        has_transcript: Optional[bool] = None
+        dry_run: bool = False
+
+
+    def _validate_mode(mode: Optional[str]):
+        if mode is not None and mode not in {"cw", "voice"}:
+            raise HTTPException(status_code=422, detail="mode must be 'cw' or 'voice'")
+
+
+    def _validate_duration_bounds(duration_min: Optional[float], duration_max: Optional[float]):
+        if (
+            duration_min is not None
+            and duration_max is not None
+            and duration_min > duration_max
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="duration_min cannot be greater than duration_max",
+            )
+
+
+    def _apply_recording_filters(
+        query,
+        mode: Optional[str] = None,
+        frequency_min: Optional[float] = None,
+        frequency_max: Optional[float] = None,
+        q: Optional[str] = None,
+        callsign: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        duration_min: Optional[float] = None,
+        duration_max: Optional[float] = None,
+        has_transcript: Optional[bool] = None,
+    ):
+        if mode:
+            query = query.filter(Recording.mode == mode)
+        if frequency_min is not None:
+            query = query.filter(Recording.frequency_hz >= frequency_min)
+        if frequency_max is not None:
+            query = query.filter(Recording.frequency_hz <= frequency_max)
+
+        if q:
+            cleaned_q = q.strip()
+            if cleaned_q:
+                search_query = func.plainto_tsquery("english", cleaned_q)
+                query = query.filter(
+                    or_(
+                        Recording.search_vector.op("@@")(search_query),
+                        Recording.transcript.ilike(f"%{cleaned_q}%"),
+                    )
+                )
+
+        if callsign:
+            normalized_callsign = _normalize_callsign(callsign)
+            if normalized_callsign:
+                normalized_transcript = func.regexp_replace(
+                    func.upper(func.coalesce(Recording.transcript, "")),
+                    "[^A-Z0-9]+",
+                    "",
+                    "g",
+                )
+                query = query.filter(normalized_transcript.ilike(f"%{normalized_callsign}%"))
+
+        if date_from:
+            query = query.filter(Recording.timestamp >= date_from)
+        if date_to:
+            query = query.filter(Recording.timestamp <= date_to)
+        if duration_min is not None:
+            query = query.filter(Recording.duration_seconds >= duration_min)
+        if duration_max is not None:
+            query = query.filter(Recording.duration_seconds <= duration_max)
+
+        transcript_len = func.length(func.trim(func.coalesce(Recording.transcript, "")))
+        if has_transcript is True:
+            query = query.filter(transcript_len > 0)
+        elif has_transcript is False:
+            query = query.filter(transcript_len == 0)
+
+        return query
+
+
+    @router.get("/browse")
+    async def browse_files(
+        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
+        frequency_min: Optional[float] = None,
+        frequency_max: Optional[float] = None,
+        q: Optional[str] = Query(None, min_length=1),
+        callsign: Optional[str] = Query(None, min_length=1, max_length=20),
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        duration_min: Optional[float] = Query(None, ge=0),
+        duration_max: Optional[float] = Query(None, ge=0),
+        has_transcript: Optional[bool] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(50, ge=1, le=200),
+        db: Session = Depends(get_db),
+    ):
+        """List recordings with optional filters."""
+        _validate_duration_bounds(duration_min, duration_max)
+
+        query = _apply_recording_filters(
+            db.query(Recording),
+            mode=mode,
+            frequency_min=frequency_min,
+            frequency_max=frequency_max,
+            q=q,
+            callsign=callsign,
+            date_from=date_from,
+            date_to=date_to,
+            duration_min=duration_min,
+            duration_max=duration_max,
+            has_transcript=has_transcript,
+        )
+
+        total = query.count()
+        recordings = (
+            query.order_by(desc(Recording.timestamp))
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+
+        return {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "items": [
+                {
+                    "id": r.id,
+                    "filename": r.filename,
+                    "mode": r.mode,
+                    "frequency_hz": r.frequency_hz,
+                    "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                    "duration_seconds": r.duration_seconds,
+                    "has_transcript": bool((r.transcript or "").strip()),
+                    "callsign_tags": extract_callsign_tags(r.transcript),
+                }
+                for r in recordings
+            ],
+        }
+
+
+    @router.get("/{file_id}")
+    async def get_file(file_id: int, db: Session = Depends(get_db)):
+        """Get file metadata and transcript."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        return {
+            "id": recording.id,
+            "filename": recording.filename,
+            "mode": recording.mode,
+            "frequency_hz": recording.frequency_hz,
+            "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
+            "duration_seconds": recording.duration_seconds,
+            "transcript": recording.transcript,
+            "callsign_tags": extract_callsign_tags(recording.transcript),
+            "has_waveform": recording.waveform_cached is not None,
+            "has_spectrogram": recording.spectrogram_cached is not None,
+        }
+
+
+    @router.get("/{file_id}/stream")
+    async def stream_file(file_id: int, request: Request, db: Session = Depends(get_db)):
+        """Stream audio file with Range request support."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        audio_path = recording.audio_path
+        if not os.path.exists(audio_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+
+        file_size = os.path.getsize(audio_path)
+
+        # Handle Range requests for seeking
+        range_header = request.headers.get("Range")
+        if range_header:
+            try:
+                range_spec = range_header.replace("bytes=", "")
+                start, end = range_spec.split("-")
+                start = int(start) if start else 0
+                end = int(end) if end else file_size - 1
+                end = min(end, file_size - 1)
+
+                content_length = end - start + 1
+
+                def iter_file():
+                    with open(audio_path, "rb") as f:
+                        f.seek(start)
+                        remaining = content_length
+                        while remaining > 0:
+                            chunk_size = min(8192, remaining)
+                            data = f.read(chunk_size)
+                            if not data:
+                                break
+                            remaining -= len(data)
+                            yield data
+
+                return StreamingResponse(
+                    iter_file(),
+                    status_code=206,
+                    media_type="audio/wav",
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{file_size}",
+                        "Content-Length": str(content_length),
+                        "Accept-Ranges": "bytes",
+                    },
+                )
+            except (ValueError, IndexError):
+                pass
+
+        # Full file response
+        return FileResponse(
+            audio_path,
+            media_type="audio/wav",
+            headers={"Accept-Ranges": "bytes"},
+        )
+
+
+    def _delete_recording_files(recording: Recording):
+        """Remove audio, text, and cache files for a recording."""
+        for path in [
+            recording.audio_path,
+            recording.text_path,
+            recording.waveform_cached,
+            recording.spectrogram_cached,
+        ]:
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+
+
+    @router.delete("/{file_id}")
+    async def delete_file(file_id: int, db: Session = Depends(get_db)):
+        """Delete a single recording and its files."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        _delete_recording_files(recording)
+        db.delete(recording)
+        db.commit()
+        return {"deleted": 1}
+
+
+    @router.post("/bulk-delete")
+    async def bulk_delete_files(body: BulkDeleteRequest, db: Session = Depends(get_db)):
+        """Delete multiple recordings by ID."""
+        recordings = db.query(Recording).filter(Recording.id.in_(body.ids)).all()
+        count = 0
+        for recording in recordings:
+            _delete_recording_files(recording)
+            db.delete(recording)
+            count += 1
+        db.commit()
+        return {"deleted": count}
+
+
+    @router.post("/bulk-delete-filtered")
+    async def bulk_delete_filtered_files(
+        body: BulkDeleteFilteredRequest,
+        db: Session = Depends(get_db),
+    ):
+        """Delete all recordings matching the provided filter criteria."""
+        _validate_mode(body.mode)
+        _validate_duration_bounds(body.duration_min, body.duration_max)
+
+        has_any_filter = any(
+            [
+                body.mode is not None,
+                body.frequency_min is not None,
+                body.frequency_max is not None,
+                body.q is not None,
+                body.callsign is not None,
+                body.date_from is not None,
+                body.date_to is not None,
+                body.duration_min is not None,
+                body.duration_max is not None,
+                body.has_transcript is not None,
+            ]
+        )
+        if not has_any_filter:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one filter is required for bulk-delete-filtered",
+            )
+
+        query = _apply_recording_filters(
+            db.query(Recording),
+            mode=body.mode,
+            frequency_min=body.frequency_min,
+            frequency_max=body.frequency_max,
+            q=body.q,
+            callsign=body.callsign,
+            date_from=body.date_from,
+            date_to=body.date_to,
+            duration_min=body.duration_min,
+            duration_max=body.duration_max,
+            has_transcript=body.has_transcript,
+        )
+        recordings = query.all()
+        matched = len(recordings)
+
+        if body.dry_run:
+            return {"matched": matched, "deleted": 0}
+
+        for recording in recordings:
+            _delete_recording_files(recording)
+            db.delete(recording)
+        db.commit()
+
+        return {"matched": matched, "deleted": matched}
+  search.py: |
+    import os
+    import re
+    from typing import Optional, List
+
+    from fastapi import APIRouter, Depends, Query
+    from sqlalchemy import func, text
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording
+
+    router = APIRouter()
+
+    CALLSIGN_PATTERN = re.compile(r"\b(?:[AKNW][A-Z]?\d[A-Z]{1,3})\b", re.IGNORECASE)
+
+
+    def _normalize_callsign(value: str) -> str:
+        return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+
+    def _callsign_hints() -> List[str]:
+        raw = os.getenv("CALLSIGN_HINTS", "w3rdw")
+        hints: List[str] = []
+        for token in raw.split(","):
+            normalized = _normalize_callsign(token.strip())
+            if normalized:
+                hints.append(normalized)
+        return hints
+
+
+    def extract_callsign_tags(transcript: Optional[str]) -> List[str]:
+        if not transcript:
+            return []
+
+        tags: List[str] = []
+        seen = set()
+
+        for match in CALLSIGN_PATTERN.finditer(transcript):
+            tag = _normalize_callsign(match.group(0))
+            if tag and tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+
+        normalized_text = _normalize_callsign(transcript)
+        for hint in _callsign_hints():
+            if hint in normalized_text and hint not in seen:
+                seen.add(hint)
+                tags.append(hint)
+
+        return tags
+
+
+    @router.get("/text")
+    async def search_text(
+        q: str = Query(..., min_length=1),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
+        frequency_min: Optional[float] = None,
+        frequency_max: Optional[float] = None,
+        callsign: Optional[str] = Query(None, min_length=1, max_length=20),
+        page: int = Query(1, ge=1),
+        limit: int = Query(50, ge=1, le=200),
+        db: Session = Depends(get_db),
+    ):
+        """Full-text search on transcripts."""
+        search_query = func.plainto_tsquery("english", q)
+
+        query = db.query(
+            Recording,
+            func.ts_rank(Recording.search_vector, search_query).label("rank"),
+            func.ts_headline(
+                "english",
+                Recording.transcript,
+                search_query,
+                "StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20",
+            ).label("headline"),
+        ).filter(Recording.search_vector.op("@@")(search_query))
+
+        if mode:
+            query = query.filter(Recording.mode == mode)
+        if frequency_min is not None:
+            query = query.filter(Recording.frequency_hz >= frequency_min)
+        if frequency_max is not None:
+            query = query.filter(Recording.frequency_hz <= frequency_max)
+
+        if callsign:
+            normalized_callsign = _normalize_callsign(callsign)
+            if normalized_callsign:
+                normalized_transcript = func.regexp_replace(
+                    func.upper(func.coalesce(Recording.transcript, "")),
+                    "[^A-Z0-9]+",
+                    "",
+                    "g",
+                )
+                query = query.filter(normalized_transcript.ilike(f"%{normalized_callsign}%"))
+
+        total = query.count()
+        results = query.order_by(text("rank DESC")).offset((page - 1) * limit).limit(limit).all()
+
+        return {
+            "query": q,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "items": [
+                {
+                    "id": r.Recording.id,
+                    "filename": r.Recording.filename,
+                    "mode": r.Recording.mode,
+                    "frequency_hz": r.Recording.frequency_hz,
+                    "timestamp": r.Recording.timestamp.isoformat() if r.Recording.timestamp else None,
+                    "headline": r.headline,
+                    "rank": float(r.rank),
+                    "callsign_tags": extract_callsign_tags(r.Recording.transcript),
+                }
+                for r in results
+            ],
+        }
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: sdr-viewer-api-overrides
+  namespace: sdr-research
