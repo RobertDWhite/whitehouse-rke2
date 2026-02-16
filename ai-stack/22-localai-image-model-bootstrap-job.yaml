@@ -34,6 +34,10 @@ spec:
               value: "15"
             - name: LOCALAI_MAX_INSTALL_ATTEMPTS
               value: "4"
+            - name: LOCALAI_HTTP_MAX_ATTEMPTS
+              value: "6"
+            - name: LOCALAI_HTTP_TIMEOUT_SECONDS
+              value: "90"
             - name: LOCALAI_PREFETCH_ATTEMPTS
               value: "8"
             - name: LOCALAI_IMAGE_MODEL_FILE_URL
@@ -66,6 +70,8 @@ spec:
               timeout_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS", "7200"))
               poll_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_POLL_SECONDS", "15"))
               max_install_attempts = int(os.getenv("LOCALAI_MAX_INSTALL_ATTEMPTS", "4"))
+              max_http_attempts = int(os.getenv("LOCALAI_HTTP_MAX_ATTEMPTS", "6"))
+              http_timeout_seconds = int(os.getenv("LOCALAI_HTTP_TIMEOUT_SECONDS", "90"))
               prefetch_attempts = int(os.getenv("LOCALAI_PREFETCH_ATTEMPTS", "8"))
               prefetch_file_url = os.getenv("LOCALAI_IMAGE_MODEL_FILE_URL", "").strip()
               prefetch_file_name = os.getenv("LOCALAI_IMAGE_MODEL_FILE_NAME", "").strip()
@@ -82,11 +88,24 @@ spec:
                       method=method,
                       headers=headers,
                   )
-                  with urllib.request.urlopen(req, timeout=30) as resp:
-                      body = resp.read().decode("utf-8")
-                  if not body:
-                      return {}
-                  return json.loads(body)
+                  last_exc = None
+                  for attempt in range(1, max_http_attempts + 1):
+                      try:
+                          with urllib.request.urlopen(req, timeout=http_timeout_seconds) as resp:
+                              body = resp.read().decode("utf-8")
+                          if not body:
+                              return {}
+                          return json.loads(body)
+                      except Exception as exc:
+                          last_exc = exc
+                          if attempt < max_http_attempts:
+                              print(
+                                  f"http retry {attempt}/{max_http_attempts} for {method} {path}: {exc}",
+                                  flush=True,
+                              )
+                              time.sleep(5)
+                              continue
+                  raise last_exc
 
               def get_installed_models():
                   response = http_request("GET", "/v1/models")
