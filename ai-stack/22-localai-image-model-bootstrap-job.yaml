@@ -34,6 +34,12 @@ spec:
               value: "15"
             - name: LOCALAI_MAX_INSTALL_ATTEMPTS
               value: "4"
+            - name: LOCALAI_PREFETCH_ATTEMPTS
+              value: "8"
+            - name: LOCALAI_IMAGE_MODEL_FILE_URL
+              value: "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors"
+            - name: LOCALAI_IMAGE_MODEL_FILE_NAME
+              value: "DreamShaper_8_pruned.safetensors"
           volumeMounts:
             - name: models
               mountPath: /models
@@ -45,6 +51,7 @@ spec:
               python - <<'PY'
               import json
               import os
+              import subprocess
               import sys
               import time
               import urllib.error
@@ -59,6 +66,9 @@ spec:
               timeout_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS", "7200"))
               poll_seconds = int(os.getenv("LOCALAI_BOOTSTRAP_POLL_SECONDS", "15"))
               max_install_attempts = int(os.getenv("LOCALAI_MAX_INSTALL_ATTEMPTS", "4"))
+              prefetch_attempts = int(os.getenv("LOCALAI_PREFETCH_ATTEMPTS", "8"))
+              prefetch_file_url = os.getenv("LOCALAI_IMAGE_MODEL_FILE_URL", "").strip()
+              prefetch_file_name = os.getenv("LOCALAI_IMAGE_MODEL_FILE_NAME", "").strip()
 
               def http_request(method, path, payload=None):
                   data = None
@@ -112,11 +122,38 @@ spec:
                               return value
                   raise RuntimeError(f"Unexpected job payload: {job_response}")
 
+              def prefetch_model_file_if_configured():
+                  if not prefetch_file_url or not prefetch_file_name:
+                      return
+                  target_path = os.path.join("/models", prefetch_file_name)
+                  for attempt in range(1, prefetch_attempts + 1):
+                      print(
+                          f"Prefetching model file {target_path} (attempt {attempt}/{prefetch_attempts})",
+                          flush=True,
+                      )
+                      result = subprocess.run(
+                          ["wget", "-c", "-O", target_path, prefetch_file_url],
+                          capture_output=True,
+                          text=True,
+                      )
+                      if result.returncode == 0:
+                          print(f"Prefetch complete: {target_path}", flush=True)
+                          return
+                      print(
+                          f"prefetch failed rc={result.returncode}: {result.stderr.strip()}",
+                          flush=True,
+                      )
+                      if attempt < prefetch_attempts:
+                          time.sleep(10)
+                  raise RuntimeError(f"Failed to prefetch model file: {target_path}")
+
               wait_for_localai_ready()
               installed = get_installed_models()
               if model_name in installed:
                   print(f"Model {model_name} already installed", flush=True)
                   sys.exit(0)
+
+              prefetch_model_file_if_configured()
 
               last_error = None
               for attempt in range(1, max_install_attempts + 1):
