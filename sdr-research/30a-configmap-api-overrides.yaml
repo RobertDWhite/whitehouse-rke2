@@ -107,7 +107,7 @@ data:
     from sqlalchemy.orm import Session
 
     from ..database import get_db
-    from ..models import Recording
+    from ..models import CallsignInfo, Recording, Repeater
     from ..services.tagging import extract_callsign_tags, normalize_callsign, parse_ai_tags
 
     router = APIRouter()
@@ -286,6 +286,39 @@ data:
         callsign_tags = extract_callsign_tags(recording.transcript)
         ai_tags = parse_ai_tags(recording.ai_tags)
 
+        # Repeater info
+        repeater_info = None
+        if recording.repeater_id:
+            rep = db.query(Repeater).filter(Repeater.id == recording.repeater_id).first()
+            if rep:
+                repeater_info = {
+                    "id": rep.id,
+                    "callsign": rep.callsign,
+                    "location": rep.location,
+                    "county": rep.county,
+                    "state": rep.state,
+                    "frequency_hz": rep.frequency_hz,
+                    "input_hz": rep.input_hz,
+                    "pl_tone": rep.pl_tone,
+                    "digital_modes": [m.strip() for m in rep.digital_modes.split(",")] if rep.digital_modes else [],
+                    "linked_nodes": rep.linked_nodes,
+                    "use": rep.use,
+                }
+
+        # Operator info for callsigns heard in transcript
+        operators = []
+        for cs in callsign_tags[:5]:
+            info = db.query(CallsignInfo).filter(CallsignInfo.callsign == cs).first()
+            if info:
+                operators.append({
+                    "callsign": info.callsign,
+                    "name": info.name,
+                    "qth_city": info.qth_city,
+                    "qth_state": info.qth_state,
+                    "license_class": info.license_class,
+                    "grid": info.grid,
+                })
+
         return {
             "id": recording.id,
             "filename": recording.filename,
@@ -300,6 +333,8 @@ data:
             "tags": _all_tags(callsign_tags, ai_tags),
             "has_waveform": recording.waveform_cached is not None,
             "has_spectrogram": recording.spectrogram_cached is not None,
+            "repeater": repeater_info,
+            "operators": operators,
         }
 
 
