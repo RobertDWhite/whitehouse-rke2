@@ -24,6 +24,7 @@ data:
     # hallucinated output.
     NO_SPEECH_THRESHOLD = float(os.getenv("NO_SPEECH_THRESHOLD", "0.7"))
     COMPRESSION_RATIO_THRESHOLD = float(os.getenv("COMPRESSION_RATIO_THRESHOLD", "2.0"))
+    LOG_PROB_THRESHOLD = float(os.getenv("LOG_PROB_THRESHOLD", "-1.0"))
 
     # Whisper hallucinates these phrases from silence/noise. Any segment whose
     # entire text matches is treated as non-speech and discarded.
@@ -94,6 +95,8 @@ data:
                         compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
                     )
                     for seg in segments:
+                        if seg.avg_logprob < LOG_PROB_THRESHOLD:
+                            continue
                         line = seg.text.strip()
                         if line and not _HALLUCINATION_RE.match(line):
                             lines.append(line)
