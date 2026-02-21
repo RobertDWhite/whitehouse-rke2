@@ -29,6 +29,7 @@ data:
     SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-40"))
     TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
     MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
+    MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
     RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-20"))
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
@@ -64,7 +65,8 @@ data:
 
         def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
                      open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
-                     tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC):
+                     tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC,
+                     max_seconds=MAX_REC_SEC):
             gr.sync_block.__init__(self, name="SquelchRecorder",
                                    in_sig=[np.float32], out_sig=None)
             self.freq_hz      = freq_hz
@@ -75,6 +77,7 @@ data:
             self.close_thresh = 10 ** (close_db / 20.0)
             self.tail_samples = int(tail_seconds * audio_rate)
             self.min_samples  = int(min_seconds * audio_rate)
+            self.max_samples  = int(max_seconds * audio_rate)
 
             self.state         = self.IDLE
             self.wf            = None
@@ -145,6 +148,11 @@ data:
                     pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
                     self.wf.writeframes(pcm.tobytes())
                     self.samples_written += n
+                    # Roll over when the recording hits the max duration.
+                    if self.samples_written >= self.max_samples:
+                        print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)
+                        self._close_wav()
+                        self._open_wav()
 
             return n
 
