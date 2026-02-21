@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: influxdb-bucket-init
+  namespace: observability
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: influx-cli
+          image: influxdb
+          command:
+            - /bin/sh
+            - -c
+            - |
+              influx bucket list \
+                --host http://influxdb:8086 \
+                --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
+                --org "$DOCKER_INFLUXDB_INIT_ORG" \
+                --name freshrss-bi \
+                --hide-headers 2>/dev/null | grep -q freshrss-bi \
+              && echo "Bucket freshrss-bi already exists, skipping." \
+              || influx bucket create \
+                --host http://influxdb:8086 \
+                --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
+                --org "$DOCKER_INFLUXDB_INIT_ORG" \
+                --name freshrss-bi \
+                --retention 0
+          envFrom:
+            - secretRef:
+                name: influxdb-unpoller
