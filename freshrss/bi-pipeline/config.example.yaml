@@ -40,6 +40,8 @@ scoring:
     keyword_match: 5.5
     competitor_match: 8.0
     cloud_match: 7.0
+    feed_match: 30.0
+    domain_match: 12.0
     urgency: 4.0
     health_risk: 20.0
     cloud_spend_pressure: 20.0
@@ -49,7 +51,10 @@ scoring:
 customers:
   - id: acme_health
     name: Acme Health
+    url: "https://acmehealth.example.com"
     min_alert_score: 50
+    feed_urls:
+      - "https://acmehealth.example.com/press-releases/rss"
     keywords:
       - acme health
       - epic
@@ -76,7 +81,11 @@ customers:
 
   - id: northwind_saas
     name: Northwind SaaS
+    url: "https://northwindsaas.example.com"
     min_alert_score: 48
+    feed_urls:
+      - "https://northwindsaas.example.com/blog/rss"
+      - "https://northwindsaas.example.com/news/rss"
     keywords:
       - northwind
       - saas spend
