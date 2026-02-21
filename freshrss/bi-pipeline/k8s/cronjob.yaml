@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: freshrss-bi-pipeline
+  namespace: freshrss
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: bi-pipeline
+              image: freshrss-bi-pipeline
+              imagePullPolicy: IfNotPresent
+              args:
+                - --config
+                - /config/config.yaml
+              envFrom:
+                - secretRef:
+                    name: freshrss-bi-secrets
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: config
+              configMap:
+                name: freshrss-bi-config
+            - name: data
+              persistentVolumeClaim:
+                claimName: freshrss-bi-data
