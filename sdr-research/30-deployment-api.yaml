@@ -75,6 +75,21 @@ spec:
               value: "MD,VA,DC,PA"
             - name: REPEATERBOOK_SYNC_HOURS
               value: "24"
+            - name: ALERT_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: alert-webhook-url
+            - name: ALERT_CALLSIGNS
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: alert-callsigns
+            - name: ALERT_KEYWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: alert-keywords
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
