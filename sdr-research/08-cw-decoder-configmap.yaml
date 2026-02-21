@@ -11,6 +11,8 @@ data:
     AUDIO_DIR="/data/audio/cw"
     OUT_DIR="/data/text/cw"
     MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
+    # Minimum number of alphanumeric characters required to keep a decoded result
+    MIN_CHARS="${MIN_CW_CHARS:-4}"
 
     mkdir -p "$OUT_DIR"
 
@@ -34,9 +36,25 @@ data:
       fi
 
       echo "Decoding $f"
-      if multimon-ng -q -t wav -a CW "$f" > "$tmp"; then
-        mv "$tmp" "$out"
-      else
-        rm -f "$tmp"
+      # Run multimon-ng; strip "CW: " prefix; keep only lines with content
+      raw=$(multimon-ng -q -t wav -a CW "$f" 2>/dev/null | grep '^CW:' | sed 's/^CW: *//')
+
+      if [ -z "$raw" ]; then
+        echo "No CW detected in $f"
+        continue
       fi
+
+      # Join lines with spaces, collapse multiple spaces
+      joined=$(printf '%s' "$raw" | tr '\n' ' ' | tr -s ' ' | sed 's/^ //;s/ $//')
+
+      # Count alphanumeric characters
+      alnum=$(printf '%s' "$joined" | tr -cd '[:alnum:]' | wc -c)
+      if [ "$alnum" -lt "$MIN_CHARS" ]; then
+        echo "Skipping $f (insufficient content: '$joined')"
+        continue
+      fi
+
+      printf '%s\n' "$joined" > "$tmp"
+      mv "$tmp" "$out"
+      echo "CW decoded: $f -> $joined"
     done
