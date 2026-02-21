@@ -7,6 +7,7 @@ data:
   transcribe.py: |
     import io
     import os
+    import re
     import time
     import wave
     from faster_whisper import WhisperModel
@@ -18,6 +19,23 @@ data:
     MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
     CHUNK_SEC = int(os.getenv("CHUNK_SEC", "30"))
     RETRY_EMPTY_TRANSCRIPTS = os.getenv("RETRY_EMPTY_TRANSCRIPTS", "true").lower() in ("1", "true", "yes", "on")
+    # Whisper segment-level noise rejection. Raise no_speech_threshold to discard
+    # more uncertain segments; lower compression_ratio_threshold to drop repetitive
+    # hallucinated output.
+    NO_SPEECH_THRESHOLD = float(os.getenv("NO_SPEECH_THRESHOLD", "0.7"))
+    COMPRESSION_RATIO_THRESHOLD = float(os.getenv("COMPRESSION_RATIO_THRESHOLD", "2.0"))
+
+    # Whisper hallucinates these phrases from silence/noise. Any segment whose
+    # entire text matches is treated as non-speech and discarded.
+    _HALLUCINATION_RE = re.compile(
+        r"^\s*(?:"
+        r"[^\w]+"                                            # only punctuation / symbols
+        r"|thanks?\s+(?:for\s+)?(?:watching|listening)\.?"  # sign-off filler
+        r"|(?:thank\s+you|bye|goodbye|see\s+you)\.?"        # common filler
+        r"|\[(?:music|applause|laughter|silence|noise|inaudible)[^\]]*\]"  # sound tags
+        r")\s*$",
+        re.IGNORECASE,
+    )
 
     os.makedirs(TEXT_DIR, exist_ok=True)
 
@@ -71,10 +89,12 @@ data:
                         audio_input,
                         vad_filter=True,
                         condition_on_previous_text=False,
+                        no_speech_threshold=NO_SPEECH_THRESHOLD,
+                        compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
                     )
                     for seg in segments:
                         line = seg.text.strip()
-                        if line:
+                        if line and not _HALLUCINATION_RE.match(line):
                             lines.append(line)
                 except Exception as e:
                     print(f"Transcribe chunk failed for {path}: {e}")
