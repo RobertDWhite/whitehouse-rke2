@@ -51,6 +51,24 @@ spec:
               value: /data/text
             - name: CACHE_PATH
               value: /tmp/sdr-viewer-cache
+            - name: REPEATERBOOK_ENABLED
+              value: "true"
+            - name: REPEATERBOOK_LATITUDE
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: repeaterbook-latitude
+            - name: REPEATERBOOK_LONGITUDE
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: repeaterbook-longitude
+            - name: REPEATERBOOK_RADIUS_MILES
+              value: "75"
+            - name: REPEATERBOOK_STATE
+              value: "MD"
+            - name: REPEATERBOOK_SYNC_HOURS
+              value: "24"
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
@@ -68,6 +86,10 @@ spec:
             - name: api-overrides
               mountPath: /app/app/routers/search.py
               subPath: search.py
+              readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/services/tagging.py
+              subPath: tagging.py
               readOnly: true
           resources:
             requests:
