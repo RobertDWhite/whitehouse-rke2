@@ -263,6 +263,7 @@ data:
                     "filename": r.filename,
                     "mode": r.mode,
                     "frequency_hz": r.frequency_hz,
+                    "frequency_label": r.frequency_label,
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
@@ -293,6 +294,7 @@ data:
             "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
             "duration_seconds": recording.duration_seconds,
             "transcript": recording.transcript,
+            "frequency_label": recording.frequency_label,
             "callsign_tags": callsign_tags,
             "ai_tags": ai_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
@@ -535,6 +537,126 @@ data:
                 for r in results
             ],
         }
+  tagging.py: |
+    import json
+    import os
+    import re
+    from typing import List, Optional
+
+
+    CALLSIGN_PATTERN = re.compile(r"\b(?:[AKNW][A-Z]?\d[A-Z]{1,3})\b", re.IGNORECASE)
+    NO_SPEECH_PATTERN = re.compile(
+        r"^\s*(?:"
+        r"\[?\s*no speech detected\s*\]?"
+        r"|\[?\s*recording too long for auto-transcribe\s*\]?"
+        r"|[^\w\s]+"
+        r"|thanks?\s+(?:for\s+)?(?:watching|listening)\.?"
+        r"|(?:thank\s+you|bye|goodbye|see\s+you)\.?"
+        r"|\[(?:music|applause|laughter|silence|noise|inaudible)[^\]]*\]"
+        r")\s*$",
+        re.IGNORECASE,
+    )
+
+    PHONETIC_MAP = {
+        "ALFA": "A", "ALPHA": "A", "BRAVO": "B", "CHARLIE": "C", "DELTA": "D",
+        "ECHO": "E", "FOXTROT": "F", "GOLF": "G", "HOTEL": "H", "INDIA": "I",
+        "JULIETT": "J", "JULIET": "J", "KILO": "K", "LIMA": "L", "MIKE": "M",
+        "NOVEMBER": "N", "OSCAR": "O", "PAPA": "P", "QUEBEC": "Q", "ROMEO": "R",
+        "SIERRA": "S", "TANGO": "T", "UNIFORM": "U", "VICTOR": "V", "WHISKEY": "W",
+        "XRAY": "X", "X-RAY": "X", "YANKEE": "Y", "ZULU": "Z",
+        "ZERO": "0", "OH": "0", "ONE": "1", "TWO": "2", "TOO": "2",
+        "THREE": "3", "TREE": "3", "FOUR": "4", "FIVE": "5", "SIX": "6",
+        "SEVEN": "7", "EIGHT": "8", "NINE": "9", "NINER": "9",
+    }
+
+
+    def normalize_callsign(value: str) -> str:
+        return re.sub(r"[^A-Z0-9]", "", value.upper())
+
+
+    def callsign_hints() -> List[str]:
+        raw = os.getenv("CALLSIGN_HINTS", "w3rdw")
+        hints: List[str] = []
+        for token in raw.split(","):
+            normalized = normalize_callsign(token.strip())
+            if normalized:
+                hints.append(normalized)
+        return hints
+
+
+    def phonetic_compact(text: str) -> str:
+        tokens = re.findall(r"[A-Z0-9-]+", text.upper())
+        compact: List[str] = []
+        for token in tokens:
+            mapped = PHONETIC_MAP.get(token)
+            if mapped:
+                compact.append(mapped)
+                continue
+            if len(token) == 1 and token.isalnum():
+                compact.append(token)
+                continue
+            if token.isdigit():
+                compact.append(token)
+        return "".join(compact)
+
+
+    def extract_callsign_tags(transcript: Optional[str]) -> List[str]:
+        if not transcript:
+            return []
+        tags: List[str] = []
+        seen = set()
+        for match in CALLSIGN_PATTERN.finditer(transcript):
+            tag = normalize_callsign(match.group(0))
+            if tag and tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+        normalized_text = normalize_callsign(transcript)
+        phonetic_text = phonetic_compact(transcript)
+        for hint in callsign_hints():
+            if (hint in normalized_text or hint in phonetic_text) and hint not in seen:
+                seen.add(hint)
+                tags.append(hint)
+        return tags
+
+
+    def is_no_speech_transcript(transcript: Optional[str]) -> bool:
+        if not transcript:
+            return False
+        return NO_SPEECH_PATTERN.match(transcript) is not None
+
+
+    def parse_ai_tags(raw: Optional[str]) -> List[str]:
+        if not raw:
+            return []
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(value, list):
+            return []
+        tags: List[str] = []
+        seen = set()
+        for item in value:
+            if not isinstance(item, str):
+                continue
+            cleaned = item.strip()
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                tags.append(cleaned)
+        return tags
+
+
+    def dump_ai_tags(tags: List[str]) -> Optional[str]:
+        cleaned: List[str] = []
+        seen = set()
+        for tag in tags:
+            normalized = tag.strip()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                cleaned.append(normalized)
+        if not cleaned:
+            return None
+        return json.dumps(cleaned)
 kind: ConfigMap
 metadata:
   creationTimestamp: null
