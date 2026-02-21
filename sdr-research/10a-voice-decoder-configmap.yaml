@@ -134,7 +134,16 @@ data:
 
             if os.path.exists(txt_path):
                 if os.path.getsize(txt_path) > 0:
-                    continue
+                    # Remove stale "too long" stubs so they get retranscribed.
+                    try:
+                        with open(txt_path, "r") as f:
+                            content = f.read(80)
+                        if "recording too long for auto-transcribe" in content:
+                            os.remove(txt_path)
+                        else:
+                            continue
+                    except OSError:
+                        continue
                 if not RETRY_EMPTY_TRANSCRIPTS:
                     continue
                 try:
