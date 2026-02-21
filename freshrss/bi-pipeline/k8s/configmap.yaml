@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freshrss-bi-config
+  namespace: freshrss
+data:
+  config.yaml: |
+    fresh_rss:
+      greader_api_url: "http://freshrss.freshrss.svc.cluster.local/api/greader.php"
+      username: "${FRESHRSS_USERNAME}"
+      api_password: "${FRESHRSS_API_PASSWORD}"
+      verify_tls: false
+      timeout_seconds: 20
+      max_items: 300
+      unread_only: true
+      lookback_hours: 72
+
+    ai:
+      enabled: true
+      base_url: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+      api_key: "${AI_API_KEY}"
+      model: "llama3.1:8b"
+      temperature: 0.1
+      max_tokens: 700
+      timeout_seconds: 45
+
+    taxonomy:
+      event_types:
+        - pricing_change
+        - outage_incident
+        - security_incident
+        - layoffs_reorg
+        - funding_mna
+        - product_launch
+        - cloud_cost_signal
+        - regulatory_change
+        - partner_change
+        - customer_reference
+        - other
+
+    scoring:
+      min_alert_score: 45
+      default_weights:
+        keyword_match: 5.5
+        competitor_match: 8.0
+        cloud_match: 7.0
+        urgency: 4.0
+        health_risk: 20.0
+        cloud_spend_pressure: 20.0
+        churn_risk: 16.0
+        renewal_risk: 16.0
+
+    customers:
+      - id: acme_health
+        name: Acme Health
+        min_alert_score: 50
+        keywords: ["acme health", "epic", "cerner", "healthcare", "cms", "hipaa"]
+        competitors: ["microsoft", "google cloud", "datadog"]
+        cloud_keywords: ["aws", "azure", "gcp", "cloud pricing", "egress", "kubernetes"]
+        event_type_weights:
+          security_incident: 12
+          outage_incident: 10
+          pricing_change: 9
+          regulatory_change: 8
+
+      - id: northwind_saas
+        name: Northwind SaaS
+        min_alert_score: 48
+        keywords: ["northwind", "saas spend", "finops", "platform engineering", "renewal"]
+        competitors: ["snowflake", "databricks", "atlassian"]
+        cloud_keywords: ["commit discount", "cloud bill", "reserved instances", "aws", "azure", "gcp"]
+        event_type_weights:
+          cloud_cost_signal: 12
+          pricing_change: 11
+          layoffs_reorg: 7
+          funding_mna: 6
+
+    state:
+      file: "/data/state/bi_pipeline_state.json"
+      keep_seen_ids: 15000
+
+    output:
+      directory: "/data/output"
+      top_n_per_customer: 5
+      webhook_url: "${WEBHOOK_URL}"
+      webhook_timeout_seconds: 10
+
+    influxdb:
+      enabled: true
+      url: "${INFLUXDB_URL}"
+      org: "${INFLUXDB_ORG}"
+      bucket: "freshrss-bi"
+      token: "${INFLUXDB_TOKEN}"
+      timeout_seconds: 10
+      measurement_prefix: "freshrss_bi"

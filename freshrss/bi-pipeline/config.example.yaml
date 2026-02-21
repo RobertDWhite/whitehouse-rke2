@@ -1,0 +1,122 @@
+fresh_rss:
+  # Example: https://freshrss.example.com/api/greader.php
+  greader_api_url: "https://freshrss.example.com/api/greader.php"
+  username: "api-user"
+  api_password: "replace-with-freshrss-api-password"
+  verify_tls: true
+  timeout_seconds: 20
+  max_items: 300
+  unread_only: true
+  lookback_hours: 72
+
+ai:
+  enabled: true
+  # For Ollama OpenAI mode include /v1.
+  # Example: http://ollama.ai-stack.svc.cluster.local:11434/v1
+  base_url: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+  api_key: "dummy"
+  model: "llama3.1:8b"
+  temperature: 0.1
+  max_tokens: 700
+  timeout_seconds: 45
+
+taxonomy:
+  event_types:
+    - pricing_change
+    - outage_incident
+    - security_incident
+    - layoffs_reorg
+    - funding_mna
+    - product_launch
+    - cloud_cost_signal
+    - regulatory_change
+    - partner_change
+    - customer_reference
+    - other
+
+scoring:
+  min_alert_score: 45
+  default_weights:
+    keyword_match: 5.5
+    competitor_match: 8.0
+    cloud_match: 7.0
+    urgency: 4.0
+    health_risk: 20.0
+    cloud_spend_pressure: 20.0
+    churn_risk: 16.0
+    renewal_risk: 16.0
+
+customers:
+  - id: acme_health
+    name: Acme Health
+    min_alert_score: 50
+    keywords:
+      - acme health
+      - epic
+      - cerner
+      - healthcare
+      - cms
+      - hipaa
+    competitors:
+      - datadog
+      - microsoft
+      - google cloud
+    cloud_keywords:
+      - aws
+      - azure
+      - gcp
+      - cloud pricing
+      - egress
+      - kubernetes
+    event_type_weights:
+      security_incident: 12
+      outage_incident: 10
+      pricing_change: 9
+      regulatory_change: 8
+
+  - id: northwind_saas
+    name: Northwind SaaS
+    min_alert_score: 48
+    keywords:
+      - northwind
+      - saas spend
+      - finops
+      - platform engineering
+      - renewal
+    competitors:
+      - snowflake
+      - databricks
+      - atlassian
+    cloud_keywords:
+      - commit discount
+      - cloud bill
+      - reserved instances
+      - aws
+      - azure
+      - gcp
+    event_type_weights:
+      cloud_cost_signal: 12
+      pricing_change: 11
+      layoffs_reorg: 7
+      funding_mna: 6
+
+state:
+  file: "./state/bi_pipeline_state.json"
+  keep_seen_ids: 15000
+
+output:
+  directory: "./output"
+  top_n_per_customer: 5
+  webhook_url: ""
+  webhook_timeout_seconds: 10
+
+influxdb:
+  enabled: false
+  # Example in-cluster service URL:
+  # http://influxdb.observability.svc.cluster.local:8086
+  url: "http://influxdb.observability.svc.cluster.local:8086"
+  org: "home"
+  bucket: "homeassistant"
+  token: ""
+  timeout_seconds: 10
+  measurement_prefix: "freshrss_bi"
