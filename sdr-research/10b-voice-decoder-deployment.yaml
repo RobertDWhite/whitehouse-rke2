@@ -41,11 +41,15 @@ spec:
               value: "-1.0"
             - name: RETRY_EMPTY_TRANSCRIPTS
               value: "true"
+            - name: HF_HOME
+              value: /model-cache
           volumeMounts:
             - name: artifacts
               mountPath: /data
             - name: scripts
               mountPath: /scripts
+            - name: model-cache
+              mountPath: /model-cache
           command:
             - python3
             - /scripts/transcribe.py
@@ -57,3 +61,6 @@ spec:
           configMap:
             name: voice-decoder-scripts
             defaultMode: 0755
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: whisper-model-cache
