@@ -13,6 +13,15 @@ spec:
       ttlSecondsAfterFinished: 3600
       template:
         spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                          - rke2-node-50
           restartPolicy: Never
           containers:
             - name: bi-pipeline
