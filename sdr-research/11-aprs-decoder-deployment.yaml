@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aprs-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: aprs-decoder
+  template:
+    metadata:
+      labels:
+        app: aprs-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      restartPolicy: Always
+      containers:
+        - name: aprs-decoder
+          image: debian:stable-slim
+          env:
+            - name: MIN_FILE_AGE_SEC
+              value: "15"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Installing APRS decoder dependencies (once per pod start)"
+              apt-get update -qq
+              apt-get install -y --no-install-recommends multimon-ng sox
+              rm -rf /var/lib/apt/lists/*
+
+              cp /scripts/aprs_decode.sh /tmp/aprs_decode.sh
+              chmod +x /tmp/aprs_decode.sh
+
+              echo "Starting APRS decoder loop"
+              while true; do
+                /tmp/aprs_decode.sh
+                sleep 10
+              done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: aprs-decoder-scripts
+            defaultMode: 0755
