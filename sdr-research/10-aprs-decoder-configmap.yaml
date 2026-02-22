@@ -40,9 +40,14 @@ data:
 
       out="$OUT_DIR/$base.txt"
 
-      # Skip if already decoded (non-empty file)
+      # Skip if already decoded — UNLESS Whisper wrote "[no speech detected]"
+      # on an APRS frequency (Whisper won the race; APRS should overwrite).
       if [ -f "$out" ] && [ -s "$out" ]; then
-        continue
+        content=$(cat "$out")
+        case "$content" in
+          *"[no speech detected]"*) ;;  # fall through to try APRS decode
+          *) continue ;;               # real transcript — skip
+        esac
       fi
 
       # Skip files still being written by recorder
