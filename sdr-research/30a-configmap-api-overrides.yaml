@@ -231,12 +231,13 @@ data:
 
     @router.get("/browse")
     async def browse_files(
-        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs)$"),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         q: Optional[str] = Query(None, min_length=1),
         callsign: Optional[str] = Query(None, min_length=1, max_length=20),
         tag: Optional[str] = Query(None, min_length=1, max_length=50),
+        repeater: Optional[str] = Query(None, min_length=1, max_length=20),
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
         duration_min: Optional[float] = Query(None, ge=0),
@@ -263,6 +264,13 @@ data:
             has_transcript=has_transcript,
         )
         query = _apply_tag_filter(query, tag)
+
+        if repeater:
+            query = (
+                query
+                .join(Repeater, Recording.repeater_id == Repeater.id)
+                .filter(Repeater.callsign.ilike(f"%{repeater.strip().upper()}%"))
+            )
 
         total = query.count()
         recordings = (
@@ -551,7 +559,7 @@ data:
     @router.get("/text")
     async def search_text(
         q: str = Query(..., min_length=1),
-        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs)$"),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         callsign: Optional[str] = Query(None, min_length=1, max_length=20),
@@ -855,11 +863,12 @@ data:
 
     @router.get("")
     async def list_repeaters(
-        state: Optional[str] = Query(None, min_length=2, max_length=4),
+        state: Optional[str] = Query(None, min_length=2, max_length=50),
         callsign: Optional[str] = Query(None, min_length=1, max_length=20),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         digital_only: bool = False,
+        digital_mode: Optional[str] = Query(None, min_length=1, max_length=30),
         page: int = Query(1, ge=1),
         limit: int = Query(100, ge=1, le=2000),
         db: Session = Depends(get_db),
@@ -868,18 +877,20 @@ data:
         query = db.query(Repeater)
 
         if state:
-            query = query.filter(Repeater.state.ilike(state))
+            query = query.filter(Repeater.state.ilike(f"%{state}%"))
         if callsign:
             query = query.filter(Repeater.callsign.ilike(f"%{callsign.upper()}%"))
         if frequency_min is not None:
             query = query.filter(Repeater.frequency_hz >= frequency_min)
         if frequency_max is not None:
             query = query.filter(Repeater.frequency_hz <= frequency_max)
-        if digital_only:
+        if digital_only or digital_mode:
             query = query.filter(
                 Repeater.digital_modes.isnot(None),
                 Repeater.digital_modes != "",
             )
+        if digital_mode:
+            query = query.filter(Repeater.digital_modes.ilike(f"%{digital_mode}%"))
 
         total = query.count()
         repeaters = (
