@@ -59,6 +59,11 @@ spec:
               value: /tmp/sdr-viewer-cache
             - name: REPEATERBOOK_ENABLED
               value: "true"
+            - name: REPEATERBOOK_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: repeaterbook-email
             - name: REPEATERBOOK_LATITUDE
               valueFrom:
                 secretKeyRef:
