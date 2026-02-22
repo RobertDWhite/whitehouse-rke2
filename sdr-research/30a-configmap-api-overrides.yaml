@@ -103,7 +103,7 @@ data:
     from fastapi import APIRouter, Depends, HTTPException, Query, Request
     from fastapi.responses import StreamingResponse, FileResponse
     from pydantic import BaseModel
-    from sqlalchemy import desc, func, or_
+    from sqlalchemy import desc, func, or_, text as sql_text
     from sqlalchemy.orm import Session
 
     from ..database import get_db
@@ -387,6 +387,38 @@ data:
             "callsign_tags": callsign_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
         }
+
+
+    @router.post("/{file_id}/retag")
+    async def retag_recording(file_id: int, db: Session = Depends(get_db)):
+        """Clear AI tags so the indexer re-runs tagging on the next cycle."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        recording.ai_tags = None
+        db.commit()
+        return {"status": "ok", "message": "AI tags cleared — will be regenerated on next indexer cycle"}
+
+
+    @router.post("/{file_id}/retranscribe")
+    async def retranscribe_recording(file_id: int, db: Session = Depends(get_db)):
+        """Clear transcript and delete text file so Whisper re-transcribes on next cycle."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        if not recording.audio_path:
+            raise HTTPException(status_code=400, detail="No audio file — cannot re-transcribe")
+        if recording.text_path and os.path.exists(recording.text_path):
+            try:
+                os.remove(recording.text_path)
+            except OSError:
+                pass
+        recording.transcript = None
+        recording.text_path = None
+        recording.ai_tags = None
+        db.execute(sql_text("UPDATE recordings SET search_vector = NULL WHERE id = :id"), {"id": recording.id})
+        db.commit()
+        return {"status": "ok", "message": "Transcript cleared — Whisper will re-transcribe on next cycle"}
 
 
     @router.get("/{file_id}/stream")
@@ -1092,6 +1124,48 @@ data:
         return {"stations": list(stations.values()), "hours": hours}
 
 
+    @router.get("/tracks")
+    def get_aprs_tracks(
+        hours: int = Query(24, ge=1, le=168),
+        db: Session = Depends(get_db),
+    ):
+        """Return per-callsign position tracks for drawing on the map."""
+        since = datetime.utcnow() - timedelta(hours=hours)
+        rows = (
+            db.query(Recording)
+            .filter(
+                Recording.mode == "aprs",
+                Recording.transcript.isnot(None),
+                Recording.timestamp >= since,
+            )
+            .order_by(Recording.timestamp)
+            .limit(5000)
+            .all()
+        )
+        tracks: dict = {}
+        for rec in rows:
+            for line in (rec.transcript or "").splitlines():
+                p = _parse_packet(line)
+                if not p or p["latitude"] is None or p["longitude"] is None:
+                    continue
+                cs = p["callsign"]
+                if cs not in tracks:
+                    tracks[cs] = []
+                tracks[cs].append({
+                    "lat": p["latitude"],
+                    "lon": p["longitude"],
+                    "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
+                })
+        return {
+            "tracks": [
+                {"callsign": cs, "positions": positions}
+                for cs, positions in tracks.items()
+                if len(positions) >= 2
+            ],
+            "hours": hours,
+        }
+
+
     @router.get("/packets")
     def get_aprs_packets(
         callsign: Optional[str] = None,
@@ -1407,9 +1481,25 @@ data:
         if recording.frequency_hz is None:
             return
         if recording.frequency_label is None:
-            label = lookup_known_freq(recording.frequency_hz)
-            if label:
-                recording.frequency_label = label
+            # Check user-defined DB labels first, then fall back to static known_freqs
+            try:
+                from ..models import FrequencyLabel
+                db_label = db.execute(
+                    text(
+                        "SELECT label FROM frequency_labels"
+                        " WHERE ABS(frequency_hz - :f) <= COALESCE(bandwidth_hz, 5000)"
+                        " ORDER BY ABS(frequency_hz - :f) LIMIT 1"
+                    ),
+                    {"f": recording.frequency_hz},
+                ).first()
+                if db_label:
+                    recording.frequency_label = db_label[0]
+            except Exception:
+                pass
+            if recording.frequency_label is None:
+                label = lookup_known_freq(recording.frequency_hz)
+                if label:
+                    recording.frequency_label = label
         if recording.repeater_id is None:
             rptr = lookup_repeater(db, recording.frequency_hz)
             if rptr:
@@ -1453,7 +1543,7 @@ data:
                             update_search_vector(db, existing.id, transcript)
                     maybe_set_frequency_metadata(db, existing)
                     maybe_set_ai_tags(db, existing, existing.transcript, ollama_budget, hamdb_budget)
-                    check_alerts(existing)
+                    check_alerts(existing, db)
                     db.commit()
                     continue
                 if mode == "voice":
@@ -1485,7 +1575,7 @@ data:
                 )
                 maybe_set_frequency_metadata(db, recording)
                 maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget)
-                check_alerts(recording)
+                check_alerts(recording, db)
                 db.add(recording)
                 db.commit()
                 if transcript:
@@ -1536,7 +1626,7 @@ data:
                 callsign_tags = extract_callsign_tags(transcript)
                 if callsign_tags:
                     recording.ai_tags = dump_ai_tags(callsign_tags)
-                check_alerts(recording)
+                check_alerts(recording, db)
                 db.add(recording)
                 db.commit()
                 if transcript:
