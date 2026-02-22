@@ -97,7 +97,7 @@ data:
         return segments
   files.py: |
     import os
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from typing import Optional, List
 
     from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -115,6 +115,7 @@ data:
 
     class UpdateRecordingRequest(BaseModel):
         ai_tags: Optional[List[str]] = None
+        transcript: Optional[str] = None
 
 
     class BulkDeleteRequest(BaseModel):
@@ -303,6 +304,58 @@ data:
         }
 
 
+    @router.get("/callsign/{callsign}")
+    async def get_callsign_info(callsign: str, db: Session = Depends(get_db)):
+        """Return operator info and recording statistics for a callsign."""
+        cs = callsign.strip().upper()
+        info = db.query(CallsignInfo).filter(CallsignInfo.callsign == cs).first()
+        normalized_cs = normalize_callsign(cs)
+        total = 0
+        first_heard = None
+        last_heard = None
+        total_airtime = 0.0
+        if normalized_cs:
+            normalized_transcript = func.regexp_replace(
+                func.upper(func.coalesce(Recording.transcript, "")),
+                "[^A-Z0-9]+",
+                "",
+                "g",
+            )
+            base_q = db.query(Recording).filter(
+                normalized_transcript.ilike(f"%{normalized_cs}%")
+            )
+            total = base_q.count()
+            first_heard = (
+                db.query(func.min(Recording.timestamp))
+                .filter(normalized_transcript.ilike(f"%{normalized_cs}%"))
+                .scalar()
+            )
+            last_heard = (
+                db.query(func.max(Recording.timestamp))
+                .filter(normalized_transcript.ilike(f"%{normalized_cs}%"))
+                .scalar()
+            )
+            total_airtime = (
+                db.query(func.sum(Recording.duration_seconds))
+                .filter(normalized_transcript.ilike(f"%{normalized_cs}%"))
+                .scalar()
+            ) or 0.0
+        return {
+            "callsign": cs,
+            "operator": {
+                "name": info.name,
+                "qth_city": info.qth_city,
+                "qth_state": info.qth_state,
+                "license_class": info.license_class,
+                "grid": info.grid,
+            } if info else None,
+            "total_recordings": total,
+            "first_heard": first_heard.isoformat() if first_heard else None,
+            "last_heard": last_heard.isoformat() if last_heard else None,
+            "total_airtime_seconds": round(total_airtime, 1),
+        }
+
+
     @router.get("/{file_id}")
     async def get_file(file_id: int, db: Session = Depends(get_db)):
         """Get file metadata and transcript."""
@@ -365,11 +418,92 @@ data:
         }
 
 
+    @router.get("/{file_id}/neighbors")
+    async def get_file_neighbors(file_id: int, db: Session = Depends(get_db)):
+        """Get previous and next recording IDs by timestamp."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        ts = recording.timestamp
+        if ts:
+            prev_rec = (
+                db.query(Recording.id)
+                .filter(Recording.timestamp < ts)
+                .order_by(desc(Recording.timestamp))
+                .first()
+            )
+            next_rec = (
+                db.query(Recording.id)
+                .filter(Recording.timestamp > ts)
+                .order_by(Recording.timestamp)
+                .first()
+            )
+        else:
+            prev_rec = (
+                db.query(Recording.id)
+                .filter(Recording.id < file_id)
+                .order_by(desc(Recording.id))
+                .first()
+            )
+            next_rec = (
+                db.query(Recording.id)
+                .filter(Recording.id > file_id)
+                .order_by(Recording.id)
+                .first()
+            )
+        return {
+            "prev_id": prev_rec[0] if prev_rec else None,
+            "next_id": next_rec[0] if next_rec else None,
+        }
+
+
+    @router.get("/{file_id}/related")
+    async def get_related_recordings(file_id: int, db: Session = Depends(get_db)):
+        """Get nearby recordings on the same frequency (±10 kHz, ±1 hour)."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        items = []
+        if recording.frequency_hz is not None and recording.timestamp is not None:
+            ts_min = recording.timestamp - timedelta(hours=1)
+            ts_max = recording.timestamp + timedelta(hours=1)
+            freq_min = recording.frequency_hz - 10000
+            freq_max = recording.frequency_hz + 10000
+            rows = (
+                db.query(Recording)
+                .filter(
+                    Recording.id != recording.id,
+                    Recording.frequency_hz.between(freq_min, freq_max),
+                    Recording.timestamp.between(ts_min, ts_max),
+                )
+                .order_by(desc(Recording.timestamp))
+                .limit(10)
+                .all()
+            )
+            for r in rows:
+                cs_tags = extract_callsign_tags(r.transcript)
+                ai_tags_list = parse_ai_tags(r.ai_tags)
+                items.append({
+                    "id": r.id,
+                    "filename": r.filename,
+                    "mode": r.mode,
+                    "frequency_hz": r.frequency_hz,
+                    "frequency_label": r.frequency_label,
+                    "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                    "duration_seconds": r.duration_seconds,
+                    "has_transcript": bool((r.transcript or "").strip()),
+                    "callsign_tags": cs_tags,
+                    "ai_tags": ai_tags_list,
+                    "tags": _all_tags(cs_tags, ai_tags_list),
+                })
+        return {"items": items, "count": len(items)}
+
+
     @router.patch("/{file_id}")
     async def update_recording(
         file_id: int, body: UpdateRecordingRequest, db: Session = Depends(get_db)
     ):
-        """Update mutable fields on a recording (currently: ai_tags)."""
+        """Update mutable fields on a recording (ai_tags and/or transcript)."""
         recording = db.query(Recording).filter(Recording.id == file_id).first()
         if not recording:
             raise HTTPException(status_code=404, detail="Recording not found")
@@ -377,6 +511,21 @@ data:
         if body.ai_tags is not None:
             from ..services.tagging import dump_ai_tags
             recording.ai_tags = dump_ai_tags(body.ai_tags)
+
+        if body.transcript is not None:
+            new_transcript = body.transcript.strip() or None
+            recording.transcript = new_transcript
+            db.execute(
+                sql_text("UPDATE recordings SET search_vector = NULL WHERE id = :id"),
+                {"id": recording.id},
+            )
+            if new_transcript:
+                db.execute(
+                    sql_text(
+                        "UPDATE recordings SET search_vector = to_tsvector('english', :t) WHERE id = :id"
+                    ),
+                    {"t": new_transcript, "id": recording.id},
+                )
 
         db.commit()
         ai_tags = parse_ai_tags(recording.ai_tags)
@@ -386,6 +535,7 @@ data:
             "ai_tags": ai_tags,
             "callsign_tags": callsign_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
+            "transcript": recording.transcript,
         }
 
 
@@ -1031,6 +1181,40 @@ data:
     )
     _SPEED_COURSE_RE = re.compile(r"(\d{3})/(\d{3})")
     _ALT_RE = re.compile(r"A=(\d{6})")
+    # APRS weather field pattern: cDDD sSS gGGG tTTT [rRRR] [pPPP] [hHH] [bBBBBB]
+    _WEATHER_RE = re.compile(
+        r"c(\d{3}|\.\.\.)s(\d{3}|\.\.\.)g(\d{3}|\.\.\.)t(-?\d{3}|\.\.\.)(?:r(\d{3}|\.{3}))?(?:p(\d{3}|\.{3}))?(?:h(\d{2}|\.{2}))?(?:b(\d{5}|\.{5}))?"
+    )
+
+
+    def _parse_weather(payload: str):
+        m = _WEATHER_RE.search(payload)
+        if not m:
+            return None
+        def _v(s):
+            if s is None or "." in s:
+                return None
+            return int(s)
+        wd = _v(m.group(1))
+        ws = _v(m.group(2))
+        wg = _v(m.group(3))
+        temp = _v(m.group(4))
+        if ws is None and temp is None:
+            return None  # not a real weather packet
+        r1 = _v(m.group(5))
+        r24 = _v(m.group(6))
+        hum = _v(m.group(7))
+        baro = _v(m.group(8))
+        return {
+            "wind_dir_deg": wd,
+            "wind_speed_mph": ws,
+            "wind_gust_mph": wg,
+            "temp_f": temp,
+            "rain_1h_in": round(r1 * 0.01, 2) if r1 is not None else None,
+            "rain_24h_in": round(r24 * 0.01, 2) if r24 is not None else None,
+            "humidity_pct": hum,
+            "pressure_mbar": round(baro * 0.1, 1) if baro is not None else None,
+        }
 
 
     def _parse_position(payload: str):
@@ -1071,6 +1255,8 @@ data:
             alt_m = _ALT_RE.search(payload)
             altitude_ft = int(alt_m.group(1)) if alt_m else None
             comment = _parse_comment(payload)
+            is_weather = len(payload) > 0 and payload[0] == "_"
+            weather = _parse_weather(payload) if is_weather else None
             return {
                 "callsign": callsign,
                 "path": path,
@@ -1081,6 +1267,8 @@ data:
                 "altitude_ft": altitude_ft,
                 "comment": comment,
                 "packet": line.strip(),
+                "is_weather": is_weather,
+                "weather": weather,
             }
         except Exception:
             return None
