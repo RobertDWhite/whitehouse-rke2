@@ -9,7 +9,7 @@ data:
     set -e
 
     AUDIO_DIR="/data/audio/voice"
-    OUT_DIR="/data/text/voice"
+    OUT_DIR="/data/text/aprs"
     MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
 
     # APRS frequency ranges (Hz):
@@ -40,14 +40,9 @@ data:
 
       out="$OUT_DIR/$base.txt"
 
-      # Skip if already decoded — UNLESS Whisper wrote "[no speech detected]"
-      # on an APRS frequency (Whisper won the race; APRS should overwrite).
+      # Skip if already decoded
       if [ -f "$out" ] && [ -s "$out" ]; then
-        content=$(cat "$out")
-        case "$content" in
-          *"[no speech detected]"*) ;;  # fall through to try APRS decode
-          *) continue ;;               # real transcript — skip
-        esac
+        continue
       fi
 
       # Skip files still being written by recorder
@@ -65,14 +60,11 @@ data:
       decoded=$(multimon-ng -q -t wav -a AFSK1200 "$f" 2>/dev/null \
                 | awk '
                     /^AFSK1200: fm / {
-                      # parse: "AFSK1200: fm SRC to DST [via PATH] UI..."
                       line = $0
                       sub(/^AFSK1200: fm /, "", line)
-                      # split on " to "
                       n = split(line, parts, / to /)
                       src = parts[1]
                       rest = parts[2]
-                      # split rest on " via " or " UI"
                       if (match(rest, / via /)) {
                         dst = substr(rest, 1, RSTART-1)
                         via_rest = substr(rest, RSTART+5)
@@ -97,8 +89,10 @@ data:
         continue
       fi
 
+      # Write decoded packets to APRS text dir and delete the audio
       printf '%s\n' "$decoded" > "$out.tmp"
       mv "$out.tmp" "$out"
+      rm -f "$f"
       packet_count=$(printf '%s\n' "$decoded" | wc -l)
-      echo "APRS: $f -> $packet_count packet(s)"
+      echo "APRS: $f -> $packet_count packet(s) (audio deleted)"
     done
