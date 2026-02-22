@@ -903,6 +903,667 @@ data:
                 for r in repeaters
             ],
         }
+  main.py: |
+    import asyncio
+    from contextlib import asynccontextmanager
+
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
+
+    from .database import engine, Base
+    from .routers import admin, aprs, files, repeaters, search, stats, waveform
+    from .services.indexer import run_indexer
+    from .services.repeater import run_repeater_sync
+
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        Base.metadata.create_all(bind=engine)
+        indexer_task = asyncio.create_task(run_indexer())
+        repeater_task = asyncio.create_task(run_repeater_sync())
+        yield
+        for task in (indexer_task, repeater_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
+    app = FastAPI(
+        title="SDR Viewer API",
+        description="API for browsing and streaming SDR recordings",
+        version="0.1.0",
+        lifespan=lifespan,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(files.router, prefix="/api/v1/files", tags=["files"])
+    app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
+    app.include_router(waveform.router, prefix="/api/v1/waveform", tags=["waveform"])
+    app.include_router(repeaters.router, prefix="/api/v1/repeaters", tags=["repeaters"])
+    app.include_router(aprs.router, prefix="/api/v1/aprs", tags=["aprs"])
+    app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+
+
+    @app.get("/api/v1/health")
+    async def health():
+        return {"status": "ok"}
+
+  aprs.py: |
+    import re
+    from datetime import datetime, timedelta
+    from typing import Optional
+
+    from fastapi import APIRouter, Depends, Query
+    from sqlalchemy import desc
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording
+
+    router = APIRouter()
+
+    # Uncompressed APRS position: !DDMM.mmN/DDDMM.mmW  (symbol table char between)
+    _POS_RE = re.compile(
+        r"[!=@/\\](\d{2})(\d{2}\.\d+)([NS])(.)(\d{3})(\d{2}\.\d+)([EW])"
+    )
+    _SPEED_COURSE_RE = re.compile(r"(\d{3})/(\d{3})")
+    _ALT_RE = re.compile(r"A=(\d{6})")
+
+
+    def _parse_position(payload: str):
+        m = _POS_RE.search(payload)
+        if not m:
+            return None
+        lat_d, lat_m, lat_h, _, lon_d, lon_m, lon_h = m.groups()
+        lat = float(lat_d) + float(lat_m) / 60
+        if lat_h == "S":
+            lat = -lat
+        lon = float(lon_d) + float(lon_m) / 60
+        if lon_h == "W":
+            lon = -lon
+        return round(lat, 6), round(lon, 6)
+
+
+    def _parse_comment(payload: str) -> str:
+        s = re.sub(r"^[!=@/\\]\d{4}\.\d+[NS].\d{5}\.\d+[EW].", "", payload)
+        s = re.sub(r"^\d{3}/\d{3}", "", s)
+        s = re.sub(r"/?A=\d+", "", s)
+        return s.strip()
+
+
+    def _parse_packet(line: str):
+        if ">" not in line or ":" not in line:
+            return None
+        try:
+            callsign = line.split(">")[0].strip()
+            colon_idx = line.index(":")
+            header = line[:colon_idx]
+            payload = line[colon_idx + 1:]
+            path_parts = header.split(",")
+            path = ",".join(path_parts[1:]) if len(path_parts) > 1 else ""
+            pos = _parse_position(payload)
+            sc = _SPEED_COURSE_RE.search(payload[1:20] if len(payload) > 1 else "")
+            speed_kt = int(sc.group(2)) if sc else None
+            course = int(sc.group(1)) if sc else None
+            alt_m = _ALT_RE.search(payload)
+            altitude_ft = int(alt_m.group(1)) if alt_m else None
+            comment = _parse_comment(payload)
+            return {
+                "callsign": callsign,
+                "path": path,
+                "latitude": pos[0] if pos else None,
+                "longitude": pos[1] if pos else None,
+                "speed_kt": speed_kt,
+                "course": course,
+                "altitude_ft": altitude_ft,
+                "comment": comment,
+                "packet": line.strip(),
+            }
+        except Exception:
+            return None
+
+
+    @router.get("/stations")
+    def get_aprs_stations(
+        hours: int = Query(24, ge=1, le=168),
+        db: Session = Depends(get_db),
+    ):
+        since = datetime.utcnow() - timedelta(hours=hours)
+        rows = (
+            db.query(Recording)
+            .filter(
+                Recording.mode == "aprs",
+                Recording.transcript.isnot(None),
+                Recording.timestamp >= since,
+            )
+            .order_by(desc(Recording.timestamp))
+            .limit(2000)
+            .all()
+        )
+        stations: dict = {}
+        for rec in rows:
+            for line in (rec.transcript or "").splitlines():
+                p = _parse_packet(line)
+                if not p:
+                    continue
+                cs = p["callsign"]
+                if cs not in stations:
+                    stations[cs] = {
+                        **p,
+                        "last_heard": rec.timestamp.isoformat() if rec.timestamp else None,
+                        "frequency_hz": rec.frequency_hz,
+                    }
+                elif p["latitude"] is not None and stations[cs]["latitude"] is None:
+                    stations[cs].update({
+                        **p,
+                        "last_heard": rec.timestamp.isoformat() if rec.timestamp else None,
+                    })
+        return {"stations": list(stations.values()), "hours": hours}
+
+
+    @router.get("/packets")
+    def get_aprs_packets(
+        callsign: Optional[str] = None,
+        hours: int = Query(24, ge=1, le=168),
+        page: int = Query(1, ge=1),
+        limit: int = Query(50, ge=1, le=200),
+        db: Session = Depends(get_db),
+    ):
+        since = datetime.utcnow() - timedelta(hours=hours)
+        q = db.query(Recording).filter(
+            Recording.mode == "aprs",
+            Recording.timestamp >= since,
+        )
+        if callsign:
+            q = q.filter(Recording.transcript.ilike(f"%{callsign.upper()}%"))
+        total = q.count()
+        rows = (
+            q.order_by(desc(Recording.timestamp))
+            .offset((page - 1) * limit)
+            .limit(limit)
+            .all()
+        )
+        packets = []
+        for rec in rows:
+            for line in (rec.transcript or "").splitlines():
+                p = _parse_packet(line)
+                if p:
+                    packets.append({
+                        **p,
+                        "id": rec.id,
+                        "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
+                        "frequency_hz": rec.frequency_hz,
+                    })
+        return {"packets": packets, "total": total, "page": page, "limit": limit}
+
+  indexer.py: |
+    import asyncio
+    import json
+    import os
+    import re
+    from datetime import datetime
+    from pathlib import Path
+    from urllib import error, request
+
+    import librosa
+    from sqlalchemy import text
+
+    from ..config import settings
+    from ..database import SessionLocal
+    from ..models import Recording
+    from .alerting import check_alerts
+    from .hamdb import callsign_context_str, lookup_callsigns
+    from .known_freqs import lookup_known_freq
+    from .repeater import lookup_repeater, repeater_label, repeater_tags
+    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript
+
+
+    CALLSIGN_TAG_PATTERN = re.compile(r"^[AKNW][A-Z]?\d[A-Z]{1,3}$", re.IGNORECASE)
+
+
+    def ensure_recordings_schema(db):
+        db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS ai_tags TEXT"))
+        db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS repeater_id INTEGER"))
+        db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS frequency_label TEXT"))
+        db.commit()
+
+
+    def safe_unlink(path: str | None):
+        if not path:
+            return
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+    def prune_missing_recordings():
+        db = SessionLocal()
+        removed = 0
+        try:
+            ensure_recordings_schema(db)
+            recordings = db.query(Recording).all()
+            for recording in recordings:
+                if recording.audio_path:
+                    # Has audio: prune if file missing
+                    if not os.path.exists(recording.audio_path):
+                        db.delete(recording)
+                        removed += 1
+                else:
+                    # No audio (e.g. APRS text-only): prune if text also missing
+                    if not recording.text_path or not os.path.exists(recording.text_path):
+                        db.delete(recording)
+                        removed += 1
+            if removed:
+                db.commit()
+                print(f"Pruned {removed} stale recordings (missing files)")
+        except Exception as e:
+            print(f"Prune error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    def parse_voice_filename(filename: str) -> dict:
+        match = re.match(r"(\d+)_(\d+)\.wav$", filename)
+        if match:
+            freq_hz = float(match.group(1))
+            timestamp = datetime.fromtimestamp(int(match.group(2)))
+            return {"frequency_hz": freq_hz, "timestamp": timestamp}
+        return {}
+
+
+    def parse_cw_filename(filename: str) -> dict:
+        match = re.match(r"cw_(\d+)_(\d+)\.wav$", filename)
+        if match:
+            freq_hz = float(match.group(1))
+            timestamp = datetime.fromtimestamp(int(match.group(2)))
+            return {"frequency_hz": freq_hz, "timestamp": timestamp}
+        match = re.match(r"cw_(\d+)\.wav$", filename)
+        if match:
+            freq_hz = float(match.group(1))
+            return {"frequency_hz": freq_hz}
+        return {}
+
+
+    def get_audio_duration(audio_path: str) -> float:
+        try:
+            duration = librosa.get_duration(path=audio_path)
+            return duration
+        except Exception:
+            return 0.0
+
+
+    def read_transcript(text_path: str) -> str | None:
+        if os.path.exists(text_path):
+            try:
+                with open(text_path, "r") as f:
+                    return f.read().strip()
+            except Exception:
+                pass
+        return None
+
+
+    def update_search_vector(db, recording_id: int, transcript: str):
+        db.execute(
+            text(
+                "UPDATE recordings SET search_vector = to_tsvector('english', :transcript) WHERE id = :id"
+            ),
+            {"transcript": transcript, "id": recording_id},
+        )
+        db.commit()
+
+
+    def sanitize_tag(tag: str) -> str | None:
+        text_tag = tag.strip()
+        if not text_tag:
+            return None
+        upper_tag = text_tag.upper()
+        if CALLSIGN_TAG_PATTERN.match(upper_tag):
+            return upper_tag
+        lowered = text_tag.lower().replace("-", " ")
+        lowered = re.sub(r"[^a-z0-9_ ]+", "", lowered)
+        lowered = re.sub(r"\s+", "_", lowered).strip("_")
+        if len(lowered) < 2 or len(lowered) > 48:
+            return None
+        return lowered
+
+
+    def build_ollama_prompt(transcript, callsign_tags, frequency_label=None, repeater_info=None, operator_context=None):
+        callsign_context = ", ".join(callsign_tags) if callsign_tags else "none"
+        clipped = transcript.strip()
+        if len(clipped) > 1600:
+            clipped = clipped[:1600]
+        context_lines = [f"Known callsigns: {callsign_context}"]
+        if operator_context:
+            context_lines.append(f"Operators:\n{operator_context}")
+        if frequency_label:
+            context_lines.append(f"Frequency: {frequency_label}")
+        if repeater_info:
+            context_lines.append(f"Repeater: {repeater_info}")
+        context = "\n".join(context_lines)
+        return (
+            "You tag radio transcripts for later filtering. "
+            "Return ONLY valid JSON with this exact schema: "
+            "{\"tags\":[\"tag_one\",\"tag_two\"]}. "
+            "Rules: 3 to 8 concise tags, no sentences, no duplicates, "
+            "prefer lowercase underscore tags, include callsign tags when relevant.\n\n"
+            f"{context}\n"
+            f"Transcript:\n{clipped}"
+        )
+
+
+    def generate_ollama_tags(transcript, frequency_label=None, repeater_info=None, operator_context=None):
+        if not settings.ollama_enabled:
+            return []
+        if not transcript or is_no_speech_transcript(transcript):
+            return []
+        callsign_tags = extract_callsign_tags(transcript)
+        payload = {
+            "model": settings.ollama_model,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.1},
+            "prompt": build_ollama_prompt(
+                transcript, callsign_tags,
+                frequency_label=frequency_label,
+                repeater_info=repeater_info,
+                operator_context=operator_context,
+            ),
+        }
+        endpoint = settings.ollama_url.rstrip("/") + "/api/generate"
+        req = request.Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+        except error.URLError as exc:
+            print(f"Ollama request failed: {exc}")
+            return callsign_tags
+        except Exception as exc:
+            print(f"Ollama request error: {exc}")
+            return callsign_tags
+        tags: list[str] = []
+        seen = set()
+        for tag in callsign_tags:
+            cleaned = sanitize_tag(tag)
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                tags.append(cleaned)
+        try:
+            outer = json.loads(body)
+            response_text = outer.get("response", "")
+        except Exception:
+            response_text = ""
+        parsed_tags: list[str] = []
+        if response_text:
+            try:
+                parsed = json.loads(response_text)
+                if isinstance(parsed, dict) and isinstance(parsed.get("tags"), list):
+                    parsed_tags = [str(v) for v in parsed["tags"]]
+                elif isinstance(parsed, list):
+                    parsed_tags = [str(v) for v in parsed]
+            except Exception:
+                parsed_tags = [p.strip() for p in re.split(r"[,\n]", response_text) if p.strip()]
+        max_tags = max(1, settings.ollama_max_tags)
+        for raw_tag in parsed_tags:
+            cleaned = sanitize_tag(raw_tag)
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                tags.append(cleaned)
+            if len(tags) >= max_tags:
+                break
+        return tags
+
+
+    def maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget=None):
+        if recording.ai_tags:
+            return
+        if not transcript or is_no_speech_transcript(transcript):
+            return
+        if ollama_budget["remaining"] <= 0 and not settings.ollama_enabled:
+            return
+        seed_tags: list[str] = []
+        if recording.repeater_id:
+            from .repeater import repeater_tags as get_repeater_tags
+            from ..models import Repeater
+            rptr = db.query(Repeater).filter(Repeater.id == recording.repeater_id).first()
+            if rptr:
+                seed_tags = get_repeater_tags(rptr)
+        if not settings.ollama_enabled:
+            if seed_tags:
+                recording.ai_tags = dump_ai_tags(seed_tags)
+            return
+        if ollama_budget["remaining"] <= 0:
+            if seed_tags:
+                recording.ai_tags = dump_ai_tags(seed_tags)
+            return
+        ollama_budget["remaining"] -= 1
+        repeater_info = None
+        if recording.repeater_id:
+            from ..models import Repeater
+            rptr = db.query(Repeater).filter(Repeater.id == recording.repeater_id).first()
+            if rptr:
+                repeater_info = f"{rptr.callsign} ({rptr.location}, {rptr.state})"
+                if rptr.pl_tone:
+                    repeater_info += f" PL {rptr.pl_tone:.1f}"
+        operator_context = None
+        callsigns = extract_callsign_tags(transcript)
+        if callsigns and hamdb_budget is not None:
+            info_map = lookup_callsigns(db, callsigns, hamdb_budget)
+            operator_context = callsign_context_str(info_map)
+        tags = generate_ollama_tags(
+            transcript,
+            frequency_label=recording.frequency_label,
+            repeater_info=repeater_info,
+            operator_context=operator_context,
+        )
+        merged = list(dict.fromkeys(seed_tags + tags))
+        serialized = dump_ai_tags(merged)
+        if serialized:
+            recording.ai_tags = serialized
+
+
+    def should_auto_delete_no_speech(transcript: str | None) -> bool:
+        return settings.auto_delete_no_speech and is_no_speech_transcript(transcript)
+
+
+    def maybe_set_frequency_metadata(db, recording):
+        if recording.frequency_hz is None:
+            return
+        if recording.frequency_label is None:
+            label = lookup_known_freq(recording.frequency_hz)
+            if label:
+                recording.frequency_label = label
+        if recording.repeater_id is None:
+            rptr = lookup_repeater(db, recording.frequency_hz)
+            if rptr:
+                recording.repeater_id = rptr.id
+                recording.frequency_label = repeater_label(rptr)
+
+
+    def index_directory(mode: str, audio_dir: str, text_dir: str, ollama_budget: dict, hamdb_budget: dict | None = None):
+        db = SessionLocal()
+        try:
+            ensure_recordings_schema(db)
+            audio_path = Path(audio_dir)
+            if not audio_path.exists():
+                return
+            for wav_file in audio_path.glob("*.wav"):
+                filename = wav_file.name
+                text_path = os.path.join(text_dir, filename.replace(".wav", ".txt"))
+                existing = db.query(Recording).filter(Recording.filename == filename).first()
+                if existing:
+                    if should_auto_delete_no_speech(existing.transcript):
+                        safe_unlink(existing.audio_path)
+                        safe_unlink(existing.text_path)
+                        safe_unlink(existing.waveform_cached)
+                        safe_unlink(existing.spectrogram_cached)
+                        db.delete(existing)
+                        db.commit()
+                        print(f"Auto-deleted no-speech recording: {filename}")
+                        continue
+                    if existing.transcript is None:
+                        transcript = read_transcript(text_path)
+                        if transcript:
+                            if should_auto_delete_no_speech(transcript):
+                                safe_unlink(str(wav_file))
+                                safe_unlink(text_path)
+                                db.delete(existing)
+                                db.commit()
+                                print(f"Auto-deleted no-speech recording: {filename}")
+                                continue
+                            existing.text_path = text_path
+                            existing.transcript = transcript
+                            update_search_vector(db, existing.id, transcript)
+                    maybe_set_frequency_metadata(db, existing)
+                    maybe_set_ai_tags(db, existing, existing.transcript, ollama_budget, hamdb_budget)
+                    check_alerts(existing)
+                    db.commit()
+                    continue
+                if mode == "voice":
+                    metadata = parse_voice_filename(filename)
+                else:
+                    metadata = parse_cw_filename(filename)
+                timestamp = metadata.get("timestamp")
+                if timestamp is None:
+                    try:
+                        timestamp = datetime.fromtimestamp(wav_file.stat().st_mtime)
+                    except Exception:
+                        timestamp = None
+                duration = get_audio_duration(str(wav_file))
+                transcript = read_transcript(text_path)
+                if should_auto_delete_no_speech(transcript):
+                    safe_unlink(str(wav_file))
+                    safe_unlink(text_path)
+                    print(f"Auto-deleted no-speech recording: {filename}")
+                    continue
+                recording = Recording(
+                    filename=filename,
+                    mode=mode,
+                    frequency_hz=metadata.get("frequency_hz"),
+                    timestamp=timestamp,
+                    duration_seconds=duration,
+                    audio_path=str(wav_file),
+                    text_path=text_path if transcript else None,
+                    transcript=transcript,
+                )
+                maybe_set_frequency_metadata(db, recording)
+                maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget)
+                check_alerts(recording)
+                db.add(recording)
+                db.commit()
+                if transcript:
+                    update_search_vector(db, recording.id, transcript)
+                print(f"Indexed: {filename}")
+        except Exception as e:
+            print(f"Indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    def index_aprs_directory(text_dir: str):
+        """Index APRS packets from text-only files (audio deleted after decode)."""
+        db = SessionLocal()
+        try:
+            ensure_recordings_schema(db)
+            text_path = Path(text_dir)
+            if not text_path.exists():
+                return
+            for txt_file in text_path.glob("*.txt"):
+                wav_name = txt_file.name.replace(".txt", ".wav")
+                existing = db.query(Recording).filter(Recording.filename == wav_name).first()
+                if existing:
+                    continue
+                metadata = parse_voice_filename(wav_name)
+                timestamp = metadata.get("timestamp")
+                if timestamp is None:
+                    try:
+                        timestamp = datetime.fromtimestamp(txt_file.stat().st_mtime)
+                    except Exception:
+                        timestamp = None
+                transcript = read_transcript(str(txt_file))
+                if not transcript:
+                    continue
+                recording = Recording(
+                    filename=wav_name,
+                    mode="aprs",
+                    frequency_hz=metadata.get("frequency_hz"),
+                    timestamp=timestamp,
+                    duration_seconds=None,
+                    audio_path=None,
+                    text_path=str(txt_file),
+                    transcript=transcript,
+                )
+                maybe_set_frequency_metadata(db, recording)
+                # Tag with callsigns from the packet (no Ollama for structured APRS data)
+                callsign_tags = extract_callsign_tags(transcript)
+                if callsign_tags:
+                    recording.ai_tags = dump_ai_tags(callsign_tags)
+                check_alerts(recording)
+                db.add(recording)
+                db.commit()
+                if transcript:
+                    update_search_vector(db, recording.id, transcript)
+                print(f"Indexed APRS: {txt_file.name}")
+        except Exception as e:
+            print(f"APRS indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    async def run_indexer():
+        while True:
+            try:
+                await asyncio.to_thread(prune_missing_recordings)
+
+                ollama_budget = {"remaining": max(0, settings.ollama_max_per_cycle)}
+                hamdb_budget = {"remaining": max(0, settings.hamdb_max_per_cycle)}
+
+                await asyncio.to_thread(
+                    index_directory,
+                    mode="voice",
+                    audio_dir=os.path.join(settings.audio_base_path, "voice"),
+                    text_dir=os.path.join(settings.text_base_path, "voice"),
+                    ollama_budget=ollama_budget,
+                    hamdb_budget=hamdb_budget,
+                )
+
+                await asyncio.to_thread(
+                    index_directory,
+                    mode="cw",
+                    audio_dir=os.path.join(settings.audio_base_path, "cw"),
+                    text_dir=os.path.join(settings.text_base_path, "cw"),
+                    ollama_budget=ollama_budget,
+                    hamdb_budget=hamdb_budget,
+                )
+
+                await asyncio.to_thread(
+                    index_aprs_directory,
+                    text_dir=os.path.join(settings.text_base_path, "aprs"),
+                )
+
+            except Exception as e:
+                print(f"Indexer cycle error: {e}")
+
+            await asyncio.sleep(30)
+
 kind: ConfigMap
 metadata:
   creationTimestamp: null
