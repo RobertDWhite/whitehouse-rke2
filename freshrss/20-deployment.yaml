@@ -15,6 +15,15 @@ spec:
       labels:
         app: freshrss
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
 
       initContainers:
         - name: install-aiassistant
