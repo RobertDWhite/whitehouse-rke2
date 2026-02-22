@@ -155,10 +155,17 @@ spec:
 
                   print(f"Installing backend {backend_name}", flush=True)
                   http_request("POST", "/backends/apply", {"name": backend_name})
-                  installed_backends = get_installed_backends()
-                  if backend_name not in installed_backends:
-                      raise RuntimeError(f"Backend {backend_name} install did not complete")
-                  print(f"Backend {backend_name} installed successfully", flush=True)
+
+                  deadline = time.time() + timeout_seconds
+                  while time.time() < deadline:
+                      installed_backends = get_installed_backends()
+                      if backend_name in installed_backends:
+                          print(f"Backend {backend_name} installed successfully", flush=True)
+                          return
+                      print(f"Waiting for backend {backend_name} to become available...", flush=True)
+                      time.sleep(poll_seconds)
+
+                  raise RuntimeError(f"Backend {backend_name} install did not complete before timeout")
 
               def parse_job_status(job_response, job_id):
                   if isinstance(job_response, dict) and "processed" in job_response:
