@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aprs-decoder-scripts
+  namespace: sdr-research
+data:
+  aprs_decode.sh: |
+    #!/bin/sh
+    set -e
+
+    AUDIO_DIR="/data/audio/voice"
+    OUT_DIR="/data/text/voice"
+    MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
+
+    # APRS frequency ranges (Hz):
+    #   144.390 MHz — North American APRS primary (±20 kHz tolerance)
+    #   145.825 MHz — ISS APRS downlink (±20 kHz tolerance)
+    is_aprs_freq() {
+      freq="$1"
+      ( [ "$freq" -ge 144370000 ] && [ "$freq" -le 144410000 ] ) ||
+      ( [ "$freq" -ge 145805000 ] && [ "$freq" -le 145845000 ] )
+    }
+
+    mkdir -p "$OUT_DIR"
+
+    for f in "$AUDIO_DIR"/*.wav; do
+      [ -e "$f" ] || continue
+
+      base=$(basename "$f" .wav)
+      # Extract frequency from filename: {freq}_{timestamp}.wav
+      freq=$(printf '%s' "$base" | cut -d_ -f1)
+
+      # Must be numeric
+      case "$freq" in
+        ''|*[!0-9]*) continue ;;
+      esac
+
+      # Skip if not an APRS frequency
+      is_aprs_freq "$freq" || continue
+
+      out="$OUT_DIR/$base.txt"
+
+      # Skip if already decoded (non-empty file)
+      if [ -f "$out" ] && [ -s "$out" ]; then
+        continue
+      fi
+
+      # Skip files still being written by recorder
+      now=$(date +%s)
+      mtime=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f")
+      age=$((now - mtime))
+      if [ "$age" -lt "$MIN_FILE_AGE_SEC" ]; then
+        continue
+      fi
+
+      echo "Decoding APRS from $f"
+
+      # Capture full multimon-ng output; join header+payload into TNC-2 format:
+      # "AFSK1200: fm SRC to DST [via PATH] UI  pid=F0" + next line = APRS data
+      decoded=$(multimon-ng -q -t wav -a AFSK1200 "$f" 2>/dev/null \
+                | awk '
+                    /^AFSK1200: fm / {
+                      # parse: "AFSK1200: fm SRC to DST [via PATH] UI..."
+                      line = $0
+                      sub(/^AFSK1200: fm /, "", line)
+                      # split on " to "
+                      n = split(line, parts, / to /)
+                      src = parts[1]
+                      rest = parts[2]
+                      # split rest on " via " or " UI"
+                      if (match(rest, / via /)) {
+                        dst = substr(rest, 1, RSTART-1)
+                        via_rest = substr(rest, RSTART+5)
+                        sub(/ UI.*/, "", via_rest)
+                        header = src ">" dst "," via_rest
+                      } else {
+                        sub(/ UI.*/, "", rest)
+                        header = src ">" rest
+                      }
+                      waiting = 1
+                      next
+                    }
+                    waiting {
+                      print header ":" $0
+                      waiting = 0
+                      header = ""
+                    }
+                  ')
+
+      if [ -z "$decoded" ]; then
+        echo "No APRS packets in $f — leaving for Whisper"
+        continue
+      fi
+
+      printf '%s\n' "$decoded" > "$out.tmp"
+      mv "$out.tmp" "$out"
+      packet_count=$(printf '%s\n' "$decoded" | wc -l)
+      echo "APRS: $f -> $packet_count packet(s)"
+    done
