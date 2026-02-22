@@ -26,6 +26,8 @@ spec:
               value: "http://localai.ai-stack.svc.cluster.local:8080"
             - name: LOCALAI_IMAGE_MODEL_NAME
               value: "dreamshaper"
+            - name: LOCALAI_IMAGE_BACKEND_NAME
+              value: "diffusers"
             - name: LOCALAI_IMAGE_MODEL_GALLERY_URL
               value: "github:mudler/LocalAI/gallery/dreamshaper.yaml@master"
             - name: LOCALAI_BOOTSTRAP_TIMEOUT_SECONDS
@@ -63,6 +65,7 @@ spec:
 
               base_url = os.getenv("LOCALAI_BASE_URL", "http://localai:8080").rstrip("/")
               model_name = os.getenv("LOCALAI_IMAGE_MODEL_NAME", "dreamshaper")
+              backend_name = os.getenv("LOCALAI_IMAGE_BACKEND_NAME", "diffusers")
               model_gallery_url = os.getenv(
                   "LOCALAI_IMAGE_MODEL_GALLERY_URL",
                   "github:mudler/LocalAI/gallery/dreamshaper.yaml@master",
@@ -119,6 +122,20 @@ spec:
                               names.add(str(item["name"]))
                   return names
 
+              def get_installed_backends():
+                  response = http_request("GET", "/backends")
+                  names = set()
+                  if isinstance(response, list):
+                      for item in response:
+                          if isinstance(item, str):
+                              names.add(item)
+                          elif isinstance(item, dict):
+                              for key in ("name", "id", "backend", "alias"):
+                                  value = item.get(key)
+                                  if value:
+                                      names.add(str(value))
+                  return names
+
               def wait_for_localai_ready():
                   deadline = time.time() + 300
                   while time.time() < deadline:
@@ -129,6 +146,19 @@ spec:
                           print(f"LocalAI not ready yet: {exc}", flush=True)
                           time.sleep(5)
                   raise RuntimeError("Timed out waiting for LocalAI readiness")
+
+              def ensure_backend_installed():
+                  installed_backends = get_installed_backends()
+                  if backend_name in installed_backends:
+                      print(f"Backend {backend_name} already installed", flush=True)
+                      return
+
+                  print(f"Installing backend {backend_name}", flush=True)
+                  http_request("POST", "/backends/apply", {"name": backend_name})
+                  installed_backends = get_installed_backends()
+                  if backend_name not in installed_backends:
+                      raise RuntimeError(f"Backend {backend_name} install did not complete")
+                  print(f"Backend {backend_name} installed successfully", flush=True)
 
               def parse_job_status(job_response, job_id):
                   if isinstance(job_response, dict) and "processed" in job_response:
@@ -177,6 +207,7 @@ spec:
                   raise RuntimeError(f"Failed to prefetch model file: {target_path}")
 
               wait_for_localai_ready()
+              ensure_backend_installed()
               installed = get_installed_models()
               if model_name in installed:
                   print(f"Model {model_name} already installed", flush=True)
