@@ -308,7 +308,12 @@ data:
     async def get_callsign_info(callsign: str, db: Session = Depends(get_db)):
         """Return operator info and recording statistics for a callsign."""
         cs = callsign.strip().upper()
-        info = db.query(CallsignInfo).filter(CallsignInfo.callsign == cs).first()
+        # Strip SSID (e.g. KE8WSC-8 → KE8WSC) for operator DB lookup
+        base_cs = re.sub(r"-\w+$", "", cs)
+        info = (
+            db.query(CallsignInfo).filter(CallsignInfo.callsign == cs).first()
+            or db.query(CallsignInfo).filter(CallsignInfo.callsign == base_cs).first()
+        )
         normalized_cs = normalize_callsign(cs)
         total = 0
         first_heard = None
@@ -1176,8 +1181,9 @@ data:
     router = APIRouter()
 
     # Uncompressed APRS position: !DDMM.mmN/DDDMM.mmW  (symbol table char between)
+    # Optional (?:\d{6}[z/h])? handles @DDHHMM[z/h] timestamp prefix in @ packets
     _POS_RE = re.compile(
-        r"[!=@/\\](\d{2})(\d{2}\.\d+)([NS])(.)(\d{3})(\d{2}\.\d+)([EW])"
+        r"[!=@/\\](?:\d{6}[z/h])?(\d{2})(\d{2}\.\d+)([NS])(.)(\d{3})(\d{2}\.\d+)([EW])"
     )
     _SPEED_COURSE_RE = re.compile(r"(\d{3})/(\d{3})")
     _ALT_RE = re.compile(r"A=(\d{6})")
@@ -1255,7 +1261,12 @@ data:
             alt_m = _ALT_RE.search(payload)
             altitude_ft = int(alt_m.group(1)) if alt_m else None
             comment = _parse_comment(payload)
+            # Detect WX: data-type '_' (no-position) OR '_' symbol char after position
             is_weather = len(payload) > 0 and payload[0] == "_"
+            if not is_weather:
+                _pm = _POS_RE.search(payload)
+                if _pm and _pm.end() < len(payload) and payload[_pm.end()] == "_":
+                    is_weather = True
             weather = _parse_weather(payload) if is_weather else None
             return {
                 "callsign": callsign,
