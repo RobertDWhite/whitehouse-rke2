@@ -843,6 +843,16 @@ data:
     router = APIRouter()
 
 
+    @router.get("/station")
+    async def get_station_center():
+        """Return the configured station coordinates (used as map center)."""
+        from ..config import settings
+        return {
+            "latitude": settings.repeaterbook_latitude,
+            "longitude": settings.repeaterbook_longitude,
+        }
+
+
     @router.get("")
     async def list_repeaters(
         state: Optional[str] = Query(None, min_length=2, max_length=4),
