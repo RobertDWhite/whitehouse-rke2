@@ -264,7 +264,7 @@ data:
             duration_max=duration_max,
             has_transcript=has_transcript,
         )
-        if not mode:
+        if not mode and not callsign:
             query = query.filter(Recording.mode != "aprs")
         query = _apply_tag_filter(query, tag)
 
