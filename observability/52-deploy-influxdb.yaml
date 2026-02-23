@@ -13,6 +13,15 @@ spec:
       labels:
         app: influxdb
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
       containers:
         - name: influxdb
           image: influxdb
