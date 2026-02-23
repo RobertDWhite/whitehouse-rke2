@@ -50,6 +50,8 @@ spec:
               value: "/config/huggingface-urls.txt"
             - name: LOCALAI_MODEL_REPOS_FILE
               value: "/config/huggingface-repos.txt"
+            - name: LOCALAI_MODEL_NAMES_FILE
+              value: "/config/model-names.yaml"
             - name: HF_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -59,7 +61,7 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /models
-            - name: model-urls
+            - name: model-config
               mountPath: /config
               readOnly: true
           command:
@@ -94,6 +96,7 @@ spec:
               prefetch_file_name = os.getenv("LOCALAI_IMAGE_MODEL_FILE_NAME", "").strip()
               model_urls_file = os.getenv("LOCALAI_MODEL_URLS_FILE", "/config/huggingface-urls.txt").strip()
               model_repos_file = os.getenv("LOCALAI_MODEL_REPOS_FILE", "/config/huggingface-repos.txt").strip()
+              model_names_file = os.getenv("LOCALAI_MODEL_NAMES_FILE", "/config/model-names.yaml").strip()
               hf_token = os.getenv("HF_TOKEN", "").strip()
 
               def http_request(method, path, payload=None):
@@ -306,6 +309,24 @@ spec:
                       from huggingface_hub import snapshot_download
                       return snapshot_download
 
+              def get_yaml_module():
+                  try:
+                      import yaml
+                      return yaml
+                  except Exception:
+                      print("Installing PyYAML...", flush=True)
+                      install = subprocess.run(
+                          [sys.executable, "-m", "pip", "install", "--no-cache-dir", "PyYAML"],
+                          capture_output=True,
+                          text=True,
+                      )
+                      if install.returncode != 0:
+                          raise RuntimeError(
+                              f"Failed to install PyYAML: {install.stderr.strip()}"
+                          )
+                      import yaml
+                      return yaml
+
               def download_repo_snapshot(snapshot_download, repo_id, revision, target_path, attempts):
                   for attempt in range(1, attempts + 1):
                       try:
@@ -374,10 +395,132 @@ spec:
                           prefetch_attempts,
                       )
 
+              def parse_bool(value, default=False):
+                  if value is None:
+                      return default
+                  if isinstance(value, bool):
+                      return value
+                  if isinstance(value, (int, float)):
+                      return bool(value)
+                  text = str(value).strip().lower()
+                  if text in ("1", "true", "yes", "on"):
+                      return True
+                  if text in ("0", "false", "no", "off"):
+                      return False
+                  return default
+
+              def parse_optional_int(value, default=None):
+                  if value is None:
+                      return default
+                  try:
+                      return int(value)
+                  except Exception:
+                      return default
+
+              def read_model_name_entries():
+                  if not model_names_file:
+                      return []
+                  if not os.path.exists(model_names_file):
+                      print(
+                          f"Model name mapping file not found: {model_names_file} (skipping)",
+                          flush=True,
+                      )
+                      return []
+
+                  yaml = get_yaml_module()
+                  with open(model_names_file, "r", encoding="utf-8") as handle:
+                      payload = yaml.safe_load(handle) or {}
+
+                  if isinstance(payload, list):
+                      raw_entries = payload
+                  elif isinstance(payload, dict):
+                      if isinstance(payload.get("models"), list):
+                          raw_entries = payload.get("models", [])
+                      elif isinstance(payload.get("entries"), list):
+                          raw_entries = payload.get("entries", [])
+                      else:
+                          raw_entries = []
+                  else:
+                      raw_entries = []
+
+                  entries = []
+                  for item in raw_entries:
+                      if not isinstance(item, dict):
+                          continue
+                      model_id = str(item.get("id", "")).strip()
+                      model_path = str(item.get("model", "")).strip()
+                      if not model_id or not model_path:
+                          continue
+                      normalized = dict(item)
+                      normalized["id"] = model_id
+                      normalized["model"] = model_path
+                      entries.append(normalized)
+                  return entries
+
+              def build_localai_model_config(entry):
+                  backend = str(entry.get("backend", "diffusers")).strip() or "diffusers"
+                  model_config = {
+                      "name": entry["id"],
+                      "backend": backend,
+                      "parameters": {"model": entry["model"]},
+                  }
+
+                  if backend == "diffusers":
+                      model_config["f16"] = parse_bool(entry.get("f16"), True)
+                      step_value = parse_optional_int(entry.get("step"), 25)
+                      if step_value is not None:
+                          model_config["step"] = step_value
+
+                      diffusers_settings = entry.get("diffusers", {})
+                      if not isinstance(diffusers_settings, dict):
+                          diffusers_settings = {}
+                      merged_diffusers = {"cuda": parse_bool(diffusers_settings.get("cuda"), True)}
+                      for key in ("pipeline_type", "scheduler_type", "enable_parameters"):
+                          if key in diffusers_settings and diffusers_settings[key] not in (None, ""):
+                              merged_diffusers[key] = diffusers_settings[key]
+                      model_config["diffusers"] = merged_diffusers
+                  else:
+                      if "f16" in entry:
+                          model_config["f16"] = parse_bool(entry.get("f16"), False)
+                      step_value = parse_optional_int(entry.get("step"), None)
+                      if step_value is not None:
+                          model_config["step"] = step_value
+
+                  return model_config
+
+              def register_extra_model_names_if_configured():
+                  entries = read_model_name_entries()
+                  if not entries:
+                      print("No extra model name mappings configured", flush=True)
+                      return
+
+                  yaml = get_yaml_module()
+                  print(
+                      f"Registering {len(entries)} LocalAI model name mapping(s) from {model_names_file}",
+                      flush=True,
+                  )
+                  for entry in entries:
+                      model_id = entry["id"]
+                      model_path = entry["model"]
+                      source_path = os.path.join("/models", model_path)
+                      if not os.path.exists(source_path):
+                          print(
+                              f"warning: model source path is missing for id={model_id}: {source_path}",
+                              flush=True,
+                          )
+
+                      file_safe_id = model_id.replace("/", "__")
+                      config_path = os.path.join("/models", f"{file_safe_id}.yaml")
+                      model_config = build_localai_model_config(entry)
+                      with open(config_path, "w", encoding="utf-8") as handle:
+                          yaml.safe_dump(model_config, handle, sort_keys=False)
+                      print(f"Registered model id={model_id} via {config_path}", flush=True)
+
               wait_for_localai_ready()
               ensure_backend_installed()
               download_extra_model_files_if_configured()
               download_extra_model_repos_if_configured()
+              register_extra_model_names_if_configured()
               installed = get_installed_models()
               if model_name in installed:
                   print(f"Model {model_name} already installed", flush=True)
@@ -451,7 +594,12 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: localai-models
-        - name: model-urls
-          secret:
-            secretName: localai-model-downloads
-            optional: true
+        - name: model-config
+          projected:
+            sources:
+              - secret:
+                  name: localai-model-downloads
+                  optional: true
+              - secret:
+                  name: localai-model-names
+                  optional: true
