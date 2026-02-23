@@ -95,6 +95,86 @@ data:
             })
 
         return segments
+
+
+    def detect_cw_from_audio(audio_path: str) -> bool:
+        """Return True if audio content appears to be CW (Morse code).
+
+        Uses two checks:
+        1. Spectral narrowness: ≥80% of energy within ±300 Hz of the dominant tone.
+        2. Keying pattern: ≥4 on/off transitions with element lengths 40–700 ms.
+        Both checks must pass. Handles CW IDs sent through FM repeaters.
+        """
+        SR = 8000
+        try:
+            y, sr = librosa.load(audio_path, sr=SR, mono=True)
+        except Exception:
+            return False
+        if len(y) < SR * 0.3:
+            return False
+
+        # --- Spectral narrowness ---
+        D = np.abs(librosa.stft(y, n_fft=1024)) ** 2
+        power = np.mean(D, axis=1)
+        total_power = float(np.sum(power))
+        if total_power == 0:
+            return False
+        freq_resolution = SR / 1024         # ~7.8 Hz per bin
+        window_bins = int(300 / freq_resolution)  # ±300 Hz window
+        peak_bin = int(np.argmax(power))
+        lo = max(0, peak_bin - window_bins)
+        hi = min(len(power), peak_bin + window_bins + 1)
+        window_power = float(np.sum(power[lo:hi]))
+        if window_power / total_power < 0.80:
+            return False
+        # Peak must be in voice audio range — not DC or ultrasonic noise
+        peak_hz = peak_bin * freq_resolution
+        if not (300 <= peak_hz <= 3000):
+            return False
+
+        # --- Keying pattern (on/off switching) ---
+        frame_len = int(SR * 0.020)         # 20 ms frame
+        hop = frame_len // 2                # 10 ms hop
+        envelope = np.array([
+            float(np.sqrt(np.mean(y[i:i + frame_len] ** 2)))
+            for i in range(0, len(y) - frame_len, hop)
+        ])
+        if len(envelope) < 6:
+            return False
+        max_env = float(np.max(envelope))
+        if max_env == 0:
+            return False
+        on_off = (envelope / max_env) > 0.25
+
+        transitions = int(np.sum(np.abs(np.diff(on_off.astype(int)))))
+        if transitions < 4:
+            return False
+
+        # Verify "on" run lengths fall in CW element range (40–700 ms)
+        hop_sec = hop / SR
+        min_hops = int(0.040 / hop_sec)
+        max_hops = int(0.700 / hop_sec)
+        current = bool(on_off[0])
+        run = 1
+        on_runs = []
+        for v in on_off[1:]:
+            if bool(v) == current:
+                run += 1
+            else:
+                if current:
+                    on_runs.append(run)
+                current = bool(v)
+                run = 1
+        if current:
+            on_runs.append(run)
+
+        if not on_runs:
+            return False
+        valid = sum(1 for r in on_runs if min_hops <= r <= max_hops)
+        if valid < len(on_runs) * 0.6:
+            return False
+
+        return True
   files.py: |
     import os
     from datetime import datetime, timedelta
@@ -1421,6 +1501,7 @@ data:
     from .hamdb import callsign_context_str, lookup_callsigns
     from .known_freqs import lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
+    from .audio import detect_cw_from_audio
     from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript
 
 
@@ -1781,9 +1862,19 @@ data:
                     safe_unlink(text_path)
                     print(f"Auto-deleted no-speech recording: {filename}")
                     continue
+                effective_mode = mode
+                if mode == "voice":
+                    try:
+                        if detect_cw_from_audio(str(wav_file)):
+                            effective_mode = "cw"
+                            transcript = None
+                            safe_unlink(text_path)
+                            print(f"[CW-DETECT] Reclassified {filename} as CW")
+                    except Exception as _cw_err:
+                        print(f"[CW-DETECT] Error on {filename}: {_cw_err}")
                 recording = Recording(
                     filename=filename,
-                    mode=mode,
+                    mode=effective_mode,
                     frequency_hz=metadata.get("frequency_hz"),
                     timestamp=timestamp,
                     duration_seconds=duration,
