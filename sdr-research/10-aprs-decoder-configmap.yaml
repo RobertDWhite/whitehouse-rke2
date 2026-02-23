@@ -85,7 +85,12 @@ data:
                   ')
 
       if [ -z "$decoded" ]; then
-        echo "No APRS packets in $f — leaving for Whisper"
+        # Still index as APRS, but mark decode failure briefly and consume audio
+        # so Whisper does not spend cycles on APRS-band captures.
+        printf '%s\n' "APRS_DECODE_FAILED" > "$out.tmp"
+        mv "$out.tmp" "$out"
+        rm -f "$f"
+        echo "APRS decode failed: $f (audio deleted)"
         continue
       fi
 
