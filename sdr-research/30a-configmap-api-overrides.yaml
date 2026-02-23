@@ -734,7 +734,8 @@ data:
   search.py: |
     from typing import Optional, List
 
-    from fastapi import APIRouter, Depends, Query
+    import requests
+    from fastapi import APIRouter, Depends, HTTPException, Query
     from sqlalchemy import func, text
     from sqlalchemy.orm import Session
 
@@ -813,6 +814,48 @@ data:
                 for r in results
             ],
         }
+
+
+    @router.get("/callsign")
+    def search_callsign(
+        q: str = Query(..., min_length=1, max_length=100),
+    ):
+        """Look up an amateur radio callsign or operator name via FCC ULS."""
+        try:
+            resp = requests.get(
+                "https://data.fcc.gov/api/license-view/basicSearch/getLicenses",
+                params={"searchValue": q.strip(), "service": "HA", "format": "json", "rows": 25},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException as e:
+            raise HTTPException(status_code=502, detail=f"FCC ULS lookup failed: {e}")
+
+        raw = data.get("Licenses", {}).get("License", [])
+        if isinstance(raw, dict):
+            raw = [raw]
+
+        results = []
+        for lic in raw:
+            callsign = (lic.get("callsign") or "").strip().upper()
+            if not callsign:
+                continue
+            lic_name = (lic.get("licName") or "").strip()
+            # FCC format: "SMITH, JOHN A" → "John A Smith"
+            if "," in lic_name:
+                last, _, first = lic_name.partition(",")
+                name = f"{first.strip().title()} {last.strip().title()}"
+            else:
+                name = lic_name.title()
+            results.append({
+                "callsign": callsign,
+                "name": name or None,
+                "status": lic.get("statusDesc", ""),
+                "expired_date": lic.get("expiredDate") or None,
+            })
+
+        return {"query": q, "results": results, "total": len(results)}
   tagging.py: |
     import json
     import os
