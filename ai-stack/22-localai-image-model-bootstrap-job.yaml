@@ -46,9 +46,22 @@ spec:
               value: "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors"
             - name: LOCALAI_IMAGE_MODEL_FILE_NAME
               value: "DreamShaper_8_pruned.safetensors"
+            - name: LOCALAI_MODEL_URLS_FILE
+              value: "/config/huggingface-urls.txt"
+            - name: LOCALAI_MODEL_REPOS_FILE
+              value: "/config/huggingface-repos.txt"
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: localai-model-downloads
+                  key: hf_token
+                  optional: true
           volumeMounts:
             - name: models
               mountPath: /models
+            - name: model-urls
+              mountPath: /config
+              readOnly: true
           command:
             - /bin/sh
             - -lc
@@ -61,6 +74,7 @@ spec:
               import sys
               import time
               import urllib.error
+              import urllib.parse
               import urllib.request
 
               base_url = os.getenv("LOCALAI_BASE_URL", "http://localai:8080").rstrip("/")
@@ -78,6 +92,9 @@ spec:
               prefetch_attempts = int(os.getenv("LOCALAI_PREFETCH_ATTEMPTS", "8"))
               prefetch_file_url = os.getenv("LOCALAI_IMAGE_MODEL_FILE_URL", "").strip()
               prefetch_file_name = os.getenv("LOCALAI_IMAGE_MODEL_FILE_NAME", "").strip()
+              model_urls_file = os.getenv("LOCALAI_MODEL_URLS_FILE", "/config/huggingface-urls.txt").strip()
+              model_repos_file = os.getenv("LOCALAI_MODEL_REPOS_FILE", "/config/huggingface-repos.txt").strip()
+              hf_token = os.getenv("HF_TOKEN", "").strip()
 
               def http_request(method, path, payload=None):
                   data = None
@@ -178,22 +195,52 @@ spec:
                               return value
                   raise RuntimeError(f"Unexpected job payload: {job_response}")
 
-              def prefetch_model_file_if_configured():
-                  if not prefetch_file_url or not prefetch_file_name:
-                      return
-                  target_path = os.path.join("/models", prefetch_file_name)
-                  for attempt in range(1, prefetch_attempts + 1):
+              def read_entries_from_file(file_path, label):
+                  if not file_path:
+                      return []
+                  if not os.path.exists(file_path):
                       print(
-                          f"Prefetching model file {target_path} (attempt {attempt}/{prefetch_attempts})",
+                          f"{label} file not found: {file_path} (skipping)",
+                          flush=True,
+                      )
+                      return []
+
+                  entries = []
+                  with open(file_path, "r", encoding="utf-8") as handle:
+                      for raw_line in handle:
+                          line = raw_line.strip()
+                          if not line or line.startswith("#"):
+                              continue
+                          entries.append(line)
+                  return entries
+
+              def read_extra_model_urls():
+                  return read_entries_from_file(model_urls_file, "Extra model URL")
+
+              def read_extra_model_repos():
+                  return read_entries_from_file(model_repos_file, "Extra model repo")
+
+              def file_name_from_url(url):
+                  parsed = urllib.parse.urlparse(url)
+                  file_name = os.path.basename(parsed.path)
+                  file_name = urllib.parse.unquote(file_name)
+                  if not file_name:
+                      raise RuntimeError(f"Unable to determine file name from URL: {url}")
+                  return file_name
+
+              def download_file(url, target_path, attempts):
+                  for attempt in range(1, attempts + 1):
+                      print(
+                          f"Downloading {url} -> {target_path} (attempt {attempt}/{attempts})",
                           flush=True,
                       )
                       result = subprocess.run(
-                          ["wget", "-c", "-O", target_path, prefetch_file_url],
+                          ["wget", "-c", "-O", target_path, url],
                           capture_output=True,
                           text=True,
                       )
                       if result.returncode == 0:
-                          print(f"Prefetch complete: {target_path}", flush=True)
+                          print(f"Download complete: {target_path}", flush=True)
                           return
                       if (
                           "416 Requested Range Not Satisfiable" in (result.stderr or "")
@@ -201,20 +248,136 @@ spec:
                           and os.path.getsize(target_path) > 0
                       ):
                           print(
-                              f"Prefetch already complete (HTTP 416 with existing file): {target_path}",
+                              f"Download already complete (HTTP 416 with existing file): {target_path}",
                               flush=True,
                           )
                           return
                       print(
-                          f"prefetch failed rc={result.returncode}: {result.stderr.strip()}",
+                          f"download failed rc={result.returncode}: {result.stderr.strip()}",
                           flush=True,
                       )
-                      if attempt < prefetch_attempts:
+                      if attempt < attempts:
                           time.sleep(10)
-                  raise RuntimeError(f"Failed to prefetch model file: {target_path}")
+                  raise RuntimeError(f"Failed to download file: {target_path}")
+
+              def parse_repo_spec(spec):
+                  repo_spec = spec
+                  target_dir = ""
+
+                  if "->" in spec:
+                      repo_spec, target_dir = spec.split("->", 1)
+                      repo_spec = repo_spec.strip()
+                      target_dir = target_dir.strip()
+
+                  revision = None
+                  if "@" in repo_spec:
+                      repo_id, revision = repo_spec.rsplit("@", 1)
+                      repo_id = repo_id.strip()
+                      revision = revision.strip() or None
+                  else:
+                      repo_id = repo_spec.strip()
+
+                  if not repo_id:
+                      raise RuntimeError(f"Invalid repo spec: {spec}")
+
+                  if not target_dir:
+                      target_dir = repo_id.rsplit("/", 1)[-1]
+                  target_dir = os.path.basename(target_dir.strip("/"))
+                  if not target_dir:
+                      raise RuntimeError(f"Invalid target directory in repo spec: {spec}")
+
+                  return repo_id, revision, target_dir
+
+              def get_snapshot_download():
+                  try:
+                      from huggingface_hub import snapshot_download
+                      return snapshot_download
+                  except Exception:
+                      print("Installing huggingface_hub...", flush=True)
+                      install = subprocess.run(
+                          [sys.executable, "-m", "pip", "install", "--no-cache-dir", "huggingface_hub"],
+                          capture_output=True,
+                          text=True,
+                      )
+                      if install.returncode != 0:
+                          raise RuntimeError(
+                              f"Failed to install huggingface_hub: {install.stderr.strip()}"
+                          )
+                      from huggingface_hub import snapshot_download
+                      return snapshot_download
+
+              def download_repo_snapshot(snapshot_download, repo_id, revision, target_path, attempts):
+                  for attempt in range(1, attempts + 1):
+                      try:
+                          kwargs = {
+                              "repo_id": repo_id,
+                              "local_dir": target_path,
+                              "resume_download": True,
+                          }
+                          if revision:
+                              kwargs["revision"] = revision
+                          if hf_token:
+                              kwargs["token"] = hf_token
+                          print(
+                              f"Snapshot {repo_id}{'@' + revision if revision else ''} -> {target_path} (attempt {attempt}/{attempts})",
+                              flush=True,
+                          )
+                          snapshot_download(**kwargs)
+                          print(f"Snapshot complete: {target_path}", flush=True)
+                          return
+                      except Exception as exc:
+                          print(f"snapshot failed: {exc}", flush=True)
+                          if attempt < attempts:
+                              time.sleep(10)
+                  raise RuntimeError(f"Failed to snapshot repo {repo_id}")
+
+              def prefetch_model_file_if_configured():
+                  if not prefetch_file_url or not prefetch_file_name:
+                      return
+                  target_path = os.path.join("/models", prefetch_file_name)
+                  download_file(prefetch_file_url, target_path, prefetch_attempts)
+
+              def download_extra_model_files_if_configured():
+                  extra_urls = read_extra_model_urls()
+                  if not extra_urls:
+                      print("No extra model URLs configured", flush=True)
+                      return
+
+                  print(
+                      f"Downloading {len(extra_urls)} extra model file(s) from {model_urls_file}",
+                      flush=True,
+                  )
+                  for url in extra_urls:
+                      file_name = file_name_from_url(url)
+                      target_path = os.path.join("/models", file_name)
+                      download_file(url, target_path, prefetch_attempts)
+
+              def download_extra_model_repos_if_configured():
+                  repo_specs = read_extra_model_repos()
+                  if not repo_specs:
+                      print("No extra model repos configured", flush=True)
+                      return
+
+                  snapshot_download = get_snapshot_download()
+                  print(
+                      f"Downloading {len(repo_specs)} Hugging Face repo snapshot(s) from {model_repos_file}",
+                      flush=True,
+                  )
+                  for spec in repo_specs:
+                      repo_id, revision, target_dir = parse_repo_spec(spec)
+                      target_path = os.path.join("/models", target_dir)
+                      download_repo_snapshot(
+                          snapshot_download,
+                          repo_id,
+                          revision,
+                          target_path,
+                          prefetch_attempts,
+                      )
 
               wait_for_localai_ready()
               ensure_backend_installed()
+              download_extra_model_files_if_configured()
+              download_extra_model_repos_if_configured()
               installed = get_installed_models()
               if model_name in installed:
                   print(f"Model {model_name} already installed", flush=True)
@@ -288,3 +451,7 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: localai-models
+        - name: model-urls
+          secret:
+            secretName: localai-model-downloads
+            optional: true
