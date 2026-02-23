@@ -42,8 +42,28 @@ data:
 
     model = WhisperModel(MODEL_NAME, device="cpu")
     file_state = {}
+    APRS_BANDS_HZ = (
+        (144370000, 144410000),
+        (145805000, 145845000),
+    )
 
     print("Voice decoder started")
+
+
+    def parse_voice_frequency_hz(filename):
+        match = re.match(r"(\d+)_(\d+)\.wav$", filename)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+
+    def is_aprs_frequency_hz(freq_hz):
+        if freq_hz is None:
+            return False
+        return any(lo <= freq_hz <= hi for (lo, hi) in APRS_BANDS_HZ)
 
 
     def wav_bytes_for_frames(wf, start_frame, num_frames):
@@ -129,6 +149,11 @@ data:
 
             wav_path = os.path.join(AUDIO_DIR, fname)
             txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
+            freq_hz = parse_voice_frequency_hz(fname)
+
+            # APRS-band audio is handled by the APRS decoder/indexer path.
+            if is_aprs_frequency_hz(freq_hz):
+                continue
 
             if not os.path.isfile(wav_path):
                 continue
