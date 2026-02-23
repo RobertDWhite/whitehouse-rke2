@@ -441,7 +441,7 @@
             "type": "influxdb",
             "uid": "${datasource}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"freshrss_bi_customer_summary\")\n  |> group(columns: [\"customer\", \"_field\"])\n  |> last()\n  |> pivot(rowKey: [\"customer\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"customer\", \"alerts_count\", \"avg_score\", \"max_score\", \"avg_health_risk\", \"avg_cloud_spend_pressure\", \"avg_churn_risk\", \"avg_renewal_risk\"])\n  |> sort(columns: [\"alerts_count\"], desc: true)",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: -30d)\n  |> filter(fn: (r) => r._measurement == \"freshrss_bi_customer_summary\")\n  |> group(columns: [\"customer\", \"_field\"])\n  |> last()\n  |> pivot(rowKey: [\"customer\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> keep(columns: [\"customer\", \"alerts_count\", \"avg_score\", \"max_score\", \"avg_health_risk\", \"avg_cloud_spend_pressure\", \"avg_churn_risk\", \"avg_renewal_risk\"])\n  |> sort(columns: [\"alerts_count\"], desc: true)",
           "rawQuery": true,
           "refId": "A"
         }
