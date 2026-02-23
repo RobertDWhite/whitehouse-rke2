@@ -1434,18 +1434,21 @@ data:
         Detects CW by checking for a bimodal dit/dah element structure in the
         amplitude envelope. Works even when CW is sent through FM repeaters,
         where spectral narrowness tests fail due to FM demodulation noise.
+        Uses soundfile for fast loading (no resampling needed for envelope detection).
         """
-        SR = 8000
         try:
-            y, sr = librosa.load(audio_path, sr=SR, mono=True)
+            import soundfile as sf
+            y, sr = sf.read(audio_path, dtype='float32', always_2d=False)
+            if y.ndim > 1:
+                y = y[:, 0]
         except Exception:
             return False
-        if len(y) < SR * 0.3:
+        if len(y) < sr * 0.3:
             return False
 
-        frame_len = int(SR * 0.020)
+        frame_len = int(sr * 0.020)
         hop = frame_len // 2
-        hop_ms = (hop / SR) * 1000
+        hop_ms = (hop / sr) * 1000
         envelope = np.array([
             float(np.sqrt(np.mean(y[i:i + frame_len] ** 2)))
             for i in range(0, len(y) - frame_len, hop)
@@ -1477,7 +1480,7 @@ data:
             return False
 
         # Rate check: real CW tops out at ~25 WPM = ~2.5 on-elements/s.
-        duration_s = len(y) / SR
+        duration_s = len(y) / sr
         if duration_s > 0 and len(cw_elements) / duration_s > 3.0:
             return False
 
