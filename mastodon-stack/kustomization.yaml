@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mastodon
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 02-secrets-template.yaml
+  - 03-pvc.yaml
+  - 04-deployment-web.yaml
+  - 05-deployment-streaming.yaml
+  - 06-deployment-sidekiq.yaml
+  - 07-service-web.yaml
+  - 08-service-streaming.yaml
+  - 09-postgres.yaml
+  - 10-redis.yaml
+  - 12-ingress-web.yaml
+  - 13-ingress-streaming.yaml
+  - 15-networkpolicy-cloudflared-to-mastodon.yaml
+
+images:
+  - name: ghcr.io/mastodon/mastodon
+    newTag: "v4.2.8"
+  - name: postgres
+    newTag: "15"
+  - name: redis
+    newTag: "7"
