@@ -1988,6 +1988,356 @@ data:
 
             await asyncio.sleep(30)
 
+  admin.py: |
+    import asyncio
+    import glob as _glob
+    import json
+    import os
+    import shutil
+    import time as _time
+    from datetime import datetime, timedelta
+
+    from fastapi import APIRouter, Depends, HTTPException
+    from pydantic import BaseModel
+    from sqlalchemy import func, text as _sql_text
+    from sqlalchemy.orm import Session
+
+    from ..config import settings
+    from ..database import get_db
+    from ..models import AlertHistory, FrequencyLabel, Recording, Repeater
+    from ..services.alerting import _send_webhook
+    from ..services.indexer import maybe_set_frequency_metadata
+    from ..services.repeater import sync_repeaters
+
+    router = APIRouter()
+
+
+    @router.post("/backfill-frequency")
+    async def backfill_frequency(
+        limit: int = 500,
+        db: Session = Depends(get_db),
+    ):
+        recordings = (
+            db.query(Recording)
+            .filter(
+                Recording.frequency_hz.isnot(None),
+                Recording.frequency_label.is_(None),
+            )
+            .limit(limit)
+            .all()
+        )
+        updated = 0
+        for rec in recordings:
+            before_label = rec.frequency_label
+            before_repeater = rec.repeater_id
+            maybe_set_frequency_metadata(db, rec)
+            if rec.frequency_label != before_label or rec.repeater_id != before_repeater:
+                updated += 1
+        db.commit()
+        return {"scanned": len(recordings), "updated": updated}
+
+
+    @router.post("/sync-repeaters")
+    async def trigger_repeater_sync():
+        asyncio.create_task(asyncio.to_thread(sync_repeaters))
+        return {"status": "sync started"}
+
+
+    @router.get("/status")
+    async def get_status(db: Session = Depends(get_db)):
+        total_repeaters = db.query(func.count(Repeater.id)).scalar() or 0
+        last_synced = db.query(func.max(Repeater.last_synced)).scalar()
+        by_state = (
+            db.query(Repeater.state, func.count(Repeater.id))
+            .filter(Repeater.state.isnot(None))
+            .group_by(Repeater.state)
+            .order_by(func.count(Repeater.id).desc())
+            .all()
+        )
+        total_recordings = db.query(func.count(Recording.id)).scalar() or 0
+        pending_freq = (
+            db.query(func.count(Recording.id))
+            .filter(
+                Recording.frequency_hz.isnot(None),
+                Recording.frequency_label.is_(None),
+            )
+            .scalar() or 0
+        )
+        pending_tags = (
+            db.query(func.count(Recording.id))
+            .filter(Recording.ai_tags.is_(None), Recording.transcript.isnot(None))
+            .scalar() or 0
+        )
+        pending_transcripts = (
+            db.query(func.count(Recording.id))
+            .filter(
+                Recording.mode.in_(["voice", "cw"]),
+                Recording.transcript.is_(None),
+            )
+            .scalar() or 0
+        )
+        sdr_last_seen_seconds = None
+        try:
+            wav_files = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
+            if wav_files:
+                newest_mtime = max(os.path.getmtime(f) for f in wav_files)
+                sdr_last_seen_seconds = int(_time.time() - newest_mtime)
+        except Exception:
+            pass
+        return {
+            "total_repeaters": total_repeaters,
+            "last_repeater_sync": last_synced.isoformat() if last_synced else None,
+            "repeaters_by_state": {state: cnt for state, cnt in by_state},
+            "total_recordings": total_recordings,
+            "pending_freq_label": pending_freq,
+            "pending_ai_tags": pending_tags,
+            "pending_transcripts": pending_transcripts,
+            "sdr_last_seen_seconds": sdr_last_seen_seconds,
+        }
+
+
+    @router.get("/alerts")
+    async def list_alerts(
+        limit: int = 100,
+        db: Session = Depends(get_db),
+    ):
+        rows = (
+            db.query(AlertHistory)
+            .order_by(AlertHistory.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        return {
+            "total": db.query(func.count(AlertHistory.id)).scalar() or 0,
+            "items": [
+                {
+                    "id": r.id,
+                    "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                    "recording_id": r.recording_id,
+                    "filename": r.filename,
+                    "frequency_hz": r.frequency_hz,
+                    "frequency_label": r.frequency_label,
+                    "transcript_excerpt": r.transcript_excerpt,
+                    "matched": json.loads(r.matched) if r.matched else [],
+                }
+                for r in rows
+            ],
+        }
+
+
+    @router.post("/alerts/{alert_id}/resend")
+    async def resend_alert(alert_id: int, db: Session = Depends(get_db)):
+        """Re-fire the webhook for a specific alert history entry."""
+        ah = db.query(AlertHistory).filter(AlertHistory.id == alert_id).first()
+        if not ah:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        if not settings.alert_webhook_url:
+            raise HTTPException(status_code=400, detail="No webhook URL configured")
+
+        payload = {
+            "recording_id": ah.recording_id,
+            "filename": ah.filename,
+            "frequency_hz": ah.frequency_hz,
+            "frequency_label": ah.frequency_label,
+            "timestamp": ah.timestamp.isoformat() if ah.timestamp else None,
+            "transcript": ah.transcript_excerpt,
+            "matched": json.loads(ah.matched) if ah.matched else [],
+            "resent": True,
+        }
+        _send_webhook(payload)
+        return {"status": "sent", "alert_id": alert_id}
+
+
+    @router.get("/storage")
+    async def get_storage():
+        def _dir_size(path: str) -> int:
+            total = 0
+            if not os.path.isdir(path):
+                return total
+            for dirpath, _, filenames in os.walk(path):
+                for f in filenames:
+                    try:
+                        total += os.path.getsize(os.path.join(dirpath, f))
+                    except OSError:
+                        pass
+            return total
+
+        def _dir_count(path: str) -> int:
+            if not os.path.isdir(path):
+                return 0
+            return sum(1 for _, _, files in os.walk(path) for _ in files)
+
+        audio_bytes = _dir_size(settings.audio_base_path)
+        cache_bytes = _dir_size(settings.cache_path)
+        try:
+            usage = shutil.disk_usage(settings.audio_base_path)
+            free_bytes = usage.free
+            total_bytes = usage.total
+        except Exception:
+            free_bytes = 0
+            total_bytes = 0
+        return {
+            "audio_bytes": audio_bytes,
+            "audio_files": _dir_count(settings.audio_base_path),
+            "cache_bytes": cache_bytes,
+            "free_bytes": free_bytes,
+            "total_bytes": total_bytes,
+        }
+
+
+    @router.post("/retention")
+    async def run_retention(
+        days: int = 0,
+        dry_run: bool = False,
+        db: Session = Depends(get_db),
+    ):
+        effective_days = days if days > 0 else settings.retention_days
+        if effective_days <= 0:
+            raise HTTPException(status_code=400, detail="Specify days > 0 or set RETENTION_DAYS env var")
+        cutoff = datetime.utcnow() - timedelta(days=effective_days)
+        recordings = db.query(Recording).filter(Recording.timestamp < cutoff).all()
+        matched = len(recordings)
+        if dry_run:
+            return {"days": effective_days, "cutoff": cutoff.isoformat(), "matched": matched, "deleted": 0}
+        deleted = 0
+        for rec in recordings:
+            for path in [rec.audio_path, rec.text_path, rec.waveform_cached, rec.spectrogram_cached]:
+                if path:
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+            db.delete(rec)
+            deleted += 1
+        db.commit()
+        return {"days": effective_days, "cutoff": cutoff.isoformat(), "matched": matched, "deleted": deleted}
+
+
+    class FrequencyLabelCreate(BaseModel):
+        frequency_hz: float
+        bandwidth_hz: float = 5000.0
+        label: str
+        mode: str | None = None
+        notes: str | None = None
+
+
+    @router.get("/frequency-labels")
+    async def list_frequency_labels(db: Session = Depends(get_db)):
+        rows = db.query(FrequencyLabel).order_by(FrequencyLabel.frequency_hz).all()
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "frequency_hz": r.frequency_hz,
+                    "bandwidth_hz": r.bandwidth_hz,
+                    "label": r.label,
+                    "mode": r.mode,
+                    "notes": r.notes,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ]
+        }
+
+
+    @router.post("/frequency-labels", status_code=201)
+    async def create_frequency_label(
+        body: FrequencyLabelCreate,
+        db: Session = Depends(get_db),
+    ):
+        if not body.label.strip():
+            raise HTTPException(status_code=422, detail="label cannot be empty")
+        fl = FrequencyLabel(
+            frequency_hz=body.frequency_hz,
+            bandwidth_hz=body.bandwidth_hz,
+            label=body.label.strip(),
+            mode=body.mode,
+            notes=body.notes,
+        )
+        db.add(fl)
+        db.commit()
+        db.refresh(fl)
+        return {
+            "id": fl.id,
+            "frequency_hz": fl.frequency_hz,
+            "bandwidth_hz": fl.bandwidth_hz,
+            "label": fl.label,
+            "mode": fl.mode,
+            "notes": fl.notes,
+            "created_at": fl.created_at.isoformat() if fl.created_at else None,
+        }
+
+
+    @router.delete("/frequency-labels/{label_id}")
+    async def delete_frequency_label(label_id: int, db: Session = Depends(get_db)):
+        fl = db.query(FrequencyLabel).filter(FrequencyLabel.id == label_id).first()
+        if not fl:
+            raise HTTPException(status_code=404, detail="Frequency label not found")
+        db.delete(fl)
+        db.commit()
+        return {"deleted": label_id}
+
+
+    @router.get("/sdr-health")
+    async def get_sdr_health():
+        last_seen_seconds = None
+        last_seen_at = None
+        healthy = False
+        status = "no_files"
+        try:
+            wav_files = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
+            if wav_files:
+                newest_mtime = max(os.path.getmtime(f) for f in wav_files)
+                last_seen_seconds = int(_time.time() - newest_mtime)
+                last_seen_at = datetime.fromtimestamp(newest_mtime).isoformat()
+                healthy = last_seen_seconds < 300
+                status = "ok" if healthy else "stale"
+        except Exception as exc:
+            status = f"error: {exc}"
+        return {
+            "last_seen_seconds": last_seen_seconds,
+            "last_seen_at": last_seen_at,
+            "healthy": healthy,
+            "status": status,
+        }
+
+
+    @router.post("/bulk-retranscribe")
+    async def bulk_retranscribe(
+        clear_no_speech_only: bool = True,
+        db: Session = Depends(get_db),
+    ):
+        from ..services.tagging import is_no_speech_transcript
+        query = db.query(Recording).filter(
+            Recording.mode.in_(["voice", "cw"]),
+            Recording.transcript.isnot(None),
+        )
+        all_recs = query.all()
+        if clear_no_speech_only:
+            recs = [r for r in all_recs if is_no_speech_transcript(r.transcript)]
+        else:
+            recs = all_recs
+        cleared = 0
+        for rec in recs:
+            if rec.text_path and os.path.exists(rec.text_path):
+                try:
+                    os.remove(rec.text_path)
+                except OSError:
+                    pass
+            rec.transcript = None
+            rec.text_path = None
+            rec.ai_tags = None
+            db.execute(
+                _sql_text("UPDATE recordings SET search_vector = NULL WHERE id = :id"),
+                {"id": rec.id},
+            )
+            cleared += 1
+        db.commit()
+        return {
+            "cleared": cleared,
+            "mode": "no_speech_only" if clear_no_speech_only else "all_voice_cw",
+        }
+
 kind: ConfigMap
 metadata:
   creationTimestamp: null
