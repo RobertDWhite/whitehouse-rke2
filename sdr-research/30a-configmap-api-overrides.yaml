@@ -1475,8 +1475,8 @@ data:
             on_runs_ms.append(run * hop_ms)
 
         cw_elements = [r for r in on_runs_ms if 30 <= r <= 700]
-        # Minimum 8 elements: even the shortest callsign CW ID (e.g. W1A) has ≥10
-        if len(cw_elements) < 8:
+        # Minimum 10 elements: even the shortest callsign CW ID (e.g. W1A) has ≥10
+        if len(cw_elements) < 10:
             return False
 
         # Rate check: real CW tops out at ~25 WPM = ~2.5 on-elements/s.
