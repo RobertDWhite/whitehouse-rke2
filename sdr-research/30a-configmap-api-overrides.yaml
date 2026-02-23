@@ -232,7 +232,7 @@ data:
 
     @router.get("/browse")
     async def browse_files(
-        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs)$"),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         q: Optional[str] = Query(None, min_length=1),
@@ -248,7 +248,7 @@ data:
         limit: int = Query(50, ge=1, le=200),
         db: Session = Depends(get_db),
     ):
-        """List recordings with optional filters."""
+        """List recordings with optional filters. APRS is excluded — use the APRS tab."""
         _validate_duration_bounds(duration_min, duration_max)
 
         query = _apply_recording_filters(
@@ -264,6 +264,8 @@ data:
             duration_max=duration_max,
             has_transcript=has_transcript,
         )
+        if not mode:
+            query = query.filter(Recording.mode != "aprs")
         query = _apply_tag_filter(query, tag)
 
         if repeater:
