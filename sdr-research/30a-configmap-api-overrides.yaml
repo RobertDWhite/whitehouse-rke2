@@ -95,89 +95,6 @@ data:
             })
 
         return segments
-  cw_detect.py: |
-    import numpy as np
-    import librosa
-
-
-    def detect_cw_from_audio(audio_path: str) -> bool:
-        """Return True if audio content appears to be CW (Morse code).
-
-        Detects CW by checking for a bimodal dit/dah element structure in the
-        amplitude envelope. Works even when CW is sent through FM repeaters,
-        where spectral narrowness tests fail due to FM demodulation noise.
-
-        Algorithm:
-        1. Compute amplitude envelope with 20 ms frames.
-        2. Extract "on" element lengths (ms). Filter to 30–700 ms (CW range).
-        3. Require ≥4 valid elements.
-        4. Check bimodal dit/dah structure: split at the median and verify
-           the long/short cluster mean ratio is 2–5× (CW standard is 3:1).
-        """
-        SR = 8000
-        try:
-            y, sr = librosa.load(audio_path, sr=SR, mono=True)
-        except Exception:
-            return False
-        if len(y) < SR * 0.3:
-            return False
-
-        # Amplitude envelope
-        frame_len = int(SR * 0.020)         # 20 ms frame
-        hop = frame_len // 2                # 10 ms hop
-        hop_ms = (hop / SR) * 1000
-        envelope = np.array([
-            float(np.sqrt(np.mean(y[i:i + frame_len] ** 2)))
-            for i in range(0, len(y) - frame_len, hop)
-        ])
-        if len(envelope) < 6:
-            return False
-        max_env = float(np.max(envelope))
-        if max_env == 0:
-            return False
-        on_off = (envelope / max_env) > 0.25
-
-        # Extract on-run lengths in ms
-        current = bool(on_off[0])
-        run = 1
-        on_runs_ms = []
-        for v in on_off[1:]:
-            if bool(v) == current:
-                run += 1
-            else:
-                if current:
-                    on_runs_ms.append(run * hop_ms)
-                current = bool(v)
-                run = 1
-        if current:
-            on_runs_ms.append(run * hop_ms)
-
-        # Keep only elements in the CW range (30–700 ms covers 5–50 WPM)
-        cw_elements = [r for r in on_runs_ms if 30 <= r <= 700]
-        if len(cw_elements) < 4:
-            return False
-
-        cw_arr = np.array(cw_elements)
-
-        # Bimodal dit/dah check: split at median, verify two distinct clusters
-        median = float(np.median(cw_arr))
-        short_els = cw_arr[cw_arr <= median]
-        long_els = cw_arr[cw_arr > median]
-
-        if len(short_els) < 2 or len(long_els) < 2:
-            return False
-
-        short_mean = float(np.mean(short_els))
-        long_mean = float(np.mean(long_els))
-
-        if short_mean == 0:
-            return False
-        ratio = long_mean / short_mean
-        # CW standard: dah = 3 × dit. Allow 2–5× to tolerate speed variation.
-        if not (2.0 <= ratio <= 5.0):
-            return False
-
-        return True
   files.py: |
     import os
     from datetime import datetime, timedelta
@@ -1494,6 +1411,7 @@ data:
     from pathlib import Path
     from urllib import error, request
 
+    import numpy as np
     import librosa
     from sqlalchemy import text
 
@@ -1504,11 +1422,83 @@ data:
     from .hamdb import callsign_context_str, lookup_callsigns
     from .known_freqs import lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
-    from .cw_detect import detect_cw_from_audio
     from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript
 
 
     CALLSIGN_TAG_PATTERN = re.compile(r"^[AKNW][A-Z]?\d[A-Z]{1,3}$", re.IGNORECASE)
+
+
+    def detect_cw_from_audio(audio_path: str) -> bool:
+        """Return True if audio content appears to be CW (Morse code).
+
+        Detects CW by checking for a bimodal dit/dah element structure in the
+        amplitude envelope. Works even when CW is sent through FM repeaters,
+        where spectral narrowness tests fail due to FM demodulation noise.
+        """
+        SR = 8000
+        try:
+            y, sr = librosa.load(audio_path, sr=SR, mono=True)
+        except Exception:
+            return False
+        if len(y) < SR * 0.3:
+            return False
+
+        frame_len = int(SR * 0.020)
+        hop = frame_len // 2
+        hop_ms = (hop / SR) * 1000
+        envelope = np.array([
+            float(np.sqrt(np.mean(y[i:i + frame_len] ** 2)))
+            for i in range(0, len(y) - frame_len, hop)
+        ])
+        if len(envelope) < 6:
+            return False
+        max_env = float(np.max(envelope))
+        if max_env == 0:
+            return False
+        on_off = (envelope / max_env) > 0.25
+
+        current = bool(on_off[0])
+        run = 1
+        on_runs_ms = []
+        for v in on_off[1:]:
+            if bool(v) == current:
+                run += 1
+            else:
+                if current:
+                    on_runs_ms.append(run * hop_ms)
+                current = bool(v)
+                run = 1
+        if current:
+            on_runs_ms.append(run * hop_ms)
+
+        cw_elements = [r for r in on_runs_ms if 30 <= r <= 700]
+        if len(cw_elements) < 4:
+            return False
+
+        # Rate check: real CW tops out at ~25 WPM = ~2.5 on-elements/s.
+        duration_s = len(y) / SR
+        if duration_s > 0 and len(cw_elements) / duration_s > 3.0:
+            return False
+
+        cw_arr = np.array(cw_elements)
+        median = float(np.median(cw_arr))
+        short_els = cw_arr[cw_arr <= median]
+        long_els = cw_arr[cw_arr > median]
+
+        if len(short_els) < 2 or len(long_els) < 2:
+            return False
+
+        short_mean = float(np.mean(short_els))
+        long_mean = float(np.mean(long_els))
+
+        if short_mean == 0:
+            return False
+        ratio = long_mean / short_mean
+        # CW standard: dah = 3 × dit. Allow 2–5× to tolerate speed variation.
+        if not (2.0 <= ratio <= 5.0):
+            return False
+
+        return True
 
 
     def ensure_recordings_schema(db):
