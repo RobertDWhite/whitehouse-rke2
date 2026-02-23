@@ -100,10 +100,16 @@ data:
     def detect_cw_from_audio(audio_path: str) -> bool:
         """Return True if audio content appears to be CW (Morse code).
 
-        Uses two checks:
-        1. Spectral narrowness: ≥80% of energy within ±300 Hz of the dominant tone.
-        2. Keying pattern: ≥4 on/off transitions with element lengths 40–700 ms.
-        Both checks must pass. Handles CW IDs sent through FM repeaters.
+        Detects CW by checking for a bimodal dit/dah element structure in the
+        amplitude envelope. Works even when CW is sent through FM repeaters,
+        where spectral narrowness tests fail due to FM demodulation noise.
+
+        Algorithm:
+        1. Compute amplitude envelope with 20 ms frames.
+        2. Extract "on" element lengths (ms). Filter to 30–700 ms (CW range).
+        3. Require ≥4 valid elements.
+        4. Check bimodal dit/dah structure: split at the median and verify
+           the long/short cluster mean ratio is 2–5× (CW standard is 3:1).
         """
         SR = 8000
         try:
@@ -113,28 +119,10 @@ data:
         if len(y) < SR * 0.3:
             return False
 
-        # --- Spectral narrowness ---
-        D = np.abs(librosa.stft(y, n_fft=1024)) ** 2
-        power = np.mean(D, axis=1)
-        total_power = float(np.sum(power))
-        if total_power == 0:
-            return False
-        freq_resolution = SR / 1024         # ~7.8 Hz per bin
-        window_bins = int(300 / freq_resolution)  # ±300 Hz window
-        peak_bin = int(np.argmax(power))
-        lo = max(0, peak_bin - window_bins)
-        hi = min(len(power), peak_bin + window_bins + 1)
-        window_power = float(np.sum(power[lo:hi]))
-        if window_power / total_power < 0.80:
-            return False
-        # Peak must be in voice audio range — not DC or ultrasonic noise
-        peak_hz = peak_bin * freq_resolution
-        if not (300 <= peak_hz <= 3000):
-            return False
-
-        # --- Keying pattern (on/off switching) ---
+        # Amplitude envelope
         frame_len = int(SR * 0.020)         # 20 ms frame
         hop = frame_len // 2                # 10 ms hop
+        hop_ms = (hop / SR) * 1000
         envelope = np.array([
             float(np.sqrt(np.mean(y[i:i + frame_len] ** 2)))
             for i in range(0, len(y) - frame_len, hop)
@@ -146,32 +134,44 @@ data:
             return False
         on_off = (envelope / max_env) > 0.25
 
-        transitions = int(np.sum(np.abs(np.diff(on_off.astype(int)))))
-        if transitions < 4:
-            return False
-
-        # Verify "on" run lengths fall in CW element range (40–700 ms)
-        hop_sec = hop / SR
-        min_hops = int(0.040 / hop_sec)
-        max_hops = int(0.700 / hop_sec)
+        # Extract on-run lengths in ms
         current = bool(on_off[0])
         run = 1
-        on_runs = []
+        on_runs_ms = []
         for v in on_off[1:]:
             if bool(v) == current:
                 run += 1
             else:
                 if current:
-                    on_runs.append(run)
+                    on_runs_ms.append(run * hop_ms)
                 current = bool(v)
                 run = 1
         if current:
-            on_runs.append(run)
+            on_runs_ms.append(run * hop_ms)
 
-        if not on_runs:
+        # Keep only elements in the CW range (30–700 ms covers 5–50 WPM)
+        cw_elements = [r for r in on_runs_ms if 30 <= r <= 700]
+        if len(cw_elements) < 4:
             return False
-        valid = sum(1 for r in on_runs if min_hops <= r <= max_hops)
-        if valid < len(on_runs) * 0.6:
+
+        cw_arr = np.array(cw_elements)
+
+        # Bimodal dit/dah check: split at median, verify two distinct clusters
+        median = float(np.median(cw_arr))
+        short_els = cw_arr[cw_arr <= median]
+        long_els = cw_arr[cw_arr > median]
+
+        if len(short_els) < 2 or len(long_els) < 2:
+            return False
+
+        short_mean = float(np.mean(short_els))
+        long_mean = float(np.mean(long_els))
+
+        if short_mean == 0:
+            return False
+        ratio = long_mean / short_mean
+        # CW standard: dah = 3 × dit. Allow 2–5× to tolerate speed variation.
+        if not (2.0 <= ratio <= 5.0):
             return False
 
         return True
