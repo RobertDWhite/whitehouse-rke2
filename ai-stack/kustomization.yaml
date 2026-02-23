@@ -24,6 +24,10 @@ resources:
 #  - 46-sd-pvc.yaml
   - 50-ollama-ingress.yaml
   - 55-openwebui-ingress.yaml
+  - 56-comfyui-pvc.yaml
+  - 57-comfyui-deployment.yaml
+  - 58-comfyui-svc.yaml
+  - 59-comfyui-ingress.yaml
 
 
 commonLabels:
@@ -46,6 +50,9 @@ images:
 
   - name: python
     newTag: "3.14-alpine"
+
+  - name: registry.white.fm/comfyui-nvidia
+    newTag: "0.3.58-cuda13.1-dgx-arm64-20260223-1"
 
 generators:
   - ksops.yaml

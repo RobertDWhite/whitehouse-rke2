@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui
+  namespace: ai-stack
+  labels:
+    app: comfyui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comfyui
+  template:
+    metadata:
+      labels:
+        app: comfyui
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        gpu: "true"
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: comfyui
+          image: registry.white.fm/comfyui-nvidia
+          ports:
+            - containerPort: 8188
+          env:
+            - name: USE_UV
+              value: "true"
+            - name: WANTED_UID
+              value: "1000"
+            - name: WANTED_GID
+              value: "1000"
+            - name: BASE_DIRECTORY
+              value: "/basedir"
+            - name: SECURITY_LEVEL
+              value: "normal"
+            - name: USE_NEW_MANAGER
+              value: "true"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "all"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "8Gi"
+            limits:
+              cpu: "8"
+              memory: "24Gi"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: comfyui-data
+              mountPath: /comfy/mnt
+              subPath: run
+            - name: comfyui-data
+              mountPath: /basedir
+              subPath: basedir
+      volumes:
+        - name: comfyui-data
+          persistentVolumeClaim:
+            claimName: comfyui-data
