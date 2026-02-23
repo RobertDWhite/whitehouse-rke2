@@ -1468,6 +1468,20 @@ data:
             db.close()
 
 
+    APRS_BANDS_HZ = (
+        (144_370_000, 144_410_000),
+        (145_805_000, 145_845_000),
+    )
+    APRS_DECODE_FAILED_MARKER = "APRS_DECODE_FAILED"
+
+
+    def is_aprs_frequency_hz(frequency_hz: float | None) -> bool:
+        if frequency_hz is None:
+            return False
+        hz = int(round(frequency_hz))
+        return any(low <= hz <= high for (low, high) in APRS_BANDS_HZ)
+
+
     def parse_voice_filename(filename: str) -> dict:
         match = re.match(r"(\d+)_(\d+)\.wav$", filename)
         if match:
@@ -1715,6 +1729,13 @@ data:
                 return
             for wav_file in audio_path.glob("*.wav"):
                 filename = wav_file.name
+                if mode == "voice":
+                    metadata = parse_voice_filename(filename)
+                    # APRS-band captures are indexed only by the APRS pipeline.
+                    if is_aprs_frequency_hz(metadata.get("frequency_hz")):
+                        continue
+                else:
+                    metadata = parse_cw_filename(filename)
                 text_path = os.path.join(text_dir, filename.replace(".wav", ".txt"))
                 existing = db.query(Recording).filter(Recording.filename == filename).first()
                 if existing:
@@ -1745,10 +1766,6 @@ data:
                     check_alerts(existing, db)
                     db.commit()
                     continue
-                if mode == "voice":
-                    metadata = parse_voice_filename(filename)
-                else:
-                    metadata = parse_cw_filename(filename)
                 timestamp = metadata.get("timestamp")
                 if timestamp is None:
                     try:
@@ -1810,6 +1827,10 @@ data:
                 transcript = read_transcript(str(txt_file))
                 if not transcript:
                     continue
+                transcript = transcript.strip()
+                if not transcript:
+                    continue
+                decode_failed = transcript.upper().startswith(APRS_DECODE_FAILED_MARKER)
                 recording = Recording(
                     filename=wav_name,
                     mode="aprs",
@@ -1821,10 +1842,13 @@ data:
                     transcript=transcript,
                 )
                 maybe_set_frequency_metadata(db, recording)
-                # Tag with callsigns from the packet (no Ollama for structured APRS data)
-                callsign_tags = extract_callsign_tags(transcript)
-                if callsign_tags:
-                    recording.ai_tags = dump_ai_tags(callsign_tags)
+                if decode_failed:
+                    recording.ai_tags = dump_ai_tags(["aprs", "decode_failed"])
+                else:
+                    # Tag with callsigns from the packet (no Ollama for structured APRS data)
+                    callsign_tags = extract_callsign_tags(transcript)
+                    if callsign_tags:
+                        recording.ai_tags = dump_ai_tags(callsign_tags)
                 check_alerts(recording, db)
                 db.add(recording)
                 db.commit()
