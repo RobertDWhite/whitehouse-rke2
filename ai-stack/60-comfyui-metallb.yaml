@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui-lb
+  namespace: ai-stack
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.99.5.160
+  selector:
+    app: comfyui
+  ports:
+    - name: http
+      port: 8188
+      targetPort: 8188
