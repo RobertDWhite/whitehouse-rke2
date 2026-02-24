@@ -1557,6 +1557,15 @@ data:
     from .known_freqs import lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
     from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript
+    from .metrics import (
+        indexer_files_indexed, indexer_files_deleted, indexer_cycle_duration,
+        indexer_last_run, indexer_ollama_calls, indexer_ollama_errors,
+        aprs_packets_indexed, recordings_total, recordings_with_transcript,
+        recordings_with_ai_tags, recordings_with_repeater,
+        recordings_pending_transcript, recordings_pending_ai_tags,
+        recordings_pending_freq_label, repeater_count, repeater_sync_age_seconds,
+        sdr_hardware_last_seen_seconds,
+    )
 
 
     CALLSIGN_TAG_PATTERN = re.compile(r"^[AKNW][A-Z]?\d[A-Z]{1,3}$", re.IGNORECASE)
@@ -1821,12 +1830,15 @@ data:
             method="POST",
         )
         try:
+            indexer_ollama_calls.inc()
             with request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
                 body = resp.read().decode("utf-8", errors="ignore")
         except error.URLError as exc:
+            indexer_ollama_errors.inc()
             print(f"Ollama request failed: {exc}")
             return callsign_tags
         except Exception as exc:
+            indexer_ollama_errors.inc()
             print(f"Ollama request error: {exc}")
             return callsign_tags
         tags: list[str] = []
@@ -2030,6 +2042,7 @@ data:
                 db.commit()
                 if transcript:
                     update_search_vector(db, recording.id, transcript)
+                indexer_files_indexed.labels(mode=effective_mode).inc()
                 print(f"Indexed: {filename}")
         except Exception as e:
             print(f"Indexer error: {e}")
@@ -2088,6 +2101,7 @@ data:
                 db.commit()
                 if transcript:
                     update_search_vector(db, recording.id, transcript)
+                aprs_packets_indexed.inc()
                 print(f"Indexed APRS: {txt_file.name}")
         except Exception as e:
             print(f"APRS indexer error: {e}")
@@ -2096,8 +2110,52 @@ data:
             db.close()
 
 
+    def _refresh_db_gauges():
+        """Query DB and update Prometheus gauge metrics. Called once per cycle."""
+        from sqlalchemy import func as _func
+        from ..models import Repeater
+        _db = SessionLocal()
+        try:
+            for _mode, _cnt in _db.query(Recording.mode, _func.count(Recording.id)).group_by(Recording.mode).all():
+                if _mode:
+                    recordings_total.labels(mode=_mode).set(_cnt)
+            recordings_with_transcript.set(
+                _db.query(_func.count(Recording.id)).filter(Recording.transcript.isnot(None)).scalar() or 0
+            )
+            recordings_with_ai_tags.set(
+                _db.query(_func.count(Recording.id)).filter(Recording.ai_tags.isnot(None)).scalar() or 0
+            )
+            recordings_with_repeater.set(
+                _db.query(_func.count(Recording.id)).filter(Recording.repeater_id.isnot(None)).scalar() or 0
+            )
+            recordings_pending_transcript.set(
+                _db.query(_func.count(Recording.id)).filter(
+                    Recording.mode.in_(["voice", "cw"]), Recording.transcript.is_(None)
+                ).scalar() or 0
+            )
+            recordings_pending_ai_tags.set(
+                _db.query(_func.count(Recording.id)).filter(
+                    Recording.ai_tags.is_(None), Recording.transcript.isnot(None)
+                ).scalar() or 0
+            )
+            recordings_pending_freq_label.set(
+                _db.query(_func.count(Recording.id)).filter(
+                    Recording.frequency_hz.isnot(None), Recording.frequency_label.is_(None)
+                ).scalar() or 0
+            )
+            repeater_count.set(_db.query(_func.count(Repeater.id)).scalar() or 0)
+            _last_synced = _db.query(_func.max(Repeater.last_synced)).scalar()
+            if _last_synced:
+                repeater_sync_age_seconds.set(_time.time() - _last_synced.timestamp())
+        except Exception as _e:
+            print(f"[metrics] DB gauge refresh error: {_e}")
+        finally:
+            _db.close()
+
+
     async def run_indexer():
         while True:
+            _cycle_start = _time.time()
             try:
                 await asyncio.to_thread(prune_missing_recordings)
 
@@ -2127,8 +2185,22 @@ data:
                     text_dir=os.path.join(settings.text_base_path, "aprs"),
                 )
 
+                await asyncio.to_thread(_refresh_db_gauges)
+
             except Exception as e:
                 print(f"Indexer cycle error: {e}")
+
+            indexer_cycle_duration.observe(_time.time() - _cycle_start)
+            indexer_last_run.set(_time.time())
+
+            # SDR hardware health
+            try:
+                import glob as _glob
+                _wavs = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
+                if _wavs:
+                    sdr_hardware_last_seen_seconds.set(_time.time() - max(os.path.getmtime(f) for f in _wavs))
+            except Exception:
+                pass
 
             # Heartbeat for liveness probe
             try:
@@ -2828,6 +2900,11 @@ data:
             "matched": matched,
         }
 
+        try:
+            from .metrics import alerts_fired as _alerts_fired
+            _alerts_fired.inc()
+        except Exception:
+            pass
         print(f"[Alert] Match for recording {recording.id}: {matched}")
 
         if db is not None:
@@ -2853,6 +2930,88 @@ data:
         if settings.alert_webhook_url:
             _send_webhook(payload)
 
+  metrics.py: |
+    from prometheus_client import Counter, Gauge, Histogram
+
+    # Indexer activity counters
+    indexer_files_indexed = Counter(
+        'sdr_indexer_files_indexed_total',
+        'Files indexed by the background indexer',
+        ['mode'],
+    )
+    indexer_files_deleted = Counter(
+        'sdr_indexer_files_deleted_total',
+        'Recordings auto-deleted during indexing',
+        ['reason'],
+    )
+    indexer_cycle_duration = Histogram(
+        'sdr_indexer_cycle_duration_seconds',
+        'Duration of a full indexer cycle in seconds',
+        buckets=[1, 2, 5, 10, 20, 30, 60, 120],
+    )
+    indexer_last_run = Gauge(
+        'sdr_indexer_last_run_timestamp_seconds',
+        'Unix timestamp of last completed indexer cycle',
+    )
+    indexer_ollama_calls = Counter(
+        'sdr_indexer_ollama_calls_total',
+        'Ollama API calls made by the indexer',
+    )
+    indexer_ollama_errors = Counter(
+        'sdr_indexer_ollama_errors_total',
+        'Ollama API call failures',
+    )
+    aprs_packets_indexed = Counter(
+        'sdr_aprs_packets_indexed_total',
+        'APRS packets indexed from text files',
+    )
+    alerts_fired = Counter(
+        'sdr_alerts_fired_total',
+        'Webhook alerts fired for matched recordings',
+    )
+
+    # DB-level gauges — refreshed once per indexer cycle
+    recordings_total = Gauge(
+        'sdr_recordings_total',
+        'Total recordings in the database',
+        ['mode'],
+    )
+    recordings_with_transcript = Gauge(
+        'sdr_recordings_with_transcript_total',
+        'Recordings that have a transcript',
+    )
+    recordings_with_ai_tags = Gauge(
+        'sdr_recordings_with_ai_tags_total',
+        'Recordings that have AI tags',
+    )
+    recordings_with_repeater = Gauge(
+        'sdr_recordings_with_repeater_total',
+        'Recordings matched to a known repeater',
+    )
+    recordings_pending_transcript = Gauge(
+        'sdr_recordings_pending_transcript_total',
+        'Voice/CW recordings awaiting transcription',
+    )
+    recordings_pending_ai_tags = Gauge(
+        'sdr_recordings_pending_ai_tags_total',
+        'Transcribed recordings awaiting AI tagging',
+    )
+    recordings_pending_freq_label = Gauge(
+        'sdr_recordings_pending_freq_label_total',
+        'Recordings with a frequency but no label',
+    )
+    repeater_count = Gauge(
+        'sdr_repeater_count_total',
+        'Total repeaters in the local database',
+    )
+    repeater_sync_age_seconds = Gauge(
+        'sdr_repeater_sync_age_seconds',
+        'Seconds since the last successful repeater sync',
+    )
+    sdr_hardware_last_seen_seconds = Gauge(
+        'sdr_hardware_last_seen_seconds',
+        'Seconds since the most recent audio file from SDR hardware',
+    )
 kind: ConfigMap
 metadata:
   creationTimestamp: null
