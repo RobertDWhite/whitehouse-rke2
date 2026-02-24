@@ -12,8 +12,12 @@ resources:
   # SDR capture pipeline
   - 03-rtl-sdr-daemonset.yaml
   - 03b-rtl-tcp-service.yaml
+  # 70cm second dongle — uncomment when second RTL-SDR (serial 00000002) is installed
+  # - 03c-rtl-sdr-70cm-daemonset.yaml
+  # - 03d-rtl-tcp-70cm-service.yaml
   - 04-unified-sdr-configmap.yaml
   - 05-unified-sdr-deployment.yaml
+  # - 05b-unified-sdr-70cm-deployment.yaml
   - 08-cw-decoder-configmap.yaml
   - 09-cw-decoder-deployment.yaml
   - 10-aprs-decoder-configmap.yaml
@@ -21,7 +25,6 @@ resources:
   - 10a-voice-decoder-configmap.yaml
   - 10b-voice-decoder-deployment.yaml
   - 11-pvc-whisper-cache.yaml
-
   # Web viewer
   - 20-pvc-cache.yaml
   - 21-postgres-statefulset.yaml
@@ -46,8 +49,8 @@ images:
   - name: postgres
     newTag: "15"
   - name: registry.white.fm/sdr-viewer-api
-    newTag: "1.7.8"
+    newTag: "1.7.9"
   - name: registry.white.fm/sdr-viewer-ui
-    newTag: "1.5.16"
+    newTag: "1.5.17"
   - name: legacycode/rtlsdr
     newTag: "latest"
