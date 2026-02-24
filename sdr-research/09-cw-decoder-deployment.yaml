@@ -34,21 +34,12 @@ spec:
             - -c
             - |
               set -e
-
-              echo "Installing CW decoder dependencies (once per pod start)"
-              apt-get update
-              apt-get install -y --no-install-recommends multimon-ng sox
+              echo "Installing Python3 (CW decoder dependency)"
+              apt-get update -qq
+              apt-get install -y --no-install-recommends python3
               rm -rf /var/lib/apt/lists/*
-
-              cp /scripts/cw_decode.sh /tmp/cw_decode.sh
-              chmod +x /tmp/cw_decode.sh
-
-              echo "Starting CW decoder deployment loop"
-              while true; do
-                /tmp/cw_decode.sh
-                echo "CW decode pass complete, sleeping..."
-                sleep 10
-              done
+              echo "Starting Python CW decoder"
+              exec python3 /scripts/cw_decode.py
       volumes:
         - name: artifacts
           persistentVolumeClaim:
