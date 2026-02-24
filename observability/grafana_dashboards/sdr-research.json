@@ -1,0 +1,249 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "description": "SDR Research API — recordings, indexer, Whisper, Ollama, HTTP",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "HTTP",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sum by (handler, method) (rate(http_requests_total{job=\"sdr-research-api\"}[5m]))",
+          "legendFormat": "{{method}} {{handler}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate by Endpoint",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": { "legend": { "calcs": ["mean", "p95"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (handler, le) (rate(http_request_duration_seconds_bucket{job=\"sdr-research-api\"}[5m])))",
+          "legendFormat": "p95 {{handler}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum by (handler, le) (rate(http_request_duration_seconds_bucket{job=\"sdr-research-api\"}[5m])))",
+          "legendFormat": "p50 {{handler}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Request Latency (p95 / p50)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "red", "value": 0.05 }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 9 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"sdr-research-api\", status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"sdr-research-api\"}[5m]))",
+          "legendFormat": "Error rate",
+          "refId": "A"
+        }
+      ],
+      "title": "5xx Error Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 5 },
+            { "color": "red", "value": 20 }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 9 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"sdr-research-api\", status_code=~\"5..\"}[5m])) * 60",
+          "legendFormat": "5xx/min",
+          "refId": "A"
+        }
+      ],
+      "title": "5xx Errors / min",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 101,
+      "title": "Process & Resources",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=\"sdr-research-api\"}",
+          "legendFormat": "RSS",
+          "refId": "A"
+        },
+        {
+          "expr": "process_virtual_memory_bytes{job=\"sdr-research-api\"}",
+          "legendFormat": "Virtual",
+          "refId": "B"
+        }
+      ],
+      "title": "Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "color": { "mode": "palette-classic" } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"sdr-research-api\"}[1m])",
+          "legendFormat": "CPU",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Usage",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "PVC Storage",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.75 },
+            { "color": "red", "value": 0.90 }
+          ]}
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 23 },
+      "id": 7,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "horizontal", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"sdr-research\", persistentvolumeclaim=\"sdr-artifacts\"} / kubelet_volume_stats_capacity_bytes{namespace=\"sdr-research\", persistentvolumeclaim=\"sdr-artifacts\"}",
+          "legendFormat": "sdr-artifacts",
+          "refId": "A"
+        }
+      ],
+      "title": "sdr-artifacts PVC Usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 23 },
+      "id": 8,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_capacity_bytes{namespace=\"sdr-research\", persistentvolumeclaim=\"sdr-artifacts\"} - kubelet_volume_stats_used_bytes{namespace=\"sdr-research\", persistentvolumeclaim=\"sdr-artifacts\"}",
+          "legendFormat": "Free",
+          "refId": "A"
+        }
+      ],
+      "title": "sdr-artifacts Free Space",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 27 },
+      "id": 9,
+      "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "right" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"sdr-research\"}",
+          "legendFormat": "{{persistentvolumeclaim}} used",
+          "refId": "A"
+        },
+        {
+          "expr": "kubelet_volume_stats_capacity_bytes{namespace=\"sdr-research\"}",
+          "legendFormat": "{{persistentvolumeclaim}} capacity",
+          "refId": "B"
+        }
+      ],
+      "title": "All PVC Usage",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 37,
+  "tags": ["sdr-research", "api"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SDR Research",
+  "uid": "sdr-research-api",
+  "version": 1
+}
