@@ -137,6 +137,14 @@ spec:
               mountPath: /app/app/routers/admin.py
               subPath: admin.py
               readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/routers/stats.py
+              subPath: stats.py
+              readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/services/alerting.py
+              subPath: alerting.py
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -145,11 +153,17 @@ spec:
               cpu: 1000m
               memory: 2Gi
           livenessProbe:
-            httpGet:
-              path: /api/v1/health
-              port: 8000
-            initialDelaySeconds: 10
-            periodSeconds: 30
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  TS=$(cat /tmp/indexer_heartbeat 2>/dev/null || echo 0)
+                  NOW=$(date +%s)
+                  test $(( NOW - ${TS%.*} )) -lt 300
+            initialDelaySeconds: 90
+            periodSeconds: 60
+            failureThreshold: 2
           readinessProbe:
             httpGet:
               path: /api/v1/health
