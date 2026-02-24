@@ -87,7 +87,8 @@
           },
           "expr": "sum(sdr_recordings_total)",
           "legendFormat": "Total Recordings",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Total Recordings",
@@ -146,7 +147,8 @@
           },
           "expr": "sdr_recordings_with_transcript_total",
           "legendFormat": "With Transcript",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "With Transcript",
@@ -213,7 +215,8 @@
           },
           "expr": "sdr_recordings_pending_transcript_total",
           "legendFormat": "Pending Transcription",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Pending Transcription",
@@ -280,7 +283,8 @@
           },
           "expr": "increase(sdr_alerts_fired_total[24h])",
           "legendFormat": "Active Alerts (24h)",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Active Alerts (24h)",
@@ -338,7 +342,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(sdr_indexer_cycle_duration_seconds_sum[5m]) / rate(sdr_indexer_cycle_duration_seconds_count[5m])",
+          "expr": "rate(sdr_indexer_cycle_duration_seconds_sum[$__rate_interval]) / rate(sdr_indexer_cycle_duration_seconds_count[$__rate_interval])",
           "legendFormat": "Avg Cycle Duration",
           "refId": "A"
         }
@@ -386,7 +390,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(sdr_indexer_files_indexed_total[5m])",
+          "expr": "rate(sdr_indexer_files_indexed_total[$__rate_interval])",
           "legendFormat": "{{mode}}",
           "refId": "A"
         }
@@ -434,7 +438,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(sdr_indexer_ollama_calls_total[5m])",
+          "expr": "rate(sdr_indexer_ollama_calls_total[$__rate_interval])",
           "legendFormat": "Ollama Calls",
           "refId": "A"
         },
@@ -443,7 +447,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(sdr_indexer_ollama_errors_total[5m])",
+          "expr": "rate(sdr_indexer_ollama_errors_total[$__rate_interval])",
           "legendFormat": "Ollama Errors",
           "refId": "B"
         }
@@ -654,5 +658,5 @@
   "timezone": "browser",
   "title": "SDR Activity",
   "uid": "sdr-activity",
-  "version": 1
+  "version": 2
 }
