@@ -4,57 +4,179 @@ metadata:
   name: cw-decoder-scripts
   namespace: sdr-research
 data:
-  cw_decode.sh: |
-    #!/bin/sh
-    set -e
+  cw_decode.py: |
+    #!/usr/bin/env python3
+    """
+    Envelope-based Morse code decoder for SDR CW recordings.
 
-    AUDIO_DIR="/data/audio/cw"
-    OUT_DIR="/data/text/cw"
-    MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
-    # Minimum number of alphanumeric characters required to keep a decoded result
-    MIN_CHARS="${MIN_CW_CHARS:-4}"
+    Input:  8 kHz magnitude-envelope WAV files written by the unified SDR's CW
+            slots (complex_to_mag output — raw amplitude, not a heterodyne tone).
+    Output: decoded text files in OUT_DIR.
 
-    mkdir -p "$OUT_DIR"
+    Algorithm:
+      1. Load WAV samples and normalise to [0, 1].
+      2. Threshold at THRESH_FRAC * peak → binary on/off stream.
+      3. Collect runs of on/off samples; convert to millisecond durations.
+      4. Estimate dit length from distribution of short on-runs.
+      5. Decode dits/dahs and char/word gaps using standard 1:3:7 ratios
+         with generous tolerance for QSB and variable sending speed.
+    """
+    import os, wave, struct, time
 
-    for f in "$AUDIO_DIR"/*.wav; do
-      [ -e "$f" ] || continue
+    AUDIO_DIR    = "/data/audio/cw"
+    OUT_DIR      = "/data/text/cw"
+    MIN_FILE_AGE = float(os.getenv("MIN_FILE_AGE_SEC", "15"))
+    MIN_CW_CHARS = int(os.getenv("MIN_CW_CHARS", "2"))
+    THRESH_FRAC  = float(os.getenv("CW_THRESH_FRAC", "0.30"))
+    SLEEP_SEC    = 10
 
-      base=$(basename "$f" .wav)
-      out="$OUT_DIR/$base.txt"
-      tmp="$out.tmp"
-      now=$(date +%s)
-      mtime=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f")
-      age=$((now - mtime))
+    MORSE_TABLE = {
+        ".-":"A",   "-...":"B", "-.-.":"C", "-..":"D",  ".":"E",
+        "..-.":"F", "--.":"G",  "....":"H", "..":"I",   ".---":"J",
+        "-.-":"K",  ".-..":"L", "--":"M",   "-.":"N",   "---":"O",
+        ".--.":"P", "--.-":"Q", ".-.":"R",  "...":"S",  "-":"T",
+        "..-":"U",  "...-":"V", ".--":"W",  "-..-":"X", "-.--":"Y",
+        "--..":"Z",
+        ".----":"1","..---":"2","...--":"3","....-":"4",".....":"5",
+        "-....":"6","--...":"7","---..":"8","----.":"9","-----":"0",
+        ".-.-.-":".", "--..--":",", "..--..":"?", ".----.":"'",
+        "-.-.--":"!", "-..-.":"/", "-.--.-":")", ".-...":"&",
+        "---...":":", "-.-.-.":";", "-...-":"=", ".-.-.":"+",
+        "-....-":"-", "..--.-":"_", ".-..-.":'"', "...-..-":"$",
+        ".--.-.":"@", "...---...":"SOS",
+    }
 
-      if [ -f "$out" ]; then
-        echo "Skipping $f (already decoded)"
-        continue
-      fi
-      if [ "$age" -lt "$MIN_FILE_AGE_SEC" ]; then
-        echo "Skipping $f (still changing: ${age}s old)"
-        continue
-      fi
+    def load_samples(path):
+        """Return (samples_float, sample_rate)."""
+        with wave.open(path, "rb") as wf:
+            n     = wf.getnframes()
+            nchan = wf.getnchannels()
+            sampw = wf.getsampwidth()
+            rate  = wf.getframerate()
+            raw   = wf.readframes(n)
 
-      echo "Decoding $f"
-      # Run multimon-ng; strip "CW: " prefix; keep only lines with content
-      raw=$(multimon-ng -q -t wav -a CW "$f" 2>/dev/null | grep '^CW:' | sed 's/^CW: *//')
+        if sampw == 2:
+            vals  = list(struct.unpack_from(f"<{n * nchan}h", raw))
+            scale = 32768.0
+        elif sampw == 4:
+            try:
+                vals  = list(struct.unpack_from(f"<{n * nchan}f", raw))
+                scale = 1.0
+            except Exception:
+                vals  = list(struct.unpack_from(f"<{n * nchan}i", raw))
+                scale = 2147483648.0
+        else:
+            vals  = list(raw)
+            scale = 128.0
 
-      if [ -z "$raw" ]; then
-        echo "No CW detected in $f"
-        continue
-      fi
+        if nchan > 1:
+            vals = vals[::nchan]
 
-      # Join lines with spaces, collapse multiple spaces
-      joined=$(printf '%s' "$raw" | tr '\n' ' ' | tr -s ' ' | sed 's/^ //;s/ $//')
+        mx = max(abs(v) for v in vals) if vals else 0
+        if mx == 0:
+            return [], rate
+        norm = mx * scale if scale != 1.0 else mx
+        return [abs(v) / norm for v in vals], rate
 
-      # Count alphanumeric characters
-      alnum=$(printf '%s' "$joined" | tr -cd '[:alnum:]' | wc -c)
-      if [ "$alnum" -lt "$MIN_CHARS" ]; then
-        echo "Skipping $f (insufficient content: '$joined')"
-        continue
-      fi
+    def get_runs(samples, threshold):
+        """Return list of (is_on, duration_ms) from 8 kHz samples."""
+        if not samples:
+            return []
+        ms_per = 1000.0 / 8000
+        runs, curr, count = [], samples[0] >= threshold, 1
+        for s in samples[1:]:
+            on = s >= threshold
+            if on == curr:
+                count += 1
+            else:
+                runs.append((curr, count * ms_per))
+                curr, count = on, 1
+        runs.append((curr, count * ms_per))
+        return runs
 
-      printf '%s\n' "$joined" > "$tmp"
-      mv "$tmp" "$out"
-      echo "CW decoded: $f -> $joined"
-    done
+    def estimate_dit_ms(runs):
+        on_durs = sorted(d for is_on, d in runs if is_on and d > 5)
+        if len(on_durs) < 3:
+            return None
+        half = on_durs[: max(1, len(on_durs) // 2)]
+        dit  = sum(half) / len(half)
+        return max(20.0, min(dit, 300.0))
+
+    def decode_runs(runs, dit_ms):
+        DAH_THRESH  = dit_ms * 2.0
+        CHAR_THRESH = dit_ms * 2.5
+        WORD_THRESH = dit_ms * 6.0
+        chars, cur, need_space = [], [], False
+        for is_on, dur in runs:
+            if is_on:
+                if need_space:
+                    chars.append(" ")
+                    need_space = False
+                cur.append("." if dur < DAH_THRESH else "-")
+            else:
+                if dur >= WORD_THRESH:
+                    code = "".join(cur)
+                    if code in MORSE_TABLE:
+                        chars.append(MORSE_TABLE[code])
+                    cur, need_space = [], True
+                elif dur >= CHAR_THRESH:
+                    code = "".join(cur)
+                    if code in MORSE_TABLE:
+                        chars.append(MORSE_TABLE[code])
+                    cur = []
+        if cur:
+            code = "".join(cur)
+            if code in MORSE_TABLE:
+                chars.append(MORSE_TABLE[code])
+        return "".join(chars).strip()
+
+    def decode_file(wav_path):
+        samples, _rate = load_samples(wav_path)
+        if not samples:
+            return None
+        runs   = get_runs(samples, THRESH_FRAC)
+        dit_ms = estimate_dit_ms(runs)
+        if dit_ms is None:
+            return None
+        text  = decode_runs(runs, dit_ms)
+        alnum = sum(1 for c in text if c.isalnum())
+        return text if alnum >= MIN_CW_CHARS else None
+
+    def main():
+        os.makedirs(OUT_DIR, exist_ok=True)
+        print(f"CW decoder started — watching {AUDIO_DIR}", flush=True)
+        while True:
+            try:
+                for fname in sorted(os.listdir(AUDIO_DIR)):
+                    if not fname.endswith(".wav"):
+                        continue
+                    wav  = os.path.join(AUDIO_DIR, fname)
+                    out  = os.path.join(OUT_DIR, fname.replace(".wav", ".txt"))
+                    if os.path.exists(out):
+                        continue
+                    try:
+                        age = time.time() - os.path.getmtime(wav)
+                    except OSError:
+                        continue
+                    if age < MIN_FILE_AGE:
+                        continue
+                    print(f"Decoding {fname} …", flush=True)
+                    try:
+                        text = decode_file(wav)
+                    except Exception as exc:
+                        print(f"  Error: {exc}", flush=True)
+                        continue
+                    if text is None:
+                        print(f"  No decodable CW", flush=True)
+                    else:
+                        tmp = out + ".tmp"
+                        with open(tmp, "w") as f:
+                            f.write(text + "\n")
+                        os.rename(tmp, out)
+                        print(f"  → {text!r}", flush=True)
+            except Exception as exc:
+                print(f"Loop error: {exc}", flush=True)
+            time.sleep(SLEEP_SEC)
+
+    if __name__ == "__main__":
+        main()
