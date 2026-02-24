@@ -731,11 +731,26 @@ data:
         db.commit()
 
         return {"matched": matched, "deleted": matched}
+
+
+    @router.get("/tags")
+    async def list_tags(limit: int = 200, db: Session = Depends(get_db)):
+        """Return all distinct AI tags sorted by usage count for autocomplete."""
+        rows = db.query(Recording.ai_tags).filter(Recording.ai_tags.isnot(None)).all()
+        counts: dict = {}
+        for (raw,) in rows:
+            for tag in parse_ai_tags(raw):
+                counts[tag] = counts.get(tag, 0) + 1
+        sorted_tags = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
+        return {"tags": [{"tag": t, "count": c} for t, c in sorted_tags]}
   search.py: |
+    import csv
+    import io
     from typing import Optional, List
 
     import requests
     from fastapi import APIRouter, Depends, HTTPException, Query
+    from fastapi.responses import StreamingResponse
     from sqlalchemy import func, text
     from sqlalchemy.orm import Session
 
@@ -755,6 +770,7 @@ data:
         callsign: Optional[str] = Query(None, min_length=1, max_length=20),
         page: int = Query(1, ge=1),
         limit: int = Query(50, ge=1, le=200),
+        format: Optional[str] = Query(None),
         db: Session = Depends(get_db),
     ):
         """Full-text search on transcripts."""
@@ -790,6 +806,35 @@ data:
                 query = query.filter(normalized_transcript.ilike(f"%{normalized_callsign}%"))
 
         total = query.count()
+
+        if format == "csv":
+            csv_rows = query.order_by(text("rank DESC")).limit(5000).all()
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            writer.writerow(["id", "filename", "mode", "frequency_hz", "frequency_label", "timestamp", "rank", "tags", "headline"])
+            for r in csv_rows:
+                cs_tags = extract_callsign_tags(r.Recording.transcript)
+                ai_tags = parse_ai_tags(r.Recording.ai_tags)
+                all_tags = ";".join(list(dict.fromkeys(cs_tags + ai_tags)))
+                writer.writerow([
+                    r.Recording.id,
+                    r.Recording.filename,
+                    r.Recording.mode or "",
+                    r.Recording.frequency_hz or "",
+                    r.Recording.frequency_label or "",
+                    r.Recording.timestamp.isoformat() if r.Recording.timestamp else "",
+                    f"{float(r.rank):.4f}",
+                    all_tags,
+                    (r.headline or "").replace("<mark>", "").replace("</mark>", ""),
+                ])
+            buf.seek(0)
+            safe_q = q[:40].replace("/", "_").replace(" ", "_")
+            return StreamingResponse(
+                iter([buf.getvalue()]),
+                media_type="text/csv",
+                headers={"Content-Disposition": f'attachment; filename="search_{safe_q}.csv"'},
+            )
+
         results = query.order_by(text("rank DESC")).offset((page - 1) * limit).limit(limit).all()
 
         return {
@@ -1903,8 +1948,14 @@ data:
             rptr = db.query(Repeater).filter(Repeater.id == recording.repeater_id).first()
             if rptr:
                 repeater_info = f"{rptr.callsign} ({rptr.location}, {rptr.state})"
+                if rptr.county:
+                    repeater_info += f", {rptr.county} county"
                 if rptr.pl_tone:
-                    repeater_info += f" PL {rptr.pl_tone:.1f}"
+                    repeater_info += f" PL {rptr.pl_tone:.1f} Hz"
+                if rptr.digital_modes:
+                    repeater_info += f" [{rptr.digital_modes}]"
+                if rptr.linked_nodes:
+                    repeater_info += f" nodes:{rptr.linked_nodes}"
         operator_context = None
         callsigns = extract_callsign_tags(transcript)
         if callsigns and hamdb_budget is not None:
@@ -2412,13 +2463,17 @@ data:
     async def run_retention(
         days: int = 0,
         dry_run: bool = False,
+        mode: str | None = None,
         db: Session = Depends(get_db),
     ):
         effective_days = days if days > 0 else settings.retention_days
         if effective_days <= 0:
             raise HTTPException(status_code=400, detail="Specify days > 0 or set RETENTION_DAYS env var")
         cutoff = datetime.utcnow() - timedelta(days=effective_days)
-        recordings = db.query(Recording).filter(Recording.timestamp < cutoff).all()
+        q = db.query(Recording).filter(Recording.timestamp < cutoff)
+        if mode:
+            q = q.filter(Recording.mode == mode)
+        recordings = q.all()
         matched = len(recordings)
         if dry_run:
             return {"days": effective_days, "cutoff": cutoff.isoformat(), "matched": matched, "deleted": 0}
@@ -2641,6 +2696,86 @@ data:
             raise HTTPException(status_code=404, detail="Rule not found")
         db.commit()
         return {"deleted": rule_id}
+
+
+    @router.post("/test-webhook")
+    async def test_webhook():
+        """Send a test payload to the configured alert webhook URL."""
+        if not settings.alert_webhook_url:
+            raise HTTPException(status_code=400, detail="ALERT_WEBHOOK_URL is not configured")
+        _send_webhook({
+            "recording_id": 0,
+            "filename": "test_webhook.wav",
+            "mode": "voice",
+            "frequency_hz": 145230000.0,
+            "frequency_label": "Test signal",
+            "timestamp": datetime.utcnow().isoformat(),
+            "duration_seconds": 0.0,
+            "transcript": "This is a test webhook from the SDR admin panel.",
+            "matched": ["keyword:test"],
+        })
+        return {"message": f"Test webhook sent to {settings.alert_webhook_url}"}
+
+
+    @router.get("/alert-dryrun")
+    async def alert_dryrun(limit: int = 500, db: Session = Depends(get_db)):
+        """Check recent recordings against active alert rules without sending webhooks."""
+        import re as _re
+        from ..services.alerting import _get_rules
+        keywords, callsigns = _get_rules(db)
+        recordings = (
+            db.query(Recording)
+            .filter(Recording.transcript.isnot(None), Recording.transcript != "")
+            .order_by(Recording.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+        matches = []
+        for rec in recordings:
+            transcript_lower = rec.transcript.lower()
+            callsign_upper = _re.sub(r"[^A-Z0-9]", "", rec.transcript.upper())
+            matched = []
+            for kw in keywords:
+                if kw in transcript_lower:
+                    matched.append(f"keyword:{kw}")
+            for cs in callsigns:
+                if cs in callsign_upper:
+                    matched.append(f"callsign:{cs}")
+            if matched:
+                matches.append({
+                    "id": rec.id,
+                    "filename": rec.filename,
+                    "mode": rec.mode,
+                    "frequency_hz": rec.frequency_hz,
+                    "frequency_label": rec.frequency_label,
+                    "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
+                    "transcript_excerpt": (rec.transcript or "")[:200],
+                    "matched_rules": matched,
+                })
+        return {
+            "rules": {"keywords": keywords, "callsigns": callsigns},
+            "matches": matches,
+            "total": len(matches),
+        }
+
+
+    @router.get("/sdr-live")
+    async def sdr_live():
+        """Return current FFT detections written by the unified-sdr pod."""
+        path = "/data/detections/detections.json"
+        if not os.path.exists(path):
+            raise HTTPException(status_code=503, detail="Detections file not found — SDR may be offline")
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to read detections: {exc}")
+        return {
+            "center_hz": data.get("center_freq_hz", 0),
+            "sample_rate": data.get("sample_rate", 2400000),
+            "timestamp": data.get("timestamp"),
+            "detections": data.get("detections", []),
+        }
 
   stats.py: |
     import time
