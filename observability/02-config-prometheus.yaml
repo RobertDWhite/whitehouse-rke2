@@ -10,6 +10,9 @@ data:
       external_labels:
         origin_prometheus: whitehouse-rke2
 
+    rule_files:
+      - /etc/prometheus/sdr-alerts.yml
+
     scrape_configs:
       - job_name: prometheus
         static_configs:
@@ -360,6 +363,56 @@ data:
               - sdr-viewer-api.sdr-research.svc.cluster.local:8000
         metrics_path: /metrics
         scrape_interval: 30s
+
+  sdr-alerts.yml: |
+    groups:
+      - name: sdr-research.pvc
+        interval: 5m
+        rules:
+          - alert: SdrArtifactsPVCFilling
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+                / kubelet_volume_stats_capacity_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+              ) > 0.85
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "sdr-artifacts PVC is {{ $value | humanizePercentage }} full"
+              description: >
+                The sdr-artifacts PVC in sdr-research has exceeded 85% capacity.
+                Consider running recording retention or expanding the volume.
+
+          - alert: SdrArtifactsPVCCritical
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+                / kubelet_volume_stats_capacity_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+              ) > 0.95
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "sdr-artifacts PVC is {{ $value | humanizePercentage }} full — CRITICAL"
+              description: >
+                The sdr-artifacts PVC in sdr-research has exceeded 95% capacity.
+                New recordings will fail immediately. Run retention now.
+
+      - name: sdr-research.indexer
+        interval: 2m
+        rules:
+          - alert: SdrIndexerStale
+            expr: |
+              time() - sdr_indexer_last_run_timestamp_seconds > 300
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR indexer has not run in >5 minutes"
+              description: >
+                The sdr-research indexer background task appears to have stalled.
+                Check the API pod logs or consider restarting it.
 
 
 
