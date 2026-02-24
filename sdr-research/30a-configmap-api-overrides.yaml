@@ -1162,6 +1162,7 @@ data:
 
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
+    from prometheus_fastapi_instrumentator import Instrumentator
 
     from .database import engine, Base
     from .routers import admin, aprs, files, repeaters, search, stats, waveform
@@ -1205,6 +1206,8 @@ data:
     app.include_router(aprs.router, prefix="/api/v1/aprs", tags=["aprs"])
     app.include_router(stats.router, prefix="/api/v1/stats", tags=["stats"])
     app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
     @app.get("/api/v1/health")
@@ -1445,11 +1448,99 @@ data:
                     })
         return {"packets": packets, "total": total, "page": page, "limit": limit}
 
+
+    @router.get("/export")
+    def export_aprs(
+        format: str = Query("geojson", regex="^(geojson|csv)$"),
+        hours: int = Query(24, ge=1, le=168),
+        db: Session = Depends(get_db),
+    ):
+        """Export all APRS station positions as GeoJSON or CSV."""
+        import csv as _csv
+        import io as _io
+        from fastapi.responses import StreamingResponse
+
+        since = datetime.utcnow() - timedelta(hours=hours)
+        rows = (
+            db.query(Recording)
+            .filter(
+                Recording.mode == "aprs",
+                Recording.transcript.isnot(None),
+                Recording.timestamp >= since,
+            )
+            .order_by(desc(Recording.timestamp))
+            .limit(5000)
+            .all()
+        )
+
+        # Collect unique latest position per callsign
+        stations: dict = {}
+        for rec in rows:
+            for line in (rec.transcript or "").splitlines():
+                p = _parse_packet(line)
+                if not p:
+                    continue
+                cs = p["callsign"]
+                if cs not in stations:
+                    stations[cs] = {
+                        **p,
+                        "last_heard": rec.timestamp.isoformat() if rec.timestamp else None,
+                        "frequency_hz": rec.frequency_hz,
+                    }
+
+        if format == "geojson":
+            features = []
+            for cs, s in stations.items():
+                if s["latitude"] is None or s["longitude"] is None:
+                    continue
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [s["longitude"], s["latitude"]]},
+                    "properties": {
+                        "callsign": cs,
+                        "last_heard": s.get("last_heard"),
+                        "comment": s.get("comment"),
+                        "speed_kt": s.get("speed_kt"),
+                        "altitude_ft": s.get("altitude_ft"),
+                        "frequency_hz": s.get("frequency_hz"),
+                    },
+                })
+            geojson = {"type": "FeatureCollection", "features": features}
+            import json as _json
+            return StreamingResponse(
+                _io.BytesIO(_json.dumps(geojson, indent=2).encode()),
+                media_type="application/geo+json",
+                headers={"Content-Disposition": f'attachment; filename="aprs-{hours}h.geojson"'},
+            )
+
+        # CSV
+        buf = _io.StringIO()
+        writer = _csv.writer(buf)
+        writer.writerow(["callsign", "latitude", "longitude", "last_heard", "comment",
+                          "speed_kt", "altitude_ft", "frequency_hz"])
+        for cs, s in stations.items():
+            writer.writerow([
+                cs,
+                s.get("latitude", ""),
+                s.get("longitude", ""),
+                s.get("last_heard", ""),
+                s.get("comment", ""),
+                s.get("speed_kt", ""),
+                s.get("altitude_ft", ""),
+                s.get("frequency_hz", ""),
+            ])
+        return StreamingResponse(
+            _io.BytesIO(buf.getvalue().encode()),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="aprs-{hours}h.csv"'},
+        )
+
   indexer.py: |
     import asyncio
     import json
     import os
     import re
+    import time as _time
     from datetime import datetime
     from pathlib import Path
     from urllib import error, request
@@ -1552,6 +1643,16 @@ data:
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS ai_tags TEXT"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS repeater_id INTEGER"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS frequency_label TEXT"))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alert_rules (
+                id SERIAL PRIMARY KEY,
+                rule_type TEXT NOT NULL,
+                value TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
         db.commit()
 
 
@@ -2029,6 +2130,13 @@ data:
             except Exception as e:
                 print(f"Indexer cycle error: {e}")
 
+            # Heartbeat for liveness probe
+            try:
+                with open("/tmp/indexer_heartbeat", "w") as _hb:
+                    _hb.write(str(_time.time()))
+            except Exception:
+                pass
+
             await asyncio.sleep(30)
 
   admin.py: |
@@ -2380,6 +2488,370 @@ data:
             "cleared": cleared,
             "mode": "no_speech_only" if clear_no_speech_only else "all_voice_cw",
         }
+
+
+    # ---------------------------------------------------------------------------
+    # Alert rules (DB-backed keyword / callsign watches)
+    # ---------------------------------------------------------------------------
+
+    def _ensure_alert_rules(db):
+        db.execute(_sql_text("""
+            CREATE TABLE IF NOT EXISTS alert_rules (
+                id SERIAL PRIMARY KEY,
+                rule_type TEXT NOT NULL,
+                value TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        db.commit()
+
+
+    class AlertRuleCreate(BaseModel):
+        rule_type: str   # 'keyword' or 'callsign'
+        value: str
+        notes: str | None = None
+
+
+    @router.get("/alert-rules")
+    async def list_alert_rules(db: Session = Depends(get_db)):
+        _ensure_alert_rules(db)
+        rows = db.execute(_sql_text(
+            "SELECT id, rule_type, value, enabled, notes, created_at"
+            " FROM alert_rules ORDER BY created_at DESC"
+        )).fetchall()
+        return {"items": [dict(r._mapping) for r in rows]}
+
+
+    @router.post("/alert-rules", status_code=201)
+    async def create_alert_rule(body: AlertRuleCreate, db: Session = Depends(get_db)):
+        if body.rule_type not in ("keyword", "callsign"):
+            raise HTTPException(status_code=422, detail="rule_type must be 'keyword' or 'callsign'")
+        if not body.value.strip():
+            raise HTTPException(status_code=422, detail="value cannot be empty")
+        _ensure_alert_rules(db)
+        val = (body.value.strip().upper() if body.rule_type == "callsign"
+               else body.value.strip().lower())
+        row = db.execute(
+            _sql_text(
+                "INSERT INTO alert_rules (rule_type, value, notes)"
+                " VALUES (:rt, :v, :n)"
+                " RETURNING id, rule_type, value, enabled, notes, created_at"
+            ),
+            {"rt": body.rule_type, "v": val, "n": body.notes},
+        ).first()
+        db.commit()
+        return dict(row._mapping)
+
+
+    @router.patch("/alert-rules/{rule_id}")
+    async def toggle_alert_rule(rule_id: int, enabled: bool, db: Session = Depends(get_db)):
+        _ensure_alert_rules(db)
+        res = db.execute(
+            _sql_text("UPDATE alert_rules SET enabled = :e WHERE id = :id RETURNING id"),
+            {"e": enabled, "id": rule_id},
+        ).first()
+        if not res:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        db.commit()
+        return {"id": rule_id, "enabled": enabled}
+
+
+    @router.delete("/alert-rules/{rule_id}")
+    async def delete_alert_rule(rule_id: int, db: Session = Depends(get_db)):
+        _ensure_alert_rules(db)
+        res = db.execute(
+            _sql_text("DELETE FROM alert_rules WHERE id = :id RETURNING id"),
+            {"id": rule_id},
+        ).first()
+        if not res:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        db.commit()
+        return {"deleted": rule_id}
+
+  stats.py: |
+    import time
+    from fastapi import APIRouter, Depends
+    from sqlalchemy import func, text
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording, Repeater
+
+    router = APIRouter()
+
+    _cache: dict = {}
+    _CACHE_TTL = 30.0  # seconds
+
+
+    @router.get("")
+    async def get_stats(db: Session = Depends(get_db)):
+        now = time.monotonic()
+        if _cache.get("ts") and now - _cache["ts"] < _CACHE_TTL:
+            return _cache["data"]
+
+        total_recordings = db.query(func.count(Recording.id)).scalar() or 0
+        total_duration = db.query(func.sum(Recording.duration_seconds)).scalar() or 0.0
+
+        mode_rows = (
+            db.query(Recording.mode, func.count(Recording.id))
+            .group_by(Recording.mode)
+            .all()
+        )
+        by_mode = {mode: cnt for mode, cnt in mode_rows}
+
+        transcript_len = func.length(func.trim(func.coalesce(Recording.transcript, "")))
+        with_transcript = (
+            db.query(func.count(Recording.id)).filter(transcript_len > 0).scalar() or 0
+        )
+
+        daily_rows = db.execute(
+            text(
+                """
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE(timestamp)
+                ORDER BY day DESC
+                """
+            )
+        ).fetchall()
+        daily = [{"date": str(row.day), "count": row.cnt} for row in daily_rows]
+
+        tag_rows = db.execute(
+            text(
+                """
+                SELECT tag, COUNT(*) AS cnt
+                FROM (
+                    SELECT json_array_elements_text(ai_tags::json) AS tag
+                    FROM recordings
+                    WHERE ai_tags IS NOT NULL AND ai_tags <> ''
+                ) t
+                GROUP BY tag
+                ORDER BY cnt DESC
+                LIMIT 20
+                """
+            )
+        ).fetchall()
+        top_tags = [{"tag": row.tag, "count": row.cnt} for row in tag_rows]
+
+        total_repeaters = db.query(func.count(Repeater.id)).scalar() or 0
+        matched_recordings = (
+            db.query(func.count(Recording.id))
+            .filter(Recording.repeater_id.isnot(None))
+            .scalar() or 0
+        )
+
+        labeled_recordings = (
+            db.query(func.count(Recording.id))
+            .filter(Recording.frequency_label.isnot(None))
+            .scalar() or 0
+        )
+
+        freq_rows = db.execute(
+            text(
+                """
+                SELECT frequency_hz, frequency_label, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz IS NOT NULL
+                GROUP BY frequency_hz, frequency_label
+                ORDER BY cnt DESC
+                LIMIT 10
+                """
+            )
+        ).fetchall()
+        top_frequencies = [
+            {"frequency_hz": row.frequency_hz, "label": row.frequency_label, "count": row.cnt}
+            for row in freq_rows
+        ]
+
+        hour_rows = db.execute(
+            text(
+                """
+                SELECT EXTRACT(HOUR FROM timestamp)::int AS hour, COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY EXTRACT(HOUR FROM timestamp)::int
+                ORDER BY hour
+                """
+            )
+        ).fetchall()
+        by_hour_map = {row.hour: row.cnt for row in hour_rows}
+        by_hour = [{"hour": h, "count": by_hour_map.get(h, 0)} for h in range(24)]
+
+        cs_rows = db.execute(
+            text(
+                """
+                SELECT tag, COUNT(*) AS cnt
+                FROM (
+                    SELECT json_array_elements_text(ai_tags::json) AS tag
+                    FROM recordings
+                    WHERE ai_tags IS NOT NULL AND ai_tags <> ''
+                ) t
+                WHERE tag ~ '^[AKNW][A-Z0-9]{2,6}$'
+                GROUP BY tag
+                ORDER BY cnt DESC
+                LIMIT 10
+                """
+            )
+        ).fetchall()
+        top_callsigns = [{"callsign": row.tag, "count": row.cnt} for row in cs_rows]
+
+        result = {
+            "total_recordings": total_recordings,
+            "total_duration_seconds": round(total_duration, 1),
+            "by_mode": by_mode,
+            "with_transcript": with_transcript,
+            "without_transcript": total_recordings - with_transcript,
+            "with_frequency_label": labeled_recordings,
+            "matched_to_repeater": matched_recordings,
+            "total_repeaters_known": total_repeaters,
+            "daily_last_30": daily,
+            "top_tags": top_tags,
+            "top_frequencies": top_frequencies,
+            "by_hour": by_hour,
+            "top_callsigns": top_callsigns,
+        }
+        _cache["ts"] = now
+        _cache["data"] = result
+        return result
+
+  alerting.py: |
+    """
+    Webhook alerting for recordings that match watched callsigns or keywords.
+
+    Rules source (in priority order):
+      1. DB table `alert_rules` (if any rows exist) — editable via Admin UI
+      2. ALERT_KEYWORDS / ALERT_CALLSIGNS env vars (fallback)
+
+    Dedup: checks AlertHistory DB table first (survives restarts), then warms
+    the in-process set to avoid repeated DB queries within the same lifecycle.
+    """
+
+    import json
+    import re
+    from urllib import error, request as urllib_request
+
+    from ..config import settings
+
+    _alerted: set[int] = set()
+
+
+    def _keywords() -> list[str]:
+        return [k.strip().lower() for k in settings.alert_keywords.split(",") if k.strip()]
+
+
+    def _callsigns() -> list[str]:
+        return [c.strip().upper() for c in settings.alert_callsigns.split(",") if c.strip()]
+
+
+    def _get_rules(db=None):
+        """Return (keywords, callsigns) — from DB if rules exist, else env vars."""
+        if db is not None:
+            try:
+                from sqlalchemy import text as _text
+                rows = db.execute(
+                    _text("SELECT rule_type, value FROM alert_rules WHERE enabled = true")
+                ).fetchall()
+                if rows:
+                    kw = [r.value.lower() for r in rows if r.rule_type == "keyword"]
+                    cs = [r.value.upper() for r in rows if r.rule_type == "callsign"]
+                    return kw, cs
+            except Exception:
+                pass
+        return _keywords(), _callsigns()
+
+
+    def _send_webhook(payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib_request.Request(
+            settings.alert_webhook_url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=10):
+                pass
+        except error.URLError as exc:
+            print(f"[Alert] Webhook delivery failed: {exc}")
+
+
+    def check_alerts(recording, db=None) -> None:
+        """Check recording for alert conditions; store to DB and fire webhook if matched."""
+        if recording.id in _alerted:
+            return
+
+        # Persistent dedup: check AlertHistory in DB (survives pod restarts)
+        if db is not None:
+            try:
+                from ..models import AlertHistory
+                if db.query(AlertHistory).filter(
+                    AlertHistory.recording_id == recording.id
+                ).first():
+                    _alerted.add(recording.id)
+                    return
+            except Exception:
+                pass
+
+        if not recording.transcript:
+            return
+
+        keywords, callsigns = _get_rules(db)
+        transcript_lower = recording.transcript.lower()
+        matched: list[str] = []
+
+        for kw in keywords:
+            if kw in transcript_lower:
+                matched.append(f"keyword:{kw}")
+
+        callsign_upper = re.sub(r"[^A-Z0-9]", "", recording.transcript.upper())
+        for cs in callsigns:
+            if cs in callsign_upper:
+                matched.append(f"callsign:{cs}")
+
+        if not matched:
+            return
+
+        _alerted.add(recording.id)
+
+        payload = {
+            "recording_id": recording.id,
+            "filename": recording.filename,
+            "mode": recording.mode,
+            "frequency_hz": recording.frequency_hz,
+            "frequency_label": recording.frequency_label,
+            "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
+            "duration_seconds": recording.duration_seconds,
+            "transcript": recording.transcript,
+            "matched": matched,
+        }
+
+        print(f"[Alert] Match for recording {recording.id}: {matched}")
+
+        if db is not None:
+            try:
+                from ..models import AlertHistory
+                ah = AlertHistory(
+                    recording_id=recording.id,
+                    filename=recording.filename,
+                    frequency_hz=recording.frequency_hz,
+                    frequency_label=recording.frequency_label,
+                    transcript_excerpt=(recording.transcript or "")[:500],
+                    matched=json.dumps(matched),
+                )
+                db.add(ah)
+                db.commit()
+            except Exception as exc:
+                print(f"[Alert] Failed to store alert history: {exc}")
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        if settings.alert_webhook_url:
+            _send_webhook(payload)
 
 kind: ConfigMap
 metadata:
