@@ -31,11 +31,14 @@ spec:
             - name: DWELL_CENTER_HZ
               value: "145000000"
             - name: SCAN_CENTERS
-              value: "[]"
+              # 147.0 MHz = center of 2m repeater downlink band (146-148 MHz)
+              value: "[147000000]"
             - name: DWELL_SEC
-              value: "55"
+              # Spend 50s at primary center (145 MHz: CW, APRS, simplex, ISS)
+              value: "50"
             - name: SCAN_SEC
-              value: "2"
+              # Spend 5s at each secondary center to catch repeater activity
+              value: "5"
             - name: NUM_DYN_FM
               value: "8"
             - name: NUM_DYN_CW
