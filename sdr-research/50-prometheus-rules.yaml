@@ -48,7 +48,7 @@ spec:
       rules:
         - alert: SdrIndexerStale
           expr: |
-            time() - sdr_indexer_last_cycle_timestamp_seconds > 300
+            time() - sdr_indexer_last_run_timestamp_seconds > 300
           for: 5m
           labels:
             severity: warning
