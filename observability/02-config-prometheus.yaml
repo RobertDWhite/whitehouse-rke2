@@ -351,5 +351,15 @@ data:
           - action: labelmap
             regex: __meta_kubernetes_pod_label_(.+)
 
+      # =========================
+      # sdr-research API metrics
+      # =========================
+      - job_name: sdr-research-api
+        static_configs:
+          - targets:
+              - sdr-viewer-api.sdr-research.svc.cluster.local:8000
+        metrics_path: /metrics
+        scrape_interval: 30s
 
-    
+
+
