@@ -96,7 +96,9 @@ data:
 
         return segments
   files.py: |
+    import io
     import os
+    import zipfile
     from datetime import datetime, timedelta
     from typing import Optional, List
 
@@ -743,6 +745,158 @@ data:
                 counts[tag] = counts.get(tag, 0) + 1
         sorted_tags = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:limit]
         return {"tags": [{"tag": t, "count": c} for t, c in sorted_tags]}
+
+
+    class UpdateNotesRequest(BaseModel):
+        notes: Optional[str] = None
+
+
+    @router.patch("/{recording_id}/notes")
+    async def update_notes(
+        recording_id: int,
+        body: UpdateNotesRequest,
+        db: Session = Depends(get_db),
+    ):
+        """Update operator notes on a recording."""
+        rec = db.query(Recording).filter(Recording.id == recording_id).first()
+        if not rec:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        rec.notes = body.notes
+        db.commit()
+        return {"id": recording_id, "notes": rec.notes}
+
+
+    @router.get("/export-zip")
+    async def export_zip(
+        mode: Optional[str] = None,
+        frequency_min: Optional[float] = None,
+        frequency_max: Optional[float] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        tag: Optional[str] = None,
+        limit: int = Query(200, ge=1, le=500),
+        db: Session = Depends(get_db),
+    ):
+        """Stream a ZIP archive of matching audio recordings (WAV files only)."""
+        query = db.query(Recording).filter(Recording.audio_path.isnot(None))
+        if mode:
+            query = query.filter(Recording.mode == mode)
+        if frequency_min is not None:
+            query = query.filter(Recording.frequency_hz >= frequency_min)
+        if frequency_max is not None:
+            query = query.filter(Recording.frequency_hz <= frequency_max)
+        if date_from:
+            query = query.filter(Recording.timestamp >= date_from)
+        if date_to:
+            query = query.filter(Recording.timestamp <= date_to)
+        if tag:
+            query = query.filter(Recording.ai_tags.ilike(f'%"{tag}"%'))
+        recordings = query.order_by(Recording.timestamp.desc()).limit(limit).all()
+
+        def generate_zip():
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for rec in recordings:
+                    if rec.audio_path and os.path.exists(rec.audio_path):
+                        arcname = os.path.basename(rec.audio_path)
+                        zf.write(rec.audio_path, arcname=arcname)
+            buf.seek(0)
+            yield buf.read()
+
+        count = len(recordings)
+        return StreamingResponse(
+            generate_zip(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="sdr-recordings-{count}.zip"',
+                "X-Recording-Count": str(count),
+            },
+        )
+
+
+    # ── Frequency Bookmarks ──────────────────────────────────────────────────────
+
+    class BookmarkCreate(BaseModel):
+        frequency_hz: float
+        bandwidth_hz: float = 5000.0
+        label: str
+        notes: Optional[str] = None
+        alert_on_activity: bool = False
+
+
+    class BookmarkUpdate(BaseModel):
+        label: Optional[str] = None
+        bandwidth_hz: Optional[float] = None
+        notes: Optional[str] = None
+        alert_on_activity: Optional[bool] = None
+
+
+    def _bm_row(bm) -> dict:
+        return {
+            "id": bm.id,
+            "frequency_hz": bm.frequency_hz,
+            "bandwidth_hz": bm.bandwidth_hz,
+            "label": bm.label,
+            "notes": bm.notes,
+            "alert_on_activity": bm.alert_on_activity,
+            "created_at": bm.created_at.isoformat() if bm.created_at else None,
+        }
+
+
+    @router.get("/bookmarks")
+    async def list_bookmarks(db: Session = Depends(get_db)):
+        from ..models import FrequencyBookmark
+        rows = db.query(FrequencyBookmark).order_by(FrequencyBookmark.frequency_hz).all()
+        return {"items": [_bm_row(r) for r in rows]}
+
+
+    @router.post("/bookmarks", status_code=201)
+    async def create_bookmark(body: BookmarkCreate, db: Session = Depends(get_db)):
+        from ..models import FrequencyBookmark
+        if not body.label.strip():
+            raise HTTPException(status_code=422, detail="label cannot be empty")
+        bm = FrequencyBookmark(
+            frequency_hz=body.frequency_hz,
+            bandwidth_hz=body.bandwidth_hz,
+            label=body.label.strip(),
+            notes=body.notes,
+            alert_on_activity=body.alert_on_activity,
+        )
+        db.add(bm)
+        db.commit()
+        db.refresh(bm)
+        return _bm_row(bm)
+
+
+    @router.patch("/bookmarks/{bookmark_id}")
+    async def update_bookmark(
+        bookmark_id: int, body: BookmarkUpdate, db: Session = Depends(get_db)
+    ):
+        from ..models import FrequencyBookmark
+        bm = db.query(FrequencyBookmark).filter(FrequencyBookmark.id == bookmark_id).first()
+        if not bm:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+        if body.label is not None:
+            bm.label = body.label.strip()
+        if body.bandwidth_hz is not None:
+            bm.bandwidth_hz = body.bandwidth_hz
+        if body.notes is not None:
+            bm.notes = body.notes
+        if body.alert_on_activity is not None:
+            bm.alert_on_activity = body.alert_on_activity
+        db.commit()
+        return _bm_row(bm)
+
+
+    @router.delete("/bookmarks/{bookmark_id}")
+    async def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)):
+        from ..models import FrequencyBookmark
+        bm = db.query(FrequencyBookmark).filter(FrequencyBookmark.id == bookmark_id).first()
+        if not bm:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+        db.delete(bm)
+        db.commit()
+        return {"deleted": bookmark_id}
   search.py: |
     import csv
     import io
@@ -901,6 +1055,51 @@ data:
             })
 
         return {"query": q, "results": results, "total": len(results)}
+
+
+    @router.get("/similar/{recording_id}")
+    async def search_similar(
+        recording_id: int,
+        limit: int = Query(10, ge=1, le=50),
+        db: Session = Depends(get_db),
+    ):
+        """Find recordings with transcripts similar to the given recording."""
+        rec = db.query(Recording).filter(Recording.id == recording_id).first()
+        if not rec:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        if not rec.transcript or not rec.search_vector:
+            return {"items": [], "total": 0}
+        search_query = func.plainto_tsquery("english", rec.transcript[:500])
+        results = (
+            db.query(
+                Recording,
+                func.ts_rank(Recording.search_vector, search_query).label("rank"),
+            )
+            .filter(
+                Recording.search_vector.op("@@")(search_query),
+                Recording.id != recording_id,
+            )
+            .order_by(text("rank DESC"))
+            .limit(limit)
+            .all()
+        )
+        return {
+            "items": [
+                {
+                    "id": r.Recording.id,
+                    "filename": r.Recording.filename,
+                    "mode": r.Recording.mode,
+                    "frequency_hz": r.Recording.frequency_hz,
+                    "frequency_label": r.Recording.frequency_label,
+                    "timestamp": r.Recording.timestamp.isoformat() if r.Recording.timestamp else None,
+                    "transcript": (r.Recording.transcript or "")[:300],
+                    "rank": float(r.rank),
+                    "ai_tags": parse_ai_tags(r.Recording.ai_tags),
+                }
+                for r in results
+            ],
+            "total": len(results),
+        }
   tagging.py: |
     import json
     import os
@@ -1580,6 +1779,56 @@ data:
             headers={"Content-Disposition": f'attachment; filename="aprs-{hours}h.csv"'},
         )
 
+
+    @router.get("/voice-callsigns")
+    async def voice_callsigns(
+        hours: int = Query(72, ge=1, le=720),
+        db: Session = Depends(get_db),
+    ):
+        """
+        Return callsigns heard in voice recordings with their FCC-registered coordinates.
+        Used to overlay operator positions on the map alongside APRS stations.
+        """
+        from ..models import CallsignInfo
+        from ..services.tagging import extract_callsign_tags, parse_ai_tags
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        recs = (
+            db.query(Recording)
+            .filter(
+                Recording.mode == "voice",
+                Recording.timestamp >= cutoff,
+                Recording.transcript.isnot(None),
+            )
+            .order_by(Recording.timestamp.desc())
+            .limit(1000)
+            .all()
+        )
+        # Collect unique callsigns with their lat/lon from callsign_cache
+        callsign_latest: dict = {}
+        for rec in recs:
+            cs_tags = extract_callsign_tags(rec.transcript)
+            ai_tags = parse_ai_tags(rec.ai_tags)
+            all_cs = list(dict.fromkeys(cs_tags + ai_tags))
+            for cs in all_cs:
+                if cs not in callsign_latest:
+                    callsign_latest[cs] = rec.timestamp
+        stations = []
+        for cs, last_heard in callsign_latest.items():
+            info = db.query(CallsignInfo).filter(CallsignInfo.callsign == cs).first()
+            if not info or info.latitude is None or info.longitude is None:
+                continue
+            stations.append({
+                "callsign": cs,
+                "name": info.name,
+                "latitude": info.latitude,
+                "longitude": info.longitude,
+                "qth_city": info.qth_city,
+                "qth_state": info.qth_state,
+                "grid": info.grid,
+                "last_heard": last_heard.isoformat() if last_heard else None,
+            })
+        return {"stations": stations, "total": len(stations)}
+
   indexer.py: |
     import asyncio
     import json
@@ -1693,10 +1942,100 @@ data:
         return True
 
 
+    # DTMF frequency table: (row_hz, col_hz) -> digit
+    _DTMF_ROWS = [697, 770, 852, 941]
+    _DTMF_COLS = [1209, 1336, 1477, 1633]
+    _DTMF_MAP = {
+        (697, 1209): "1", (697, 1336): "2", (697, 1477): "3", (697, 1633): "A",
+        (770, 1209): "4", (770, 1336): "5", (770, 1477): "6", (770, 1633): "B",
+        (852, 1209): "7", (852, 1336): "8", (852, 1477): "9", (852, 1633): "C",
+        (941, 1209): "*", (941, 1336): "0", (941, 1477): "#", (941, 1633): "D",
+    }
+
+
+    def _goertzel_power(samples: np.ndarray, target_hz: float, sample_rate: int) -> float:
+        """Compute Goertzel algorithm power for a single frequency."""
+        N = len(samples)
+        k = int(0.5 + N * target_hz / sample_rate)
+        omega = 2 * np.pi * k / N
+        coeff = 2 * np.cos(omega)
+        s_prev2 = s_prev = 0.0
+        for x in samples:
+            s = float(x) + coeff * s_prev - s_prev2
+            s_prev2 = s_prev
+            s_prev = s
+        return s_prev2 ** 2 + s_prev ** 2 - coeff * s_prev * s_prev2
+
+
+    def detect_dtmf_tones(audio_path: str) -> str | None:
+        """
+        Scan a WAV file for DTMF tones using Goertzel filters.
+        Returns a string of detected digits (e.g. '1234#') or None if none found.
+        Processes audio in 40ms windows with 50% overlap.
+        """
+        try:
+            import wave, array as _array
+            with wave.open(audio_path, "rb") as wf:
+                sr = wf.getframerate()
+                nchannels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+                raw = wf.readframes(wf.getnframes())
+            # Decode PCM
+            if sampwidth == 2:
+                samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            elif sampwidth == 1:
+                samples = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128) / 128.0
+            else:
+                return None
+            if nchannels > 1:
+                samples = samples[::nchannels]  # take first channel
+            window_size = int(sr * 0.04)   # 40ms
+            hop_size = window_size // 2
+            if window_size < 64:
+                return None
+            digits = []
+            prev_digit = None
+            for start in range(0, len(samples) - window_size, hop_size):
+                chunk = samples[start:start + window_size]
+                # Energy check — skip silent windows
+                rms = float(np.sqrt(np.mean(chunk ** 2)))
+                if rms < 0.01:
+                    prev_digit = None
+                    continue
+                # Find dominant row and col
+                row_powers = {f: _goertzel_power(chunk, f, sr) for f in _DTMF_ROWS}
+                col_powers = {f: _goertzel_power(chunk, f, sr) for f in _DTMF_COLS}
+                best_row = max(row_powers, key=row_powers.get)
+                best_col = max(col_powers, key=col_powers.get)
+                # Validate: dominant freq should be significantly stronger than others
+                row_vals = list(row_powers.values())
+                col_vals = list(col_powers.values())
+                row_second = sorted(row_vals)[-2] if len(row_vals) > 1 else 0
+                col_second = sorted(col_vals)[-2] if len(col_vals) > 1 else 0
+                if row_powers[best_row] < row_second * 3:
+                    prev_digit = None
+                    continue
+                if col_powers[best_col] < col_second * 3:
+                    prev_digit = None
+                    continue
+                digit = _DTMF_MAP.get((best_row, best_col))
+                if digit and digit != prev_digit:
+                    digits.append(digit)
+                    prev_digit = digit
+                elif not digit:
+                    prev_digit = None
+            return "".join(digits) if len(digits) >= 1 else None
+        except Exception as exc:
+            print(f"[DTMF] detection error for {audio_path}: {exc}")
+            return None
+
+
     def ensure_recordings_schema(db):
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS ai_tags TEXT"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS repeater_id INTEGER"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS frequency_label TEXT"))
+        db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS notes TEXT"))
+        db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS dtmf_tones TEXT"))
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id SERIAL PRIMARY KEY,
@@ -1704,6 +2043,17 @@ data:
                 value TEXT NOT NULL,
                 enabled BOOLEAN NOT NULL DEFAULT TRUE,
                 notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS frequency_bookmarks (
+                id SERIAL PRIMARY KEY,
+                frequency_hz FLOAT NOT NULL,
+                bandwidth_hz FLOAT DEFAULT 5000.0,
+                label TEXT NOT NULL,
+                notes TEXT,
+                alert_on_activity BOOLEAN NOT NULL DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """))
@@ -2087,8 +2437,54 @@ data:
                     transcript=transcript,
                 )
                 maybe_set_frequency_metadata(db, recording)
+                # DTMF detection for voice recordings
+                if effective_mode == "voice" and recording.audio_path:
+                    try:
+                        dtmf = detect_dtmf_tones(recording.audio_path)
+                        if dtmf:
+                            recording.dtmf_tones = dtmf
+                            print(f"[DTMF] '{dtmf}' in {filename}")
+                    except Exception as _dtmf_err:
+                        print(f"[DTMF] error on {filename}: {_dtmf_err}")
+                # Weather radio auto-tagging
+                if recording.frequency_label and "NOAA WX" in recording.frequency_label:
+                    wx_tags = ["weather_radio"]
+                    if recording.transcript:
+                        t_upper = recording.transcript.upper()
+                        if any(k in t_upper for k in [
+                            "TORNADO", "FLOOD", "SEVERE", "EMERGENCY",
+                            "WARNING", "WATCH", "ADVISORY", "SAME",
+                        ]):
+                            wx_tags.append("weather_alert")
+                    existing_ai = parse_ai_tags(recording.ai_tags)
+                    recording.ai_tags = dump_ai_tags(list(dict.fromkeys(wx_tags + existing_ai)))
                 maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget)
                 check_alerts(recording, db)
+                # Frequency bookmark activity webhook
+                try:
+                    if recording.frequency_hz and settings.alert_webhook_url:
+                        bm_rows = db.execute(
+                            text(
+                                "SELECT id, label FROM frequency_bookmarks"
+                                " WHERE alert_on_activity = TRUE"
+                                " AND ABS(frequency_hz - :f) <= COALESCE(bandwidth_hz, 5000)"
+                            ),
+                            {"f": recording.frequency_hz},
+                        ).fetchall()
+                        for bm in bm_rows:
+                            from ..services.alerting import _send_webhook
+                            _send_webhook({
+                                "type": "bookmark_activity",
+                                "bookmark_id": bm.id,
+                                "bookmark_label": bm.label,
+                                "recording_id": recording.id if recording.id else 0,
+                                "filename": recording.filename,
+                                "frequency_hz": recording.frequency_hz,
+                                "frequency_label": recording.frequency_label,
+                                "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
+                            })
+                except Exception as _bm_err:
+                    print(f"[Bookmark] activity check error: {_bm_err}")
                 db.add(recording)
                 db.commit()
                 if transcript:
@@ -2204,6 +2600,85 @@ data:
             _db.close()
 
 
+    # Track last auto-retention and digest run times
+    _last_auto_retention: float = 0.0
+    _last_daily_digest: float = 0.0
+    _AUTO_RETENTION_INTERVAL = 86400.0   # 24 hours
+    _DAILY_DIGEST_INTERVAL = 86400.0     # 24 hours
+
+
+    def _run_auto_retention():
+        """Delete recordings older than RETENTION_DAYS. Runs at most once per day."""
+        if settings.retention_days <= 0:
+            return
+        db = SessionLocal()
+        try:
+            cutoff = datetime.utcnow() - timedelta(days=settings.retention_days)
+            recordings = db.query(Recording).filter(Recording.timestamp < cutoff).all()
+            deleted = 0
+            for rec in recordings:
+                for path in [rec.audio_path, rec.text_path, rec.waveform_cached, rec.spectrogram_cached]:
+                    if path:
+                        try:
+                            os.remove(path)
+                        except OSError:
+                            pass
+                db.delete(rec)
+                deleted += 1
+            db.commit()
+            if deleted:
+                print(f"[AutoRetention] Deleted {deleted} recordings older than {settings.retention_days} days")
+        except Exception as exc:
+            print(f"[AutoRetention] error: {exc}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    def _send_daily_digest():
+        """Send a daily summary webhook with recording stats."""
+        if not settings.alert_webhook_url:
+            return
+        db = SessionLocal()
+        try:
+            from sqlalchemy import func as _func
+            cutoff_24h = datetime.utcnow() - timedelta(hours=24)
+            total_24h = db.query(_func.count(Recording.id)).filter(
+                Recording.timestamp >= cutoff_24h
+            ).scalar() or 0
+            by_mode = {}
+            for mode, cnt in db.query(Recording.mode, _func.count(Recording.id)).filter(
+                Recording.timestamp >= cutoff_24h
+            ).group_by(Recording.mode).all():
+                by_mode[mode or "unknown"] = cnt
+            top_freqs = db.query(
+                Recording.frequency_label, _func.count(Recording.id).label("cnt")
+            ).filter(
+                Recording.timestamp >= cutoff_24h,
+                Recording.frequency_label.isnot(None),
+            ).group_by(Recording.frequency_label).order_by(
+                _func.count(Recording.id).desc()
+            ).limit(5).all()
+            alerts_24h = db.query(_func.count(Recording.id)).join(
+                Recording,
+                (Recording.id == Recording.id),  # placeholder — use AlertHistory
+            ).scalar() or 0
+            from ..services.alerting import _send_webhook
+            _send_webhook({
+                "type": "daily_digest",
+                "period_hours": 24,
+                "total_recordings": total_24h,
+                "by_mode": by_mode,
+                "top_frequencies": [{"label": lbl, "count": cnt} for lbl, cnt in top_freqs],
+                "generated_at": datetime.utcnow().isoformat(),
+            })
+            print(f"[DailyDigest] Sent: {total_24h} recordings in last 24h")
+        except Exception as exc:
+            print(f"[DailyDigest] error: {exc}")
+        finally:
+            db.close()
+
+
     async def run_indexer():
         while True:
             _cycle_start = _time.time()
@@ -2243,6 +2718,24 @@ data:
 
             indexer_cycle_duration.observe(_time.time() - _cycle_start)
             indexer_last_run.set(_time.time())
+
+            # Scheduled auto-retention (once per day)
+            global _last_auto_retention
+            if _time.time() - _last_auto_retention >= _AUTO_RETENTION_INTERVAL:
+                try:
+                    await asyncio.to_thread(_run_auto_retention)
+                    _last_auto_retention = _time.time()
+                except Exception as _ar_err:
+                    print(f"[AutoRetention] task error: {_ar_err}")
+
+            # Daily digest webhook (once per day, offset 1 hour from retention)
+            global _last_daily_digest
+            if _time.time() - _last_daily_digest >= _DAILY_DIGEST_INTERVAL:
+                try:
+                    await asyncio.to_thread(_send_daily_digest)
+                    _last_daily_digest = _time.time()
+                except Exception as _dd_err:
+                    print(f"[DailyDigest] task error: {_dd_err}")
 
             # SDR hardware health
             try:
@@ -2923,6 +3416,49 @@ data:
         _cache["ts"] = now
         _cache["data"] = result
         return result
+
+
+    @router.get("/activity")
+    async def get_activity(days: int = 30, db: Session = Depends(get_db)):
+        """
+        Frequency × hour-of-day activity heatmap.
+        Returns a grid: for each frequency label, the count per hour (0-23).
+        """
+        rows = db.execute(
+            text(
+                """
+                SELECT
+                    COALESCE(frequency_label, 'Unknown') AS label,
+                    EXTRACT(HOUR FROM timestamp)::int AS hour,
+                    COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL ':d days'
+                  AND timestamp IS NOT NULL
+                GROUP BY label, hour
+                ORDER BY label, hour
+                """.replace(":d", str(int(days)))
+            )
+        ).fetchall()
+        # Pivot: label -> [count_per_hour for hour 0..23]
+        grid: dict[str, list[int]] = {}
+        totals: dict[str, int] = {}
+        for row in rows:
+            label = row.label
+            if label not in grid:
+                grid[label] = [0] * 24
+                totals[label] = 0
+            grid[label][row.hour] += row.cnt
+            totals[label] += row.cnt
+        # Sort by total activity descending, cap at top 20
+        sorted_labels = sorted(totals.keys(), key=lambda l: totals[l], reverse=True)[:20]
+        return {
+            "days": days,
+            "hours": list(range(24)),
+            "series": [
+                {"label": lbl, "data": grid[lbl], "total": totals[lbl]}
+                for lbl in sorted_labels
+            ],
+        }
 
   alerting.py: |
     """
