@@ -15,8 +15,21 @@ spec:
     - hosts:
         - sdr.white.fm
       secretName: sdr-white-fm-tls
+    - hosts:
+        - sdr.w3rdw.radio
+      secretName: sdr-w3rdw-radio-tls
   rules:
     - host: sdr.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik
+                port:
+                  number: 9443
+    - host: sdr.w3rdw.radio
       http:
         paths:
           - path: /
