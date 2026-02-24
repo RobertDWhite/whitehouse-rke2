@@ -1,0 +1,98 @@
+# Second unified-sdr instance for 70cm (432 MHz band).
+# Connects to the rtl-tcp-70cm service (second RTL-SDR dongle).
+# Disabled by default — set replicas to 1 when hardware is ready.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr-70cm
+  namespace: sdr-research
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr-70cm
+  template:
+    metadata:
+      labels:
+        app: unified-sdr-70cm
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: unified-sdr-70cm
+          image: librespace/gnuradio
+          command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
+          env:
+            - name: RTL_TCP_HOST
+              value: "rtl-tcp-70cm.sdr-research.svc.cluster.local"
+            - name: RTL_TCP_PORT
+              value: "1235"
+            - name: SAMPLE_RATE
+              value: "2400000"
+            - name: DWELL_CENTER_HZ
+              # 432 MHz = center of 70cm amateur band (430-440 MHz)
+              value: "432000000"
+            - name: SCAN_CENTERS
+              # 433.0 = FM simplex, 438.0 = repeater downlinks, 446.0 = FRS/PMR446
+              value: "[433000000,438000000,446000000]"
+            - name: DWELL_SEC
+              value: "45"
+            - name: SCAN_SEC
+              value: "5"
+            - name: NUM_DYN_FM
+              value: "8"
+            - name: NUM_DYN_CW
+              value: "4"
+            - name: SLOT_RECYCLE_SEC
+              value: "300"
+            - name: CLEAR_SLOTS_ON_RETUNE
+              value: "true"
+            - name: SQUELCH_OPEN_DB
+              value: "-55"
+            - name: SQUELCH_CLOSE_DB
+              value: "-60"
+            - name: RF_SQUELCH_DB
+              value: "-55"
+            - name: TAIL_SEC
+              value: "1.5"
+            - name: MIN_REC_SEC
+              value: "0.5"
+            - name: MAX_REC_SEC
+              value: "120"
+            - name: FFT_SIZE
+              value: "4096"
+            - name: FFT_INTERVAL
+              value: "1.0"
+            - name: ENERGY_THRESH_DB
+              value: "10"
+            - name: RF_GAIN
+              value: "30"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+            - name: dshm
+              mountPath: /dev/shm
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
+        - name: scripts
+          configMap:
+            name: unified-sdr-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
