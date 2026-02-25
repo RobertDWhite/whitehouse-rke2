@@ -25,6 +25,16 @@ ai:
   retry_attempts: 2
   retry_backoff_seconds: 1.5
 
+enrichment:
+  enabled: true
+  timeout_seconds: 12
+  verify_tls: true
+  max_chars: 7000
+  min_summary_chars: 260
+  user_agent: "FreshRSS-BI-Enricher/1.0"
+  # Optional domain skip list for paywalled or noisy sources.
+  skip_domains: []
+
 taxonomy:
   event_types:
     - pricing_change
@@ -49,11 +59,36 @@ scoring:
     cloud_match: 7.0
     feed_match: 30.0
     domain_match: 12.0
+    context_match: 4.0
     urgency: 4.0
     health_risk: 20.0
     cloud_spend_pressure: 20.0
     churn_risk: 16.0
     renewal_risk: 16.0
+    novelty: 10.0
+    renewal_window_boost: 10.0
+    renewal_window_days: 90
+
+dynamic_thresholds:
+  enabled: true
+  percentile: 0.82
+  blend_weight: 0.65
+  min_history: 30
+  clamp_min: 25
+  clamp_max: 90
+  history_size: 400
+
+alert_routing:
+  min_confidence_for_alert: 0.5
+  watchlist_score_floor: 30
+  cooldown_hours: 48
+  no_signal_days: 7
+
+feedback:
+  enabled: false
+  file: "./feedback/labels.jsonl"
+  min_samples_for_adjustment: 5
+  max_adjustment: 0.25
 
 customers:
   - id: acme_health
@@ -80,6 +115,17 @@ customers:
       - cloud pricing
       - egress
       - kubernetes
+    tech_stack:
+      - epic
+      - cerner
+      - aws
+    strategic_themes:
+      - patient data protection
+      - cloud modernization
+    known_risks:
+      - ransomware
+      - outage
+    renewal_date: "2026-11-15"
     event_type_weights:
       security_incident: 12
       outage_incident: 10
@@ -110,6 +156,11 @@ customers:
       - aws
       - azure
       - gcp
+    context_terms:
+      - platform engineering
+      - data governance
+      - cost optimization
+    renewal_date: "2026-09-30"
     event_type_weights:
       cloud_cost_signal: 12
       pricing_change: 11
@@ -119,6 +170,7 @@ customers:
 state:
   file: "./state/bi_pipeline_state.json"
   keep_seen_ids: 15000
+  story_state_max_items: 10000
 
 output:
   directory: "./output"
