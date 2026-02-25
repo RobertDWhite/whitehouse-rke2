@@ -9,6 +9,7 @@ data:
     import json
     import os
     import random
+    import re
     import time
     from typing import Any, Dict, List, Optional, Tuple
 
@@ -29,14 +30,17 @@ data:
     COMFYUI_DEFAULT_STEPS = int(os.getenv("COMFYUI_DEFAULT_STEPS", "28"))
     COMFYUI_DEFAULT_CFG = float(os.getenv("COMFYUI_DEFAULT_CFG", "7.0"))
     COMFYUI_DEFAULT_DENOISE = float(os.getenv("COMFYUI_DEFAULT_DENOISE", "0.55"))
+    COMFYUI_DEFAULT_LORA_STRENGTH = float(
+        os.getenv("COMFYUI_DEFAULT_LORA_STRENGTH", "0.7")
+    )
     COMFYUI_DEFAULT_SAMPLER = os.getenv("COMFYUI_DEFAULT_SAMPLER", "euler")
     COMFYUI_DEFAULT_SCHEDULER = os.getenv("COMFYUI_DEFAULT_SCHEDULER", "normal")
     COMFYUI_TIMEOUT_SECONDS = int(os.getenv("COMFYUI_TIMEOUT_SECONDS", "300"))
     COMFYUI_POLL_SECONDS = float(os.getenv("COMFYUI_POLL_SECONDS", "1.0"))
     COMFYUI_OUTPUT_PREFIX = os.getenv("COMFYUI_OUTPUT_PREFIX", "openwebui")
 
-    def _parse_model_map() -> Dict[str, str]:
-        raw = os.getenv("COMFYUI_MODEL_MAP", "").strip()
+    def _parse_name_map(env_key: str) -> Dict[str, str]:
+        raw = os.getenv(env_key, "").strip()
         if not raw:
             return {}
         try:
@@ -56,7 +60,8 @@ data:
                 mapped[key] = value
         return mapped
 
-    MODEL_MAP = _parse_model_map()
+    MODEL_MAP = _parse_name_map("COMFYUI_MODEL_MAP")
+    LORA_MAP = _parse_name_map("COMFYUI_LORA_MAP")
 
     def _size_to_dims(size: Optional[str]) -> Tuple[int, int]:
         default_w, default_h = 1024, 1024
@@ -81,6 +86,51 @@ data:
         if model_name.endswith((".safetensors", ".ckpt", ".pt", ".pth", ".bin")):
             return model_name
         return COMFYUI_DEFAULT_CHECKPOINT
+
+    def _resolve_lora_name(lora_name: Optional[str]) -> Optional[str]:
+        if lora_name is None:
+            return None
+        lora_name = str(lora_name).strip()
+        if not lora_name:
+            return None
+        if lora_name in LORA_MAP:
+            return LORA_MAP[lora_name]
+        return lora_name
+
+    def _split_prompt_lora_tag(prompt: str) -> Tuple[str, Optional[str], Optional[float]]:
+        match = re.search(r"<lora:([^:>]+)(?::([0-9]*\.?[0-9]+))?>", prompt)
+        if not match:
+            return prompt, None, None
+        lora_name = match.group(1).strip()
+        strength = None
+        strength_raw = match.group(2)
+        if strength_raw is not None:
+            try:
+                strength = float(strength_raw)
+            except Exception:
+                strength = None
+        cleaned = (prompt[: match.start()] + " " + prompt[match.end() :]).strip()
+        cleaned = " ".join(cleaned.split())
+        return cleaned, lora_name, strength
+
+    def _resolve_lora_request(
+        prompt: str,
+        requested_lora: Optional[str],
+        requested_strength: Optional[Any],
+    ) -> Tuple[str, Optional[str], float]:
+        prompt_without_tag, tag_lora, tag_strength = _split_prompt_lora_tag(prompt)
+        lora_name = _resolve_lora_name(requested_lora or tag_lora)
+        raw_strength = requested_strength if requested_strength is not None else tag_strength
+        try:
+            lora_strength = (
+                float(raw_strength)
+                if raw_strength is not None
+                else COMFYUI_DEFAULT_LORA_STRENGTH
+            )
+        except Exception:
+            lora_strength = COMFYUI_DEFAULT_LORA_STRENGTH
+        lora_strength = max(-4.0, min(4.0, lora_strength))
+        return prompt_without_tag, lora_name, lora_strength
 
     def _comfy_post(path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f"{COMFYUI_BASE_URL}{path}"
@@ -194,6 +244,8 @@ data:
 
     def _build_text2img_workflow(
         checkpoint: str,
+        lora_name: Optional[str],
+        lora_strength: float,
         prompt: str,
         negative_prompt: str,
         width: int,
@@ -203,7 +255,7 @@ data:
         cfg: float,
         n: int,
     ) -> Dict[str, Any]:
-        return {
+        workflow: Dict[str, Any] = {
             "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
             "2": {
                 "class_type": "CLIPTextEncode",
@@ -238,9 +290,26 @@ data:
                 "inputs": {"filename_prefix": COMFYUI_OUTPUT_PREFIX, "images": ["6", 0]},
             },
         }
+        if lora_name:
+            workflow["10"] = {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "model": ["1", 0],
+                    "clip": ["1", 1],
+                    "lora_name": lora_name,
+                    "strength_model": lora_strength,
+                    "strength_clip": lora_strength,
+                },
+            }
+            workflow["2"]["inputs"]["clip"] = ["10", 1]
+            workflow["3"]["inputs"]["clip"] = ["10", 1]
+            workflow["5"]["inputs"]["model"] = ["10", 0]
+        return workflow
 
     def _build_img2img_workflow(
         checkpoint: str,
+        lora_name: Optional[str],
+        lora_strength: float,
         prompt: str,
         negative_prompt: str,
         uploaded_image_name: str,
@@ -250,7 +319,7 @@ data:
         denoise: float,
         n: int,
     ) -> Dict[str, Any]:
-        return {
+        workflow: Dict[str, Any] = {
             "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": checkpoint}},
             "2": {
                 "class_type": "CLIPTextEncode",
@@ -290,6 +359,21 @@ data:
                 "inputs": {"filename_prefix": COMFYUI_OUTPUT_PREFIX, "images": ["8", 0]},
             },
         }
+        if lora_name:
+            workflow["10"] = {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "model": ["1", 0],
+                    "clip": ["1", 1],
+                    "lora_name": lora_name,
+                    "strength_model": lora_strength,
+                    "strength_clip": lora_strength,
+                },
+            }
+            workflow["2"]["inputs"]["clip"] = ["10", 1]
+            workflow["3"]["inputs"]["clip"] = ["10", 1]
+            workflow["7"]["inputs"]["model"] = ["10", 0]
+        return workflow
 
     def _upload_input_image(upload: UploadFile) -> str:
         upload_name = os.path.basename(upload.filename or "input.png")
@@ -355,6 +439,13 @@ data:
 
         model = payload.get("model")
         checkpoint = _resolve_checkpoint(model)
+        requested_lora = payload.get("lora_name") or payload.get("lora")
+        requested_lora_strength = payload.get("lora_strength")
+        prompt, resolved_lora_name, resolved_lora_strength = _resolve_lora_request(
+            prompt,
+            requested_lora=requested_lora,
+            requested_strength=requested_lora_strength,
+        )
         negative_prompt = str(payload.get("negative_prompt", COMFYUI_DEFAULT_NEGATIVE))
         width, height = _size_to_dims(payload.get("size"))
         n = int(payload.get("n", 1))
@@ -364,6 +455,8 @@ data:
 
         workflow = _build_text2img_workflow(
             checkpoint=checkpoint,
+            lora_name=resolved_lora_name,
+            lora_strength=resolved_lora_strength,
             prompt=prompt,
             negative_prompt=negative_prompt,
             width=width,
@@ -385,6 +478,7 @@ data:
                 "created": int(time.time()),
                 "data": response_items,
                 "model": checkpoint,
+                "lora": resolved_lora_name,
             }
         )
 
@@ -396,6 +490,9 @@ data:
         n: int = Form(default=1),
         size: Optional[str] = Form(default=None),
         negative_prompt: Optional[str] = Form(default=None),
+        lora: Optional[str] = Form(default=None),
+        lora_name: Optional[str] = Form(default=None),
+        lora_strength: Optional[float] = Form(default=None),
         denoise: Optional[float] = Form(default=None),
         steps: Optional[int] = Form(default=None),
         cfg_scale: Optional[float] = Form(default=None),
@@ -406,6 +503,11 @@ data:
             raise HTTPException(status_code=400, detail="prompt is required")
 
         checkpoint = _resolve_checkpoint(model)
+        prompt, resolved_lora_name, resolved_lora_strength = _resolve_lora_request(
+            prompt,
+            requested_lora=(lora_name or lora),
+            requested_strength=lora_strength,
+        )
         _ = _size_to_dims(size)  # Kept for interface compatibility.
         negative = (negative_prompt or COMFYUI_DEFAULT_NEGATIVE).strip()
         denoise_value = float(denoise if denoise is not None else COMFYUI_DEFAULT_DENOISE)
@@ -418,6 +520,8 @@ data:
 
         workflow = _build_img2img_workflow(
             checkpoint=checkpoint,
+            lora_name=resolved_lora_name,
+            lora_strength=resolved_lora_strength,
             prompt=prompt,
             negative_prompt=negative,
             uploaded_image_name=uploaded_image,
@@ -439,5 +543,6 @@ data:
                 "created": int(time.time()),
                 "data": response_items,
                 "model": checkpoint,
+                "lora": resolved_lora_name,
             }
         )
