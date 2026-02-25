@@ -5,9 +5,15 @@ resources:
 #  - 10-pvc.yaml
   - 20-kuma-deployment.yaml
   - 30-kuma-svc.yaml
+  - 42-autokuma-deployment.yaml
   - 50-ingress.yaml
 #  - 55-network-policy.yaml
+
+generators:
+  - ksops.yaml
 
 images:
   - name: louislam/uptime-kuma
     newTag: "2.1.3"
+  - name: ghcr.io/bigboot/autokuma
+    digest: sha256:8acbd3ad3ec8cb6c066aa0ee541154921283ec78159015937128541921c47974

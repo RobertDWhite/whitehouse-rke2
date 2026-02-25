@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autokuma
+  namespace: uptime-kuma
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autokuma
+  template:
+    metadata:
+      labels:
+        app: autokuma
+    spec:
+      containers:
+        - name: autokuma
+          image: ghcr.io/bigboot/autokuma
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AUTOKUMA__KUMA__URL
+              value: http://uptime-kuma.uptime-kuma.svc.cluster.local:80
+            - name: AUTOKUMA__KUMA__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: autokuma-auth
+                  key: username
+            - name: AUTOKUMA__KUMA__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: autokuma-auth
+                  key: password
+            - name: AUTOKUMA__STATIC_MONITORS
+              value: /config/monitors
+          volumeMounts:
+            - name: static-monitors
+              mountPath: /config/monitors
+              readOnly: true
+      volumes:
+        - name: static-monitors
+          configMap:
+            name: autokuma-static-monitors
