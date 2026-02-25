@@ -488,7 +488,7 @@
             "type": "influxdb",
             "uid": "${datasource}"
           },
-          "query": "from(bucket: \"${bucket}\")\n  |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"freshrss_bi_alert\")\n  |> filter(fn: (r) => contains(value: r._field, set: [\"score\", \"urgency\", \"confidence\", \"article_title\", \"url\", \"source_name\", \"health_risk\", \"cloud_spend_pressure\", \"churn_risk\", \"renewal_risk\"]))\n  |> pivot(rowKey: [\"_time\", \"customer\", \"event_type\", \"source\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> sort(columns: [\"score\"], desc: true)\n  |> limit(n: 75)",
+          "query": "from(bucket: \"${bucket}\")\n  |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"freshrss_bi_alert\")\n  |> filter(fn: (r) => contains(value: r._field, set: [\"score\", \"urgency\", \"confidence\", \"article_title\", \"url\", \"source_name\", \"health_risk\", \"cloud_spend_pressure\", \"churn_risk\", \"renewal_risk\"]))\n  |> pivot(rowKey: [\"_time\", \"customer\", \"event_type\", \"source\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"score\"], desc: true)\n  |> limit(n: 75)",
           "rawQuery": true,
           "refId": "A"
         }
@@ -1054,6 +1054,6 @@
   "timezone": "browser",
   "title": "FreshRSS Customer Intelligence",
   "uid": "freshrss-bi",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
