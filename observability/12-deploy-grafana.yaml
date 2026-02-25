@@ -84,5 +84,11 @@ spec:
           configMap:
             name: grafana-dashboard-provider
         - name: dashboards
-          configMap:
-            name: observability-grafana-dashboards
+          projected:
+            sources:
+              - configMap:
+                  name: observability-grafana-dashboards
+              - configMap:
+                  name: observability-grafana-dashboards-imported
+              - configMap:
+                  name: observability-grafana-dashboards-unifi-dpi
