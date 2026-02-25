@@ -140,15 +140,46 @@ data:
                     images.append(image)
         return images
 
+    def _history_error_message(history_entry: Dict[str, Any]) -> Optional[str]:
+        if not isinstance(history_entry, dict):
+            return None
+        status = history_entry.get("status")
+        if not isinstance(status, dict):
+            return None
+        if status.get("status_str") != "error":
+            return None
+
+        messages = status.get("messages")
+        if isinstance(messages, list):
+            for message in reversed(messages):
+                if not isinstance(message, list) or len(message) < 2:
+                    continue
+                payload = message[1]
+                if not isinstance(payload, dict):
+                    continue
+                text = payload.get("exception_message") or payload.get("message")
+                if text:
+                    return str(text)
+        return "ComfyUI prompt failed"
+
     def _wait_for_images(prompt_id: str) -> List[Dict[str, Any]]:
         deadline = time.time() + COMFYUI_TIMEOUT_SECONDS
         while time.time() < deadline:
             history = _comfy_get(f"/history/{prompt_id}")
             entry = history.get(prompt_id) if isinstance(history, dict) else None
             if isinstance(entry, dict):
+                error_message = _history_error_message(entry)
+                if error_message:
+                    raise HTTPException(status_code=502, detail=error_message)
                 images = _collect_images_from_history(entry)
                 if images:
                     return images
+                status = entry.get("status")
+                if isinstance(status, dict) and status.get("completed") is True:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="ComfyUI prompt completed without image output",
+                    )
             time.sleep(COMFYUI_POLL_SECONDS)
         raise HTTPException(status_code=504, detail="Timed out waiting for ComfyUI output")
 
