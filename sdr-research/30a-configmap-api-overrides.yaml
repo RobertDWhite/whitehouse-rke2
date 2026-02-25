@@ -1874,7 +1874,6 @@ data:
     from urllib import error, request
 
     import numpy as np
-    import librosa
     from sqlalchemy import text
 
     from ..config import settings
@@ -2169,8 +2168,9 @@ data:
 
     def get_audio_duration(audio_path: str) -> float:
         try:
-            duration = librosa.get_duration(path=audio_path)
-            return duration
+            import wave as _wav
+            with _wav.open(audio_path, "rb") as w:
+                return w.getnframes() / w.getframerate()
         except Exception:
             return 0.0
 
