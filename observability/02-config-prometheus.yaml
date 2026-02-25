@@ -414,5 +414,56 @@ data:
                 The sdr-research indexer background task appears to have stalled.
                 Check the API pod logs or consider restarting it.
 
+      - name: sdr-research.ollama
+        interval: 5m
+        rules:
+          - alert: SdrOllamaErrorRateHigh
+            expr: |
+              rate(sdr_indexer_ollama_errors_total[10m])
+              / rate(sdr_indexer_ollama_calls_total[10m]) > 0.8
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR Ollama error rate > 80%"
+              description: >
+                More than 80% of Ollama tagging calls are failing.
+                Check that the Ollama service is reachable and the model is loaded.
+
+      - name: sdr-research.queue
+        interval: 5m
+        rules:
+          - alert: SdrPendingTranscriptBacklog
+            expr: sdr_recordings_pending_transcript_total > 200
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR transcription queue > 200 recordings"
+              description: >
+                More than 200 voice/CW recordings are awaiting transcription.
+                The Whisper sidecar may be overloaded or stalled.
+
+          - alert: SdrHardwareOffline
+            expr: sdr_hardware_last_seen_seconds > 900
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "SDR hardware has not produced audio for >15 minutes"
+              description: >
+                No new audio files have been detected from the RTL-SDR hardware
+                in over 15 minutes. Check the rtl-tcp DaemonSet and unified-sdr pod.
+
+          - alert: SdrRepeaterSyncStale
+            expr: sdr_repeater_sync_age_seconds > 172800
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Repeater database not synced in >48 hours"
+              description: >
+                The local RepeaterBook cache has not been updated in over 48 hours.
+                Check the API pod logs for repeater sync errors.
 
 
