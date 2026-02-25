@@ -111,8 +111,57 @@ class PipelineTests(unittest.TestCase):
                 (base / run_id).mkdir(parents=True)
             stats = pipeline.prune_output_runs(base, retention_days=0, max_run_directories=2)
             remaining = sorted(p.name for p in base.iterdir() if p.is_dir())
-            self.assertEqual(stats["removed_by_count"], 3)
-            self.assertEqual(remaining, run_ids[-2:])
+        self.assertEqual(stats["removed_by_count"], 3)
+        self.assertEqual(remaining, run_ids[-2:])
+
+    def test_dynamic_threshold_uses_percentile_history(self) -> None:
+        state = {
+            "dynamic_thresholds": {
+                "history": {
+                    "Acme": [20, 35, 42, 48, 51, 63, 70, 74, 82, 88],
+                }
+            }
+        }
+        cfg = {
+            "enabled": True,
+            "percentile": 0.8,
+            "blend_weight": 1.0,
+            "min_history": 5,
+            "clamp_min": 25,
+            "clamp_max": 90,
+        }
+        threshold = pipeline.dynamic_threshold_for_customer("Acme", base_threshold=40.0, state=state, cfg=cfg)
+        self.assertGreaterEqual(threshold, 70.0)
+        self.assertLessEqual(threshold, 90.0)
+
+    def test_feedback_quality_adjustment_penalizes_low_precision_source(self) -> None:
+        state = {
+            "feedback": {
+                "stats": {
+                    "by_customer_source": {"Acme|bad.example.com": {"positive": 1, "negative": 9, "neutral": 0}},
+                    "by_source": {"bad.example.com": {"positive": 1, "negative": 9, "neutral": 0}},
+                    "by_event_type": {"security_incident": {"positive": 8, "negative": 2, "neutral": 0}},
+                }
+            }
+        }
+        cfg = {"enabled": True, "min_samples_for_adjustment": 3, "max_adjustment": 0.25}
+        multiplier, components = pipeline.feedback_quality_adjustment(
+            customer_name="Acme",
+            source_domain="bad.example.com",
+            event_type="security_incident",
+            feedback_state=state,
+            feedback_cfg=cfg,
+        )
+        self.assertLess(multiplier, 1.0)
+        self.assertIn("source", components)
+
+    def test_story_signature_stable_for_same_event(self) -> None:
+        article = {"title": "Vendor outage impacts cloud customers", "summary": "Major downtime event"}
+        event = {"event_type": "outage_incident", "summary": "Cloud outage causes downtime"}
+        sig1 = pipeline.stable_story_signature(article, event)
+        sig2 = pipeline.stable_story_signature(article, event)
+        self.assertEqual(sig1, sig2)
+        self.assertEqual(pipeline.story_id_from_signature(sig1), pipeline.story_id_from_signature(sig2))
 
 
 if __name__ == "__main__":
