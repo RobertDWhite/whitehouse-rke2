@@ -164,10 +164,10 @@ spec:
                 - |
                   TS=$(cat /tmp/indexer_heartbeat 2>/dev/null || echo 0)
                   NOW=$(date +%s)
-                  test $(( NOW - ${TS%.*} )) -lt 300
-            initialDelaySeconds: 90
+                  test $(( NOW - ${TS%.*} )) -lt 600
+            initialDelaySeconds: 300
             periodSeconds: 60
-            failureThreshold: 2
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /api/v1/health
