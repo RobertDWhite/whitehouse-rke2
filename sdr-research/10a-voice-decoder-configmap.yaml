@@ -198,6 +198,8 @@ data:
                     pass
 
             st = os.stat(wav_path)
+            if st.st_size == 0:
+                continue
             sig = (st.st_size, int(st.st_mtime))
             prev = file_state.get(wav_path)
             if prev is None or prev["sig"] != sig:
