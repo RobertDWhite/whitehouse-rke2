@@ -3313,25 +3313,6 @@ data:
         }
 
 
-    @router.get("/sdr-live")
-    async def sdr_live():
-        """Return current FFT detections written by the unified-sdr pod."""
-        path = "/data/detections/detections.json"
-        if not os.path.exists(path):
-            raise HTTPException(status_code=503, detail="Detections file not found — SDR may be offline")
-        try:
-            with open(path) as f:
-                data = json.load(f)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Failed to read detections: {exc}")
-        return {
-            "center_hz": data.get("center_freq_hz", 0),
-            "sample_rate": data.get("sample_rate", 2400000),
-            "timestamp": data.get("timestamp"),
-            "detections": data.get("detections", []),
-        }
-
-
     @router.get("/digest-status")
     async def get_digest_status():
         """Return the timestamp of the last sent daily digest."""
