@@ -1,6 +1,7 @@
 apiVersion: v1
 data:
   audio.py: |
+    import math as _math
     import wave as _wave
     import numpy as np
 
@@ -124,7 +125,7 @@ data:
             if count == 0:
                 return None
             rms = float(np.sqrt(sum_sq / count))
-            return round(20 * np.log10(rms), 1) if rms > 0 else None
+            return round(20 * _math.log10(rms), 1) if rms > 0 else None
         except Exception:
             return None
   files.py: |
