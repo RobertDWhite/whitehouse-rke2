@@ -95,6 +95,16 @@ data:
             })
 
         return segments
+
+
+    def compute_signal_db(audio_path: str):
+        """Compute RMS signal level in dBFS for a WAV file."""
+        try:
+            y, sr = librosa.load(audio_path, sr=None, mono=True)
+            rms = float(np.sqrt(np.mean(y ** 2)))
+            return round(20 * np.log10(rms), 1) if rms > 0 else None
+        except Exception:
+            return None
   files.py: |
     import io
     import os
@@ -299,6 +309,7 @@ data:
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
+                    "signal_db": r.signal_db,
                     "callsign_tags": (callsign_tags := extract_callsign_tags(r.transcript)),
                     "ai_tags": (ai_tags := parse_ai_tags(r.ai_tags)),
                     "tags": _all_tags(callsign_tags, ai_tags),
@@ -420,6 +431,7 @@ data:
             "callsign_tags": callsign_tags,
             "ai_tags": ai_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
+            "signal_db": recording.signal_db,
             "has_waveform": recording.waveform_cached is not None,
             "has_spectrogram": recording.spectrogram_cached is not None,
             "repeater": repeater_info,
@@ -1846,6 +1858,7 @@ data:
     from ..config import settings
     from ..database import SessionLocal
     from ..models import Recording
+    from .audio import compute_signal_db, generate_waveform_peaks, get_time_segments
     from .alerting import check_alerts
     from .hamdb import callsign_context_str, lookup_callsigns
     from .known_freqs import lookup_known_freq
@@ -2436,6 +2449,7 @@ data:
                     text_path=text_path if transcript else None,
                     transcript=transcript,
                 )
+                recording.signal_db = compute_signal_db(str(wav_file))
                 maybe_set_frequency_metadata(db, recording)
                 # DTMF detection for voice recordings
                 if effective_mode == "voice" and recording.audio_path:
@@ -2491,6 +2505,23 @@ data:
                     update_search_vector(db, recording.id, transcript)
                 indexer_files_indexed.labels(mode=effective_mode).inc()
                 print(f"Indexed: {filename}")
+                try:
+                    import asyncio as _asyncio
+                    from ..routers.events import broadcast_recording as _broadcast
+                    _asyncio.get_event_loop().call_soon_threadsafe(
+                        lambda: _asyncio.ensure_future(_broadcast({
+                            "id": recording.id,
+                            "mode": recording.mode,
+                            "frequency_hz": recording.frequency_hz,
+                            "frequency_label": recording.frequency_label,
+                            "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
+                            "duration_seconds": recording.duration_seconds,
+                            "has_transcript": bool((recording.transcript or "").strip()),
+                            "signal_db": recording.signal_db,
+                        }))
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             print(f"Indexer error: {e}")
             db.rollback()
@@ -2603,6 +2634,7 @@ data:
     # Track last auto-retention and digest run times
     _last_auto_retention: float = 0.0
     _last_daily_digest: float = 0.0
+    _last_digest_sent: datetime | None = None
     _AUTO_RETENTION_INTERVAL = 86400.0   # 24 hours
     _DAILY_DIGEST_INTERVAL = 86400.0     # 24 hours
 
@@ -3270,6 +3302,22 @@ data:
             "detections": data.get("detections", []),
         }
 
+
+    @router.get("/digest-status")
+    async def get_digest_status():
+        """Return the timestamp of the last sent daily digest."""
+        return {
+            "last_sent": _last_digest_sent.isoformat() if _last_digest_sent else None,
+        }
+
+
+    @router.post("/send-digest")
+    async def send_digest_now(db: Session = Depends(get_db)):
+        """Manually trigger a daily digest webhook."""
+        global _last_digest_sent
+        _send_daily_digest()
+        _last_digest_sent = datetime.utcnow()
+        return {"status": "sent", "sent_at": _last_digest_sent.isoformat()}
   stats.py: |
     import time
     from fastapi import APIRouter, Depends
