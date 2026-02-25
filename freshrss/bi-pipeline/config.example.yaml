@@ -7,6 +7,7 @@ fresh_rss:
   timeout_seconds: 20
   retry_attempts: 3
   retry_backoff_seconds: 2
+  page_size: 100
   max_items: 300
   unread_only: true
   lookback_hours: 72
@@ -21,6 +22,8 @@ ai:
   temperature: 0.1
   max_tokens: 700
   timeout_seconds: 45
+  retry_attempts: 2
+  retry_backoff_seconds: 1.5
 
 taxonomy:
   event_types:
@@ -37,6 +40,8 @@ taxonomy:
     - other
 
 scoring:
+  # Scores are clamped to 0-100, and customer min_alert_score values are
+  # also clamped into this range.
   min_alert_score: 45
   default_weights:
     keyword_match: 5.5
@@ -118,6 +123,11 @@ state:
 output:
   directory: "./output"
   top_n_per_customer: 5
+  # Optional output retention controls.
+  # Set retention_days to 0 to disable age-based pruning.
+  retention_days: 30
+  # Set max_run_directories to 0 to disable count-based pruning.
+  max_run_directories: 400
   webhook_url: ""
   webhook_timeout_seconds: 10
 
