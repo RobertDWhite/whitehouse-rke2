@@ -15,6 +15,9 @@ data:
     AUDIO_DIR = "/data/audio/voice"
     TEXT_DIR = "/data/text/voice"
     MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+    WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
+    WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
+    WHISPER_ENFORCE_GPU = os.getenv("WHISPER_ENFORCE_GPU", "true").lower() in ("1", "true", "yes", "on")
     MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "120"))
     MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
     CHUNK_SEC = int(os.getenv("CHUNK_SEC", "30"))
@@ -40,14 +43,28 @@ data:
 
     os.makedirs(TEXT_DIR, exist_ok=True)
 
-    model = WhisperModel(MODEL_NAME, device="cpu")
+    try:
+        model = WhisperModel(
+            MODEL_NAME,
+            device=WHISPER_DEVICE,
+            compute_type=WHISPER_COMPUTE_TYPE,
+        )
+    except Exception as e:
+        if WHISPER_DEVICE == "cuda" and not WHISPER_ENFORCE_GPU:
+            print(f"CUDA Whisper init failed ({e}); falling back to CPU")
+            model = WhisperModel(MODEL_NAME, device="cpu", compute_type="int8")
+        else:
+            raise
     file_state = {}
     APRS_BANDS_HZ = (
         (144370000, 144410000),
         (145805000, 145845000),
     )
 
-    print("Voice decoder started")
+    print(
+        "Voice decoder started "
+        f"(model={MODEL_NAME}, device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE})"
+    )
 
 
     def parse_voice_frequency_hz(filename):
