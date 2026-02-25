@@ -69,7 +69,20 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboardproviders.yaml
+              subPath: dashboardproviders.yaml
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: grafana-data
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: observability-grafana-dashboards

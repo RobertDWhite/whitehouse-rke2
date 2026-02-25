@@ -10,6 +10,7 @@ resources:
   - 02-config-prometheus.yaml
   - 03-config-promtail.yaml
   - 04-config-unpoller.yaml
+  - 24-config-grafana-dashboard-provider.yaml
 
   # Persistent storage
   - 05-pvc-loki.yaml
@@ -64,6 +65,24 @@ resources:
 
 generators:
   - ksops.yaml
+
+configMapGenerator:
+  - name: observability-grafana-dashboards
+    files:
+      - 14314_rev2.json=grafana_dashboards/14314_rev2.json
+      - cert-manager.json=grafana_dashboards/cert-manager.json
+      - core-dns.json=grafana_dashboards/core-dns.json
+      - freshrss-customer-intelligence.json=grafana_dashboards/freshrss-customer-intelligence.json
+      - rke2-dashboard.json=grafana_dashboards/rke2-dashboard.json
+      - sdr-activity.json=grafana_dashboards/sdr-activity.json
+      - sdr-research.json=grafana_dashboards/sdr-research.json
+      - syslog-rke2.json=grafana_dashboards/syslog+rke2.json
+      - syslog.json=grafana_dashboards/syslog.json
+      - trivy-operator.json=grafana_dashboards/trivy-operator.json
+      - trivy-overview.json=grafana_dashboards/trivy-overview.json
+
+generatorOptions:
+  disableNameSuffixHash: true
 
 
 
