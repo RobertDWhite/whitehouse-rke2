@@ -2712,6 +2712,13 @@ data:
 
 
     async def run_indexer():
+        # Write heartbeat immediately so liveness probe doesn't kill us during a long first cycle
+        try:
+            with open("/tmp/indexer_heartbeat", "w") as _hb:
+                _hb.write(str(_time.time()))
+        except Exception:
+            pass
+
         while True:
             _cycle_start = _time.time()
             try:
