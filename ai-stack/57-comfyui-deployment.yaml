@@ -7,6 +7,8 @@ metadata:
     app: comfyui
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: comfyui
@@ -22,6 +24,21 @@ spec:
         - key: "node-role.kubernetes.io/control-plane"
           operator: "Exists"
           effect: "NoSchedule"
+      initContainers:
+        - name: fix-volume-permissions
+          image: busybox:1.37
+          command:
+            - sh
+            - -lc
+            - |
+              mkdir -p /mnt/run /mnt/basedir
+              chown -R 1000:1000 /mnt/run /mnt/basedir
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+            - name: comfyui-data
+              mountPath: /mnt
       containers:
         - name: comfyui
           image: registry.white.fm/comfyui-nvidia:0.3.58-cuda13.1-dgx-arm64-20260223-1
@@ -34,6 +51,8 @@ spec:
               value: "1000"
             - name: WANTED_GID
               value: "1000"
+            - name: FORCE_CHOWN
+              value: "true"
             - name: BASE_DIRECTORY
               value: "/basedir"
             - name: SECURITY_LEVEL
