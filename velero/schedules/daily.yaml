@@ -6,6 +6,7 @@ metadata:
 spec:
   schedule: "0 3 * * *"
   template:
+    # High-churn / transactional workloads: tighter RPO (daily)
     includedNamespaces:
       - authentik
       - paperless
@@ -21,6 +22,7 @@ spec:
       - sdr-research
       - ai-stack
       - dispatcharr
+      - jetlog
     snapshotVolumes: true
     snapshotMoveData: true
     ttl: 168h # 7 days
