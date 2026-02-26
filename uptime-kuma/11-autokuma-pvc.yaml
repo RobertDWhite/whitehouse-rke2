@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: autokuma-pvc
+  namespace: uptime-kuma
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    helm.sh/resource-policy: keep
+spec:
+  storageClassName: longhorn
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
