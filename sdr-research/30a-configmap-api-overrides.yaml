@@ -773,7 +773,11 @@ data:
     @router.get("/tags/list")
     async def list_tags(limit: int = 200, db: Session = Depends(get_db)):
         """Return all distinct AI tags sorted by usage count for autocomplete."""
-        rows = db.query(Recording.ai_tags).filter(Recording.ai_tags.isnot(None)).all()
+        rows = (
+            db.query(Recording.ai_tags)
+            .filter(Recording.ai_tags.isnot(None))
+            .yield_per(2000)
+        )
         counts: dict = {}
         for (raw,) in rows:
             for tag in parse_ai_tags(raw):
@@ -2104,19 +2108,28 @@ data:
             pass
 
 
+    _prune_cursor_id: int = 0
+
+
     def prune_missing_recordings():
+        global _prune_cursor_id
         db = SessionLocal()
         removed = 0
-        pending_ids: list[int] = []
-        chunk_size = 500
+        pending_delete_ids: list[int] = []
+        delete_chunk_size = 500
+        scan_batch_size = 4000
+        last_seen_id = _prune_cursor_id
         try:
             ensure_recordings_schema(db)
-            # Stream only scalar columns so the ORM identity map does not balloon.
+            # Scan only a bounded id window each cycle to keep memory predictable.
             rows = (
                 db.query(Recording.id, Recording.audio_path, Recording.text_path)
-                .yield_per(1000)
+                .filter(Recording.id > _prune_cursor_id)
+                .order_by(Recording.id.asc())
+                .limit(scan_batch_size)
             )
             for rec_id, audio_path, text_path in rows:
+                last_seen_id = rec_id
                 missing = False
                 if audio_path:
                     missing = not os.path.exists(audio_path)
@@ -2124,22 +2137,27 @@ data:
                     missing = (not text_path) or (not os.path.exists(text_path))
                 if not missing:
                     continue
-                pending_ids.append(rec_id)
-                if len(pending_ids) >= chunk_size:
+                pending_delete_ids.append(rec_id)
+                if len(pending_delete_ids) >= delete_chunk_size:
                     removed += (
                         db.query(Recording)
-                        .filter(Recording.id.in_(pending_ids))
+                        .filter(Recording.id.in_(pending_delete_ids))
                         .delete(synchronize_session=False)
                     )
                     db.commit()
-                    pending_ids.clear()
-            if pending_ids:
+                    pending_delete_ids.clear()
+            if pending_delete_ids:
                 removed += (
                     db.query(Recording)
-                    .filter(Recording.id.in_(pending_ids))
+                    .filter(Recording.id.in_(pending_delete_ids))
                     .delete(synchronize_session=False)
                 )
                 db.commit()
+            if last_seen_id == _prune_cursor_id:
+                # Reached end of table; wrap to beginning next cycle.
+                _prune_cursor_id = 0
+            else:
+                _prune_cursor_id = last_seen_id
             if removed:
                 print(f"Pruned {removed} stale recordings (missing files)")
         except Exception as e:
