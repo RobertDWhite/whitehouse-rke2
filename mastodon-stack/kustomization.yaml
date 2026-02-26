@@ -6,7 +6,6 @@ namespace: mastodon
 resources:
   - 00-namespace.yaml
   - 01-configmap.yaml
-  - 02-secrets-template.yaml
   - 03-pvc.yaml
   - 04-deployment-web.yaml
   - 05-deployment-streaming.yaml
@@ -18,6 +17,9 @@ resources:
   - 12-ingress-web.yaml
   - 13-ingress-streaming.yaml
   - 15-networkpolicy-cloudflared-to-mastodon.yaml
+
+generators:
+  - ksops.yaml
 
 images:
   - name: ghcr.io/mastodon/mastodon
