@@ -542,13 +542,6 @@ data:
             time.sleep(3)  # let flowgraph settle
             while True:
                 try:
-                    sample = self.tb.rf_probe_fixed.level()
-                    pwr = abs(sample) ** 2
-                    pwr_db = 10.0 * math.log10(pwr + 1e-30)
-                    unmute = "OPEN" if pwr_db > RF_SQUELCH_DB else "closed"
-                    print(f"[RF-PWR] {self.tb.fixed_freq/1e6:.3f} MHz: {pwr_db:.1f} dB  "
-                          f"(thresh {RF_SQUELCH_DB:.0f} dB → {unmute})",
-                          flush=True)
                     heartbeat = {
                         "capture_id": CAPTURE_ID,
                         "timestamp": time.time(),
@@ -559,8 +552,10 @@ data:
                     with open(hb_tmp, "w") as f:
                         json.dump(heartbeat, f)
                     os.replace(hb_tmp, HEARTBEAT_PATH)
+                    # Avoid SDR lockups from blocking probe reads; heartbeat drives health checks.
+                    print(f"[HEARTBEAT] {CAPTURE_ID} center={self.tb.get_center_hz()/1e6:.3f} MHz", flush=True)
                 except Exception as e:
-                    print(f"[RF-PWR] Probe error: {e}", flush=True)
+                    print(f"[HEARTBEAT] error: {e}", flush=True)
                 time.sleep(5)
 
     # ---------------------------------------------------------------------------

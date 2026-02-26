@@ -79,6 +79,28 @@ spec:
             limits:
               cpu: 2000m
               memory: 2Gi
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 2
           volumeMounts:
             - name: artifacts
               mountPath: /data
