@@ -2109,15 +2109,14 @@ data:
         removed = 0
         try:
             ensure_recordings_schema(db)
-            recordings = db.query(Recording).all()
-            for recording in recordings:
+            # Use yield_per to stream rows in batches — avoids loading all recordings
+            # into the session identity map at once (OOM risk with large libraries).
+            for recording in db.query(Recording).yield_per(200):
                 if recording.audio_path:
-                    # Has audio: prune if file missing
                     if not os.path.exists(recording.audio_path):
                         db.delete(recording)
                         removed += 1
                 else:
-                    # No audio (e.g. APRS text-only): prune if text also missing
                     if not recording.text_path or not os.path.exists(recording.text_path):
                         db.delete(recording)
                         removed += 1
