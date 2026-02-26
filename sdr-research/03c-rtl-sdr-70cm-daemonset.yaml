@@ -1,15 +1,11 @@
 # Second RTL-SDR dongle for 70cm (432 MHz band)
-# Requires a second USB RTL-SDR dongle with serial "00000002" on rke2-node-14.
-# To set the serial on the dongle: rtl_eeprom -d 1 -s 00000002
-# This pod is disabled by default (replicas: 0) — set to 1 once hardware is present.
+# Requires a second USB RTL-SDR dongle with serial "00000003" on rke2-node-14.
+# To set the serial on the dongle: rtl_eeprom -d <index> -s 00000003
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: rtl-sdr-tcp-70cm
   namespace: sdr-research
-  annotations:
-    # Remove this annotation and uncomment the nodeSelector to enable
-    sdr.white.fm/status: "disabled-pending-hardware"
 spec:
   selector:
     matchLabels:
