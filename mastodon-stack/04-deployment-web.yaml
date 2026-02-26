@@ -47,6 +47,21 @@ spec:
                 secretKeyRef:
                   name: mastodon-secrets
                   key: redis-password
+            - name: ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: active-record-encryption-primary-key
+            - name: ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: active-record-encryption-deterministic-key
+            - name: ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: mastodon-secrets
+                  key: active-record-encryption-key-derivation-salt
           ports:
             - containerPort: 3000
           volumeMounts:
@@ -56,4 +71,3 @@ spec:
         - name: mastodon-storage
           persistentVolumeClaim:
             claimName: mastodon-pvc
-
