@@ -3113,6 +3113,11 @@ data:
 
     _VOICE_FREQ_RE = re.compile(r"^(?P<freq>\d+)_\d+\.wav$")
     _CW_FREQ_RE = re.compile(r"^cw_(?P<freq>\d+)_\d+\.wav$")
+    _DETECTIONS_DIR = os.path.join(os.path.dirname(settings.audio_base_path), "detections")
+    _SDR_HEARTBEAT_FILES = {
+        "2m": os.path.join(_DETECTIONS_DIR, "sdr_heartbeat_2m.json"),
+        "70cm": os.path.join(_DETECTIONS_DIR, "sdr_heartbeat_70cm.json"),
+    }
 
 
     def _extract_recording_freq_hz(path: str) -> int | None:
@@ -3151,6 +3156,21 @@ data:
         return newest_mtime
 
 
+    def _read_heartbeat_timestamp(band: str) -> float | None:
+        path = _SDR_HEARTBEAT_FILES.get(band)
+        if not path:
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            ts = payload.get("timestamp")
+            if isinstance(ts, (int, float)):
+                return float(ts)
+        except Exception:
+            return None
+        return None
+
+
     @router.get("/sdr-health")
     async def get_sdr_health(band: str | None = None):
         last_seen_seconds = None
@@ -3164,6 +3184,31 @@ data:
         if band is not None and band not in band_ranges:
             raise HTTPException(status_code=400, detail="band must be one of: 2m, 70cm")
         try:
+            heartbeat_ts = None
+            if band in band_ranges:
+                heartbeat_ts = _read_heartbeat_timestamp(band)
+            else:
+                heartbeats = [
+                    ts
+                    for ts in (_read_heartbeat_timestamp("2m"), _read_heartbeat_timestamp("70cm"))
+                    if ts is not None
+                ]
+                if heartbeats:
+                    heartbeat_ts = max(heartbeats)
+
+            if heartbeat_ts is not None:
+                last_seen_seconds = int(_time.time() - heartbeat_ts)
+                last_seen_at = datetime.fromtimestamp(heartbeat_ts).isoformat()
+                healthy = last_seen_seconds < 300
+                status = "ok" if healthy else "stale"
+                return {
+                    "band": band or "all",
+                    "last_seen_seconds": last_seen_seconds,
+                    "last_seen_at": last_seen_at,
+                    "healthy": healthy,
+                    "status": status,
+                }
+
             min_hz, max_hz = (None, None)
             if band in band_ranges:
                 min_hz, max_hz = band_ranges[band]
@@ -3361,6 +3406,8 @@ data:
             "matches": matches,
             "total": len(matches),
         }
+
+    _last_digest_sent: datetime | None = None
 
 
     @router.get("/digest-status")
