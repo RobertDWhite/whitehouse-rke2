@@ -265,6 +265,34 @@ class PipelineTests(unittest.TestCase):
         opp_score_negative = pipeline.calc_opportunity_score(event_negative, score=70.0, details=details)
         self.assertEqual(opp_score_negative, 0.0)
 
+    def test_detect_needs_data_reason_requires_multiple_uncertainty_signals(self) -> None:
+        item = {
+            "score": 55.0,
+            "confidence": 0.3,
+            "summary": "short",
+            "evidence_snippets": ["one"],
+            "url": "",
+        }
+        cfg = {
+            "enabled": True,
+            "score_floor": 25,
+            "confidence_max": 0.45,
+            "min_summary_chars": 40,
+            "max_evidence_snippets": 1,
+            "require_missing_link": False,
+        }
+        reason = pipeline.detect_needs_data_reason(item, cfg)
+        self.assertIn("low_confidence", reason)
+        self.assertIn("limited_summary", reason)
+
+    def test_compute_customer_deltas_compares_to_previous_snapshot(self) -> None:
+        current = {"Acme": {"alerts": 3, "watchlist": 1, "needs_data": 2, "heat": 60, "opportunity": 40, "positive_signals": 1}}
+        previous = {"Acme": {"alerts": 1, "watchlist": 2, "needs_data": 1, "heat": 55, "opportunity": 35, "positive_signals": 0}}
+        deltas = pipeline.compute_customer_deltas(["Acme"], current, previous)
+        self.assertEqual(deltas["Acme"]["alerts_delta"], 2.0)
+        self.assertEqual(deltas["Acme"]["watchlist_delta"], -1.0)
+        self.assertEqual(deltas["Acme"]["needs_data_delta"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

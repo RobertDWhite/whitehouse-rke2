@@ -73,6 +73,8 @@ scoring:
     stack_possible_match: 3.5
     open_risk_match: 5.0
     committee_priority_match: 4.5
+    memory_topic_match: 3.0
+    memory_unresolved_match: 4.0
     stage_boosts:
       at_risk: 8.0
       expansion: 5.0
@@ -93,6 +95,13 @@ alert_routing:
   positive_signal_opportunity_floor: 35
   cooldown_hours: 48
   no_signal_days: 7
+  needs_data:
+    enabled: true
+    score_floor: 25
+    confidence_max: 0.45
+    min_summary_chars: 110
+    max_evidence_snippets: 1
+    require_missing_link: false
 
 feedback:
   enabled: false
@@ -286,6 +295,7 @@ state:
   keep_seen_ids: 15000
   story_state_max_items: 10000
   theme_history_size: 60
+  account_memory_max_items: 10
 
 output:
   directory: "./output"
