@@ -770,7 +770,7 @@ data:
         return {"matched": matched, "deleted": matched}
 
 
-    @router.get("/tags")
+    @router.get("/_tags")
     async def list_tags(limit: int = 200, db: Session = Depends(get_db)):
         """Return all distinct AI tags sorted by usage count for autocomplete."""
         rows = db.query(Recording.ai_tags).filter(Recording.ai_tags.isnot(None)).all()
@@ -2107,21 +2107,40 @@ data:
     def prune_missing_recordings():
         db = SessionLocal()
         removed = 0
+        pending_ids: list[int] = []
+        chunk_size = 500
         try:
             ensure_recordings_schema(db)
-            # Use yield_per to stream rows in batches — avoids loading all recordings
-            # into the session identity map at once (OOM risk with large libraries).
-            for recording in db.query(Recording).yield_per(200):
-                if recording.audio_path:
-                    if not os.path.exists(recording.audio_path):
-                        db.delete(recording)
-                        removed += 1
+            # Stream only scalar columns so the ORM identity map does not balloon.
+            rows = (
+                db.query(Recording.id, Recording.audio_path, Recording.text_path)
+                .yield_per(1000)
+            )
+            for rec_id, audio_path, text_path in rows:
+                missing = False
+                if audio_path:
+                    missing = not os.path.exists(audio_path)
                 else:
-                    if not recording.text_path or not os.path.exists(recording.text_path):
-                        db.delete(recording)
-                        removed += 1
-            if removed:
+                    missing = (not text_path) or (not os.path.exists(text_path))
+                if not missing:
+                    continue
+                pending_ids.append(rec_id)
+                if len(pending_ids) >= chunk_size:
+                    removed += (
+                        db.query(Recording)
+                        .filter(Recording.id.in_(pending_ids))
+                        .delete(synchronize_session=False)
+                    )
+                    db.commit()
+                    pending_ids.clear()
+            if pending_ids:
+                removed += (
+                    db.query(Recording)
+                    .filter(Recording.id.in_(pending_ids))
+                    .delete(synchronize_session=False)
+                )
                 db.commit()
+            if removed:
                 print(f"Pruned {removed} stale recordings (missing files)")
         except Exception as e:
             print(f"Prune error: {e}")
