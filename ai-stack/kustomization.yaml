@@ -10,27 +10,16 @@ resources:
 #  - 15-ollama-deployment-cpu.yaml
   - 20-openwebui-deployment.yaml
   - 21-sd-deployment.yaml
-  - 22-localai-image-model-bootstrap-job.yaml
-  - 25-comfyui-model-bootstrap-job.yaml
   - 30-ollama-svc.yaml
   - 31-ollama-metallb.yaml
   - 35-openwebui-svc.yaml
   - 36-sd-svc.yaml
-  - 37-localai-image-proxy-configmap.yaml
-  - 38-localai-image-proxy-deployment.yaml
-  - 39-localai-image-proxy-svc.yaml
 #  - 40-ollama-pvc.yaml
   - 41-storageclass.yaml
 #  - 45-openwebui-pvc.yaml
 #  - 46-sd-pvc.yaml
   - 50-ollama-ingress.yaml
   - 55-openwebui-ingress.yaml
-  - 56-comfyui-pvc.yaml
-  - 57-comfyui-deployment.yaml
-  - 58-comfyui-svc.yaml
-  - 59-comfyui-ingress.yaml
-  - 60-comfyui-metallb.yaml
-
 
 commonLabels:
   managed-by: argocd
@@ -52,9 +41,3 @@ images:
 
   - name: python
     newTag: "3.14-alpine"
-
-  - name: registry.white.fm/comfyui-nvidia
-    newTag: "0.3.58-cuda13.1-dgx-arm64-20260223-1"
-
-generators:
-  - ksops.yaml
