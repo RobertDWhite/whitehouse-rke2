@@ -2436,7 +2436,12 @@ data:
             audio_path = Path(audio_dir)
             if not audio_path.exists():
                 return
+            processed = 0
             for wav_file in audio_path.glob("*.wav"):
+                processed += 1
+                if processed % 250 == 0:
+                    # Keep ORM identity map bounded during large scans.
+                    db.expunge_all()
                 filename = wav_file.name
                 if mode == "voice":
                     metadata = parse_voice_filename(filename)
@@ -2596,7 +2601,11 @@ data:
             text_path = Path(text_dir)
             if not text_path.exists():
                 return
+            processed = 0
             for txt_file in text_path.glob("*.txt"):
+                processed += 1
+                if processed % 500 == 0:
+                    db.expunge_all()
                 wav_name = txt_file.name.replace(".txt", ".wav")
                 existing = db.query(Recording).filter(Recording.filename == wav_name).first()
                 if existing:
