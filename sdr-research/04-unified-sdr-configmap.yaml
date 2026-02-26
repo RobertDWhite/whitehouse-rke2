@@ -8,7 +8,7 @@ data:
     #!/usr/bin/env python3
     """
     Unified SDR flowgraph — single rtl_tcp connection serving FFT detection,
-    fixed 145.500 voice monitor, dynamic FM channels, and dynamic CW channels.
+    fixed voice monitor, dynamic FM channels, and dynamic CW channels.
     """
     import os, sys, json, time, wave, struct, threading, math
     import numpy as np
@@ -48,10 +48,13 @@ data:
     CLEAR_SLOTS_ON_RETUNE = os.getenv("CLEAR_SLOTS_ON_RETUNE", "true").lower() in (
         "1", "true", "yes", "on"
     )
+    CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
+    FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "145500000"))
 
     VOICE_DIR      = "/data/audio/voice"
     CW_DIR         = "/data/audio/cw"
     DET_DIR        = "/data/detections"
+    HEARTBEAT_PATH = os.path.join(DET_DIR, f"sdr_heartbeat_{CAPTURE_ID}.json")
     for d in (VOICE_DIR, CW_DIR, DET_DIR):
         os.makedirs(d, exist_ok=True)
 
@@ -190,8 +193,8 @@ data:
             self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
             self.connect(self.src, self.fft_s2v, self.fft, self.fft_mag, self.fft_sink)
 
-            # --- Fixed 145.500 voice monitor ---
-            self.fixed_freq = 145500000
+            # --- Fixed voice monitor ---
+            self.fixed_freq = FIXED_MONITOR_HZ
             offset_fixed = self.fixed_freq - DWELL_CENTER
             decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
             taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
@@ -467,7 +470,10 @@ data:
                 })
 
                 # Assign to dynamic slot
-                if mode == "FM" and abs(peak_freq - 145500000) > 15000:
+                if mode == "FM":
+                    # Do not mirror the fixed monitor channel into a dynamic slot.
+                    if abs(peak_freq - self.tb.fixed_freq) <= 15000:
+                        continue
                     self.tb._assign_fm_slot(int(round(peak_freq)))
                 elif mode == "CW":
                     self.tb._assign_cw_slot(int(round(peak_freq)))
@@ -478,12 +484,13 @@ data:
         def _write_detections(self):
             out = {
                 "source": "unified_sdr",
+                "capture_id": CAPTURE_ID,
                 "sample_rate": SAMPLE_RATE,
                 "center_freq_hz": self.tb.get_center_hz(),
                 "timestamp": time.time(),
                 "detections": self.detections
             }
-            path = os.path.join(DET_DIR, "detections.json")
+            path = os.path.join(DET_DIR, f"detections_{CAPTURE_ID}.json")
             tmp = path + ".tmp"
             try:
                 with open(tmp, "w") as f:
@@ -539,9 +546,19 @@ data:
                     pwr = abs(sample) ** 2
                     pwr_db = 10.0 * math.log10(pwr + 1e-30)
                     unmute = "OPEN" if pwr_db > RF_SQUELCH_DB else "closed"
-                    print(f"[RF-PWR] 145.500 MHz: {pwr_db:.1f} dB  "
+                    print(f"[RF-PWR] {self.tb.fixed_freq/1e6:.3f} MHz: {pwr_db:.1f} dB  "
                           f"(thresh {RF_SQUELCH_DB:.0f} dB → {unmute})",
                           flush=True)
+                    heartbeat = {
+                        "capture_id": CAPTURE_ID,
+                        "timestamp": time.time(),
+                        "center_freq_hz": self.tb.get_center_hz(),
+                        "fixed_monitor_hz": self.tb.fixed_freq,
+                    }
+                    hb_tmp = HEARTBEAT_PATH + ".tmp"
+                    with open(hb_tmp, "w") as f:
+                        json.dump(heartbeat, f)
+                    os.replace(hb_tmp, HEARTBEAT_PATH)
                 except Exception as e:
                     print(f"[RF-PWR] Probe error: {e}", flush=True)
                 time.sleep(5)
@@ -552,9 +569,10 @@ data:
     def main():
         print("=" * 60, flush=True)
         print("  Unified SDR Flowgraph", flush=True)
+        print(f"  Capture ID:      {CAPTURE_ID}", flush=True)
         print(f"  Primary center: {DWELL_CENTER/1e6:.3f} MHz", flush=True)
         print(f"  Sample rate:    {SAMPLE_RATE/1e6:.1f} MS/s", flush=True)
-        print(f"  Fixed monitor:  145.500 MHz (NBFM)", flush=True)
+        print(f"  Fixed monitor:  {FIXED_MONITOR_HZ/1e6:.3f} MHz (NBFM)", flush=True)
         print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
         print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
         print(f"  RF squelch:     {RF_SQUELCH_DB} dB", flush=True)
