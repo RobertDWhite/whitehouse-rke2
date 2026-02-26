@@ -770,7 +770,7 @@ data:
         return {"matched": matched, "deleted": matched}
 
 
-    @router.get("/_tags")
+    @router.get("/tags/list")
     async def list_tags(limit: int = 200, db: Session = Depends(get_db)):
         """Return all distinct AI tags sorted by usage count for autocomplete."""
         rows = db.query(Recording.ai_tags).filter(Recording.ai_tags.isnot(None)).all()
