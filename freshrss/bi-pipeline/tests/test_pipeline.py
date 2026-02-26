@@ -255,6 +255,16 @@ class PipelineTests(unittest.TestCase):
         self.assertIn(heat["band"], {"medium", "high"})
         self.assertGreaterEqual(heat["score"], 40.0)
 
+    def test_calc_opportunity_score_only_for_positive_event_types(self) -> None:
+        event_positive = {"event_type": "product_launch", "confidence": 0.9, "urgency": 3}
+        details = {"strategic_priority_hits": 1, "stack_confirmed_hits": 1}
+        opp_score = pipeline.calc_opportunity_score(event_positive, score=70.0, details=details)
+        self.assertGreater(opp_score, 0.0)
+
+        event_negative = {"event_type": "security_incident", "confidence": 0.9, "urgency": 3}
+        opp_score_negative = pipeline.calc_opportunity_score(event_negative, score=70.0, details=details)
+        self.assertEqual(opp_score_negative, 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
