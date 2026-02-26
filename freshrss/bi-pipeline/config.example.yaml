@@ -68,6 +68,15 @@ scoring:
     novelty: 10.0
     renewal_window_boost: 10.0
     renewal_window_days: 90
+    strategic_priority_match: 6.0
+    stack_confirmed_match: 7.0
+    stack_possible_match: 3.5
+    open_risk_match: 5.0
+    committee_priority_match: 4.5
+    stage_boosts:
+      at_risk: 8.0
+      expansion: 5.0
+      onboarding: 3.0
 
 dynamic_thresholds:
   enabled: true
@@ -126,6 +135,44 @@ customers:
       - ransomware
       - outage
     renewal_date: "2026-11-15"
+    business_context:
+      segment: enterprise_healthcare
+      arr: 420000
+      contract_value: 510000
+      stage: at_risk
+      products_owned:
+        - core-platform
+        - security-module
+      products_evaluating:
+        - analytics-addon
+      active_use_cases:
+        - patient-data-protection
+        - cloud-cost-optimization
+      stack_confirmed:
+        - aws
+        - epic
+        - snowflake
+      stack_possible:
+        - datadog
+        - splunk
+      exec_priorities:
+        - hipaa compliance
+        - cloud cost control
+        - uptime
+      open_risks:
+        - ransomware
+        - incident response maturity
+      decision_committee:
+        - role: CIO
+          influence: 0.9
+          priorities:
+            - reliability
+            - compliance
+        - role: VP Engineering
+          influence: 0.8
+          priorities:
+            - cloud cost
+            - platform stability
     event_type_weights:
       security_incident: 12
       outage_incident: 10
@@ -161,16 +208,83 @@ customers:
       - data governance
       - cost optimization
     renewal_date: "2026-09-30"
+    business_context:
+      segment: enterprise_saas
+      arr: 280000
+      contract_value: 330000
+      stage: expansion
+      products_owned:
+        - observability-core
+      products_evaluating:
+        - finops-insights
+      active_use_cases:
+        - cloud-governance
+        - product-analytics
+      stack_confirmed:
+        - aws
+        - databricks
+      stack_possible:
+        - snowflake
+        - atlassian
+      exec_priorities:
+        - cost optimization
+        - engineering velocity
+      open_risks:
+        - renewal uncertainty
+      decision_committee:
+        - role: CTO
+          influence: 0.9
+          priorities:
+            - platform engineering
+            - governance
     event_type_weights:
       cloud_cost_signal: 12
       pricing_change: 11
       layoffs_reorg: 7
       funding_mna: 6
 
+customer_tiers:
+  default_tier: standard
+  tiers:
+    - name: strategic
+      min_arr: 400000
+      score_multiplier: 1.12
+      threshold_adjustment: -4
+    - name: growth
+      min_arr: 200000
+      max_arr: 399999
+      score_multiplier: 1.05
+      threshold_adjustment: -2
+    - name: standard
+      min_arr: 0
+      max_arr: 199999
+      score_multiplier: 1.0
+      threshold_adjustment: 0
+
+playbooks:
+  default:
+    security_incident:
+      - Trigger security-impact check with account team within 24h.
+      - Prepare customer-facing risk brief and mitigation options.
+    outage_incident:
+      - Confirm affected workloads and draft stakeholder update.
+    pricing_change:
+      - Model renewal impact and prepare optimization recommendations.
+    product_launch:
+      - Identify expansion angle and map to active use cases.
+  by_segment:
+    enterprise_healthcare:
+      regulatory_change:
+        - Assess compliance impact and update executive summary for CIO.
+    enterprise_saas:
+      cloud_cost_signal:
+        - Run cost benchmark and propose commit-discount strategy.
+
 state:
   file: "./state/bi_pipeline_state.json"
   keep_seen_ids: 15000
   story_state_max_items: 10000
+  theme_history_size: 60
 
 output:
   directory: "./output"
