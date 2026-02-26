@@ -39,10 +39,15 @@ spec:
             - name: AUTOKUMA__FILES__FOLLOW_SYMLINKS
               value: "true"
           volumeMounts:
+            - name: autokuma-data
+              mountPath: /data
             - name: static-monitors
               mountPath: /config/monitors
               readOnly: true
       volumes:
+        - name: autokuma-data
+          persistentVolumeClaim:
+            claimName: autokuma-pvc
         - name: static-monitors
           configMap:
             name: autokuma-static-monitors
