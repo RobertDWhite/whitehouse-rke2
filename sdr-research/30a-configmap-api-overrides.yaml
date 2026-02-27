@@ -3596,15 +3596,16 @@ data:
         for row in freq_rows:
             label = row.frequency_label.strip() if isinstance(row.frequency_label, str) else row.frequency_label
             count = int(row.cnt or 0)
-            if label and label.upper().startswith("APRS"):
-                key = ("aprs", label)
+            if label:
+                # Collapse all labeled frequencies (APRS/repeater labels) into one row per label.
+                key = ("label", label)
                 entry = collapsed_freqs.setdefault(
                     key,
                     {"frequency_hz": None, "label": label, "count": 0},
                 )
             else:
                 hz = float(row.frequency_hz) if row.frequency_hz is not None else None
-                key = ("freq", hz, label)
+                key = ("freq", hz)
                 entry = collapsed_freqs.setdefault(
                     key,
                     {"frequency_hz": hz, "label": label, "count": 0},
