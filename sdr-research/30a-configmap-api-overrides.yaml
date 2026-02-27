@@ -2172,6 +2172,9 @@ data:
         (145_805_000, 145_845_000),
     )
     APRS_DECODE_FAILED_MARKER = "APRS_DECODE_FAILED"
+    _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
+    _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
+    _last_aprs_scan_ts: float = 0.0
 
 
     def is_aprs_frequency_hz(frequency_hz: float | None) -> bool:
@@ -2430,14 +2433,28 @@ data:
 
 
     def index_directory(mode: str, audio_dir: str, text_dir: str, ollama_budget: dict, hamdb_budget: dict | None = None):
+        global _last_index_scan_ts
         db = SessionLocal()
         try:
             ensure_recordings_schema(db)
             audio_path = Path(audio_dir)
             if not audio_path.exists():
                 return
+            now_ts = _time.time()
+            previous_scan = _last_index_scan_ts.get(mode, 0.0)
+            if previous_scan <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                # Small overlap to avoid missing files around scan boundaries.
+                scan_since_ts = previous_scan - 2.0
             processed = 0
             for wav_file in audio_path.glob("*.wav"):
+                try:
+                    file_mtime = wav_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
                 processed += 1
                 if processed % 250 == 0:
                     # Keep ORM identity map bounded during large scans.
@@ -2483,7 +2500,7 @@ data:
                 timestamp = metadata.get("timestamp")
                 if timestamp is None:
                     try:
-                        timestamp = datetime.fromtimestamp(wav_file.stat().st_mtime)
+                        timestamp = datetime.fromtimestamp(file_mtime)
                     except Exception:
                         timestamp = None
                 duration = get_audio_duration(str(wav_file))
@@ -2586,6 +2603,7 @@ data:
                     )
                 except Exception:
                     pass
+            _last_index_scan_ts[mode] = now_ts
         except Exception as e:
             print(f"Indexer error: {e}")
             db.rollback()
@@ -2595,14 +2613,27 @@ data:
 
     def index_aprs_directory(text_dir: str):
         """Index APRS packets from text-only files (audio deleted after decode)."""
+        global _last_aprs_scan_ts
         db = SessionLocal()
         try:
             ensure_recordings_schema(db)
             text_path = Path(text_dir)
             if not text_path.exists():
                 return
+            now_ts = _time.time()
+            if _last_aprs_scan_ts <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                # Small overlap to avoid missing files around scan boundaries.
+                scan_since_ts = _last_aprs_scan_ts - 2.0
             processed = 0
             for txt_file in text_path.glob("*.txt"):
+                try:
+                    file_mtime = txt_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
                 processed += 1
                 if processed % 500 == 0:
                     db.expunge_all()
@@ -2614,7 +2645,7 @@ data:
                 timestamp = metadata.get("timestamp")
                 if timestamp is None:
                     try:
-                        timestamp = datetime.fromtimestamp(txt_file.stat().st_mtime)
+                        timestamp = datetime.fromtimestamp(file_mtime)
                     except Exception:
                         timestamp = None
                 transcript = read_transcript(str(txt_file))
@@ -2649,6 +2680,7 @@ data:
                     update_search_vector(db, recording.id, transcript)
                 aprs_packets_indexed.inc()
                 print(f"Indexed APRS: {txt_file.name}")
+            _last_aprs_scan_ts = now_ts
         except Exception as e:
             print(f"APRS indexer error: {e}")
             db.rollback()
