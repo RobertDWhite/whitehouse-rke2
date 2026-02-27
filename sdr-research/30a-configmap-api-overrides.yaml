@@ -3585,17 +3585,36 @@ data:
         freq_rows = db.execute(
             text(
                 """
-                SELECT frequency_hz, frequency_label, COUNT(*) AS cnt
-                FROM recordings
-                WHERE frequency_hz IS NOT NULL
-                GROUP BY frequency_hz, frequency_label
+                SELECT frequency_hz, label, cnt
+                FROM (
+                    -- Collapse APRS by label so minor tuned offsets are grouped together.
+                    SELECT
+                        NULL::double precision AS frequency_hz,
+                        frequency_label AS label,
+                        COUNT(*) AS cnt
+                    FROM recordings
+                    WHERE frequency_hz IS NOT NULL
+                      AND frequency_label ILIKE 'APRS%'
+                    GROUP BY frequency_label
+
+                    UNION ALL
+
+                    SELECT
+                        frequency_hz::double precision AS frequency_hz,
+                        frequency_label AS label,
+                        COUNT(*) AS cnt
+                    FROM recordings
+                    WHERE frequency_hz IS NOT NULL
+                      AND (frequency_label IS NULL OR frequency_label NOT ILIKE 'APRS%')
+                    GROUP BY frequency_hz, frequency_label
+                ) x
                 ORDER BY cnt DESC
                 LIMIT 10
                 """
             )
         ).fetchall()
         top_frequencies = [
-            {"frequency_hz": row.frequency_hz, "label": row.frequency_label, "count": row.cnt}
+            {"frequency_hz": row.frequency_hz, "label": row.label, "count": row.cnt}
             for row in freq_rows
         ]
 
