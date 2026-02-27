@@ -3585,38 +3585,36 @@ data:
         freq_rows = db.execute(
             text(
                 """
-                SELECT frequency_hz, label, cnt
-                FROM (
-                    -- Collapse APRS by label so minor tuned offsets are grouped together.
-                    SELECT
-                        NULL::double precision AS frequency_hz,
-                        frequency_label AS label,
-                        COUNT(*) AS cnt
-                    FROM recordings
-                    WHERE frequency_hz IS NOT NULL
-                      AND frequency_label ILIKE 'APRS%'
-                    GROUP BY frequency_label
-
-                    UNION ALL
-
-                    SELECT
-                        frequency_hz::double precision AS frequency_hz,
-                        frequency_label AS label,
-                        COUNT(*) AS cnt
-                    FROM recordings
-                    WHERE frequency_hz IS NOT NULL
-                      AND (frequency_label IS NULL OR frequency_label NOT ILIKE 'APRS%')
-                    GROUP BY frequency_hz, frequency_label
-                ) x
-                ORDER BY cnt DESC
-                LIMIT 10
+                SELECT frequency_hz, frequency_label, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz IS NOT NULL
+                GROUP BY frequency_hz, frequency_label
                 """
             )
         ).fetchall()
-        top_frequencies = [
-            {"frequency_hz": row.frequency_hz, "label": row.label, "count": row.cnt}
-            for row in freq_rows
-        ]
+        collapsed_freqs = {}
+        for row in freq_rows:
+            label = row.frequency_label.strip() if isinstance(row.frequency_label, str) else row.frequency_label
+            count = int(row.cnt or 0)
+            if label and label.upper().startswith("APRS"):
+                key = ("aprs", label)
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {"frequency_hz": None, "label": label, "count": 0},
+                )
+            else:
+                hz = float(row.frequency_hz) if row.frequency_hz is not None else None
+                key = ("freq", hz, label)
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {"frequency_hz": hz, "label": label, "count": 0},
+                )
+            entry["count"] += count
+        top_frequencies = sorted(
+            collapsed_freqs.values(),
+            key=lambda item: item["count"],
+            reverse=True,
+        )[:10]
 
         hour_rows = db.execute(
             text(
