@@ -168,6 +168,7 @@ data:
         duration_min: Optional[float] = None
         duration_max: Optional[float] = None
         has_transcript: Optional[bool] = None
+        transcript_pending: Optional[bool] = None
         dry_run: bool = False
 
 
@@ -192,6 +193,14 @@ data:
         return list(dict.fromkeys(callsign_tags + ai_tags))
 
 
+    def _transcript_status(r) -> str:
+        if (r.transcript or "").strip():
+            return "yes"
+        if r.mode == "voice" and r.transcript is None:
+            return "pending"
+        return "no"
+
+
     def _apply_recording_filters(
         query,
         mode: Optional[str] = None,
@@ -204,6 +213,7 @@ data:
         duration_min: Optional[float] = None,
         duration_max: Optional[float] = None,
         has_transcript: Optional[bool] = None,
+        transcript_pending: Optional[bool] = None,
     ):
         if mode:
             query = query.filter(Recording.mode == mode)
@@ -249,6 +259,11 @@ data:
         elif has_transcript is False:
             query = query.filter(transcript_len == 0)
 
+        if transcript_pending is True:
+            query = query.filter(
+                Recording.mode == "voice", Recording.transcript.is_(None)
+            )
+
         return query
 
 
@@ -279,6 +294,7 @@ data:
         duration_min: Optional[float] = Query(None, ge=0),
         duration_max: Optional[float] = Query(None, ge=0),
         has_transcript: Optional[bool] = None,
+        transcript_pending: Optional[bool] = None,
         page: int = Query(1, ge=1),
         limit: int = Query(50, ge=1, le=200),
         db: Session = Depends(get_db),
@@ -298,6 +314,7 @@ data:
             duration_min=duration_min,
             duration_max=duration_max,
             has_transcript=has_transcript,
+            transcript_pending=transcript_pending,
         )
         if not mode and not callsign:
             query = query.filter(Recording.mode != "aprs")
@@ -332,6 +349,7 @@ data:
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
+                    "transcript_status": _transcript_status(r),
                     "signal_db": r.signal_db,
                     "callsign_tags": (callsign_tags := extract_callsign_tags(r.transcript)),
                     "ai_tags": (ai_tags := parse_ai_tags(r.ai_tags)),
@@ -536,6 +554,7 @@ data:
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
+                    "transcript_status": _transcript_status(r),
                     "callsign_tags": cs_tags,
                     "ai_tags": ai_tags_list,
                     "tags": _all_tags(cs_tags, ai_tags_list),
@@ -735,6 +754,7 @@ data:
                 body.duration_min is not None,
                 body.duration_max is not None,
                 body.has_transcript is not None,
+                body.transcript_pending is not None,
             ]
         )
         if not has_any_filter:
@@ -755,6 +775,7 @@ data:
             duration_min=body.duration_min,
             duration_max=body.duration_max,
             has_transcript=body.has_transcript,
+            transcript_pending=body.transcript_pending,
         )
         recordings = query.all()
         matched = len(recordings)
@@ -2598,6 +2619,7 @@ data:
                             "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
                             "duration_seconds": recording.duration_seconds,
                             "has_transcript": bool((recording.transcript or "").strip()),
+                            "transcript_status": _transcript_status(recording),
                             "signal_db": recording.signal_db,
                         }))
                     )
