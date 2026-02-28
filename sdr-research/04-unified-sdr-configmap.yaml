@@ -39,6 +39,8 @@ data:
     AUDIO_RATE_FM  = 48000
     AUDIO_RATE_CW  = 8000
     NBFM_DEV       = 5000
+    NBFM_TAU       = float(os.getenv("NBFM_TAU", "0"))    # de-emphasis: 0 for ham NBFM, 75e-6 for broadcast FM
+    PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
     CW_BW          = 200
     FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
 
@@ -179,7 +181,9 @@ data:
                 self.src.set_center_freq(DWELL_CENTER)
                 self.src.set_gain_mode(False)
                 self.src.set_gain(int(os.getenv("RF_GAIN", "30")))
-                print(f"[INIT] Connected to rtl_tcp at {RTL_TCP_HOST}:{RTL_TCP_PORT}", flush=True)
+                self.src.set_freq_corr(PPM_CORRECTION)
+                print(f"[INIT] Connected to rtl_tcp at {RTL_TCP_HOST}:{RTL_TCP_PORT} "
+                      f"(gain={os.getenv('RF_GAIN','30')} dB, ppm={PPM_CORRECTION})", flush=True)
             except Exception as e:
                 print(f"[INIT] osmosdr.source failed: {e}", flush=True)
                 sys.exit(1)
@@ -206,7 +210,7 @@ data:
             self.nbfm_fixed = analog.nbfm_rx(
                 audio_rate=AUDIO_RATE_FM,
                 quad_rate=AUDIO_RATE_FM,
-                tau=75e-6, max_dev=NBFM_DEV)
+                tau=NBFM_TAU, max_dev=NBFM_DEV)
             self.rec_fixed = SquelchRecorder(
                 self.fixed_freq, AUDIO_RATE_FM, VOICE_DIR)
             self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
@@ -226,7 +230,7 @@ data:
                 nbfm = analog.nbfm_rx(
                     audio_rate=AUDIO_RATE_FM,
                     quad_rate=AUDIO_RATE_FM,
-                    tau=75e-6, max_dev=NBFM_DEV)
+                    tau=NBFM_TAU, max_dev=NBFM_DEV)
                 null = blocks.null_sink(gr.sizeof_float)
                 self.connect(self.src, xlate, rf_squelch, nbfm, null)
                 self.dyn_fm.append({
