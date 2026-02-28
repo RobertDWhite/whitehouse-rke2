@@ -71,7 +71,11 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              value: "30"
+              # 40 dB for 70cm: compensates for RTL-SDR's ~4 dB worse noise figure at 432 vs 145 MHz
+              value: "40"
+            - name: PPM_CORRECTION
+              # Calibrate with: rtl_test -p 100  (run on rke2-node-14 with dongle serial 00000002)
+              value: "0"
           resources:
             requests:
               cpu: 500m
