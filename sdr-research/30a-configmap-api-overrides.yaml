@@ -143,7 +143,7 @@ data:
 
     from ..database import get_db
     from ..models import CallsignInfo, Recording, Repeater
-    from ..services.tagging import extract_callsign_tags, normalize_callsign, parse_ai_tags
+    from ..services.tagging import extract_callsign_tags, is_no_speech_transcript, normalize_callsign, parse_ai_tags
 
     router = APIRouter()
 
@@ -194,9 +194,10 @@ data:
 
 
     def _transcript_status(r) -> str:
-        if (r.transcript or "").strip():
+        text = (r.transcript or "").strip()
+        if text and not is_no_speech_transcript(text) and text != "[no decodable cw]":
             return "yes"
-        if r.mode == "voice" and r.transcript is None:
+        if r.transcript is None and r.mode in ("voice", "cw"):
             return "pending"
         return "no"
 
@@ -2835,7 +2836,7 @@ data:
             db.close()
 
 
-    _CW_NODECODE_TIMEOUT = float(os.getenv("CW_NODECODE_TIMEOUT_SECONDS", "3600"))
+    _CW_NODECODE_TIMEOUT = float(os.getenv("CW_NODECODE_TIMEOUT_SECONDS", "900"))
 
     def _sweep_pending_transcripts(ollama_budget, hamdb_budget):
         """
