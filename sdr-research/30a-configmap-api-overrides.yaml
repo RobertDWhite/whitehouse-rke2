@@ -2835,12 +2835,21 @@ data:
             db.close()
 
 
+    _CW_NODECODE_TIMEOUT = float(os.getenv("CW_NODECODE_TIMEOUT_SECONDS", "3600"))
+
     def _sweep_pending_transcripts(ollama_budget, hamdb_budget):
         """
         Query DB for voice/CW recordings with transcript=None and check whether
         their .txt file has since appeared on disk.  This covers the gap where
         Whisper finishes AFTER the WAV file falls outside the incremental scan
         window (i.e., all recordings created in a previous scan cycle).
+
+        Also handles two edge cases:
+        - Reclassified CW (audio in voice dir): text is written by voice decoder
+          to the voice text dir, not the cw text dir.
+        - CW files where decoder found no Morse: no .txt is ever written; after
+          CW_NODECODE_TIMEOUT seconds we stamp them as '[no decodable cw]' so
+          they leave the pending state.
         """
         global _last_pending_sweep_ts
         db = SessionLocal()
@@ -2855,17 +2864,34 @@ data:
                 .all()
             )
             updated = 0
+            now = _time.time()
             for rec in pending:
-                # Derive text_path from audio_path if not stored
+                # Derive text_path: base it on the actual audio directory so
+                # reclassified-CW files (audio in voice/) find the voice .txt.
                 if rec.text_path:
                     text_path = rec.text_path
                 else:
                     base = os.path.basename(rec.audio_path).replace(".wav", ".txt")
-                    sub = "voice" if rec.mode == "voice" else "cw"
+                    # Use audio_path dir to determine text subdir, not mode.
+                    if os.sep + "voice" + os.sep in rec.audio_path or rec.audio_path.endswith(os.sep + "voice"):
+                        sub = "voice"
+                    else:
+                        sub = "cw"
                     text_path = os.path.join(settings.text_base_path, sub, base)
 
                 transcript = read_transcript(text_path)
                 if not transcript:
+                    # CW files where the decoder found nothing write no .txt.
+                    # After a timeout, stamp them so they leave pending state.
+                    if rec.mode == "cw":
+                        try:
+                            wav_age = now - os.path.getmtime(rec.audio_path)
+                        except OSError:
+                            wav_age = _CW_NODECODE_TIMEOUT + 1
+                        if wav_age >= _CW_NODECODE_TIMEOUT:
+                            rec.transcript = "[no decodable cw]"
+                            db.commit()
+                            updated += 1
                     continue
                 if should_auto_delete_no_speech(transcript):
                     safe_unlink(rec.audio_path)
