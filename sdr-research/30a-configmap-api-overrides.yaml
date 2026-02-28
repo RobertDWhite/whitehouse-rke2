@@ -2196,6 +2196,8 @@ data:
     _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
     _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
     _last_aprs_scan_ts: float = 0.0
+    _PENDING_SWEEP_INTERVAL = float(os.getenv("PENDING_SWEEP_INTERVAL_SECONDS", "300"))
+    _last_pending_sweep_ts: float = 0.0
 
 
     def is_aprs_frequency_hz(frequency_hz: float | None) -> bool:
@@ -2833,6 +2835,61 @@ data:
             db.close()
 
 
+    def _sweep_pending_transcripts(ollama_budget, hamdb_budget):
+        """
+        Query DB for voice/CW recordings with transcript=None and check whether
+        their .txt file has since appeared on disk.  This covers the gap where
+        Whisper finishes AFTER the WAV file falls outside the incremental scan
+        window (i.e., all recordings created in a previous scan cycle).
+        """
+        global _last_pending_sweep_ts
+        db = SessionLocal()
+        try:
+            pending = (
+                db.query(Recording)
+                .filter(
+                    Recording.mode.in_(["voice", "cw"]),
+                    Recording.transcript.is_(None),
+                    Recording.audio_path.isnot(None),
+                )
+                .all()
+            )
+            updated = 0
+            for rec in pending:
+                # Derive text_path from audio_path if not stored
+                if rec.text_path:
+                    text_path = rec.text_path
+                else:
+                    base = os.path.basename(rec.audio_path).replace(".wav", ".txt")
+                    sub = "voice" if rec.mode == "voice" else "cw"
+                    text_path = os.path.join(settings.text_base_path, sub, base)
+
+                transcript = read_transcript(text_path)
+                if not transcript:
+                    continue
+                if should_auto_delete_no_speech(transcript):
+                    safe_unlink(rec.audio_path)
+                    safe_unlink(text_path)
+                    db.delete(rec)
+                    db.commit()
+                    continue
+                rec.text_path = text_path
+                rec.transcript = transcript
+                update_search_vector(db, rec.id, transcript)
+                maybe_set_ai_tags(db, rec, transcript, ollama_budget, hamdb_budget)
+                check_alerts(rec, db)
+                db.commit()
+                updated += 1
+            if updated:
+                print(f"[PendingSweep] Resolved {updated} pending transcript(s)")
+        except Exception as e:
+            print(f"[PendingSweep] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+        _last_pending_sweep_ts = _time.time()
+
+
     async def run_indexer():
         # Write heartbeat immediately so liveness probe doesn't kill us during a long first cycle
         try:
@@ -2871,6 +2928,13 @@ data:
                     index_aprs_directory,
                     text_dir=os.path.join(settings.text_base_path, "aprs"),
                 )
+
+                # Sweep for recordings whose Whisper .txt appeared after the WAV
+                # fell outside the incremental scan window.
+                if _time.time() - _last_pending_sweep_ts >= _PENDING_SWEEP_INTERVAL:
+                    await asyncio.to_thread(
+                        _sweep_pending_transcripts, ollama_budget, hamdb_budget
+                    )
 
                 await asyncio.to_thread(_refresh_db_gauges)
 
