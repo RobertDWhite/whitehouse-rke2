@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spectrum-exporter
+  namespace: sdr-research
+  labels:
+    app: spectrum-exporter
+spec:
+  selector:
+    app: spectrum-exporter
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: 8080

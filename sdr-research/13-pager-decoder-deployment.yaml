@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pager-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pager-decoder
+  template:
+    metadata:
+      labels:
+        app: pager-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      restartPolicy: Always
+      containers:
+        - name: pager-decoder
+          image: debian:stable-slim
+          env:
+            - name: MIN_FILE_AGE_SEC
+              value: "15"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Installing pager decoder dependencies"
+              apt-get update -qq
+              apt-get install -y --no-install-recommends multimon-ng sox
+              rm -rf /var/lib/apt/lists/*
+
+              cp /scripts/pager_decode.sh /tmp/pager_decode.sh
+              chmod +x /tmp/pager_decode.sh
+
+              echo "Starting pager decoder loop"
+              while true; do
+                /tmp/pager_decode.sh
+                sleep 10
+              done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: pager-decoder-scripts
+            defaultMode: 0755

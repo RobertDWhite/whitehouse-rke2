@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pager-decoder-scripts
+  namespace: sdr-research
+data:
+  pager_decode.sh: |
+    #!/bin/sh
+    set -e
+
+    AUDIO_DIR="/data/audio/voice"
+    OUT_DIR="/data/text/pager"
+    MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
+
+    # VHF narrowband paging frequency ranges (Hz):
+    #   151.820–154.200 MHz — US VHF pager band (POCSAG, FLEX)
+    #   157.450–158.700 MHz — additional US pager frequencies
+    is_pager_freq() {
+      freq="$1"
+      ( [ "$freq" -ge 151820000 ] && [ "$freq" -le 154200000 ] ) ||
+      ( [ "$freq" -ge 157450000 ] && [ "$freq" -le 158700000 ] )
+    }
+
+    mkdir -p "$OUT_DIR"
+
+    for f in "$AUDIO_DIR"/*.wav; do
+      [ -e "$f" ] || continue
+
+      base=$(basename "$f" .wav)
+      freq=$(printf '%s' "$base" | cut -d_ -f1)
+
+      # Must be numeric
+      case "$freq" in
+        ''|*[!0-9]*) continue ;;
+      esac
+
+      # Skip if not a pager frequency
+      is_pager_freq "$freq" || continue
+
+      out="$OUT_DIR/$base.txt"
+
+      # Skip if already decoded
+      if [ -f "$out" ] && [ -s "$out" ]; then
+        continue
+      fi
+
+      # Skip files still being written
+      now=$(date +%s)
+      mtime=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f")
+      age=$((now - mtime))
+      if [ "$age" -lt "$MIN_FILE_AGE_SEC" ]; then
+        continue
+      fi
+
+      echo "Decoding POCSAG/FLEX from $f"
+
+      decoded=$(multimon-ng -q -t wav \
+                  -a POCSAG512 -a POCSAG1200 -a POCSAG2400 -a FLEX \
+                  "$f" 2>/dev/null | grep -v '^$' || true)
+
+      if [ -z "$decoded" ]; then
+        printf '%s\n' "PAGER_DECODE_FAILED" > "$out.tmp"
+        mv "$out.tmp" "$out"
+        echo "Pager decode: no messages in $f"
+        continue
+      fi
+
+      printf '%s\n' "$decoded" > "$out.tmp"
+      mv "$out.tmp" "$out"
+      msg_count=$(printf '%s\n' "$decoded" | wc -l)
+      echo "PAGER: $f -> $msg_count message(s)"
+    done

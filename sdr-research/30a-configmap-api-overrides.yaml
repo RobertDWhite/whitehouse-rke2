@@ -172,9 +172,11 @@ data:
         dry_run: bool = False
 
 
+    _VALID_MODES = {"cw", "voice", "aprs", "pager", "eas", "acars"}
+
     def _validate_mode(mode: Optional[str]):
-        if mode is not None and mode not in {"cw", "voice"}:
-            raise HTTPException(status_code=422, detail="mode must be 'cw' or 'voice'")
+        if mode is not None and mode not in _VALID_MODES:
+            raise HTTPException(status_code=422, detail=f"mode must be one of: {', '.join(sorted(_VALID_MODES))}")
 
 
     def _validate_duration_bounds(duration_min: Optional[float], duration_max: Optional[float]):
@@ -284,7 +286,7 @@ data:
 
     @router.get("/browse")
     async def browse_files(
-        mode: Optional[str] = Query(None, pattern="^(cw|voice)$"),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs|pager|eas|acars)$"),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         q: Optional[str] = Query(None, min_length=1),
@@ -1522,11 +1524,12 @@ data:
         return {"status": "ok"}
 
   aprs.py: |
+    import json
     import re
     from datetime import datetime, timedelta
     from typing import Optional
 
-    from fastapi import APIRouter, Depends, Query
+    from fastapi import APIRouter, Depends, HTTPException, Query
     from sqlalchemy import desc
     from sqlalchemy.orm import Session
 
@@ -1892,6 +1895,43 @@ data:
             })
         return {"stations": stations, "total": len(stations)}
 
+
+    @router.get("/aircraft")
+    async def get_aircraft(
+        min_altitude: Optional[int] = None,
+        max_altitude: Optional[int] = None,
+    ):
+        """
+        Proxy current aircraft positions from the ADS-B ultrafeeder deployment.
+        Returns readsb aircraft.json enriched with optional altitude filters.
+        Source: http://ultrafeeder.adsb.svc.cluster.local/data/aircraft.json
+        """
+        import urllib.request as _ureq
+        import urllib.error as _uerr
+        ULTRAFEEDER_URL = "http://ultrafeeder.adsb.svc.cluster.local/data/aircraft.json"
+        try:
+            with _ureq.urlopen(ULTRAFEEDER_URL, timeout=5) as resp:
+                data = json.loads(resp.read())
+        except _uerr.URLError as exc:
+            raise HTTPException(status_code=503, detail=f"ultrafeeder unreachable: {exc}")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"aircraft data error: {exc}")
+
+        aircraft = data.get("aircraft", [])
+
+        # Apply optional altitude filters
+        if min_altitude is not None:
+            aircraft = [a for a in aircraft if a.get("alt_baro", 0) >= min_altitude]
+        if max_altitude is not None:
+            aircraft = [a for a in aircraft if a.get("alt_baro", 999999) <= max_altitude]
+
+        return {
+            "now": data.get("now"),
+            "messages": data.get("messages"),
+            "total": len(aircraft),
+            "aircraft": aircraft,
+        }
+
   indexer.py: |
     import asyncio
     import json
@@ -2199,6 +2239,9 @@ data:
     _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
     _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
     _last_aprs_scan_ts: float = 0.0
+    _last_pager_scan_ts: float = 0.0
+    _last_eas_scan_ts: float = 0.0
+    _last_acars_scan_ts: float = 0.0
     _PENDING_SWEEP_INTERVAL = float(os.getenv("PENDING_SWEEP_INTERVAL_SECONDS", "300"))
     _last_pending_sweep_ts: float = 0.0
 
@@ -2715,6 +2758,101 @@ data:
             db.close()
 
 
+    def _index_text_only_directory(mode: str, text_dir: str, last_ts_ref: list, failed_marker: str):
+        """
+        Generic indexer for text-only decoder outputs: pager, eas, acars.
+        Filename format matches the voice WAV that was decoded: {freq}_{ts}.txt
+        last_ts_ref is a single-element list used as a mutable float reference.
+        """
+        db = SessionLocal()
+        try:
+            ensure_recordings_schema(db)
+            text_path = Path(text_dir)
+            if not text_path.exists():
+                return
+            now_ts = _time.time()
+            if last_ts_ref[0] <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                scan_since_ts = last_ts_ref[0] - 2.0
+            processed = 0
+            for txt_file in text_path.glob("*.txt"):
+                try:
+                    file_mtime = txt_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
+                processed += 1
+                if processed % 500 == 0:
+                    db.expunge_all()
+                wav_name = txt_file.name.replace(".txt", ".wav")
+                existing = db.query(Recording).filter(Recording.filename == wav_name).first()
+                if existing:
+                    continue
+                metadata = parse_voice_filename(wav_name)
+                timestamp = metadata.get("timestamp")
+                if timestamp is None:
+                    try:
+                        timestamp = datetime.fromtimestamp(file_mtime)
+                    except Exception:
+                        timestamp = None
+                transcript = read_transcript(str(txt_file))
+                if not transcript:
+                    continue
+                transcript = transcript.strip()
+                if not transcript:
+                    continue
+                decode_failed = transcript.upper().startswith(failed_marker.upper())
+                recording = Recording(
+                    filename=wav_name,
+                    mode=mode,
+                    frequency_hz=metadata.get("frequency_hz"),
+                    timestamp=timestamp,
+                    duration_seconds=None,
+                    audio_path=None,
+                    text_path=str(txt_file),
+                    transcript=transcript,
+                )
+                maybe_set_frequency_metadata(db, recording)
+                if decode_failed:
+                    recording.ai_tags = dump_ai_tags([mode, "decode_failed"])
+                else:
+                    callsign_tags = extract_callsign_tags(transcript)
+                    mode_tag = [mode]
+                    recording.ai_tags = dump_ai_tags(mode_tag + callsign_tags)
+                check_alerts(recording, db)
+                db.add(recording)
+                db.commit()
+                if transcript:
+                    update_search_vector(db, recording.id, transcript)
+                indexer_files_indexed.labels(mode=mode).inc()
+                print(f"Indexed {mode.upper()}: {txt_file.name}")
+            last_ts_ref[0] = now_ts
+        except Exception as e:
+            print(f"{mode.upper()} indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    _pager_ts = [0.0]
+    _eas_ts = [0.0]
+    _acars_ts = [0.0]
+
+
+    def index_pager_directory(text_dir: str):
+        _index_text_only_directory("pager", text_dir, _pager_ts, "PAGER_DECODE_FAILED")
+
+
+    def index_eas_directory(text_dir: str):
+        _index_text_only_directory("eas", text_dir, _eas_ts, "EAS_NO_ALERT")
+
+
+    def index_acars_directory(text_dir: str):
+        _index_text_only_directory("acars", text_dir, _acars_ts, "ACARS_DECODE_FAILED")
+
+
     def _refresh_db_gauges():
         """Query DB and update Prometheus gauge metrics. Called once per cycle."""
         from sqlalchemy import func as _func
@@ -2956,6 +3094,21 @@ data:
                 await asyncio.to_thread(
                     index_aprs_directory,
                     text_dir=os.path.join(settings.text_base_path, "aprs"),
+                )
+
+                await asyncio.to_thread(
+                    index_pager_directory,
+                    text_dir=os.path.join(settings.text_base_path, "pager"),
+                )
+
+                await asyncio.to_thread(
+                    index_eas_directory,
+                    text_dir=os.path.join(settings.text_base_path, "eas"),
+                )
+
+                await asyncio.to_thread(
+                    index_acars_directory,
+                    text_dir=os.path.join(settings.text_base_path, "acars"),
                 )
 
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
