@@ -40,8 +40,8 @@ data:
     AUDIO_RATE_CW  = 8000
     NBFM_DEV       = 5000
     # Ham NBFM uses no de-emphasis. analog.nbfm_rx(tau=0) crashes in GNURadio 3.10.5 (ZeroDivisionError in fm_deemph).
-    # Use quadrature_demod_cf directly instead; gain = sample_rate / (2*pi*max_dev).
-    NBFM_DEMOD_GAIN = SAMPLE_RATE / (2 * math.pi * NBFM_DEV)  # normalise demod output to ±1 at max deviation
+    # Use quadrature_demod_cf directly; gain = audio_rate / (2*pi*max_dev) normalises output to ±1 at max deviation.
+    NBFM_DEMOD_GAIN = AUDIO_RATE_FM / (2 * math.pi * NBFM_DEV)
     PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
     CW_BW          = 200
     FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
@@ -209,10 +209,7 @@ data:
                 decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
             self.rf_squelch_fixed = analog.pwr_squelch_cc(
                 RF_SQUELCH_DB, 0.001, 10, False)
-            self.nbfm_fixed = analog.nbfm_rx(
-                audio_rate=AUDIO_RATE_FM,
-                quad_rate=AUDIO_RATE_FM,
-                tau=NBFM_TAU, max_dev=NBFM_DEV)
+            self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
             self.rec_fixed = SquelchRecorder(
                 self.fixed_freq, AUDIO_RATE_FM, VOICE_DIR)
             self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
@@ -229,10 +226,7 @@ data:
                     decim_fm, taps_fm, 0, SAMPLE_RATE)
                 rf_squelch = analog.pwr_squelch_cc(
                     RF_SQUELCH_DB, 0.001, 10, False)
-                nbfm = analog.nbfm_rx(
-                    audio_rate=AUDIO_RATE_FM,
-                    quad_rate=AUDIO_RATE_FM,
-                    tau=NBFM_TAU, max_dev=NBFM_DEV)
+                nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
                 null = blocks.null_sink(gr.sizeof_float)
                 self.connect(self.src, xlate, rf_squelch, nbfm, null)
                 self.dyn_fm.append({
@@ -610,7 +604,5 @@ data:
         except KeyboardInterrupt:
             print("[MAIN] Interrupted; exiting", flush=True)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             print(f"[MAIN] Fatal error: {e}; exiting for container restart", flush=True)
             sys.exit(1)
