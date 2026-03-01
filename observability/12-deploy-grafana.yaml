@@ -73,6 +73,10 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards/dashboardproviders.yaml
               subPath: dashboardproviders.yaml
               readOnly: true
+            - name: datasources-provider
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
@@ -83,6 +87,9 @@ spec:
         - name: dashboards-provider
           configMap:
             name: grafana-dashboard-provider
+        - name: datasources-provider
+          configMap:
+            name: grafana-datasources
         - name: dashboards
           projected:
             sources:
