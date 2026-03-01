@@ -153,6 +153,9 @@ data:
         transcript: Optional[str] = None
 
 
+    class ModeChangeRequest(BaseModel):
+        mode: str  # "voice" or "cw"
+
     class BulkDeleteRequest(BaseModel):
         ids: List[int]
 
@@ -605,6 +608,66 @@ data:
             "tags": _all_tags(callsign_tags, ai_tags),
             "transcript": recording.transcript,
         }
+
+
+    @router.patch("/{file_id}/mode")
+    async def reclassify_recording_mode(
+        file_id: int, body: ModeChangeRequest, db: Session = Depends(get_db)
+    ):
+        """Reclassify a voice recording as CW or vice versa.
+
+        Moves the audio file to the appropriate directory, deletes any existing
+        transcript, and resets mode so the correct decoder re-processes it.
+        """
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        new_mode = body.mode
+        if new_mode not in ("voice", "cw"):
+            raise HTTPException(status_code=400, detail="Mode must be 'voice' or 'cw'")
+        if recording.mode not in ("voice", "cw"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot reclassify recordings with mode='{recording.mode}'"
+            )
+        if recording.mode == new_mode:
+            raise HTTPException(status_code=400, detail=f"Recording is already mode='{new_mode}'")
+
+        # Move audio file to the directory the target decoder watches
+        new_audio_path = recording.audio_path
+        if recording.audio_path and os.path.exists(recording.audio_path):
+            old_base = os.path.basename(recording.audio_path)
+            if new_mode == "cw":
+                new_name = old_base if old_base.startswith("cw_") else f"cw_{old_base}"
+                new_audio_path = os.path.join(settings.audio_base_path, "cw", new_name)
+            else:
+                new_name = old_base[3:] if old_base.startswith("cw_") else old_base
+                new_audio_path = os.path.join(settings.audio_base_path, "voice", new_name)
+            os.makedirs(os.path.dirname(new_audio_path), exist_ok=True)
+            os.rename(recording.audio_path, new_audio_path)
+
+        # Delete any existing text files for this recording
+        for sub in ("voice", "cw"):
+            if recording.audio_path:
+                base = os.path.basename(recording.audio_path).replace(".wav", ".txt")
+                base_stripped = base[3:] if base.startswith("cw_") else base
+                for b in {base, base_stripped, f"cw_{base_stripped}"}:
+                    safe_unlink(os.path.join(settings.text_base_path, sub, b))
+        if recording.text_path:
+            safe_unlink(recording.text_path)
+
+        # Reset for re-processing
+        recording.mode = new_mode
+        recording.transcript = None
+        recording.text_path = None
+        recording.audio_path = new_audio_path
+        db.execute(
+            sql_text("UPDATE recordings SET search_vector = NULL WHERE id = :id"),
+            {"id": recording.id},
+        )
+        db.commit()
+        return {"id": recording.id, "mode": new_mode, "status": "re-queued"}
 
 
     @router.post("/{file_id}/retag")
