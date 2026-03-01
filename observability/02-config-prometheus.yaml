@@ -364,6 +364,16 @@ data:
         metrics_path: /metrics
         scrape_interval: 30s
 
+      # =================================
+      # sdr-research spectrum survey
+      # =================================
+      - job_name: sdr-spectrum-survey
+        static_configs:
+          - targets:
+              - spectrum-exporter.sdr-research.svc.cluster.local:8080
+        metrics_path: /metrics
+        scrape_interval: 5s
+
   sdr-alerts.yml: |
     groups:
       - name: sdr-research.pvc
