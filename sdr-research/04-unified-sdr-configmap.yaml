@@ -39,7 +39,9 @@ data:
     AUDIO_RATE_FM  = 48000
     AUDIO_RATE_CW  = 8000
     NBFM_DEV       = 5000
-    NBFM_TAU       = float(os.getenv("NBFM_TAU", "0"))    # de-emphasis: 0 for ham NBFM, 75e-6 for broadcast FM
+    # Ham NBFM uses no de-emphasis. analog.nbfm_rx(tau=0) crashes in GNURadio 3.10.5 (ZeroDivisionError in fm_deemph).
+    # Use quadrature_demod_cf directly instead; gain = sample_rate / (2*pi*max_dev).
+    NBFM_DEMOD_GAIN = SAMPLE_RATE / (2 * math.pi * NBFM_DEV)  # normalise demod output to ±1 at max deviation
     PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
     CW_BW          = 200
     FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
