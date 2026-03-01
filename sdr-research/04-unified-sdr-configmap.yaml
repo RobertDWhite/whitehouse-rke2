@@ -608,5 +608,7 @@ data:
         except KeyboardInterrupt:
             print("[MAIN] Interrupted; exiting", flush=True)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"[MAIN] Fatal error: {e}; exiting for container restart", flush=True)
             sys.exit(1)
