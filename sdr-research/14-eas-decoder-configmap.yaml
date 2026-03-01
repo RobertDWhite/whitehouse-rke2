@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eas-decoder-scripts
+  namespace: sdr-research
+data:
+  eas_decode.sh: |
+    #!/bin/sh
+    set -e
+
+    AUDIO_DIR="/data/audio/voice"
+    OUT_DIR="/data/text/eas"
+    MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
+
+    # NOAA Weather Radio / EAS SAME frequencies (Hz):
+    #   162.400, 162.425, 162.450, 162.475, 162.500, 162.525, 162.550 MHz
+    #   All captured when dongle centers at 162.5 MHz (window: 161.3–163.7 MHz)
+    is_eas_freq() {
+      freq="$1"
+      [ "$freq" -ge 162000000 ] && [ "$freq" -le 163000000 ]
+    }
+
+    # SAME event codes that indicate emergency alerts (trigger immediate log line)
+    is_emergency_event() {
+      code="$1"
+      case "$code" in
+        TOR|SVR|EWW|FFW|WSW|BZW|HUW|TSW|EAN|EAT|NUW|RHW|LAE|CEM) return 0 ;;
+        *) return 1 ;;
+      esac
+    }
+
+    mkdir -p "$OUT_DIR"
+
+    for f in "$AUDIO_DIR"/*.wav; do
+      [ -e "$f" ] || continue
+
+      base=$(basename "$f" .wav)
+      freq=$(printf '%s' "$base" | cut -d_ -f1)
+
+      case "$freq" in
+        ''|*[!0-9]*) continue ;;
+      esac
+
+      is_eas_freq "$freq" || continue
+
+      out="$OUT_DIR/$base.txt"
+
+      if [ -f "$out" ] && [ -s "$out" ]; then
+        continue
+      fi
+
+      now=$(date +%s)
+      mtime=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f")
+      age=$((now - mtime))
+      if [ "$age" -lt "$MIN_FILE_AGE_SEC" ]; then
+        continue
+      fi
+
+      echo "Decoding EAS/SAME from $f"
+
+      # multimon-ng EAS decodes SAME header/end tones embedded in the audio.
+      # Output lines look like: "EAS: ZCZC-ORG-EVT-PSSCCC+TTTT-JJJHHMM-LLLLLLLL-"
+      decoded=$(multimon-ng -q -t wav -a EAS "$f" 2>/dev/null | grep -v '^$' || true)
+
+      if [ -z "$decoded" ]; then
+        # No SAME tones found — normal for routine WX audio without alerts.
+        # Write a marker so we don't re-scan on the next cycle.
+        printf '%s\n' "EAS_NO_ALERT" > "$out.tmp"
+        mv "$out.tmp" "$out"
+        continue
+      fi
+
+      # Write the decoded SAME message(s)
+      printf '%s\n' "$decoded" > "$out.tmp"
+      mv "$out.tmp" "$out"
+      echo "EAS: $f -> alert decoded"
+
+      # Log emergency events for visibility
+      printf '%s\n' "$decoded" | while IFS= read -r line; do
+        # Extract event code (4th field in ZCZC header, e.g. TOR, SVR, FFW)
+        evt=$(printf '%s' "$line" | sed -n 's/.*ZCZC-[^-]*-\([A-Z]*\)-.*/\1/p')
+        if [ -n "$evt" ] && is_emergency_event "$evt"; then
+          echo "*** EAS EMERGENCY ALERT: event=$evt file=$f ***"
+        fi
+      done
+    done

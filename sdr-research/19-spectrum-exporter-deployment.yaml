@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spectrum-exporter
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: spectrum-exporter
+  template:
+    metadata:
+      labels:
+        app: spectrum-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: spectrum-exporter
+          image: python:3.12-slim
+          command: ["python3", "-u", "/scripts/spectrum_exporter.py"]
+          env:
+            - name: DETECTIONS_DIR
+              value: /data/detections
+            - name: LISTEN_PORT
+              value: "8080"
+            - name: STALE_THRESHOLD_SEC
+              value: "30"
+          ports:
+            - name: metrics
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+              readOnly: true
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: spectrum-exporter-scripts
+            defaultMode: 0755

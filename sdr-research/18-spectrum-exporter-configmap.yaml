@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spectrum-exporter-scripts
+  namespace: sdr-research
+data:
+  spectrum_exporter.py: |
+    #!/usr/bin/env python3
+    """
+    SDR Spectrum Survey Prometheus Exporter
+
+    Reads /data/detections/detections_*.json files written by the unified-sdr
+    GNURadio pods (one file per capture instance: 2m, 70cm, etc.) and exposes
+    the detected signals as Prometheus gauges.
+
+    Metrics exported:
+      sdr_signal_power_db{capture_id, frequency_mhz, mode}   - peak power of each detected signal
+      sdr_noise_floor_db{capture_id}                         - estimated noise floor
+      sdr_active_channels_total{capture_id}                  - number of signals above threshold
+      sdr_center_freq_mhz{capture_id}                        - current center frequency
+      sdr_detection_age_seconds{capture_id}                  - seconds since last detection update
+    """
+    import glob
+    import json
+    import os
+    import time
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    DETECTIONS_DIR = os.getenv("DETECTIONS_DIR", "/data/detections")
+    LISTEN_PORT = int(os.getenv("LISTEN_PORT", "8080"))
+    STALE_THRESHOLD_SEC = float(os.getenv("STALE_THRESHOLD_SEC", "30"))
+
+
+    def read_detection_files():
+        """Read all detections_*.json files and return parsed data."""
+        results = []
+        pattern = os.path.join(DETECTIONS_DIR, "detections_*.json")
+        for path in glob.glob(pattern):
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                results.append(data)
+            except Exception:
+                pass
+        return results
+
+
+    def build_metrics(detection_files):
+        lines = []
+        now = time.time()
+
+        lines.append("# HELP sdr_signal_power_db Signal power in dB for each detected RF signal")
+        lines.append("# TYPE sdr_signal_power_db gauge")
+
+        lines.append("# HELP sdr_noise_floor_db Estimated noise floor in dB")
+        lines.append("# TYPE sdr_noise_floor_db gauge")
+
+        lines.append("# HELP sdr_active_channels_total Number of signals detected above threshold")
+        lines.append("# TYPE sdr_active_channels_total gauge")
+
+        lines.append("# HELP sdr_center_freq_mhz Current SDR center frequency in MHz")
+        lines.append("# TYPE sdr_center_freq_mhz gauge")
+
+        lines.append("# HELP sdr_detection_age_seconds Seconds since last detection file update")
+        lines.append("# TYPE sdr_detection_age_seconds gauge")
+
+        for data in detection_files:
+            capture_id = data.get("capture_id", "unknown")
+            center_hz = data.get("center_freq_hz", 0)
+            ts = data.get("timestamp", 0)
+            detections = data.get("detections", [])
+
+            age = now - ts if ts else 9999
+            center_mhz = center_hz / 1e6 if center_hz else 0
+
+            lines.append(
+                f'sdr_detection_age_seconds{{capture_id="{capture_id}"}} {age:.1f}'
+            )
+            lines.append(
+                f'sdr_center_freq_mhz{{capture_id="{capture_id}"}} {center_mhz:.3f}'
+            )
+            lines.append(
+                f'sdr_active_channels_total{{capture_id="{capture_id}"}} {len(detections)}'
+            )
+
+            # Only emit per-signal metrics if detection data is fresh
+            if age <= STALE_THRESHOLD_SEC:
+                for det in detections:
+                    freq_hz = det.get("frequency_hz", 0)
+                    power_db = det.get("power_db", 0)
+                    mode = det.get("mode", "unknown")
+                    freq_mhz = freq_hz / 1e6
+
+                    lines.append(
+                        f'sdr_signal_power_db{{capture_id="{capture_id}",'
+                        f'frequency_mhz="{freq_mhz:.4f}",mode="{mode}"}} {power_db:.1f}'
+                    )
+
+        return "\n".join(lines) + "\n"
+
+
+    class MetricsHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path not in ("/metrics", "/"):
+                self.send_response(404)
+                self.end_headers()
+                return
+            try:
+                detection_files = read_detection_files()
+                body = build_metrics(detection_files)
+                encoded = body.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+
+        def log_message(self, fmt, *args):
+            pass  # suppress access logs
+
+
+    if __name__ == "__main__":
+        print(f"[spectrum-exporter] Listening on :{LISTEN_PORT}", flush=True)
+        print(f"[spectrum-exporter] Watching {DETECTIONS_DIR}/detections_*.json", flush=True)
+        server = HTTPServer(("0.0.0.0", LISTEN_PORT), MetricsHandler)
+        server.serve_forever()
