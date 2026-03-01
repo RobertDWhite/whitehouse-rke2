@@ -619,6 +619,15 @@ data:
         Moves the audio file to the appropriate directory, deletes any existing
         transcript, and resets mode so the correct decoder re-processes it.
         """
+        from ..config import settings as _settings
+
+        def _unlink(p):
+            try:
+                if p and os.path.exists(p):
+                    os.remove(p)
+            except OSError:
+                pass
+
         recording = db.query(Recording).filter(Recording.id == file_id).first()
         if not recording:
             raise HTTPException(status_code=404, detail="Recording not found")
@@ -640,22 +649,21 @@ data:
             old_base = os.path.basename(recording.audio_path)
             if new_mode == "cw":
                 new_name = old_base if old_base.startswith("cw_") else f"cw_{old_base}"
-                new_audio_path = os.path.join(settings.audio_base_path, "cw", new_name)
+                new_audio_path = os.path.join(_settings.audio_base_path, "cw", new_name)
             else:
                 new_name = old_base[3:] if old_base.startswith("cw_") else old_base
-                new_audio_path = os.path.join(settings.audio_base_path, "voice", new_name)
+                new_audio_path = os.path.join(_settings.audio_base_path, "voice", new_name)
             os.makedirs(os.path.dirname(new_audio_path), exist_ok=True)
             os.rename(recording.audio_path, new_audio_path)
 
         # Delete any existing text files for this recording
-        for sub in ("voice", "cw"):
-            if recording.audio_path:
-                base = os.path.basename(recording.audio_path).replace(".wav", ".txt")
-                base_stripped = base[3:] if base.startswith("cw_") else base
+        if recording.audio_path:
+            base = os.path.basename(recording.audio_path).replace(".wav", ".txt")
+            base_stripped = base[3:] if base.startswith("cw_") else base
+            for sub in ("voice", "cw"):
                 for b in {base, base_stripped, f"cw_{base_stripped}"}:
-                    safe_unlink(os.path.join(settings.text_base_path, sub, b))
-        if recording.text_path:
-            safe_unlink(recording.text_path)
+                    _unlink(os.path.join(_settings.text_base_path, sub, b))
+        _unlink(recording.text_path)
 
         # Reset for re-processing
         recording.mode = new_mode
