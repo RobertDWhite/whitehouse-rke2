@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: observability
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: prometheus
+        uid: ffbp5qeorery8b
+        type: prometheus
+        access: proxy
+        url: http://prometheus.observability.svc.cluster.local:9090
+        isDefault: true
+      - name: loki
+        uid: ffbp5mct1w0lcb
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+        isDefault: false
