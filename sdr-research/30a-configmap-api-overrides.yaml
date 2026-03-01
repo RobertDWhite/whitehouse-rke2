@@ -262,7 +262,8 @@ data:
 
         if transcript_pending is True:
             query = query.filter(
-                Recording.mode == "voice", Recording.transcript.is_(None)
+                Recording.mode.in_(["voice", "cw"]),
+                Recording.transcript.is_(None),
             )
 
         return query
@@ -469,6 +470,7 @@ data:
             "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
             "duration_seconds": recording.duration_seconds,
             "transcript": recording.transcript,
+            "transcript_status": _transcript_status(recording),
             "frequency_label": recording.frequency_label,
             "callsign_tags": callsign_tags,
             "ai_tags": ai_tags,
