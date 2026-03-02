@@ -1971,17 +1971,18 @@ data:
     async def get_aircraft(
         min_altitude: Optional[int] = None,
         max_altitude: Optional[int] = None,
+        max_seen_sec: Optional[int] = None,
     ):
         """
         Proxy current aircraft positions from the ADS-B ultrafeeder deployment.
-        Returns readsb aircraft.json enriched with optional altitude filters.
+        Returns readsb aircraft.json enriched with optional altitude/staleness filters.
         Source: http://ultrafeeder.adsb.svc.cluster.local/data/aircraft.json
         """
         import urllib.request as _ureq
         import urllib.error as _uerr
         ULTRAFEEDER_URL = "http://ultrafeeder.adsb.svc.cluster.local/data/aircraft.json"
         try:
-            with _ureq.urlopen(ULTRAFEEDER_URL, timeout=5) as resp:
+            with _ureq.urlopen(ULTRAFEEDER_URL, timeout=8) as resp:
                 data = json.loads(resp.read())
         except _uerr.URLError as exc:
             raise HTTPException(status_code=503, detail=f"ultrafeeder unreachable: {exc}")
@@ -1989,17 +1990,23 @@ data:
             raise HTTPException(status_code=502, detail=f"aircraft data error: {exc}")
 
         aircraft = data.get("aircraft", [])
+        total_raw = len(aircraft)
 
-        # Apply optional altitude filters
+        # Filter out stale aircraft (not heard recently)
+        if max_seen_sec is not None:
+            aircraft = [a for a in aircraft if isinstance(a.get("seen"), (int, float)) and a["seen"] <= max_seen_sec]
+
+        # Apply optional altitude filters; alt_baro can be the string "ground" — skip those rows
         if min_altitude is not None:
-            aircraft = [a for a in aircraft if a.get("alt_baro", 0) >= min_altitude]
+            aircraft = [a for a in aircraft if isinstance(a.get("alt_baro"), (int, float)) and a["alt_baro"] >= min_altitude]
         if max_altitude is not None:
-            aircraft = [a for a in aircraft if a.get("alt_baro", 999999) <= max_altitude]
+            aircraft = [a for a in aircraft if isinstance(a.get("alt_baro"), (int, float)) and a["alt_baro"] <= max_altitude]
 
         return {
             "now": data.get("now"),
             "messages": data.get("messages"),
             "total": len(aircraft),
+            "total_raw": total_raw,
             "aircraft": aircraft,
         }
 
