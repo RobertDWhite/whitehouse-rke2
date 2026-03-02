@@ -17,14 +17,14 @@ spec:
         - name: cloudflared
           image: cloudflare/cloudflared
           command:
-            - /bin/sh
-            - -ec
+            - cloudflared
+            - tunnel
+            - --no-autoupdate
+            - run
+            - --token
+            - $(TUNNEL_TOKEN)
           args:
-            - |
-              if [ -f /etc/cloudflared/creds/credentials.json ]; then
-                exec cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config/config.yaml run
-              fi
-              exec cloudflared tunnel --no-autoupdate run --token "${TUNNEL_TOKEN}"
+            []
           env:
             - name: TUNNEL_TOKEN
               valueFrom:
