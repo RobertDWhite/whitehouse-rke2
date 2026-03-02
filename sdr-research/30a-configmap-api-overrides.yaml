@@ -655,6 +655,14 @@ data:
                 new_audio_path = os.path.join(_settings.audio_base_path, "voice", new_name)
             os.makedirs(os.path.dirname(new_audio_path), exist_ok=True)
             os.rename(recording.audio_path, new_audio_path)
+            # Touch so the incremental mtime scanner picks it up on next cycle.
+            # os.rename preserves the original mtime, which may predate the
+            # scanner's last-run timestamp, causing the file to be skipped.
+            try:
+                import pathlib as _pathlib
+                _pathlib.Path(new_audio_path).touch()
+            except OSError:
+                pass
 
         # Delete any existing text files for this recording
         if recording.audio_path:
@@ -666,6 +674,7 @@ data:
         _unlink(recording.text_path)
 
         # Reset for re-processing
+        recording.filename = os.path.basename(new_audio_path)  # must match new file name
         recording.mode = new_mode
         recording.transcript = None
         recording.text_path = None
