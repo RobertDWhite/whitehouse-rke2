@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worldmonitor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worldmonitor
+  template:
+    metadata:
+      labels:
+        app: worldmonitor
+    spec:
+      initContainers:
+        - name: build-worldmonitor
+          image: node:22-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              apk add --no-cache git
+              git clone --depth 1 https://github.com/koala73/worldmonitor.git /src
+              cd /src
+              npm ci --no-audit --no-fund
+              npm run build:full
+              cp -a dist/. /workdir/
+          volumeMounts:
+            - name: site
+              mountPath: /workdir
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          volumeMounts:
+            - name: site
+              mountPath: /usr/share/nginx/html
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+      volumes:
+        - name: site
+          emptyDir: {}
+        - name: nginx-conf
+          configMap:
+            name: worldmonitor-nginx-conf
