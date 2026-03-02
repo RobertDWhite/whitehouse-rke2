@@ -1609,6 +1609,10 @@ data:
 
     router = APIRouter()
 
+    # Module-level TLE cache (NORAD ID → {data, ts}); populated on first request
+    _tle_cache: dict = {}
+    _TLE_TTL = 3600  # seconds
+
     # Uncompressed APRS position: !DDMM.mmN/DDDMM.mmW  (symbol table char between)
     # Optional (?:\d{6}[z/h])? handles @DDHHMM[z/h] timestamp prefix in @ packets
     _POS_RE = re.compile(
@@ -1965,6 +1969,37 @@ data:
                 "last_heard": last_heard.isoformat() if last_heard else None,
             })
         return {"stations": stations, "total": len(stations)}
+
+
+    @router.get("/satellites/tle/{norad_id}")
+    async def get_satellite_tle(norad_id: int):
+        """
+        Proxy Celestrak TLE for a given NORAD ID.
+        Caches results for 1 hour to avoid hammering Celestrak.
+        """
+        import time as _time
+        import urllib.request as _ureq
+        import urllib.error as _uerr
+
+        cached = _tle_cache.get(norad_id)
+        if cached and _time.time() - cached["ts"] < _TLE_TTL:
+            return cached["data"]
+
+        url = f"https://celestrak.org/satcat/tle.php?CATNR={norad_id}"
+        try:
+            with _ureq.urlopen(url, timeout=10) as resp:
+                text = resp.read().decode("utf-8")
+        except _uerr.URLError as exc:
+            raise HTTPException(status_code=503, detail=f"Celestrak unreachable: {exc}")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"TLE fetch error: {exc}")
+
+        lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+        if len(lines) < 3:
+            raise HTTPException(status_code=502, detail="Invalid TLE response")
+        data = {"name": lines[0], "line1": lines[1], "line2": lines[2]}
+        _tle_cache[norad_id] = {"data": data, "ts": _time.time()}
+        return data
 
 
     @router.get("/aircraft")
