@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vdl2-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vdl2-decoder
+  template:
+    metadata:
+      labels:
+        app: vdl2-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+      - name: vdl2-decoder
+        image: debian:stable-slim
+        command: ["/bin/sh", "-c"]
+        args:
+          - "apt-get update && apt-get install -y --no-install-recommends dumpvdl2 python3 && exec /bin/sh /scripts/run_vdl2.sh"
+        env:
+        - name: RTLTCP_HOST
+          value: "rtl-tcp.sdr-research.svc.cluster.local"
+        - name: RTLTCP_PORT
+          value: "1234"
+        - name: VDL2_FREQ_HZ
+          value: "136900000"
+        - name: VDL2_SAMPLE_RATE
+          value: "2048000"
+        - name: VDL2_GAIN
+          value: "496"
+        volumeMounts:
+        - name: sdr-data
+          mountPath: /data
+        - name: scripts
+          mountPath: /scripts
+      volumes:
+      - name: sdr-data
+        persistentVolumeClaim:
+          claimName: sdr-artifacts-rwx
+      - name: scripts
+        configMap:
+          name: vdl2-decoder-config
+          defaultMode: 0755
