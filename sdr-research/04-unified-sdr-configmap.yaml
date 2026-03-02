@@ -54,6 +54,10 @@ data:
     # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
     # Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
     CLEAR_SLOTS_ON_RETUNE = False
+    # Time to suppress squelch-open after a retune, allowing the RTL-SDR PLL to settle.
+    # Without this, synthesizer noise during frequency switching triggers all squelch gates
+    # simultaneously, producing a cluster of fake ~2s recordings at every retune.
+    RF_SETTLE_SEC  = float(os.getenv("RF_SETTLE_SEC", "0.3"))
     CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
     FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "145500000"))
 
@@ -94,6 +98,7 @@ data:
             self.samples_written = 0
             self.tail_counter  = 0
             self._lock         = threading.Lock()
+            self._inhibit_until = 0.0  # epoch time before which squelch-open is suppressed
 
         def _open_wav(self):
             if self.is_cw:
@@ -132,6 +137,11 @@ data:
                     self._close_wav()
                     self.state = self.IDLE
 
+        def set_inhibit(self, duration_sec):
+            """Suppress squelch-open for duration_sec (called after retune for PLL settling)."""
+            with self._lock:
+                self._inhibit_until = time.time() + duration_sec
+
         def work(self, input_items, output_items):
             samples = input_items[0]
             n = len(samples)
@@ -139,7 +149,7 @@ data:
 
             with self._lock:
                 if self.state == self.IDLE:
-                    if rms > self.open_thresh:
+                    if rms > self.open_thresh and time.time() >= self._inhibit_until:
                         self._open_wav()
                         self.state = self.RECORDING
                         self.tail_counter = 0
@@ -380,6 +390,11 @@ data:
             for r in self.all_recorders:
                 r.close_if_recording()
 
+        def inhibit_recordings(self, duration_sec):
+            """Suppress squelch-open on all channels for duration_sec (PLL settle after retune)."""
+            for r in self.all_recorders:
+                r.set_inhibit(duration_sec)
+
         def clear_dynamic_slots(self):
             for slot in self.dyn_fm:
                 if slot["freq"] is not None:
@@ -530,6 +545,7 @@ data:
                     if CLEAR_SLOTS_ON_RETUNE:
                         self.tb.clear_dynamic_slots()
                     self.tb.retune(center)
+                    self.tb.inhibit_recordings(RF_SETTLE_SEC)
                     time.sleep(SCAN_SEC)
 
                 # Return to primary
@@ -537,6 +553,7 @@ data:
                 if CLEAR_SLOTS_ON_RETUNE:
                     self.tb.clear_dynamic_slots()
                 self.tb.retune(DWELL_CENTER)
+                self.tb.inhibit_recordings(RF_SETTLE_SEC)
 
     # ---------------------------------------------------------------------------
     # RF power monitor (background thread — logs noise floor for squelch tuning)
