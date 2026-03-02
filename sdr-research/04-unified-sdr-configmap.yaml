@@ -49,9 +49,11 @@ data:
     NUM_DYN_FM     = int(os.getenv("NUM_DYN_FM", "8"))
     NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
     SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "10"))
-    CLEAR_SLOTS_ON_RETUNE = os.getenv("CLEAR_SLOTS_ON_RETUNE", "true").lower() in (
-        "1", "true", "yes", "on"
-    )
+    # IMPORTANT: clearing slots on retune calls lock()/disconnect()/connect()/unlock() per slot.
+    # GNURadio 3.10 connect()/disconnect() are NOT safe for concurrent calls from multiple threads
+    # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
+    # Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
+    CLEAR_SLOTS_ON_RETUNE = False
     CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
     FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "145500000"))
 
@@ -170,6 +172,7 @@ data:
         def __init__(self):
             gr.top_block.__init__(self, "Unified SDR")
             self._state_lock = threading.Lock()
+            self._gr_lock = threading.Lock()  # serialise all connect()/disconnect() across threads
             self.current_center_hz = DWELL_CENTER
 
             # --- Source ---
@@ -285,10 +288,11 @@ data:
                 if slot["recorder"] in self.all_recorders:
                     self.all_recorders.remove(slot["recorder"])
             null = blocks.null_sink(gr.sizeof_float)
-            self.lock()
-            self.disconnect(slot["nbfm"], slot["sink"])
-            self.connect(slot["nbfm"], null)
-            self.unlock()
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(slot["nbfm"], slot["sink"])
+                self.connect(slot["nbfm"], null)
+                self.unlock()
             slot["sink"] = null
             slot["recorder"] = None
             slot["freq"] = None
@@ -301,10 +305,11 @@ data:
                 if slot["recorder"] in self.all_recorders:
                     self.all_recorders.remove(slot["recorder"])
             null = blocks.null_sink(gr.sizeof_float)
-            self.lock()
-            self.disconnect(slot["c2mag"], slot["sink"])
-            self.connect(slot["c2mag"], null)
-            self.unlock()
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(slot["c2mag"], slot["sink"])
+                self.connect(slot["c2mag"], null)
+                self.unlock()
             slot["sink"] = null
             slot["recorder"] = None
             slot["freq"] = None
@@ -328,11 +333,12 @@ data:
                 return  # all slots busy with active recordings
             offset = freq_hz - self.get_center_hz()
             rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
-            self.lock()
-            self.disconnect(target["nbfm"], target["sink"])
-            target["xlate"].set_center_freq(offset)
-            self.connect(target["nbfm"], rec)
-            self.unlock()
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(target["nbfm"], target["sink"])
+                target["xlate"].set_center_freq(offset)
+                self.connect(target["nbfm"], rec)
+                self.unlock()
             target["sink"] = rec
             target["recorder"] = rec
             target["freq"] = freq_hz
@@ -357,11 +363,12 @@ data:
                 return
             offset = freq_hz - self.get_center_hz()
             rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, CW_DIR, is_cw=True)
-            self.lock()
-            self.disconnect(target["c2mag"], target["sink"])
-            target["xlate"].set_center_freq(offset)
-            self.connect(target["c2mag"], rec)
-            self.unlock()
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(target["c2mag"], target["sink"])
+                target["xlate"].set_center_freq(offset)
+                self.connect(target["c2mag"], rec)
+                self.unlock()
             target["sink"] = rec
             target["recorder"] = rec
             target["freq"] = freq_hz
@@ -386,9 +393,10 @@ data:
                 return self.current_center_hz
 
         def retune(self, center_hz):
-            self.lock()
-            self.src.set_center_freq(center_hz)
-            self.unlock()
+            with self._gr_lock:
+                self.lock()
+                self.src.set_center_freq(center_hz)
+                self.unlock()
             with self._state_lock:
                 self.current_center_hz = center_hz
 

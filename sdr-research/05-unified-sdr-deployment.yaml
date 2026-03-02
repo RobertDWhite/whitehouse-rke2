@@ -55,7 +55,10 @@ spec:
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
-              value: "true"
+              # false = avoid SIGSEGV from GNURadio dynamic graph modification (lock/disconnect/connect/unlock
+              # while scheduler holds internal refs to blocks → use-after-free in C++ layer).
+              # RF squelch prevents bad recordings from out-of-band slots.
+              value: "false"
             - name: SQUELCH_OPEN_DB
               value: "-55"
             - name: SQUELCH_CLOSE_DB
