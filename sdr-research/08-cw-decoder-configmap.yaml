@@ -56,18 +56,14 @@ data:
             raw   = wf.readframes(n)
 
         if sampw == 2:
-            vals  = list(struct.unpack_from(f"<{n * nchan}h", raw))
-            scale = 32768.0
+            vals = list(struct.unpack_from(f"<{n * nchan}h", raw))
         elif sampw == 4:
             try:
-                vals  = list(struct.unpack_from(f"<{n * nchan}f", raw))
-                scale = 1.0
+                vals = list(struct.unpack_from(f"<{n * nchan}f", raw))
             except Exception:
-                vals  = list(struct.unpack_from(f"<{n * nchan}i", raw))
-                scale = 2147483648.0
+                vals = list(struct.unpack_from(f"<{n * nchan}i", raw))
         else:
-            vals  = list(raw)
-            scale = 128.0
+            vals = list(raw)
 
         if nchan > 1:
             vals = vals[::nchan]
@@ -75,8 +71,11 @@ data:
         mx = max(abs(v) for v in vals) if vals else 0
         if mx == 0:
             return [], rate
-        norm = mx * scale if scale != 1.0 else mx
-        return [abs(v) / norm for v in vals], rate
+        # Peak-normalise to [0, 1] — divide by the actual peak value.
+        # Do NOT multiply by a bit-depth scale factor; that would make all
+        # values 1/32768 of what they should be, causing everything to fall
+        # below the threshold and producing zero decoded characters.
+        return [abs(v) / mx for v in vals], rate
 
     def get_runs(samples, threshold):
         """Return list of (is_on, duration_ms) from 8 kHz samples."""
