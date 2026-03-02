@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ais-catcher
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ais-catcher
+  template:
+    metadata:
+      labels:
+        app: ais-catcher
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+      - name: ais-catcher
+        image: ghcr.io/jvde-github/ais-catcher   # tag injected by kustomize
+        command: ["AIS-catcher"]
+        args:
+          - "-t"
+          - "$(RTLTCP_HOST)"
+          - "$(RTLTCP_PORT)"
+          - "-N"
+          - "8100"
+          - "-o"
+          - "4"
+        env:
+        - name: RTLTCP_HOST
+          value: "rtl-tcp-70cm.sdr-research.svc.cluster.local"
+        - name: RTLTCP_PORT
+          value: "1235"
+        ports:
+        - name: http
+          containerPort: 8100

@@ -175,7 +175,7 @@ data:
         dry_run: bool = False
 
 
-    _VALID_MODES = {"cw", "voice", "aprs", "pager", "eas", "acars"}
+    _VALID_MODES = {"cw", "voice", "aprs", "pager", "eas", "acars", "vdl2"}
 
     def _validate_mode(mode: Optional[str]):
         if mode is not None and mode not in _VALID_MODES:
@@ -289,7 +289,7 @@ data:
 
     @router.get("/browse")
     async def browse_files(
-        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs|pager|eas|acars)$"),
+        mode: Optional[str] = Query(None, pattern="^(cw|voice|aprs|pager|eas|acars|vdl2)$"),
         frequency_min: Optional[float] = None,
         frequency_max: Optional[float] = None,
         q: Optional[str] = Query(None, min_length=1),
@@ -2045,6 +2045,22 @@ data:
             "aircraft": aircraft,
         }
 
+
+    @router.get("/ais/vessels")
+    async def get_ais_vessels():
+        """Proxy live vessel list from ais-catcher HTTP server."""
+        import urllib.request as _ureq
+        import urllib.error as _uerr
+        AIS_URL = "http://ais-catcher.sdr-research.svc.cluster.local:8100/vessels"
+        try:
+            with _ureq.urlopen(AIS_URL, timeout=5) as resp:
+                data = json.loads(resp.read())
+        except _uerr.URLError as exc:
+            raise HTTPException(status_code=503, detail=f"ais-catcher unreachable: {exc}")
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"AIS data error: {exc}")
+        return data
+
   indexer.py: |
     import asyncio
     import json
@@ -2952,6 +2968,7 @@ data:
     _pager_ts = [0.0]
     _eas_ts = [0.0]
     _acars_ts = [0.0]
+    _vdl2_ts = [0.0]
 
 
     def index_pager_directory(text_dir: str):
@@ -2964,6 +2981,10 @@ data:
 
     def index_acars_directory(text_dir: str):
         _index_text_only_directory("acars", text_dir, _acars_ts, "ACARS_DECODE_FAILED")
+
+
+    def index_vdl2_directory(text_dir: str):
+        _index_text_only_directory("vdl2", text_dir, _vdl2_ts, "VDL2_DECODE_FAILED")
 
 
     def _refresh_db_gauges():
@@ -3222,6 +3243,11 @@ data:
                 await asyncio.to_thread(
                     index_acars_directory,
                     text_dir=os.path.join(settings.text_base_path, "acars"),
+                )
+
+                await asyncio.to_thread(
+                    index_vdl2_directory,
+                    text_dir=os.path.join(settings.text_base_path, "vdl2"),
                 )
 
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
