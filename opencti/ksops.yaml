@@ -1,0 +1,12 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: opencti-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - 05-opencti-secrets.sops.yaml
+  - 06-minio-secret.sops.yaml
+  - 07-rabbitmq-secret.sops.yaml

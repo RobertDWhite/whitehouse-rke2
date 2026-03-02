@@ -1,0 +1,171 @@
+replicaCount: 1
+fullnameOverride: opencti
+
+strategy:
+  type: Recreate
+
+env:
+  APP__ADMIN__EMAIL: admin@opencti.local
+  APP__BASE_PATH: "/"
+  APP__TELEMETRY__METRICS__ENABLED: true
+  APP__GRAPHQL__PLAYGROUND__ENABLED: false
+  APP__GRAPHQL__PLAYGROUND__FORCE_DISABLED_INTROSPECTION: true
+
+  ELASTICSEARCH__ENGINE_SELECTOR: opensearch
+  ELASTICSEARCH__URL: http://opencti-opensearch:9200
+
+  MINIO__ENDPOINT: opencti-minio
+
+  RABBITMQ__HOSTNAME: opencti-rabbitmq
+  RABBITMQ__PORT_MANAGEMENT: 15672
+  RABBITMQ__PORT: 5672
+  RABBITMQ__USERNAME: user
+
+  REDIS__HOSTNAME: opencti-redis
+  REDIS__MODE: single
+  REDIS__PORT: 6379
+
+envFromSecrets:
+  APP__ADMIN__PASSWORD:
+    name: opencti-credentials
+    key: APP__ADMIN__PASSWORD
+  APP__ADMIN__TOKEN:
+    name: opencti-credentials
+    key: APP__ADMIN__TOKEN
+  APP__HEALTH_ACCESS_KEY:
+    name: opencti-credentials
+    key: APP__HEALTH_ACCESS_KEY
+  MINIO__ACCESS_KEY:
+    name: opencti-minio
+    key: rootUser
+  MINIO__SECRET_KEY:
+    name: opencti-minio
+    key: rootPassword
+  RABBITMQ__PASSWORD:
+    name: opencti-rabbitmq
+    key: rabbitmq-password
+
+readyChecker:
+  enabled: true
+  retries: 60
+  timeout: 5
+  services:
+    - name: opensearch
+      port: 9200
+    - name: minio
+      port: 9000
+    - name: rabbitmq
+      port: 5672
+    - name: redis
+      port: 6379
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 4000
+  protocol: TCP
+  portName: http
+  appProtocol: HTTP
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+  hosts:
+    - host: opencti.white.fm
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: opencti-white-fm-tls
+      hosts:
+        - opencti.white.fm
+
+worker:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+opensearch:
+  enabled: true
+  fullnameOverride: opencti-opensearch
+  nodeGroup: ""
+  opensearchJavaOpts: "-Xmx2G -Xms2G"
+  singleNode: true
+  config:
+    opensearch.yml: |
+      plugins.security.disabled: true
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+  persistence:
+    enabled: true
+    size: 30Gi
+
+minio:
+  enabled: true
+  fullnameOverride: opencti-minio
+  existingSecret: opencti-minio
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  persistence:
+    enabled: true
+    size: 30Gi
+
+rabbitmq:
+  enabled: true
+  fullnameOverride: opencti-rabbitmq
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  auth:
+    username: user
+    existingPasswordSecret: opencti-rabbitmq
+    existingErlangSecret: opencti-rabbitmq
+  clustering:
+    enabled: false
+  persistence:
+    enabled: true
+    size: 10Gi
+
+redis:
+  enabled: true
+  fullnameOverride: opencti-redis
+  storage:
+    enabled: true
+    requests: 10Gi
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m

@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencti
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: opencti
+    kustomize: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencti
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

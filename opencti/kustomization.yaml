@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: opencti
+
+generators:
+  - ksops.yaml
+
+resources:
+  - 00-namespace.yaml
+
+helmCharts:
+  - name: opencti
+    releaseName: opencti
+    # renovate: datasource=helm depName=opencti registryUrl=https://devops-ia.github.io/helm-opencti
+    version: 1.0.0
+    repo: https://devops-ia.github.io/helm-opencti
+    valuesFile: values.yaml
+    namespace: opencti
