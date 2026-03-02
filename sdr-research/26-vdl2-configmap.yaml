@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vdl2-decoder-config
+  namespace: sdr-research
+data:
+  rtl_tcp_client.py: |
+    import socket
+    import struct
+    import sys
+    import os
+    import time
+
+    host = os.environ.get("RTLTCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
+    port = int(os.environ.get("RTLTCP_PORT", "1234"))
+    freq = int(os.environ.get("VDL2_FREQ_HZ", "136900000"))
+    sample_rate = int(os.environ.get("VDL2_SAMPLE_RATE", "2048000"))
+    gain = int(os.environ.get("VDL2_GAIN", "496"))  # tenths of dB
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((host, port))
+    # Read 12-byte magic header
+    magic = sock.recv(12)
+    # Send frequency command (0x01)
+    sock.sendall(struct.pack(">BI", 0x01, freq))
+    # Send sample rate command (0x02)
+    sock.sendall(struct.pack(">BI", 0x02, sample_rate))
+    # Send gain mode command (0x03) — manual=1
+    sock.sendall(struct.pack(">BI", 0x03, 1))
+    # Send gain command (0x04)
+    sock.sendall(struct.pack(">BI", 0x04, gain))
+
+    # Stream IQ to stdout
+    out = sys.stdout.buffer
+    while True:
+        data = sock.recv(65536)
+        if not data:
+            break
+        out.write(data)
+        out.flush()
+
+  run_vdl2.sh: |
+    #!/bin/sh
+    set -e
+    mkdir -p /data/text/vdl2
+    FREQ="${VDL2_FREQ_HZ:-136900000}"
+    SR="${VDL2_SAMPLE_RATE:-2048000}"
+    python3 /scripts/rtl_tcp_client.py | \
+      dumpvdl2 --iq-input-format U8 --output-format text \
+        --output file:/data/text/vdl2 --output-rotate 300 \
+        --sample-rate "$SR" "$FREQ"
