@@ -1,0 +1,49 @@
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  image:
+    repository: ghcr.io/openclaw/openclaw
+    # renovate: datasource=docker depName=ghcr.io/openclaw/openclaw
+    tag: latest
+  envFrom:
+    - secretRef:
+        name: openclaw-api-keys
+  config:
+    raw:
+      agents:
+        defaults:
+          model:
+            primary: "openai/gpt-4.1-mini"
+      channels:
+        telegram:
+          enabled: true
+          groupPolicy: "open"
+      models:
+        providers:
+          openai:
+            baseUrl: "https://api.openai.com/v1"
+            apiKey: "$OPENAI_API_KEY"
+            models:
+              - name: "gpt-4.1-mini"
+                id: "gpt-4.1-mini"
+          ollama:
+            baseUrl: "http://ollama.ai-stack.svc.cluster.local:11434"
+            models:
+              - name: "llama3.2:latest"
+                id: "llama3.2:latest"
+  storage:
+    persistence:
+      enabled: true
+      size: 10Gi
+  security:
+    networkPolicy:
+      additionalEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.42.0.0/16
+          ports:
+            - protocol: TCP
+              port: 11434
