@@ -70,6 +70,10 @@ spec:
             # Non-S3 persistence for attachment data
             - mountPath: /var/www/MISP/app/files
               name: misp-files
+            # Persist ZeroMQ publisher settings via GitOps
+            - mountPath: /etc/misp-docker/optional.envars.json
+              name: misp-config-overrides
+              subPath: optional.envars.json
         - name: misp-modules
           resources:
             limits:
@@ -144,3 +148,6 @@ spec:
       - name: misp-zmq-forwarder
         configMap:
           name: misp-zmq-forwarder
+      - name: misp-config-overrides
+        configMap:
+          name: misp-config-overrides
