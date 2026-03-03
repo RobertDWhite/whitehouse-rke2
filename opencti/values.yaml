@@ -7,6 +7,7 @@ strategy:
 env:
   APP__ADMIN__EMAIL: admin@opencti.local
   APP__BASE_PATH: "/"
+  APP__HEALTH_ACCESS_KEY: 384d5f3a-9367-4b0b-b6f8-addfb54cae52
   APP__TELEMETRY__METRICS__ENABLED: true
   APP__GRAPHQL__PLAYGROUND__ENABLED: false
   APP__GRAPHQL__PLAYGROUND__FORCE_DISABLED_INTROSPECTION: true
@@ -47,18 +48,6 @@ envFromSecrets:
   RABBITMQ__PASSWORD:
     name: opencti-rabbitmq
     key: rabbitmq-password
-
-livenessProbeCustom:
-  tcpSocket:
-    port: 4000
-
-readinessProbeCustom:
-  tcpSocket:
-    port: 4000
-
-startupProbeCustom:
-  tcpSocket:
-    port: 4000
 
 readyChecker:
   enabled: true
