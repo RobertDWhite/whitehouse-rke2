@@ -1,21 +1,22 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: opencti
+  name: misp
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
     targetRevision: main
-    path: opencti
+    path: misp
     kustomize: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: opencti
+    namespace: misp
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true
