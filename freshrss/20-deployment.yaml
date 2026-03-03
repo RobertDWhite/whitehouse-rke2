@@ -85,6 +85,10 @@ spec:
                 rm -rf "${TARGET}.new"
                 mkdir -p "${TARGET}.new"
                 cp -a "${SRC}/." "${TARGET}.new/"
+                # FreshRSS Entry::date() returns formatted text by default; force raw epoch.
+                if grep -q '\$timestamp = \$originalEntry->date();' "${TARGET}.new/extension.php"; then
+                  sed -i 's/\$timestamp = \$originalEntry->date();/\$timestamp = (int) \$originalEntry->date(true);/' "${TARGET}.new/extension.php"
+                fi
                 rm -rf "${TARGET}"
                 mv "${TARGET}.new" "${TARGET}"
                 chown -R 1000:1000 "${TARGET}"
