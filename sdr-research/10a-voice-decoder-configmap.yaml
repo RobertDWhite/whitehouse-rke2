@@ -228,6 +228,12 @@ data:
                 else:
                     f.write("[no speech detected]\n")
             os.replace(tmp_path, txt_path)
+            # Touch the WAV so the API indexer's incremental mtime window
+            # re-visits this file and picks up the new transcript.
+            try:
+                os.utime(wav_path, None)
+            except OSError:
+                pass
             print(f"Wrote transcript ({len(lines)} lines) for {wav_path}")
 
         time.sleep(5)
