@@ -2004,8 +2004,8 @@ data:
             raise HTTPException(status_code=502, detail=f"TLE fetch error: {exc}")
 
         lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
-        if len(lines) < 3:
-            raise HTTPException(status_code=502, detail="Invalid TLE response")
+        if len(lines) < 3 or not lines[1].startswith("1 ") or not lines[2].startswith("2 "):
+            raise HTTPException(status_code=502, detail=f"Invalid TLE response from Celestrak (got: {text[:120]!r})")
         data = {"name": lines[0], "line1": lines[1], "line2": lines[2]}
         _tle_cache[norad_id] = {"data": data, "ts": _time.time()}
         return data
