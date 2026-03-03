@@ -48,6 +48,204 @@ spec:
                 rm -rf "${TARGET}.new"
                 mkdir -p "${TARGET}.new"
                 cp -a "${SRC}/." "${TARGET}.new/"
+                cat > "${TARGET}.new/AIHelper.php" <<'PHP'
+                <?php
+                
+                final class AIHelper
+                {
+                    private static string $default_model = "gpt-4o-mini";
+                
+                    private static function getCachePath(string $key): string {
+                        return "/tmp/freshrss_ai_" . md5($key) . ".json";
+                    }
+                
+                    private static function getCachedResponse(string $key): ?string {
+                        $path = self::getCachePath($key);
+                        if (file_exists($path) && (time() - filemtime($path) < 86400)) {
+                            return file_get_contents($path);
+                        }
+                        return null;
+                    }
+                
+                    private static function saveCachedResponse(string $key, string $json): void {
+                        file_put_contents(self::getCachePath($key), $json);
+                    }
+                
+                    private static function decodeJsonObject(string $text): ?array {
+                        $decoded = json_decode($text, true);
+                        if (is_array($decoded)) {
+                            return $decoded;
+                        }
+                        return null;
+                    }
+                
+                    private static function extractJsonObject(string $text): ?array {
+                        $trimmed = trim($text);
+                        $direct = self::decodeJsonObject($trimmed);
+                        if ($direct !== null) {
+                            return $direct;
+                        }
+                
+                        if (preg_match('/```(?:json)?\s*(\{[\s\S]*\})\s*```/i', $trimmed, $matches) === 1) {
+                            $fenced = self::decodeJsonObject($matches[1]);
+                            if ($fenced !== null) {
+                                return $fenced;
+                            }
+                        }
+                
+                        $start = strpos($trimmed, '{');
+                        $end = strrpos($trimmed, '}');
+                        if ($start !== false && $end !== false && $end > $start) {
+                            $candidate = substr($trimmed, $start, $end - $start + 1);
+                            $embedded = self::decodeJsonObject($candidate);
+                            if ($embedded !== null) {
+                                return $embedded;
+                            }
+                        }
+                
+                        return null;
+                    }
+                
+                    private static function normalizeTagToken(string $value): string {
+                        $token = strtolower(trim($value));
+                        $token = preg_replace('/\s+/', '-', $token) ?? "";
+                        $token = preg_replace('/[^a-z0-9:_\-\/\.]/', '', $token) ?? "";
+                        return trim($token, '-');
+                    }
+                
+                    private static function flattenTags(mixed $raw): array {
+                        $out = [];
+                        if (is_string($raw)) {
+                            $parts = preg_split('/[\n,;|]+/', $raw) ?: [];
+                            foreach ($parts as $part) {
+                                $out[] = (string)$part;
+                            }
+                            return $out;
+                        }
+                        if (is_array($raw)) {
+                            foreach ($raw as $item) {
+                                if (is_string($item) || is_numeric($item)) {
+                                    $out[] = (string)$item;
+                                    continue;
+                                }
+                                if (is_array($item)) {
+                                    foreach (['tag', 'name', 'label', 'value'] as $k) {
+                                        if (isset($item[$k]) && (is_string($item[$k]) || is_numeric($item[$k]))) {
+                                            $out[] = (string)$item[$k];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return $out;
+                    }
+                
+                    private static function normalizeTags(mixed $raw): string {
+                        $flat = self::flattenTags($raw);
+                        $seen = [];
+                        $clean = [];
+                        foreach ($flat as $value) {
+                            $token = self::normalizeTagToken($value);
+                            if ($token === "" || isset($seen[$token])) {
+                                continue;
+                            }
+                            $seen[$token] = true;
+                            $clean[] = $token;
+                            if (count($clean) >= 16) {
+                                break;
+                            }
+                        }
+                        return implode(',', $clean);
+                    }
+                
+                    public static function generateArticleData(
+                        string $baseUrl,
+                        string $apiKey,
+                        string $model,
+                        float  $temperature,
+                        string $systemMessage,
+                        string $userPrompt,
+                        int    $maxTokenLimit
+                    ): array {
+                        $cacheKey = md5($systemMessage . $userPrompt);
+                
+                        $cached = self::getCachedResponse($cacheKey);
+                        if ($cached !== null) {
+                            $decoded = json_decode($cached, true);
+                            if (is_array($decoded)) {
+                                return $decoded;
+                            }
+                        }
+                
+                        $combinedLen = mb_strlen($systemMessage) + mb_strlen($userPrompt);
+                        if ($combinedLen > $maxTokenLimit) {
+                            $overBy = $combinedLen - $maxTokenLimit;
+                            if (mb_strlen($userPrompt) >= $overBy) {
+                                $userPrompt = mb_substr($userPrompt, 0, mb_strlen($userPrompt) - $overBy);
+                            } else {
+                                $rem = $overBy - mb_strlen($userPrompt);
+                                $userPrompt = "";
+                                $systemMessage = mb_substr($systemMessage, 0, mb_strlen($systemMessage) - $rem);
+                            }
+                            $systemMessage .= "\n[NOTE: Input truncated due to token limit]";
+                        }
+                
+                        $postData = [
+                            'model'       => $model ?: self::$default_model,
+                            'messages'    => [
+                                ['role' => 'system', 'content' => $systemMessage],
+                                ['role' => 'user', 'content' => $userPrompt],
+                            ],
+                            'temperature' => $temperature,
+                            'max_tokens'  => 700,
+                        ];
+                
+                        $ch = curl_init();
+                        curl_setopt($ch, CURLOPT_URL, rtrim($baseUrl, '/') . '/chat/completions');
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($postData));
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json',
+                            'Authorization: Bearer ' . $apiKey,
+                        ]);
+                        $result = curl_exec($ch);
+                        curl_close($ch);
+                
+                        if (!$result) {
+                            return ['title' => '[AI Error: No response]', 'summary' => '', 'tags' => ''];
+                        }
+                
+                        $response = json_decode($result, true);
+                        $aiText = (string)($response['choices'][0]['message']['content'] ?? '');
+                        if ($aiText === '') {
+                            return ['title' => '[AI Error]', 'summary' => '', 'tags' => ''];
+                        }
+                
+                        $decoded = self::extractJsonObject($aiText);
+                        if (!is_array($decoded)) {
+                            $decoded = [
+                                'title' => '[AI Parse Fallback]',
+                                'summary' => $aiText,
+                                'tags' => '',
+                            ];
+                        }
+                
+                        $normalized = [
+                            'title' => trim((string)($decoded['title'] ?? $decoded['headline'] ?? '[AI Untitled]')),
+                            'summary' => trim((string)($decoded['summary'] ?? $decoded['abstract'] ?? '')),
+                            'tags' => self::normalizeTags($decoded['tags'] ?? []),
+                        ];
+                        if ($normalized['title'] === '') {
+                            $normalized['title'] = '[AI Untitled]';
+                        }
+                
+                        self::saveCachedResponse($cacheKey, json_encode($normalized));
+                        return $normalized;
+                    }
+                }
+                PHP
                 rm -rf "${TARGET}"
                 mv "${TARGET}.new" "${TARGET}"
                 chown -R 1000:1000 "${TARGET}"
