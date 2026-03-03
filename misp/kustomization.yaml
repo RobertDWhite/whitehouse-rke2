@@ -6,6 +6,14 @@ namespace: misp
 generators:
   - ksops.yaml
 
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: misp-zmq-forwarder
+    files:
+      - push_zmq_to_influxdb.py=scripts/push_zmq_to_influxdb.py
+
 resources:
   - 00-namespace.yaml
   - 15-ingress.yaml
