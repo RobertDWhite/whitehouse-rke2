@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misp-dashboard
+  labels:
+    app.kubernetes.io/name: misp-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: misp-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: misp-dashboard
+    spec:
+      containers:
+        - name: misp-dashboard
+          image: registry.white.fm:5000/misp-dashboard:20260303-1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MISP_INSTANCE_NAME
+              value: whitehouse-misp
+            - name: MISP_ZMQ_URL
+              value: tcp://misp-zmq.misp.svc.cluster.local:50000
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/misp-dashboard/config.cfg
+              subPath: config.cfg
+      volumes:
+        - name: config
+          configMap:
+            name: misp-dashboard-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misp-dashboard
+  labels:
+    app.kubernetes.io/name: misp-dashboard
+spec:
+  selector:
+    app.kubernetes.io/name: misp-dashboard
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misp-zmq
+  labels:
+    app.kubernetes.io/name: misp-zmq
+spec:
+  selector:
+    app.kubernetes.io/name: misp
+  ports:
+    - name: zmq
+      port: 50000
+      targetPort: 50000
+      protocol: TCP
