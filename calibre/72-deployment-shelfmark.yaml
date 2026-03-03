@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shelfmark
+  namespace: calibre
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shelfmark
+  template:
+    metadata:
+      labels:
+        app: shelfmark
+    spec:
+      containers:
+        - name: shelfmark
+          image: ghcr.io/calibrain/shelfmark:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          env:
+            - name: FLASK_RUN_HOST
+              value: "0.0.0.0"
+            - name: FLASK_PORT
+              value: "8084"
+            - name: CWA_URL
+              value: "http://calibre-web-automated.calibre.svc.cluster.local"
+            - name: CWA_PUBLIC_URL
+              value: "https://books.white.fm"
+            - name: INGEST_DIR
+              value: "/books"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: books
+              mountPath: /books
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: shelfmark-config
+        - name: books
+          persistentVolumeClaim:
+            claimName: shelfmark-books
