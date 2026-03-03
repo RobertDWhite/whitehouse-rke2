@@ -16,13 +16,31 @@ spec:
     spec:
       containers:
         - name: misp-dashboard
-          image: registry.white.fm:5000/misp-dashboard:20260303-1
+          image: python:3.12-slim
           imagePullPolicy: IfNotPresent
           env:
             - name: MISP_INSTANCE_NAME
               value: whitehouse-misp
             - name: MISP_ZMQ_URL
               value: tcp://misp-zmq.misp.svc.cluster.local:50000
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl && rm -rf /var/lib/apt/lists/*
+              git clone https://github.com/MISP/MISP-Dashboard.git /opt/MISP-Dashboard
+              cd /opt/MISP-Dashboard
+              git checkout 3c1125083aba83ea1ba049dfed625a2798a8878d
+              pip install --no-cache-dir -r requirements.txt
+              cp /etc/misp-dashboard/config.cfg /opt/MISP-Dashboard/config/config.cfg
+              mkdir -p /opt/MISP-Dashboard/data/GeoLite2-City
+              curl -fsSL https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-City.mmdb \
+                -o /opt/MISP-Dashboard/data/GeoLite2-City/GeoLite2-City.mmdb
+              mkdir -p /opt/MISP-Dashboard/logs
+              python /opt/MISP-Dashboard/zmq_subscriber.py -n "${MISP_INSTANCE_NAME}" -u "${MISP_ZMQ_URL}" &
+              python /opt/MISP-Dashboard/zmq_dispatcher.py &
+              exec python /opt/MISP-Dashboard/server.py
           ports:
             - name: http
               containerPort: 8001
@@ -31,14 +49,14 @@ spec:
             httpGet:
               path: /
               port: 8001
-            initialDelaySeconds: 10
+            initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /
               port: 8001
-            initialDelaySeconds: 30
+            initialDelaySeconds: 360
             periodSeconds: 15
             timeoutSeconds: 5
           volumeMounts:
