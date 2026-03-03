@@ -91,6 +91,49 @@ spec:
             - name: misp-modules
               containerPort: 6666
               protocol: TCP
+        - name: misp-zmq-to-influx
+          image: python:3.12-slim
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install --no-cache-dir pyzmq==26.2.1 influxdb-client==1.49.0 && \
+              python /opt/misp-zmq/push_zmq_to_influxdb.py -id=whitehouse-misp
+          env:
+            - name: MISP_ZMQ_URL
+              value: tcp://127.0.0.1:50000
+            - name: INFLUXDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: misp-influxdb
+                  key: INFLUXDB_URL
+            - name: INFLUXDB_ORG
+              valueFrom:
+                secretKeyRef:
+                  name: misp-influxdb
+                  key: INFLUXDB_ORG
+            - name: INFLUXDB_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: misp-influxdb
+                  key: INFLUXDB_BUCKET
+            - name: INFLUXDB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: misp-influxdb
+                  key: INFLUXDB_TOKEN
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: misp-zmq-forwarder
+              mountPath: /opt/misp-zmq/push_zmq_to_influxdb.py
+              subPath: push_zmq_to_influxdb.py
       volumes:
       - emptyDir:
           sizeLimit: 300Mi
@@ -98,3 +141,6 @@ spec:
       - name: misp-files
         persistentVolumeClaim:
           claimName: misp-files
+      - name: misp-zmq-forwarder
+        configMap:
+          name: misp-zmq-forwarder
