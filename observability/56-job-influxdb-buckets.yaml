@@ -15,19 +15,21 @@ spec:
             - /bin/sh
             - -c
             - |
-              influx bucket list \
-                --host http://influxdb:8086 \
-                --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
-                --org "$DOCKER_INFLUXDB_INIT_ORG" \
-                --name freshrss-bi \
-                --hide-headers 2>/dev/null | grep -q freshrss-bi \
-              && echo "Bucket freshrss-bi already exists, skipping." \
-              || influx bucket create \
-                --host http://influxdb:8086 \
-                --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
-                --org "$DOCKER_INFLUXDB_INIT_ORG" \
-                --name freshrss-bi \
-                --retention 0
+              for BUCKET in freshrss-bi misp; do
+                influx bucket list \
+                  --host http://influxdb:8086 \
+                  --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
+                  --org "$DOCKER_INFLUXDB_INIT_ORG" \
+                  --name "$BUCKET" \
+                  --hide-headers 2>/dev/null | grep -q "$BUCKET" \
+                && echo "Bucket $BUCKET already exists, skipping." \
+                || influx bucket create \
+                  --host http://influxdb:8086 \
+                  --token "$DOCKER_INFLUXDB_INIT_ADMIN_TOKEN" \
+                  --org "$DOCKER_INFLUXDB_INIT_ORG" \
+                  --name "$BUCKET" \
+                  --retention 0
+              done
           envFrom:
             - secretRef:
                 name: influxdb-unpoller

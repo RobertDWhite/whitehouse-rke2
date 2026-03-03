@@ -19,3 +19,15 @@ data:
         access: proxy
         url: http://loki.observability.svc.cluster.local:3100
         isDefault: false
+      - name: influxdb2
+        uid: 7utNPds7z
+        type: influxdb
+        access: proxy
+        url: http://influxdb.observability.svc.cluster.local:8086
+        isDefault: false
+        jsonData:
+          version: Flux
+          organization: ${GF_MISP_INFLUX_ORG}
+          defaultBucket: misp
+        secureJsonData:
+          token: ${GF_MISP_INFLUX_TOKEN}
