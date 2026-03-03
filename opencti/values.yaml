@@ -35,6 +35,9 @@ envFromSecrets:
   APP__HEALTH_ACCESS_KEY:
     name: opencti-credentials
     key: APP__HEALTH_ACCESS_KEY
+  APP__ENCRYPTION_KEY:
+    name: opencti-credentials
+    key: APP__ENCRYPTION_KEY
   MINIO__ACCESS_KEY:
     name: opencti-minio
     key: rootUser
@@ -44,6 +47,18 @@ envFromSecrets:
   RABBITMQ__PASSWORD:
     name: opencti-rabbitmq
     key: rabbitmq-password
+
+livenessProbeCustom:
+  tcpSocket:
+    port: 4000
+
+readinessProbeCustom:
+  tcpSocket:
+    port: 4000
+
+startupProbeCustom:
+  tcpSocket:
+    port: 4000
 
 readyChecker:
   enabled: true
@@ -93,6 +108,10 @@ ingress:
 worker:
   enabled: true
   replicaCount: 1
+  envFromSecrets:
+    OPENCTI_TOKEN:
+      name: opencti-credentials
+      key: APP__ADMIN__TOKEN
   resources:
     requests:
       memory: 512Mi
