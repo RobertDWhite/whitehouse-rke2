@@ -2379,6 +2379,10 @@ data:
         (144_370_000, 144_410_000),
         (145_805_000, 145_845_000),
     )
+    # NOAA Weather Radio: 162.400–162.550 MHz (±75 kHz margin covers all 7 channels)
+    WEATHER_BANDS_HZ = (
+        (162_325_000, 162_625_000),
+    )
     APRS_DECODE_FAILED_MARKER = "APRS_DECODE_FAILED"
     _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
     _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
@@ -2395,6 +2399,12 @@ data:
             return False
         hz = int(round(frequency_hz))
         return any(low <= hz <= high for (low, high) in APRS_BANDS_HZ)
+
+    def is_weather_frequency_hz(frequency_hz: float | None) -> bool:
+        if frequency_hz is None:
+            return False
+        hz = int(round(frequency_hz))
+        return any(low <= hz <= high for (low, high) in WEATHER_BANDS_HZ)
 
 
     def parse_voice_filename(filename: str) -> dict:
