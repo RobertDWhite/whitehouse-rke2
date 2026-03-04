@@ -54,6 +54,12 @@ data:
     # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
     # Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
     CLEAR_SLOTS_ON_RETUNE = False
+    # VHF airband ACARS (128-132 MHz) uses AM modulation — must use envelope detection,
+    # not NBFM. Intercept these frequencies before FM/CW slot routing.
+    ACARS_FREQ_MIN = 128_000_000
+    ACARS_FREQ_MAX = 132_000_000
+    ACARS_AUDIO_BW = 8000    # passband Hz; covers 1200/2400 Hz AFSK tones with headroom
+    NUM_DYN_ACARS  = int(os.getenv("NUM_DYN_ACARS", "4"))
     # Time to suppress squelch-open after a retune, allowing the RTL-SDR PLL to settle.
     # Without this, synthesizer noise during frequency switching triggers all squelch gates
     # simultaneously, producing a cluster of fake ~2s recordings at every retune.
@@ -265,6 +271,26 @@ data:
                     "freq": None, "assigned_at": None, "idx": i
                 })
 
+            # --- Dynamic ACARS slots (AM envelope detection) ---
+            # ACARS (128-132 MHz) uses AM modulation. complex_to_mag() does envelope
+            # detection; dc_blocker_ff centres the signal for multimon-ng ACARS mode.
+            decim_acars = int(SAMPLE_RATE / AUDIO_RATE_CW)  # 300× → 8 kHz output
+            taps_acars  = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                                 ACARS_AUDIO_BW, ACARS_AUDIO_BW * 0.25)
+            self.dyn_acars = []
+            for i in range(NUM_DYN_ACARS):
+                xlate    = filter.freq_xlating_fir_filter_ccf(
+                    decim_acars, taps_acars, 0, SAMPLE_RATE)
+                c2mag    = blocks.complex_to_mag()
+                dc_block = blocks.dc_blocker_ff(32, True)
+                null     = blocks.null_sink(gr.sizeof_float)
+                self.connect(self.src, xlate, c2mag, dc_block, null)
+                self.dyn_acars.append({
+                    "xlate": xlate, "c2mag": c2mag, "dc_block": dc_block,
+                    "sink": null, "recorder": None,
+                    "freq": None, "assigned_at": None, "idx": i
+                })
+
             self.all_recorders = [self.rec_fixed]
 
         # --- Dynamic channel management ---
@@ -288,7 +314,12 @@ data:
                 print(f"[DYN] Recycling {mode} slot {best['idx']} "
                       f"({best['freq']/1e6:.4f} MHz, idle {best_age:.0f}s)",
                       flush=True)
-                self._free_fm_slot(best) if mode == "FM" else self._free_cw_slot(best)
+                if mode == "FM":
+                    self._free_fm_slot(best)
+                elif mode == "ACARS":
+                    self._free_acars_slot(best)
+                else:
+                    self._free_cw_slot(best)
             return best
 
         def _free_fm_slot(self, slot):
@@ -386,6 +417,53 @@ data:
             self.all_recorders.append(rec)
             print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
 
+        def _free_acars_slot(self, slot):
+            """Disconnect recorder and reset an ACARS (AM envelope) slot."""
+            if slot["recorder"] is not None:
+                slot["recorder"].close_if_recording()
+                if slot["recorder"] in self.all_recorders:
+                    self.all_recorders.remove(slot["recorder"])
+            null = blocks.null_sink(gr.sizeof_float)
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(slot["dc_block"], slot["sink"])
+                self.connect(slot["dc_block"], null)
+                self.unlock()
+            slot["sink"] = null
+            slot["recorder"] = None
+            slot["freq"] = None
+            slot["assigned_at"] = None
+
+        def _assign_acars_slot(self, freq_hz):
+            """Assign a detected ACARS frequency to an AM-demodulation slot."""
+            for slot in self.dyn_acars:
+                if slot["freq"] == freq_hz:
+                    slot["assigned_at"] = time.time()
+                    return
+            target = None
+            for slot in self.dyn_acars:
+                if slot["freq"] is None:
+                    target = slot
+                    break
+            if target is None:
+                target = self._evict_stale_slot(self.dyn_acars, "ACARS")
+            if target is None:
+                return
+            offset = freq_hz - self.get_center_hz()
+            rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, VOICE_DIR)
+            with self._gr_lock:
+                self.lock()
+                self.disconnect(target["dc_block"], target["sink"])
+                target["xlate"].set_center_freq(offset)
+                self.connect(target["dc_block"], rec)
+                self.unlock()
+            target["sink"] = rec
+            target["recorder"] = rec
+            target["freq"] = freq_hz
+            target["assigned_at"] = time.time()
+            self.all_recorders.append(rec)
+            print(f"[DYN] ACARS slot {target['idx']} → {freq_hz/1e6:.4f} MHz (AM)", flush=True)
+
         def close_all_recordings(self):
             for r in self.all_recorders:
                 r.close_if_recording()
@@ -402,6 +480,9 @@ data:
             for slot in self.dyn_cw:
                 if slot["freq"] is not None:
                     self._free_cw_slot(slot)
+            for slot in self.dyn_acars:
+                if slot["freq"] is not None:
+                    self._free_acars_slot(slot)
 
         def get_center_hz(self):
             with self._state_lock:
@@ -492,8 +573,10 @@ data:
                     "mode": mode
                 })
 
-                # Assign to dynamic slot
-                if mode == "FM":
+                # Assign to dynamic slot — ACARS frequencies use AM, not FM
+                if ACARS_FREQ_MIN <= peak_freq <= ACARS_FREQ_MAX:
+                    self.tb._assign_acars_slot(int(round(peak_freq)))
+                elif mode == "FM":
                     # Do not mirror the fixed monitor channel into a dynamic slot.
                     if abs(peak_freq - self.tb.fixed_freq) <= 15000:
                         continue
@@ -595,6 +678,7 @@ data:
         print(f"  Fixed monitor:  {FIXED_MONITOR_HZ/1e6:.3f} MHz (NBFM)", flush=True)
         print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
         print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
+        print(f"  Dynamic ACARS:  {NUM_DYN_ACARS} slots (AM envelope)", flush=True)
         print(f"  RF squelch:     {RF_SQUELCH_DB} dB", flush=True)
         print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
         print("=" * 60, flush=True)
