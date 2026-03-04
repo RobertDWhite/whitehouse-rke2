@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: calibre
+  name: calibre-web-automated
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
     targetRevision: main
-    path: calibre
+    path: calibre-web-automated
   destination:
     server: https://kubernetes.default.svc
     namespace: calibre
