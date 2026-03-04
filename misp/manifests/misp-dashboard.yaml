@@ -46,16 +46,22 @@ spec:
               containerPort: 8001
               protocol: TCP
           readinessProbe:
-            httpGet:
-              path: /
-              port: 8001
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1", 8001)); s.close()
             initialDelaySeconds: 180
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
-            httpGet:
-              path: /
-              port: 8001
+            exec:
+              command:
+                - python
+                - -c
+                - |
+                  import socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1", 8001)); s.close()
             initialDelaySeconds: 360
             periodSeconds: 15
             timeoutSeconds: 5
