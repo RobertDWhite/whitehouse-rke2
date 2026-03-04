@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ARG MISP_DASHBOARD_REF=3c1125083aba83ea1ba049dfed625a2798a8878d
 
