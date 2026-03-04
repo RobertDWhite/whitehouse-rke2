@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - adsb.w3rdw.radio
-      secretName: adsb-w3rdw-radio-tls
+  - hosts:
+    - adsb.w3rdw.radio
+    - adsb.internal.w3rdw.radio
+    secretName: adsb-w3rdw-radio-tls
   rules:
-    - host: adsb.w3rdw.radio
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: ultrafeeder
-                port:
-                  number: 80
+  - host: adsb.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ultrafeeder
+            port:
+              number: 80
+  - host: adsb.internal.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ultrafeeder
+            port:
+              number: 80

@@ -10,17 +10,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - paperless.white.fm
-      secretName: paperless-white-fm-tls
+  - hosts:
+    - paperless.white.fm
+    - paperless.internal.white.fm
+    secretName: paperless-white-fm-tls
   rules:
-    - host: paperless.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: paperless
-                port:
-                  number: 8000
+  - host: paperless.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: paperless
+            port:
+              number: 8000
+  - host: paperless.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: paperless
+            port:
+              number: 8000

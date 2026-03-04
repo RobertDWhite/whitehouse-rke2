@@ -11,17 +11,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - registry.white.fm
-      secretName: registry-white-fm-tls
+  - hosts:
+    - registry.white.fm
+    - registry.internal.white.fm
+    secretName: registry-white-fm-tls
   rules:
-    - host: registry.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: registry
-                port:
-                  number: 5000
+  - host: registry.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: registry
+            port:
+              number: 5000
+  - host: registry.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: registry
+            port:
+              number: 5000

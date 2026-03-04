@@ -10,17 +10,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - status.white.fm
-      secretName: uptime-kuma-tls
+  - hosts:
+    - status.white.fm
+    - status.internal.white.fm
+    secretName: uptime-kuma-tls
   rules:
-    - host: status.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: uptime-kuma
-                port:
-                  number: 80
+  - host: status.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: uptime-kuma
+            port:
+              number: 80
+  - host: status.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: uptime-kuma
+            port:
+              number: 80

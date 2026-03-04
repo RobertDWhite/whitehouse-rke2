@@ -13,17 +13,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - maubot.white.fm
-      secretName: maubot-tls
+  - hosts:
+    - maubot.white.fm
+    - maubot.internal.white.fm
+    secretName: maubot-tls
   rules:
-    - host: maubot.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: maubot
-                port:
-                  name: http
+  - host: maubot.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: maubot
+            port:
+              name: http
+  - host: maubot.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: maubot
+            port:
+              name: http

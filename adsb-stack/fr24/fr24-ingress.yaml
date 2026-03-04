@@ -13,17 +13,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - fr24.w3rdw.radio
-      secretName: fr24-w3rdw-radio-tls
+  - hosts:
+    - fr24.w3rdw.radio
+    - fr24.internal.w3rdw.radio
+    secretName: fr24-w3rdw-radio-tls
   rules:
-    - host: fr24.w3rdw.radio
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik-proxy
-                port:
-                  number: 9443
+  - host: fr24.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
+  - host: fr24.internal.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443

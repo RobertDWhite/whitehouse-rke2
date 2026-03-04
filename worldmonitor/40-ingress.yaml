@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - worldmonitor.white.fm
-      secretName: worldmonitor-white-fm-tls
+  - hosts:
+    - worldmonitor.white.fm
+    - worldmonitor.internal.white.fm
+    secretName: worldmonitor-white-fm-tls
   rules:
-    - host: worldmonitor.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: worldmonitor
-                port:
-                  number: 80
+  - host: worldmonitor.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: worldmonitor
+            port:
+              number: 80
+  - host: worldmonitor.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: worldmonitor
+            port:
+              number: 80

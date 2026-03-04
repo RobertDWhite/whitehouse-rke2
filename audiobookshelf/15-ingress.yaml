@@ -9,39 +9,72 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: audiobookshelf.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: audiobookshelf
-                port:
-                  number: 80
-    - host: abs.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: audiobookshelf
-                port:
-                  number: 80
-    - host: audiobooks.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: audiobookshelf
-                port:
-                  number: 80
+  - host: audiobookshelf.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
+  - host: abs.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
+  - host: audiobooks.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
+  - host: audiobookshelf.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
+  - host: abs.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
+  - host: audiobooks.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: audiobookshelf
+            port:
+              number: 80
   tls:
-    - hosts:
-        - audiobookshelf.white.fm
-        - abs.white.fm
-        - audiobooks.white.fm
-      secretName: audiobookshelf-tls
+  - hosts:
+    - audiobookshelf.white.fm
+    - abs.white.fm
+    - audiobooks.white.fm
+    - audiobookshelf.internal.white.fm
+    - abs.internal.white.fm
+    - audiobooks.internal.white.fm
+    secretName: audiobookshelf-tls

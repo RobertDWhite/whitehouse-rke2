@@ -14,18 +14,29 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - znc.white.fm
-      secretName: znc-white-fm-tls
+  - hosts:
+    - znc.white.fm
+    - znc.internal.white.fm
+    secretName: znc-white-fm-tls
 
   rules:
-    - host: znc.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik-proxy
-                port:
-                  number: 9443
+  - host: znc.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
+  - host: znc.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
