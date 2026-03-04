@@ -3292,12 +3292,15 @@ data:
                 except Exception as _dd_err:
                     print(f"[DailyDigest] task error: {_dd_err}")
 
-            # SDR hardware health
+            # SDR hardware health — run in thread: glob + getmtime over thousands
+            # of WAV files is blocking IO that must not run on the event loop.
             try:
-                import glob as _glob
-                _wavs = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
-                if _wavs:
-                    sdr_hardware_last_seen_seconds.set(_time.time() - max(os.path.getmtime(f) for f in _wavs))
+                def _sdr_health():
+                    import glob as _glob
+                    _wavs = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
+                    if _wavs:
+                        sdr_hardware_last_seen_seconds.set(_time.time() - max(os.path.getmtime(f) for f in _wavs))
+                await asyncio.to_thread(_sdr_health)
             except Exception:
                 pass
 
