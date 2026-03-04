@@ -9,28 +9,50 @@ metadata:
     nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
   rules:
-    - host: element.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: element-web
-                port:
-                  number: 80
-    - host: messaging.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: element-web
-                port:
-                  number: 80
+  - host: element.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: element-web
+            port:
+              number: 80
+  - host: messaging.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: element-web
+            port:
+              number: 80
+  - host: element.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: element-web
+            port:
+              number: 80
+  - host: messaging.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: element-web
+            port:
+              number: 80
   tls:
-    - hosts:
-        - element.white.fm
-        - messaging.white.fm
-      secretName: element-web-tls
+  - hosts:
+    - element.white.fm
+    - messaging.white.fm
+    - element.internal.white.fm
+    - messaging.internal.white.fm
+    secretName: element-web-tls

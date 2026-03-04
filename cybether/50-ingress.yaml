@@ -12,17 +12,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - cybether.white.fm
-      secretName: cybether-white-fm-tls
+  - hosts:
+    - cybether.white.fm
+    - cybether.internal.white.fm
+    secretName: cybether-white-fm-tls
   rules:
-    - host: cybether.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik-proxy
-                port:
-                  number: 9443
+  - host: cybether.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
+  - host: cybether.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443

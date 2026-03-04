@@ -11,17 +11,28 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: shelfmark.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: shelfmark
-                port:
-                  number: 80
+  - host: shelfmark.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: shelfmark
+            port:
+              number: 80
+  - host: shelfmark.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: shelfmark
+            port:
+              number: 80
   tls:
-    - hosts:
-        - shelfmark.white.fm
-      secretName: shelfmark-white-fm-tls
+  - hosts:
+    - shelfmark.white.fm
+    - shelfmark.internal.white.fm
+    secretName: shelfmark-white-fm-tls

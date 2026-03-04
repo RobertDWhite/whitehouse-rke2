@@ -10,28 +10,50 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - matrix.white.fm
-        - synapse.white.fm
-      secretName: matrix-synapse-tls
+  - hosts:
+    - matrix.white.fm
+    - synapse.white.fm
+    - matrix.internal.white.fm
+    - synapse.internal.white.fm
+    secretName: matrix-synapse-tls
   rules:
-    - host: matrix.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: synapse
-                port:
-                  number: 8008
-    - host: synapse.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: synapse
-                port:
-                  number: 8008
+  - host: matrix.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: synapse
+            port:
+              number: 8008
+  - host: synapse.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: synapse
+            port:
+              number: 8008
+  - host: matrix.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: synapse
+            port:
+              number: 8008
+  - host: synapse.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: synapse
+            port:
+              number: 8008

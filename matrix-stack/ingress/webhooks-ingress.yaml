@@ -10,17 +10,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - webhooks.white.fm
-      secretName: matrix-webhooks-tls
+  - hosts:
+    - webhooks.white.fm
+    - webhooks.internal.white.fm
+    secretName: matrix-webhooks-tls
   rules:
-    - host: webhooks.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: matrix-webhooks
-                port:
-                  number: 8000
+  - host: webhooks.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: matrix-webhooks
+            port:
+              number: 8000
+  - host: webhooks.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: matrix-webhooks
+            port:
+              number: 8000

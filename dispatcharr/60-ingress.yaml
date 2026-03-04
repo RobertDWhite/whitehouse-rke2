@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - tv.white.fm
-      secretName: tv-white-fm-tls
+  - hosts:
+    - tv.white.fm
+    - tv.internal.white.fm
+    secretName: tv-white-fm-tls
   rules:
-    - host: tv.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: dispatcharr-web
-                port:
-                  number: 9191
+  - host: tv.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dispatcharr-web
+            port:
+              number: 9191
+  - host: tv.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dispatcharr-web
+            port:
+              number: 9191

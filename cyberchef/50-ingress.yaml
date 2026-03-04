@@ -12,17 +12,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - cyberchef.white.fm
-      secretName: cyberchef-white-fm-tls
+  - hosts:
+    - cyberchef.white.fm
+    - cyberchef.internal.white.fm
+    secretName: cyberchef-white-fm-tls
   rules:
-    - host: cyberchef.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
+  - host: cyberchef.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: cyberchef.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443

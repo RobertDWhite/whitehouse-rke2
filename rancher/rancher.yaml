@@ -18,8 +18,14 @@ spec:
     ingress:
       enabled: true
       ingressClassName: nginx
+      extraHosts:
+        - rancher.internal.white.fm
       extraAnnotations:
         cert-manager.io/cluster-issuer: letsencrypt-dns
         nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      extraTls:
+        - hosts:
+            - rancher.internal.white.fm
+          secretName: rancher-internal-white-fm-tls
       tls:
         source: letsEncrypt

@@ -12,17 +12,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - jetlog.white.fm
-      secretName: jetlog-white-fm-tls
+  - hosts:
+    - jetlog.white.fm
+    - jetlog.internal.white.fm
+    secretName: jetlog-white-fm-tls
   rules:
-    - host: jetlog.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
+  - host: jetlog.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: jetlog.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443

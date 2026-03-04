@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - mastodon.whitematter.tech
-      secretName: mastodon-tls
+  - hosts:
+    - mastodon.whitematter.tech
+    - mastodon.internal.whitematter.tech
+    secretName: mastodon-tls
   rules:
-    - host: mastodon.whitematter.tech
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: mastodon-web
-                port:
-                  number: 80
+  - host: mastodon.whitematter.tech
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mastodon-web
+            port:
+              number: 80
+  - host: mastodon.internal.whitematter.tech
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mastodon-web
+            port:
+              number: 80

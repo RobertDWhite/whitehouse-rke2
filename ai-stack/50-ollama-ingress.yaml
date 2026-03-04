@@ -11,17 +11,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - ollama.white.fm
-      secretName: ai-white-fm-tls
+  - hosts:
+    - ollama.white.fm
+    - ollama.internal.white.fm
+    secretName: ai-white-fm-tls
   rules:
-    - host: ollama.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: ollama
-                port:
-                  number: 11434
+  - host: ollama.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ollama
+            port:
+              number: 11434
+  - host: ollama.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ollama
+            port:
+              number: 11434

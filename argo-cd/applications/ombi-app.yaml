@@ -83,9 +83,17 @@ spec:
                     service:
                       identifier: main
                       port: 3579
+              - host: ombi.internal.white.fm
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    service:
+                      identifier: main
+                      port: 3579
             tls:
               - hosts:
                   - ombi.white.fm
+                  - ombi.internal.white.fm
                 secretName: ombi-white-fm-tls
 
         persistence:

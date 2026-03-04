@@ -11,17 +11,28 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: lazylibrarian.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: lazylibrarian
-                port:
-                  number: 80
+  - host: lazylibrarian.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lazylibrarian
+            port:
+              number: 80
+  - host: lazylibrarian.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: lazylibrarian
+            port:
+              number: 80
   tls:
-    - hosts:
-        - lazylibrarian.white.fm
-      secretName: lazylibrarian-white-fm-tls
+  - hosts:
+    - lazylibrarian.white.fm
+    - lazylibrarian.internal.white.fm
+    secretName: lazylibrarian-white-fm-tls

@@ -12,17 +12,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - speed.white.fm
-      secretName: speed-white-fm-tls
+  - hosts:
+    - speed.white.fm
+    - speed.internal.white.fm
+    secretName: speed-white-fm-tls
   rules:
-    - host: speed.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
+  - host: speed.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: speed.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443

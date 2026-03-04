@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - intel.white.fm
-      secretName: intel-white-fm-tls
+  - hosts:
+    - intel.white.fm
+    - intel.internal.white.fm
+    secretName: intel-white-fm-tls
   rules:
-    - host: intel.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: misp-dashboard
-                port:
-                  number: 8001
+  - host: intel.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: misp-dashboard
+            port:
+              number: 8001
+  - host: intel.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: misp-dashboard
+            port:
+              number: 8001
