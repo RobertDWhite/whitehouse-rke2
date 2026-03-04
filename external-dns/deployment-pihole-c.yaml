@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns-pihole-c
+  namespace: external-dns
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns-pihole-c
+  template:
+    metadata:
+      labels:
+        app: external-dns-pihole-c
+    spec:
+      serviceAccountName: external-dns
+      containers:
+        - name: external-dns
+          image: registry.k8s.io/external-dns/external-dns:v0.20.0
+          args:
+            - --source=ingress
+            - --provider=pihole
+            - --pihole-server=https://10.99.5.2
+            - --pihole-api-version=6
+            - --pihole-password=$(EXTERNAL_DNS_PIHOLE_PASSWORD)
+            - --pihole-tls-skip-verify
+            - --policy=upsert-only
+            - --registry=noop
+            - --ingress-class=nginx
+            - --default-targets=10.99.5.110
+            - --force-default-targets
+            - --domain-filter=white.fm
+            - --domain-filter=w3rdw.radio
+            - --domain-filter=whitematter.tech
+            - --domain-filter=internal
+          env:
+            - name: EXTERNAL_DNS_PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-credentials
+                  key: password
