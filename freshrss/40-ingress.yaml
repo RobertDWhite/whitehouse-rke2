@@ -16,20 +16,9 @@ spec:
   tls:
   - hosts:
     - rss.white.fm
-    - rss.internal.white.fm
     secretName: rss-white-fm-tls
   rules:
   - host: rss.white.fm
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: authentik
-            port:
-              number: 9443
-  - host: rss.internal.white.fm
     http:
       paths:
       - path: /
