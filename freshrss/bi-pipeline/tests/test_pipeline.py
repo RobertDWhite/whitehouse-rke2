@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "pipeline.py"
@@ -292,6 +293,50 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(deltas["Acme"]["alerts_delta"], 2.0)
         self.assertEqual(deltas["Acme"]["watchlist_delta"], -1.0)
         self.assertEqual(deltas["Acme"]["needs_data_delta"], 1.0)
+
+    def test_parse_iso_to_epoch_parses_valid_iso(self) -> None:
+        epoch = pipeline.parse_iso_to_epoch("2026-03-01T00:00:00+00:00")
+        self.assertEqual(epoch, 1772323200)
+
+    def test_source_quality_multiplier_adjusts_after_sample_threshold(self) -> None:
+        state = {
+            "sources": {
+                "example.com": {"alerts": 9, "watchlist": 1, "needs_data": 0},
+            }
+        }
+        cfg = {"enabled": True, "min_samples": 5, "max_adjustment": 0.2}
+        multiplier, details = pipeline.source_quality_multiplier("example.com", state, cfg)
+        self.assertGreater(multiplier, 1.0)
+        self.assertGreater(details["source_quality_score"], 0.5)
+
+    def test_freshrss_fetch_uses_since_epoch_override(self) -> None:
+        client = pipeline.FreshRSSClient(
+            {
+                "greader_api_url": "https://example.com/api/greader.php",
+                "username": "user",
+                "api_password": "pw",
+                "lookback_hours": 0,
+                "page_size": 10,
+                "max_items": 10,
+            }
+        )
+        with patch.object(client, "login", return_value="tok"):
+            captured = {}
+
+            class Resp:
+                status_code = 200
+
+                @staticmethod
+                def json():
+                    return {"items": []}
+
+            def fake_get(url, params, headers, timeout, verify):
+                captured.update(params)
+                return Resp()
+
+            with patch.object(client.session, "get", side_effect=fake_get):
+                client.fetch_articles(max_items_override=5, since_epoch_override=1234)
+        self.assertGreaterEqual(int(captured.get("ot") or 0), 1234)
 
 
 if __name__ == "__main__":

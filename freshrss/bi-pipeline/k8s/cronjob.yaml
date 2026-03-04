@@ -16,6 +16,13 @@ spec:
       ttlSecondsAfterFinished: 3600
       template:
         spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
           terminationGracePeriodSeconds: 30
           nodeSelector:
             kubernetes.io/arch: arm64
@@ -39,6 +46,12 @@ spec:
               envFrom:
                 - secretRef:
                     name: freshrss-bi-secrets
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
               resources:
                 requests:
                   cpu: 250m

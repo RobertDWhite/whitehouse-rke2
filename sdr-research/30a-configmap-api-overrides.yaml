@@ -198,9 +198,15 @@ data:
         return list(dict.fromkeys(callsign_tags + ai_tags))
 
 
+    _FAILED_MARKERS = frozenset({
+        "ACARS_DECODE_FAILED", "PAGER_DECODE_FAILED", "EAS_NO_ALERT", "VDL2_DECODE_FAILED",
+    })
+
     def _transcript_status(r) -> str:
         text = (r.transcript or "").strip()
-        if text and not is_no_speech_transcript(text) and text != "[no decodable cw]":
+        if (text and not is_no_speech_transcript(text)
+                and text != "[no decodable cw]"
+                and text not in _FAILED_MARKERS):
             return "yes"
         if r.transcript is None and r.mode in ("voice", "cw"):
             return "pending"
@@ -3210,6 +3216,14 @@ data:
 
         while True:
             _cycle_start = _time.time()
+            # Refresh heartbeat at cycle start so a slow-but-healthy cycle
+            # doesn't starve the liveness probe (which checks every 60s, kills
+            # after 3 failures if heartbeat > 600s old).
+            try:
+                with open("/tmp/indexer_heartbeat", "w") as _hb:
+                    _hb.write(str(_time.time()))
+            except Exception:
+                pass
             try:
                 await asyncio.to_thread(prune_missing_recordings)
 
@@ -3292,14 +3306,21 @@ data:
                 except Exception as _dd_err:
                     print(f"[DailyDigest] task error: {_dd_err}")
 
-            # SDR hardware health — run in thread: glob + getmtime over thousands
-            # of WAV files is blocking IO that must not run on the event loop.
+            # SDR hardware health — parse timestamp from filename; no stat calls.
+            # With 30k+ WAV files, glob+getmtime blocks for minutes. os.listdir
+            # + filename regex runs in ~1s in a thread and doesn't touch the event loop.
             try:
                 def _sdr_health():
-                    import glob as _glob
-                    _wavs = _glob.glob(os.path.join(settings.audio_base_path, "voice", "*.wav"))
-                    if _wavs:
-                        sdr_hardware_last_seen_seconds.set(_time.time() - max(os.path.getmtime(f) for f in _wavs))
+                    import re as _re
+                    _ts_re = _re.compile(r"_(\d+)\.wav$")
+                    voice_dir = os.path.join(settings.audio_base_path, "voice")
+                    max_ts = max(
+                        (int(m.group(1)) for f in os.listdir(voice_dir)
+                         if (m := _ts_re.search(f))),
+                        default=None,
+                    )
+                    if max_ts is not None:
+                        sdr_hardware_last_seen_seconds.set(_time.time() - max_ts)
                 await asyncio.to_thread(_sdr_health)
             except Exception:
                 pass
