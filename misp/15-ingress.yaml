@@ -11,17 +11,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - misp.white.fm
-      secretName: misp-white-fm-tls
+  - hosts:
+    - misp.white.fm
+    - misp.internal.white.fm
+    secretName: misp-white-fm-tls
   rules:
-    - host: misp.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nginx
-                port:
-                  number: 443
+  - host: misp.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx
+            port:
+              number: 443
+  - host: misp.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx
+            port:
+              number: 443

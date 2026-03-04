@@ -12,18 +12,30 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - openclaw.white.fm
-      secretName: openclaw-white-fm-tls
+  - hosts:
+    - openclaw.white.fm
+    - openclaw.internal.white.fm
+    secretName: openclaw-white-fm-tls
   rules:
-    - host: openclaw.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
+  - host: openclaw.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+
+  - host: openclaw.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
 

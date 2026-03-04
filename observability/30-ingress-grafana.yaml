@@ -12,17 +12,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - grafana.white.fm
-      secretName: grafana-white-fm-tls
+  - hosts:
+    - grafana.white.fm
+    - grafana.internal.white.fm
+    secretName: grafana-white-fm-tls
   rules:
-    - host: grafana.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: grafana
-                port:
-                  number: 3000
+  - host: grafana.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+  - host: grafana.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000

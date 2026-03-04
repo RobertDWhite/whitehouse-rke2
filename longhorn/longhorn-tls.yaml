@@ -9,8 +9,8 @@ spec:
     kind: ClusterIssuer
     name: letsencrypt-dns
   dnsNames:
-    - longhorn.white.fm
-    - longhornui.white.fm
+  - longhorn.white.fm
+  - longhornui.white.fm
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -23,28 +23,50 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - longhorn.white.fm
-        - longhornui.white.fm
-      secretName: longhorn-white-fm-tls
+  - hosts:
+    - longhorn.white.fm
+    - longhornui.white.fm
+    - longhorn.internal.white.fm
+    - longhornui.internal.white.fm
+    secretName: longhorn-white-fm-tls
   rules:
-    - host: longhorn.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: longhorn-frontend
-                port:
-                  number: 80
-    - host: longhornui.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: longhorn-frontend
-                port:
-                  number: 80
+  - host: longhorn.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: longhorn-frontend
+            port:
+              number: 80
+  - host: longhornui.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: longhorn-frontend
+            port:
+              number: 80
+  - host: longhorn.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: longhorn-frontend
+            port:
+              number: 80
+  - host: longhornui.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: longhorn-frontend
+            port:
+              number: 80
