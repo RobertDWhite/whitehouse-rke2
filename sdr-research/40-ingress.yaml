@@ -12,30 +12,52 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - sdr.white.fm
-      secretName: sdr-white-fm-tls
-    - hosts:
-        - sdr.w3rdw.radio
-      secretName: sdr-w3rdw-radio-tls
+  - hosts:
+    - sdr.white.fm
+    - sdr.internal.white.fm
+    secretName: sdr-white-fm-tls
+  - hosts:
+    - sdr.w3rdw.radio
+    - sdr.internal.w3rdw.radio
+    secretName: sdr-w3rdw-radio-tls
   rules:
-    - host: sdr.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
-    - host: sdr.w3rdw.radio
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port:
-                  number: 9443
+  - host: sdr.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: sdr.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: sdr.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443
+  - host: sdr.internal.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik
+            port:
+              number: 9443

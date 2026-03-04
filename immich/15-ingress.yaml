@@ -13,17 +13,28 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: photos.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: immich-server
-                port:
-                  number: 2283
+  - host: photos.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: immich-server
+            port:
+              number: 2283
+  - host: photos.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: immich-server
+            port:
+              number: 2283
   tls:
-    - hosts:
-        - photos.white.fm
-      secretName: immich-tls
+  - hosts:
+    - photos.white.fm
+    - photos.internal.white.fm
+    secretName: immich-tls

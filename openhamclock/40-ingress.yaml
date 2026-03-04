@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - hamclock.w3rdw.radio
-      secretName: hamclock-w3rdw-radio-tls
+  - hosts:
+    - hamclock.w3rdw.radio
+    - hamclock.internal.w3rdw.radio
+    secretName: hamclock-w3rdw-radio-tls
   rules:
-    - host: hamclock.w3rdw.radio
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: openhamclock
-                port:
-                  number: 3000
+  - host: hamclock.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: openhamclock
+            port:
+              number: 3000
+  - host: hamclock.internal.w3rdw.radio
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: openhamclock
+            port:
+              number: 3000

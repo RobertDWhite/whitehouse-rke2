@@ -38,10 +38,16 @@ spec:
                 - path: /
                   pathType: Prefix
                   port: 9443
+            - host: portainer.internal.white.fm
+              paths:
+                - path: /
+                  pathType: Prefix
+                  port: 9443
           tls:
             - secretName: portainer-white-fm-tls
               hosts:
                 - portainer.white.fm
+                - portainer.internal.white.fm
   syncPolicy:
     automated:
       prune: true
@@ -50,4 +56,3 @@ spec:
       - CreateNamespace=true
       - Prune=false
       - RespectIgnoreDifferences=true
-

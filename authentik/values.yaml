@@ -61,8 +61,8 @@ server:
   replicas: 2
 
   envFrom:
-    - secretRef:
-        name: authentik-env
+  - secretRef:
+      name: authentik-env
 
   resources:
     requests:
@@ -92,28 +92,28 @@ server:
       cert-manager.io/cluster-issuer: letsencrypt-dns
 
     hosts:
-      - auth.white.fm
+    - auth.white.fm
 
+    - auth.internal.white.fm
     paths:
-      - /
+    - /
 
     tls:
-      - secretName: auth-white-fm-tls
-        hosts:
-          - auth.white.fm
-          - auth.whitematter.tech
-          - auth.w3rdw.radio
-
-# ---------------------------
-# Authentik Worker
-# ---------------------------
+    - secretName: auth-white-fm-tls
+      hosts:
+      - auth.white.fm
+      - auth.whitematter.tech
+      - auth.w3rdw.radio
+      - auth.internal.white.fm
+      - auth.internal.w3rdw.radio
+      - auth.internal.whitematter.tech
 worker:
   enabled: true
   replicas: 2
 
   envFrom:
-    - secretRef:
-        name: authentik-env
+  - secretRef:
+      name: authentik-env
 
   resources:
     requests:

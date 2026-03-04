@@ -9,17 +9,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - influxdb.white.fm
-      secretName: influxdb-white-fm-tls
+  - hosts:
+    - influxdb.white.fm
+    - influxdb.internal.white.fm
+    secretName: influxdb-white-fm-tls
   rules:
-    - host: influxdb.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: influxdb
-                port:
-                  number: 8086
+  - host: influxdb.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: influxdb
+            port:
+              number: 8086
+  - host: influxdb.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: influxdb
+            port:
+              number: 8086

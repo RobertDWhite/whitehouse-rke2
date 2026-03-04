@@ -8,17 +8,28 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - streaming.mastodon.whitematter.tech
-      secretName: mastodon-streaming-tls
+  - hosts:
+    - streaming.mastodon.whitematter.tech
+    - streaming.mastodon.internal.whitematter.tech
+    secretName: mastodon-streaming-tls
   rules:
-    - host: streaming.mastodon.whitematter.tech
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: mastodon-streaming
-                port:
-                  number: 80
+  - host: streaming.mastodon.whitematter.tech
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mastodon-streaming
+            port:
+              number: 80
+  - host: streaming.mastodon.internal.whitematter.tech
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mastodon-streaming
+            port:
+              number: 80

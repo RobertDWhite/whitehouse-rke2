@@ -12,18 +12,30 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts:
-        - openwebui.white.fm
-      secretName: openwebui-white-fm-tls
+  - hosts:
+    - openwebui.white.fm
+    - openwebui.internal.white.fm
+    secretName: openwebui-white-fm-tls
   rules:
-    - host: openwebui.white.fm
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik-proxy
-                port:
-                  number: 9443
----
+  - host: openwebui.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
+  - host: openwebui.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: authentik-proxy
+            port:
+              number: 9443
+--- null
+...
