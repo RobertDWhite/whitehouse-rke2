@@ -2688,6 +2688,10 @@ data:
                     # APRS-band captures are indexed only by the APRS pipeline.
                     if is_aprs_frequency_hz(metadata.get("frequency_hz")):
                         continue
+                    # NOAA weather radio — delete WAV and skip; never index.
+                    if is_weather_frequency_hz(metadata.get("frequency_hz")):
+                        safe_unlink(str(wav_file))
+                        continue
                 else:
                     metadata = parse_cw_filename(filename)
                 text_path = os.path.join(text_dir, filename.replace(".wav", ".txt"))
