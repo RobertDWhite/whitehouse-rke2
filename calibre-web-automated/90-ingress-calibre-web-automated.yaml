@@ -31,8 +31,19 @@ spec:
             name: calibre-web-automated
             port:
               number: 80
+  - host: calibre.internal.white.fm
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: calibre-web-automated
+            port:
+              number: 80
   tls:
   - hosts:
     - books.white.fm
     - books.internal.white.fm
+    - calibre.internal.white.fm
     secretName: calibre-web-automated-tls
