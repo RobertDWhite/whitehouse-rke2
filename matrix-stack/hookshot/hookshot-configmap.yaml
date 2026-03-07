@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hookshot-config
+  namespace: matrix
+data:
+  config.yml: |
+    bridge:
+      domain: white.fm
+      url: http://synapse:8008
+      mediaUrl: https://matrix.white.fm
+      port: 9993
+      bindAddress: 0.0.0.0
+
+    logging:
+      level: info
+      colorize: false
+
+    passFile: /secrets/passkey.pem
+
+    generic:
+      enabled: true
+      urlPrefix: https://webhooks.white.fm/hook/
+      allowJsTransformationFunctions: true
+      waitForComplete: false
+
+    listeners:
+      - port: 9000
+        bindAddress: 0.0.0.0
+        resources:
+          - webhooks
+
+    cache:
+      redisUri: redis://matrix-redis:6379
+
+    permissions:
+      - actor: white.fm
+        services:
+          - service: webhooks
+            level: admin
