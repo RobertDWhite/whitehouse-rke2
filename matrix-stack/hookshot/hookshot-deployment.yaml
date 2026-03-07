@@ -18,11 +18,12 @@ spec:
       containers:
         - name: hookshot
           image: halfshot/matrix-hookshot
-          command: ["node", "/app/App.js"]
+          command: ["node"]
           args:
-            - "--config"
+            - "--require"
+            - "source-map-support/register"
+            - "/usr/bin/matrix-hookshot/App/BridgeApp.js"
             - "/data/config.yml"
-            - "--registration"
             - "/data/registration.yml"
           ports:
             - containerPort: 9000
