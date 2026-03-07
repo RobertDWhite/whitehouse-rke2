@@ -4,7 +4,6 @@ metadata:
   name: matrix-well-known
   namespace: matrix
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-dns"
 spec:
@@ -20,8 +19,8 @@ spec:
   - host: white.fm
     http:
       paths:
-      - path: /.well-known/matrix(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /.well-known/matrix
+        pathType: Prefix
         backend:
           service:
             name: matrix-well-known
@@ -30,8 +29,8 @@ spec:
   - host: federation.white.fm
     http:
       paths:
-      - path: /.well-known/matrix(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /.well-known/matrix
+        pathType: Prefix
         backend:
           service:
             name: matrix-well-known
@@ -40,8 +39,8 @@ spec:
   - host: white.internal.white.fm
     http:
       paths:
-      - path: /.well-known/matrix(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /.well-known/matrix
+        pathType: Prefix
         backend:
           service:
             name: matrix-well-known
@@ -50,8 +49,8 @@ spec:
   - host: federation.internal.white.fm
     http:
       paths:
-      - path: /.well-known/matrix(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /.well-known/matrix
+        pathType: Prefix
         backend:
           service:
             name: matrix-well-known
