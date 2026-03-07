@@ -30,6 +30,9 @@ spec:
         - name: synapse-secrets
           secret:
             secretName: synapse-secrets
+        - name: hookshot-registration
+          secret:
+            secretName: hookshot-secrets
       initContainers:
         - name: render-config
           image: bitnami/kubectl:latest
@@ -104,4 +107,7 @@ spec:
               mountPath: /data
             - name: synapse-secrets
               mountPath: /secrets
+              readOnly: true
+            - name: hookshot-registration
+              mountPath: /hookshot-registration
               readOnly: true

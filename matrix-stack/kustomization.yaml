@@ -39,10 +39,10 @@ resources:
 #  - synapse/synapse-pvc.yaml
   - synapse/synapse-service.yaml
 
-  # Webhooks
-  - webhooks/webhooks-deployment.yaml
-#  - webhooks/webhooks-pvc.yaml
-  - webhooks/webhooks-service.yaml
+  # Hookshot (replaces matrix-encrypted-webhooks)
+  - hookshot/hookshot-configmap.yaml
+  - hookshot/hookshot-deployment.yaml
+  - hookshot/hookshot-service.yaml
   
   # Well-known
   - well-known/configmap.yaml
@@ -83,7 +83,7 @@ images:
     newTag: "1.37"
   - name: bitnami/kubectl
     newTag: "latest"
-  - name: jceloria/matrix-encrypted-webhooks
+  - name: halfshot/matrix-hookshot
     newTag: "latest"
   - name: juanluisbaptiste/postfix
     newTag: "alpine"
