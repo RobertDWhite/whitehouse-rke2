@@ -18,7 +18,8 @@ data:
     # Configuration (all overridable via environment)
     # ---------------------------------------------------------------------------
     RTL_TCP_HOST   = os.getenv("RTL_TCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
-    RTL_TCP_PORT   = int(os.getenv("RTL_TCP_PORT", "1234"))
+    _rtl_port_raw  = os.getenv("RTL_TCP_PORT", "1234")  # k8s injects "tcp://IP:PORT"; extract just the port
+    RTL_TCP_PORT   = int(_rtl_port_raw.rsplit(":", 1)[-1].strip("/"))
     # If set, overrides the rtl_tcp device string entirely (e.g. SoapyRemote for Airspy):
     #   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
     OSMOSDR_ARGS   = os.getenv("OSMOSDR_ARGS", "")
