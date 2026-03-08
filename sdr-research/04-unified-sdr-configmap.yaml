@@ -288,7 +288,7 @@ data:
                 xlate    = filter.freq_xlating_fir_filter_ccf(
                     decim_acars, taps_acars, 0, SAMPLE_RATE)
                 c2mag    = blocks.complex_to_mag()
-                dc_block = blocks.dc_blocker_ff(32, True)
+                dc_block = filter.dc_blocker_ff(32, True)
                 null     = blocks.null_sink(gr.sizeof_float)
                 self.connect(self.src, xlate, c2mag, dc_block, null)
                 self.dyn_acars.append({
