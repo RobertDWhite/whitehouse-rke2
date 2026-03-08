@@ -68,7 +68,9 @@ resources:
   - 58-ft8-wspr-decoder-deployment.yaml
   # SSTV decoders
   - 56-sstv-decoder-deployment.yaml        # VHF/UHF: watches WAV files (always on)
-  - 57-sstv-hf-decoder-deployment.yaml     # HF: RX888 direct (scale openwebrxplus to 0 first)
+  - 57-sstv-hf-decoder-deployment.yaml     # HF: standalone fallback (replicas=0)
+  # Combined HF decoder — time-shares RX888 between HFDL + SSTV
+  - 59-hf-combined-deployment.yaml
 
 generators:
   - ksops.yaml
@@ -98,5 +100,7 @@ images:
     newTag: "1.0.0"
   - name: registry.white.fm/sstv-decoder
     newTag: "1.0.1"
+  - name: registry.white.fm/hf-combined-decoder
+    newTag: "1.0.0"
   - name: registry.white.fm/ft8-wspr-decoder
     newTag: "1.0.0"
