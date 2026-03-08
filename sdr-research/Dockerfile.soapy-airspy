@@ -2,16 +2,24 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# SoapySDR core + Airspy module + Remote (network server) module.
-# soapysdr-tools provides the SoapySDRServer binary.
-# soapysdr-module-airspy provides Airspy Mini / R2 driver support.
-# soapysdr-module-remote provides the SoapyRemote TCP protocol.
+# SoapySDR core + Airspy module.
+# SoapySDRServer must be built from SoapyRemote source —
+# the Ubuntu soapysdr-module-remote package only ships the client .so, not the server binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        soapysdr-tools \
+        ca-certificates build-essential cmake git pkg-config \
+        libsoapysdr-dev \
         soapysdr-module-airspy \
-        soapysdr-module-remote \
         libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+# Build SoapyRemote from source to get the SoapySDRServer binary.
+RUN git clone --depth=1 https://github.com/pothosware/SoapyRemote /tmp/SoapyRemote \
+    && cmake -B /tmp/SoapyRemote/build -S /tmp/SoapyRemote \
+        -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /tmp/SoapyRemote/build --parallel "$(nproc)" \
+    && cmake --install /tmp/SoapyRemote/build \
+    && ldconfig \
+    && rm -rf /tmp/SoapyRemote
 
 EXPOSE 55132
 
