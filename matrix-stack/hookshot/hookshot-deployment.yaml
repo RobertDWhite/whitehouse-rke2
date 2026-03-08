@@ -40,6 +40,8 @@ spec:
             - name: secrets
               mountPath: /secrets/passkey.pem
               subPath: passkey.pem
+            - name: data
+              mountPath: /data/encryption
       volumes:
         - name: config
           configMap:
@@ -47,3 +49,6 @@ spec:
         - name: secrets
           secret:
             secretName: hookshot-secrets
+        - name: data
+          persistentVolumeClaim:
+            claimName: hookshot-data
