@@ -1,0 +1,19 @@
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# SoapySDR core + Airspy module + Remote (network server) module.
+# soapysdr-tools provides the SoapySDRServer binary.
+# soapysdr-module-airspy provides Airspy Mini / R2 driver support.
+# soapysdr-module-remote provides the SoapyRemote TCP protocol.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        soapysdr-tools \
+        soapysdr-module-airspy \
+        soapysdr-module-remote \
+        libusb-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 55132
+
+# Bind on all interfaces so Kubernetes pods on other nodes can reach this server.
+CMD ["SoapySDRServer", "--bind", "0.0.0.0:55132"]
