@@ -1,0 +1,77 @@
+# FT8/WSPR decoder — captures HF audio via SoapyRemote from RX888 MkII,
+# decodes FT8/FT4/WSPR digital modes using jt9 + wsprd (WSJT-X),
+# writes one JSON file per decoded spot to /data/text/ft8/.
+# The API indexer picks these up and inserts into the spots table.
+#
+# IMPORTANT: The RX888 SoapyRemote server only serves one client at a time.
+# Scale openwebrxplus AND hfdl-decoder to 0 while running this decoder.
+#   kubectl scale deploy openwebrxplus -n sdr-research --replicas=0
+#   kubectl scale deploy hfdl-decoder  -n sdr-research --replicas=0
+#   kubectl scale deploy ft8-wspr-decoder -n sdr-research --replicas=1
+#
+# Build the image first:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.white.fm:5000/ft8-wspr-decoder:1.0.0 \
+#     -f sdr-research/Dockerfile.ft8-wspr sdr-research/
+#   docker push registry.white.fm:5000/ft8-wspr-decoder:1.0.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ft8-wspr-decoder
+  namespace: sdr-research
+spec:
+  replicas: 0   # scale to 1 when ready (mutually exclusive with openwebrxplus)
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ft8-wspr-decoder
+  template:
+    metadata:
+      labels:
+        app: ft8-wspr-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: ft8-wspr-decoder
+          image: registry.white.fm/ft8-wspr-decoder
+          env:
+            - name: SOAPY_REMOTE
+              value: "rx888-soapy.sdr-research.svc.cluster.local:55133"
+            - name: FT8_OUTPUT_DIR
+              value: "/data/text/ft8"
+            # Standard FT8 dial frequencies (Hz) — most active HF bands
+            - name: FT8_FREQUENCIES
+              value: "3573000 7074000 10136000 14074000 18100000 21074000 24915000 28074000"
+            # WSPR beacon frequencies (Hz)
+            - name: WSPR_FREQUENCIES
+              value: "7038600 10138700 14095600 21094600 28124600"
+            # Capture one WSPR window (2 min) every N FT8 cycles
+            - name: WSPR_EVERY_N
+              value: "6"
+            # Station Maidenhead grid (for distance calculations)
+            - name: STATION_GRID
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: station-grid
+                  optional: true
+            - name: CAPTURE_SAMPLE_RATE
+              value: "48000"
+            - name: DECODE_DEPTH
+              value: "3"
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 1Gi
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
