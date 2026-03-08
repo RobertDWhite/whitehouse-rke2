@@ -2,13 +2,23 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Build dependencies for ExtIO_sddc (libsddc + SoapySDDC module)
+# Build dependencies for ExtIO_sddc (libsddc + SoapySDDC module) and SoapyRemote server
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         cmake git make g++ pkg-config \
         libusb-1.0-0-dev libfftw3-dev \
-        libsoapysdr-dev soapysdr-tools soapysdr-module-remote \
+        libsoapysdr-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Build SoapyRemote from source — Ubuntu packages only ship the client .so,
+# NOT the SoapySDRServer binary. We need to build it ourselves.
+RUN git clone --depth=1 https://github.com/pothosware/SoapyRemote /tmp/SoapyRemote \
+    && cmake -B /tmp/SoapyRemote/build -S /tmp/SoapyRemote \
+        -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /tmp/SoapyRemote/build --parallel "$(nproc)" \
+    && cmake --install /tmp/SoapyRemote/build \
+    && ldconfig \
+    && rm -rf /tmp/SoapyRemote
 
 # Build ExtIO_sddc — provides libsddc and the SoapySDDC SoapySDR plugin.
 # Supports: RX888 MkII, RX888r2, RX999, RX-666, BBRF103, HF103.
