@@ -1,0 +1,73 @@
+# OpenWebRX+ — web-based HF/VHF receiver with multi-mode decoders.
+# Connects directly to the RX888 MkII (Cypress WestBridge / FX3 USB) via
+# SoapySDDC driver for 0–64 MHz simultaneous HF coverage.
+#
+# Supported decoders: FT8, FT4, WSPR, JS8Call, HFDL, WEFAX, ALE, CW, SSB, AM, FreeDV
+#
+# First-time setup:
+#   1. Access http://<node-ip>:8073 (or via internal ingress below)
+#   2. Log in with the admin credentials set in OPENWEBRX_ADMIN_* env vars
+#   3. Go to Settings → SDR Devices → Add device:
+#        Type: SoapySDR
+#        Driver: sddc  (or rx888 depending on openwebrxplus version)
+#        Sample rate: 8000000 (8 MSPS for HF — reduces CPU vs full 64 MSPS)
+#        Profiles: add one per band (e.g. 40m, 20m, 17m, 15m, 10m, HFDL, WEFAX)
+#   4. Enable desired decoders per profile
+#
+# The /var/lib/openwebrx volume persists all settings across pod restarts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openwebrxplus
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: openwebrxplus
+  template:
+    metadata:
+      labels:
+        app: openwebrxplus
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: openwebrxplus
+          image: slechev/openwebrxplus
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: 8073
+              name: http
+          env:
+            # Admin credentials — change after first login
+            - name: OPENWEBRX_ADMIN_USER
+              value: "admin"
+            - name: OPENWEBRX_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-research-secrets
+                  key: db-password
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+            - name: data
+              mountPath: /var/lib/openwebrx
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 4000m
+              memory: 4Gi
+      terminationGracePeriodSeconds: 15
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb
+        - name: data
+          persistentVolumeClaim:
+            claimName: openwebrxplus-data

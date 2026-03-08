@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: airspy-soapy
+  namespace: sdr-research
+spec:
+  selector:
+    app: airspy-soapy
+  ports:
+    - port: 55132
+      targetPort: 55132
+      name: soapy
+  type: ClusterIP

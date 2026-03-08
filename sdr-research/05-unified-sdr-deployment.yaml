@@ -24,40 +24,43 @@ spec:
           image: librespace/gnuradio
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
-            - name: RTL_TCP_HOST
-              value: "rtl-tcp.sdr-research.svc.cluster.local"
-            - name: RTL_TCP_PORT
-              value: "1234"
+            # Airspy Mini via SoapyRemote — overrides rtl_tcp default device string.
+            # Airspy Mini: 24 MHz–1.8 GHz, 6 MHz real-time BW covers full 2m band.
+            - name: OSMOSDR_ARGS
+              value: "soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy"
             - name: CAPTURE_ID
               value: "2m"
             - name: FIXED_MONITOR_HZ
-              value: "145500000"
+              # ISS voice downlink (145.800 MHz) — always monitored
+              value: "145800000"
             - name: SAMPLE_RATE
-              value: "2400000"
+              # Airspy Mini supports 3 MSPS or 6 MSPS; 6 MSPS covers full 2m band (143–149 MHz)
+              value: "6000000"
             - name: DWELL_CENTER_HZ
-              value: "145000000"
+              # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz without scanning within 2m
+              value: "146000000"
             - name: SCAN_CENTERS
-              # 147.0 MHz = 2m repeater downlinks (146-148 MHz)
-              # 130.0 MHz = VHF airband ACARS (128.5-131.5 MHz)
-              # 153.0 MHz = VHF narrowband paging (151.8-154.2 MHz)
-              # 162.5 MHz = NOAA Weather Radio / EAS (162.4-162.55 MHz all channels)
-              value: "[147000000, 130000000, 153000000, 162500000]"
+              # 130.0 MHz = VHF airband ACARS (128.5–131.5 MHz)
+              # 153.0 MHz = VHF narrowband paging (151.8–154.2 MHz)
+              # 162.5 MHz = NOAA Weather Radio / EAS (162.4–162.55 MHz all channels)
+              # Note: 147 MHz removed — fully covered by 6 MHz BW at 146 MHz dwell
+              value: "[130000000, 153000000, 162500000]"
             - name: DWELL_SEC
-              # Spend 50s at primary center (145 MHz: CW, APRS, simplex, ISS)
-              value: "50"
+              # Longer dwell: 6 MHz BW captures all 2m activity simultaneously
+              value: "60"
             - name: SCAN_SEC
-              # Spend 5s at each secondary center to catch repeater activity
               value: "5"
             - name: NUM_DYN_FM
-              value: "8"
+              # More slots to handle wider 6 MHz capture window
+              value: "12"
             - name: NUM_DYN_CW
               value: "4"
+            - name: NUM_DYN_ACARS
+              # More ACARS slots — full 128–132 MHz ACARS band fits in one tune
+              value: "8"
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
-              # false = avoid SIGSEGV from GNURadio dynamic graph modification (lock/disconnect/connect/unlock
-              # while scheduler holds internal refs to blocks → use-after-free in C++ layer).
-              # RF squelch prevents bad recordings from out-of-band slots.
               value: "false"
             - name: SQUELCH_OPEN_DB
               value: "-55"
@@ -78,16 +81,17 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              value: "30"
+              # Airspy Mini gain index (0–21); start at 18 and tune down if overloaded
+              value: "18"
             - name: PPM_CORRECTION
-              # Measured 2026-02-28 via rtl_test -p; cumulative converged to 41 PPM
-              value: "41"
+              # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
+              value: "0"
           resources:
             requests:
-              cpu: 500m
+              cpu: 750m
               memory: 512Mi
             limits:
-              cpu: 2000m
+              cpu: 3000m
               memory: 2Gi
           readinessProbe:
             exec:

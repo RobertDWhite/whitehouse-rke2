@@ -19,6 +19,9 @@ data:
     # ---------------------------------------------------------------------------
     RTL_TCP_HOST   = os.getenv("RTL_TCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
     RTL_TCP_PORT   = int(os.getenv("RTL_TCP_PORT", "1234"))
+    # If set, overrides the rtl_tcp device string entirely (e.g. SoapyRemote for Airspy):
+    #   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
+    OSMOSDR_ARGS   = os.getenv("OSMOSDR_ARGS", "")
     SAMPLE_RATE    = int(os.getenv("SAMPLE_RATE", "2400000"))
     DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "145000000"))
     SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[147000000, 432000000]"))
@@ -195,15 +198,17 @@ data:
             self.src = blocks.null_source(gr.sizeof_gr_complex)
             try:
                 import osmosdr
-                self.src = osmosdr.source(
-                    args=f"rtl_tcp={RTL_TCP_HOST}:{RTL_TCP_PORT}"
-                )
+                _src_args = OSMOSDR_ARGS if OSMOSDR_ARGS else f"rtl_tcp={RTL_TCP_HOST}:{RTL_TCP_PORT}"
+                self.src = osmosdr.source(args=_src_args)
                 self.src.set_sample_rate(SAMPLE_RATE)
                 self.src.set_center_freq(DWELL_CENTER)
                 self.src.set_gain_mode(False)
                 self.src.set_gain(int(os.getenv("RF_GAIN", "30")))
-                self.src.set_freq_corr(PPM_CORRECTION)
-                print(f"[INIT] Connected to rtl_tcp at {RTL_TCP_HOST}:{RTL_TCP_PORT} "
+                try:
+                    self.src.set_freq_corr(PPM_CORRECTION)
+                except Exception:
+                    pass  # not supported by all backends (e.g. Airspy via SoapyRemote)
+                print(f"[INIT] osmosdr.source({_src_args!r}) "
                       f"(gain={os.getenv('RF_GAIN','30')} dB, ppm={PPM_CORRECTION})", flush=True)
             except Exception as e:
                 print(f"[INIT] osmosdr.source failed: {e}", flush=True)
