@@ -1,0 +1,48 @@
+# Airspy Mini SoapySDR remote server.
+# Exposes the Airspy Mini USB device to the cluster via the SoapyRemote
+# protocol (TCP port 55132) so that unified-sdr-2m can connect with:
+#   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
+#
+# Build the image:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.white.fm:5000/soapy-airspy-server:1.0.0 \
+#     -f sdr-research/Dockerfile.soapy-airspy sdr-research/
+#   docker push registry.white.fm:5000/soapy-airspy-server:1.0.0
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: airspy-soapy
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: airspy-soapy
+  template:
+    metadata:
+      labels:
+        app: airspy-soapy
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: airspy-soapy
+          image: registry.white.fm/soapy-airspy-server
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: 55132
+              name: soapy
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb
