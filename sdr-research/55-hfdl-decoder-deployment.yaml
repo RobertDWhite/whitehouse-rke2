@@ -1,0 +1,59 @@
+# HFDL decoder — connects to rx888-soapy SoapyRemote, decodes HFDL aviation
+# HF datalink frames, writes one JSON file per frame to /data/text/hfdl/.
+# The API indexer picks these up as mode="hfdl" recordings in sdr.white.fm.
+#
+# IMPORTANT: The RX888 SoapyRemote server only serves one client at a time.
+# Scale openwebrxplus to 0 while running this decoder (or use a second HF SDR).
+#   kubectl scale deploy openwebrxplus -n sdr-research --replicas=0
+#   kubectl scale deploy hfdl-decoder   -n sdr-research --replicas=1
+#
+# Build the image first:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.white.fm:5000/hfdl-decoder:1.0.0 \
+#     -f sdr-research/Dockerfile.hfdl sdr-research/
+#   docker push registry.white.fm:5000/hfdl-decoder:1.0.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hfdl-decoder
+  namespace: sdr-research
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hfdl-decoder
+  template:
+    metadata:
+      labels:
+        app: hfdl-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: hfdl-decoder
+          image: registry.white.fm/hfdl-decoder
+          env:
+            - name: SOAPY_REMOTE
+              value: "rx888-soapy.sdr-research.svc.cluster.local:55133"
+            - name: HFDL_OUTPUT_DIR
+              value: "/data/text/hfdl"
+            # HFDL frequencies to monitor (Hz).
+            # New York GS: 8912, 8927, 10081, 11384, 13303 kHz (closest to DC)
+            - name: HFDL_FREQUENCIES
+              value: "8912000 8927000 10081000 11384000 13303000"
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx

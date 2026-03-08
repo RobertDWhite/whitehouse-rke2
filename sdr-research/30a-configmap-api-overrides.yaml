@@ -783,6 +783,22 @@ data:
         )
 
 
+    @router.get("/{file_id}/image")
+    async def serve_image(file_id: int, db: Session = Depends(get_db)):
+        """Serve an image file (for mode=sstv SSTV captures; audio_path holds image path)."""
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+        if recording.mode != "sstv" or not recording.audio_path:
+            raise HTTPException(status_code=400, detail="Not an image recording")
+        path = recording.audio_path
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Image file not found")
+        ext = os.path.splitext(path)[1].lower()
+        media_type = "image/png" if ext == ".png" else "image/jpeg"
+        return FileResponse(path, media_type=media_type)
+
+
     def _delete_recording_files(recording: Recording):
         """Remove audio, text, and cache files for a recording."""
         for path in [
@@ -2998,6 +3014,8 @@ data:
     _eas_ts = [0.0]
     _acars_ts = [0.0]
     _vdl2_ts = [0.0]
+    _hfdl_ts = [0.0]
+    _sstv_ts = [0.0]
 
 
     def index_pager_directory(text_dir: str):
@@ -3014,6 +3032,203 @@ data:
 
     def index_vdl2_directory(text_dir: str):
         _index_text_only_directory("vdl2", text_dir, _vdl2_ts, "VDL2_DECODE_FAILED")
+
+
+    def _parse_hfdl_frame(frame: dict) -> tuple[str, dict]:
+        """Parse a dumphfdl JSON frame. Returns (decoded_text, metadata_dict)."""
+        freq_hz = frame.get("freq", 0)
+        t = frame.get("t", {})
+        ts_sec = t.get("sec", 0)
+        hfdl = frame.get("hfdl", {})
+        station = hfdl.get("station", {})
+        station_name = station.get("name", "")
+        lpdu_type = hfdl.get("lpdu", {}).get("type", {}).get("name", "")
+        parts = []
+        if station_name:
+            parts.append(f"GS:{station_name}")
+        if lpdu_type:
+            parts.append(f"[{lpdu_type}]")
+        app_info = hfdl.get("app_info", {})
+        flight = app_info.get("flight", "")
+        reg = app_info.get("reg", "")
+        if flight:
+            parts.append(f"FLT:{flight}")
+        if reg:
+            parts.append(f"REG:{reg}")
+        acars = app_info.get("acars", {})
+        if acars:
+            label = acars.get("label", "")
+            msg_text = acars.get("msg_text", "")
+            if label:
+                parts.append(f"LBL:{label}")
+            if msg_text:
+                parts.append(f"MSG:{msg_text.strip()[:200]}")
+        spdu = hfdl.get("spdu", {})
+        if spdu:
+            ac_list = spdu.get("ac_info", []) or []
+            callsigns = [ac.get("ac_id", "") for ac in ac_list if ac.get("ac_id")]
+            if callsigns:
+                parts.append("AC:" + ",".join(callsigns))
+        decoded_text = " | ".join(parts) if parts else f"HFDL frame @ {freq_hz / 1e6:.3f} MHz"
+        metadata = {
+            "frequency_hz": float(freq_hz),
+            "timestamp": datetime.fromtimestamp(ts_sec) if ts_sec else None,
+            "station": station_name,
+            "flight": flight,
+            "reg": reg,
+        }
+        return decoded_text, metadata
+
+
+    def index_hfdl_directory(text_dir: str):
+        """Index HFDL frames from dumphfdl JSON files (one JSON file per decoded frame)."""
+        db = SessionLocal()
+        try:
+            ensure_recordings_schema(db)
+            text_path = Path(text_dir)
+            if not text_path.exists():
+                return
+            now_ts = _time.time()
+            if _hfdl_ts[0] <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                scan_since_ts = _hfdl_ts[0] - 2.0
+            processed = 0
+            for json_file in text_path.glob("*.json"):
+                try:
+                    file_mtime = json_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
+                processed += 1
+                if processed % 500 == 0:
+                    db.expunge_all()
+                filename = json_file.name
+                existing = db.query(Recording).filter(Recording.filename == filename).first()
+                if existing:
+                    continue
+                try:
+                    with open(json_file) as _f:
+                        frame = json.load(_f)
+                except Exception:
+                    continue
+                decoded_text, metadata = _parse_hfdl_frame(frame)
+                timestamp = metadata.get("timestamp")
+                if timestamp is None:
+                    try:
+                        timestamp = datetime.fromtimestamp(file_mtime)
+                    except Exception:
+                        timestamp = None
+                # Parse frequency and timestamp from filename: hfdl_{freq}_{ts_ms}.json
+                _m = re.match(r"hfdl_(\d+)_(\d+)\.json$", filename)
+                if _m:
+                    if not metadata.get("frequency_hz"):
+                        metadata["frequency_hz"] = float(_m.group(1))
+                    if timestamp is None:
+                        try:
+                            timestamp = datetime.fromtimestamp(int(_m.group(2)) / 1000)
+                        except Exception:
+                            pass
+                recording = Recording(
+                    filename=filename,
+                    mode="hfdl",
+                    frequency_hz=metadata.get("frequency_hz"),
+                    timestamp=timestamp,
+                    duration_seconds=None,
+                    audio_path=None,
+                    text_path=str(json_file),
+                    transcript=decoded_text,
+                )
+                maybe_set_frequency_metadata(db, recording)
+                tags = ["hfdl"]
+                if metadata.get("flight"):
+                    tags.append("aviation")
+                if metadata.get("reg"):
+                    clean_reg = metadata["reg"].lower().replace("-", "").replace(" ", "")
+                    if clean_reg:
+                        tags.append(clean_reg)
+                recording.ai_tags = dump_ai_tags(tags)
+                db.add(recording)
+                db.commit()
+                if decoded_text:
+                    update_search_vector(db, recording.id, decoded_text)
+                indexer_files_indexed.labels(mode="hfdl").inc()
+                print(f"Indexed HFDL: {filename}")
+            _hfdl_ts[0] = now_ts
+        except Exception as e:
+            print(f"HFDL indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
+    def index_sstv_directory(image_dir: str):
+        """Index SSTV captured images from /data/images/sstv/ (PNG/JPEG files).
+        Image path is stored in audio_path; no audio involved."""
+        db = SessionLocal()
+        try:
+            ensure_recordings_schema(db)
+            image_path = Path(image_dir)
+            if not image_path.exists():
+                return
+            now_ts = _time.time()
+            if _sstv_ts[0] <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                scan_since_ts = _sstv_ts[0] - 2.0
+            processed = 0
+            for img_file in list(image_path.glob("*.png")) + list(image_path.glob("*.jpg")):
+                try:
+                    file_mtime = img_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
+                processed += 1
+                if processed % 200 == 0:
+                    db.expunge_all()
+                filename = img_file.name
+                existing = db.query(Recording).filter(Recording.filename == filename).first()
+                if existing:
+                    continue
+                frequency_hz = None
+                timestamp = None
+                # Parse: sstv_{freq_hz}_{unix_ts}.png
+                _m2 = re.match(r"sstv_(\d+)_(\d+)\.(png|jpg)$", filename, re.IGNORECASE)
+                if _m2:
+                    frequency_hz = float(_m2.group(1))
+                    try:
+                        timestamp = datetime.fromtimestamp(int(_m2.group(2)))
+                    except Exception:
+                        pass
+                if timestamp is None:
+                    try:
+                        timestamp = datetime.fromtimestamp(file_mtime)
+                    except Exception:
+                        timestamp = None
+                recording = Recording(
+                    filename=filename,
+                    mode="sstv",
+                    frequency_hz=frequency_hz,
+                    timestamp=timestamp,
+                    duration_seconds=None,
+                    audio_path=str(img_file),  # image path stored in audio_path field
+                    text_path=None,
+                    transcript=None,
+                )
+                maybe_set_frequency_metadata(db, recording)
+                recording.ai_tags = dump_ai_tags(["sstv", "image"])
+                db.add(recording)
+                db.commit()
+                indexer_files_indexed.labels(mode="sstv").inc()
+                print(f"Indexed SSTV: {filename}")
+            _sstv_ts[0] = now_ts
+        except Exception as e:
+            print(f"SSTV indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 
     def _refresh_db_gauges():
@@ -3285,6 +3500,16 @@ data:
                 await asyncio.to_thread(
                     index_vdl2_directory,
                     text_dir=os.path.join(settings.text_base_path, "vdl2"),
+                )
+
+                await asyncio.to_thread(
+                    index_hfdl_directory,
+                    text_dir=os.path.join(settings.text_base_path, "hfdl"),
+                )
+
+                await asyncio.to_thread(
+                    index_sstv_directory,
+                    image_dir="/data/images/sstv",
                 )
 
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
