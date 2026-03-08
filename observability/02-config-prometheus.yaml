@@ -375,6 +375,16 @@ data:
         scrape_interval: 30s
 
       # =================================
+      # Claude Code deep stats (JSONL)
+      # =================================
+      - job_name: claude-code-stats
+        static_configs:
+          - targets:
+              - 10.100.2.60:9101
+        metrics_path: /metrics
+        scrape_interval: 120s
+
+      # =================================
       # sdr-research spectrum survey
       # =================================
       - job_name: sdr-spectrum-survey
