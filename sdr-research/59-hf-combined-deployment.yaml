@@ -1,0 +1,74 @@
+# Combined HF decoder — time-shares RX888 SoapyRemote between HFDL and SSTV.
+# Alternates: HFDL dwell (dumphfdl, 5 min) → SSTV dwell (slowrx-cli, 2 min/freq) → repeat.
+#
+# Replaces running 55-hfdl-decoder and 57-sstv-hf-decoder as separate pods
+# (SoapyRemote only accepts one streaming client at a time).
+#
+# IMPORTANT: Scale openwebrxplus to 0 while this pod is running.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hf-combined-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hf-combined-decoder
+  template:
+    metadata:
+      labels:
+        app: hf-combined-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: hf-combined-decoder
+          image: registry.white.fm/hf-combined-decoder
+          env:
+            # Shared
+            - name: SOAPY_REMOTE
+              value: "rx888-soapy.sdr-research.svc.cluster.local:55133"
+            # HFDL
+            - name: HFDL_OUTPUT_DIR
+              value: "/data/text/hfdl"
+            - name: HFDL_FREQUENCIES
+              # New York + San Francisco HFDL ground stations
+              value: "8912000 8927000 10081000 11384000 13303000"
+            - name: HFDL_DWELL_SEC
+              value: "300"
+            # SSTV
+            - name: SDL_VIDEODRIVER
+              value: "offscreen"
+            - name: SDL_AUDIODRIVER
+              value: "dummy"
+            - name: SSTV_OUTPUT_DIR
+              value: "/data/images/sstv"
+            - name: HF_SSTV_FREQS
+              value: "14230000,21340000,28680000,7171000"
+            - name: HF_SAMPLE_RATE
+              value: "2048000"
+            - name: HF_AUDIO_RATE
+              value: "16000"
+            - name: HF_DWELL_SEC
+              # Per-frequency dwell — longest SSTV mode (Scottie DX) ~270s;
+              # 120s catches most common modes (Robot 36 = 36s, Scottie 1 = 110s)
+              value: "120"
+            - name: HF_GAIN
+              value: "20"
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 1Gi
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
