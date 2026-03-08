@@ -1,7 +1,10 @@
 # Public — routes openwebrx.white.fm through Authentik (same pattern as sdr.white.fm).
 # After deploying, add an Application Proxy in Authentik admin:
+#   Provider type: Proxy
+#   Mode: Forward single application
 #   External host: https://openwebrx.white.fm
 #   Internal host: http://openwebrxplus.sdr-research.svc.cluster.local:8073
+#   Then assign to the existing outpost used by sdr.white.fm.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -32,8 +35,9 @@ spec:
               number: 9443
 ---
 # Internal — direct access, no auth.
-# WebSocket timeouts are required: OpenWebRX+ uses WS for the waterfall display
-# and live audio streaming; default nginx 60s timeout kills the connection.
+# proxy-http-version 1.1 is required for WebSocket upgrade (waterfall + audio streaming).
+# nginx ingress handles the Upgrade/Connection headers natively at HTTP/1.1;
+# no configuration-snippet needed (and snippets may be blocked by the controller).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -45,9 +49,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
 spec:
   ingressClassName: nginx
   tls:
