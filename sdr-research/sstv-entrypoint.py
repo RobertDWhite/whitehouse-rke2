@@ -2,7 +2,7 @@
 """VHF/UHF SSTV decoder — watches WAV files from unified-sdr and decodes SSTV images.
 
 WAV files are named {freq_hz}_{timestamp_ms}.wav in AUDIO_DIR.
-Matching files at SSTV frequencies are decoded by slowrx → PNGs in OUTPUT_DIR.
+Matching files at SSTV frequencies are decoded by slowrx-cli → PNGs in OUTPUT_DIR.
 
 Monitors:
   144.500 MHz — 2m SSTV calling frequency (worldwide)
@@ -18,8 +18,11 @@ import shutil
 import tempfile
 import subprocess
 
+from PIL import Image
+
 AUDIO_DIR   = os.getenv("AUDIO_DIR",       "/data/audio/voice")
 OUTPUT_DIR  = os.getenv("SSTV_OUTPUT_DIR", "/data/images/sstv")
+AUDIO_RATE  = int(os.getenv("AUDIO_RATE",   "48000"))  # unified-sdr AUDIO_RATE_FM
 MIN_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "15"))
 POLL_SEC    = int(os.getenv("POLL_INTERVAL_SEC", "10"))
 
@@ -40,31 +43,35 @@ def classify(freq_hz: int) -> str | None:
     return None
 
 
+def bmp_to_png(bmp_path: str, png_path: str) -> None:
+    """Convert BMP output from slowrx-cli to PNG."""
+    img = Image.open(bmp_path)
+    img.save(png_path, "PNG")
+
+
 def decode_wav(wav_path: str, freq_hz: int, label: str) -> None:
     ts_ms = int(time.time() * 1000)
     with tempfile.TemporaryDirectory() as tmp:
-        before = set(os.listdir(tmp))
-        env = {**os.environ, "SDL_VIDEODRIVER": "offscreen", "SDL_AUDIODRIVER": "dummy"}
+        bmp_path = os.path.join(tmp, "result.bmp")
         result = subprocess.run(
-            ["slowrx", "-f", wav_path, "-d", tmp],
-            env=env, capture_output=True, text=True, timeout=300
+            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),
+             "-o", bmp_path, wav_path],
+            capture_output=True, text=True, timeout=300
         )
-        after = set(os.listdir(tmp))
-        new_files = after - before
 
-        if not new_files:
+        if not os.path.exists(bmp_path):
+            stderr_snip = result.stderr.strip()[:120] if result.stderr else ""
+            stdout_snip = result.stdout.strip()[:120] if result.stdout else ""
             print(f"[SSTV] No image decoded from {os.path.basename(wav_path)} "
-                  f"({result.stderr.strip()[:120]})", flush=True)
+                  f"({stderr_snip or stdout_snip})", flush=True)
             return
 
-        for fname in new_files:
-            if not fname.lower().endswith(".png"):
-                continue
-            src = os.path.join(tmp, fname)
-            dst = os.path.join(OUTPUT_DIR, f"sstv_{freq_hz}_{ts_ms}.png")
-            shutil.move(src, dst)
+        dst = os.path.join(OUTPUT_DIR, f"sstv_{freq_hz}_{ts_ms}.png")
+        try:
+            bmp_to_png(bmp_path, dst)
             print(f"[SSTV] Decoded {label} image → {os.path.basename(dst)}", flush=True)
-            ts_ms += 1  # avoid collision if multiple images
+        except Exception as e:
+            print(f"[SSTV] BMP→PNG conversion failed: {e}", flush=True)
 
 
 def process(wav_path: str) -> None:

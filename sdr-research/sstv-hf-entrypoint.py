@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """HF SSTV decoder — connects to RX888 via SoapyRemote, tunes to HF SSTV frequencies,
-USB-demodulates the audio, and decodes images with slowrx.
+USB-demodulates the audio, and decodes images with slowrx-cli.
 
 NOTE: The RX888 SoapyRemote server (rx888-soapy) only allows one client at a time.
 Scale openwebrxplus to 0 before running this pod at replicas > 0:
@@ -18,8 +18,6 @@ import os
 import sys
 import time
 import wave
-import shutil
-import struct
 import tempfile
 import subprocess
 from typing import List
@@ -32,7 +30,7 @@ SOAPY_REMOTE  = os.getenv("SOAPY_REMOTE_RX888",
                            "rx888-soapy.sdr-research.svc.cluster.local:55133")
 OUTPUT_DIR    = os.getenv("SSTV_OUTPUT_DIR", "/data/images/sstv")
 SAMPLE_RATE   = int(os.getenv("HF_SAMPLE_RATE",   "2048000"))   # 2 MSPS from RX888
-AUDIO_RATE    = int(os.getenv("HF_AUDIO_RATE",     "11025"))     # slowrx expects ~11 kHz
+AUDIO_RATE    = int(os.getenv("HF_AUDIO_RATE",     "16000"))     # 2048000/128 = 16000 Hz
 DWELL_SEC     = int(os.getenv("HF_DWELL_SEC",      "120"))       # seconds per frequency
 GAIN          = float(os.getenv("HF_GAIN",          "20"))
 
@@ -79,23 +77,25 @@ def write_wav(audio: np.ndarray, path: str, rate: int) -> None:
         wf.writeframes(pcm.tobytes())
 
 
-def run_slowrx(wav_path: str, freq_hz: int) -> None:
+def run_slowrx(wav_path: str, freq_hz: int, audio_rate: int) -> None:
+    from PIL import Image
     ts_ms = int(time.time() * 1000)
     with tempfile.TemporaryDirectory() as tmp:
-        before = set(os.listdir(tmp))
-        env = {**os.environ, "SDL_VIDEODRIVER": "offscreen", "SDL_AUDIODRIVER": "dummy"}
-        subprocess.run(
-            ["slowrx", "-f", wav_path, "-d", tmp],
-            env=env, capture_output=True, text=True, timeout=300
+        bmp_path = os.path.join(tmp, "result.bmp")
+        result = subprocess.run(
+            ["slowrx-cli", "-v", "-r", str(audio_rate), "-o", bmp_path, wav_path],
+            capture_output=True, text=True, timeout=300
         )
-        for fname in set(os.listdir(tmp)) - before:
-            if not fname.lower().endswith(".png"):
-                continue
-            dst = os.path.join(OUTPUT_DIR, f"sstv_{freq_hz}_{ts_ms}.png")
-            shutil.move(os.path.join(tmp, fname), dst)
+        if not os.path.exists(bmp_path):
+            print(f"[SSTV-HF] No image decoded @ {freq_hz/1e6:.3f} MHz", flush=True)
+            return
+        dst = os.path.join(OUTPUT_DIR, f"sstv_{freq_hz}_{ts_ms}.png")
+        try:
+            Image.open(bmp_path).save(dst, "PNG")
             print(f"[SSTV-HF] Decoded image @ {freq_hz/1e6:.3f} MHz → {os.path.basename(dst)}",
                   flush=True)
-            ts_ms += 1
+        except Exception as e:
+            print(f"[SSTV-HF] BMP→PNG failed: {e}", flush=True)
 
 
 def collect_and_decode(sdr, freq_hz: int) -> None:
@@ -134,7 +134,7 @@ def collect_and_decode(sdr, freq_hz: int) -> None:
         wav_path = f.name
     try:
         write_wav(audio, wav_path, AUDIO_RATE)
-        run_slowrx(wav_path, freq_hz)
+        run_slowrx(wav_path, freq_hz, AUDIO_RATE)
     finally:
         os.unlink(wav_path)
 
