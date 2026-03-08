@@ -1,0 +1,42 @@
+# HFDL decoder — dumphfdl with SoapySDR remote driver for RX888.
+#
+# Build and push:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.white.fm:5000/hfdl-decoder:1.0.0 \
+#     -f sdr-research/Dockerfile.hfdl sdr-research/
+#   docker push registry.white.fm:5000/hfdl-decoder:1.0.0
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential cmake git pkg-config \
+    libsoapysdr-dev soapysdr-module-remote \
+    libfftw3-dev libglib2.0-dev libconfig++-dev \
+    libjansson-dev libzmq3-dev \
+    libliquid-dev \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build libacars (required by dumphfdl) from source
+RUN git clone --depth=1 https://github.com/szpajder/libacars /opt/libacars-src \
+    && cmake -S /opt/libacars-src -B /opt/libacars-build \
+        -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build /opt/libacars-build --parallel "$(nproc)" \
+    && cmake --install /opt/libacars-build \
+    && ldconfig \
+    && rm -rf /opt/libacars-src /opt/libacars-build
+
+# Build dumphfdl from source with SoapySDR support
+RUN git clone --depth=1 https://github.com/szpajder/dumphfdl /opt/dumphfdl-src \
+    && cmake -S /opt/dumphfdl-src -B /opt/dumphfdl-build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DSOAPYSDR=ON \
+    && cmake --build /opt/dumphfdl-build --parallel "$(nproc)" \
+    && cmake --install /opt/dumphfdl-build \
+    && rm -rf /opt/dumphfdl-src /opt/dumphfdl-build
+
+COPY hfdl-entrypoint.py /hfdl-entrypoint.py
+
+ENTRYPOINT ["python3", "/hfdl-entrypoint.py"]
