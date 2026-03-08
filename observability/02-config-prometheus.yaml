@@ -365,6 +365,16 @@ data:
         scrape_interval: 30s
 
       # =================================
+      # Claude Code OTEL metrics
+      # =================================
+      - job_name: claude-code
+        static_configs:
+          - targets:
+              - 10.100.2.60:8889
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # =================================
       # sdr-research spectrum survey
       # =================================
       - job_name: sdr-spectrum-survey

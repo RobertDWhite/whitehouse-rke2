@@ -36,6 +36,7 @@ resources:
 
   # Services
   - 20-svc-loki.yaml
+  - 20b-svc-loki-metallb.yaml
   - 21-svc-prometheus.yaml
   - 22-svc-grafana.yaml
   - 23-svc-syslog-metallb.yaml
@@ -82,6 +83,7 @@ configMapGenerator:
       - syslog.json=grafana_dashboards/syslog.json
       - trivy-operator.json=grafana_dashboards/trivy-operator.json
       - trivy-overview.json=grafana_dashboards/trivy-overview.json
+      - claude-code.json=grafana_dashboards/claude-code.json
   - name: observability-grafana-dashboards-imported
     files:
       - coredns-15762.json=grafana_dashboards/coredns-15762.json
