@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rx888-soapy
+  namespace: sdr-research
+spec:
+  selector:
+    app: rx888-soapy
+  ports:
+    - port: 55133
+      targetPort: 55133
+      name: soapy
+  type: ClusterIP

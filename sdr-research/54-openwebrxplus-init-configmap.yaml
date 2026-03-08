@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openwebrxplus-init
+  namespace: sdr-research
+data:
+  init_settings.py: |
+    #!/usr/bin/env python3
+    """
+    One-shot initializer: writes RX888 SoapyRemote SDR config into
+    /var/lib/openwebrx/settings.json if no SDR devices are configured yet.
+    Runs as an init container before OpenWebRX+ starts.
+    Safe to re-run: skips if 'sdrs' is already populated.
+    """
+    import json, os, sys
+
+    SETTINGS_FILE = "/var/lib/openwebrx/settings.json"
+
+    try:
+        with open(SETTINGS_FILE) as f:
+            settings = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        settings = {}
+
+    if settings.get("sdrs"):
+        print("settings.json already has SDR config — skipping init", flush=True)
+        sys.exit(0)
+
+    settings["sdrs"] = {
+        "rx888_hf": {
+            "name": "RX888 MkII HF",
+            "type": "soapy_remote",
+            "enabled": True,
+            # SoapyRemote server running as rx888-soapy DaemonSet on node-14
+            "remote": "rx888-soapy.sdr-research.svc.cluster.local:55133",
+            "remote_driver": "sddc",
+            # RF gain: sddc driver uses 0 dB hardware attenuator by default;
+            # increase if signal is too weak, decrease if overloaded/distorted.
+            "rf_gain": 0,
+            "profiles": {
+                "hf_20m": {
+                    "name": "20m — FT8 / CW / SSB",
+                    "center_freq": 14100000,
+                    "samp_rate": 4000000,
+                    "start_freq": 14074000,
+                    "start_mod": "usb",
+                    "tuning_step": 1000,
+                },
+                "hf_40m": {
+                    "name": "40m — FT8 / CW / SSB",
+                    "center_freq": 7100000,
+                    "samp_rate": 4000000,
+                    "start_freq": 7074000,
+                    "start_mod": "usb",
+                    "tuning_step": 1000,
+                },
+                "hf_80m": {
+                    "name": "80m — FT8 / CW / SSB",
+                    "center_freq": 3700000,
+                    "samp_rate": 4000000,
+                    "start_freq": 3573000,
+                    "start_mod": "usb",
+                    "tuning_step": 1000,
+                },
+                "hf_15m": {
+                    "name": "15m — FT8 / CW",
+                    "center_freq": 21200000,
+                    "samp_rate": 4000000,
+                    "start_freq": 21074000,
+                    "start_mod": "usb",
+                    "tuning_step": 1000,
+                },
+                "hf_10m": {
+                    "name": "10m — FT8 / CW",
+                    "center_freq": 28100000,
+                    "samp_rate": 4000000,
+                    "start_freq": 28074000,
+                    "start_mod": "usb",
+                    "tuning_step": 1000,
+                },
+                "hf_hfdl": {
+                    "name": "HFDL — 8 MHz cluster (aviation HF data)",
+                    # 6 MHz BW covers the busiest HFDL GS freqs around 8.9 MHz
+                    # (Shanwick 8864, New York 8912, San Francisco 8927, etc.)
+                    "center_freq": 8900000,
+                    "samp_rate": 6000000,
+                    "start_freq": 8942000,
+                    "start_mod": "usb",
+                    "tuning_step": 100,
+                },
+                "hf_wefax_nmn": {
+                    "name": "WEFAX — NMN Chesapeake (8502 kHz)",
+                    "center_freq": 8502000,
+                    "samp_rate": 500000,
+                    "start_freq": 8502000,
+                    "start_mod": "usb",
+                    "tuning_step": 100,
+                },
+                "hf_wwv": {
+                    "name": "WWV / WWVH (10 MHz time standard)",
+                    "center_freq": 10000000,
+                    "samp_rate": 1000000,
+                    "start_freq": 10000000,
+                    "start_mod": "am",
+                    "tuning_step": 100,
+                },
+                "hf_maritime": {
+                    "name": "Maritime HF — 8 MHz band (voice / DSC)",
+                    # 8 MHz BW covers DSC 8414.5 kHz, voice 8 MHz band
+                    "center_freq": 8100000,
+                    "samp_rate": 8000000,
+                    "start_freq": 8291000,
+                    "start_mod": "usb",
+                    "tuning_step": 100,
+                },
+                "hf_broadcast": {
+                    "name": "Shortwave Broadcast — 25m / 31m",
+                    "center_freq": 11000000,
+                    "samp_rate": 8000000,
+                    "start_freq": 9580000,
+                    "start_mod": "am",
+                    "tuning_step": 5000,
+                },
+            },
+        }
+    }
+
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+    print(f"Wrote RX888 SDR config to {SETTINGS_FILE}", flush=True)
