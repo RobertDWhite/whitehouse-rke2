@@ -1,0 +1,48 @@
+# RX888 MkII SoapySDR remote server.
+# Exposes the RX888 (Cypress WestBridge / FX3) USB device to the cluster via
+# SoapyRemote protocol on port 55133. OpenWebRX+ connects as type=soapy_remote
+# with remote_driver=sddc.
+#
+# Build and push the image before deploying:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.white.fm:5000/soapy-rx888-server:1.0.0 \
+#     -f sdr-research/Dockerfile.soapy-rx888 sdr-research/
+#   docker push registry.white.fm:5000/soapy-rx888-server:1.0.0
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rx888-soapy
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: rx888-soapy
+  template:
+    metadata:
+      labels:
+        app: rx888-soapy
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: rx888-soapy
+          image: registry.white.fm/soapy-rx888-server
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: 55133
+              name: soapy
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

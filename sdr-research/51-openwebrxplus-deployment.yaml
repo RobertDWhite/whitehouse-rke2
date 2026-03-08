@@ -1,20 +1,9 @@
-# OpenWebRX+ — web-based HF/VHF receiver with multi-mode decoders.
-# Connects directly to the RX888 MkII (Cypress WestBridge / FX3 USB) via
-# SoapySDDC driver for 0–64 MHz simultaneous HF coverage.
-#
+# OpenWebRX+ — web-based HF receiver with multi-mode decoders.
+# Connects to the RX888 MkII via SoapyRemote (rx888-soapy DaemonSet on node-14).
 # Supported decoders: FT8, FT4, WSPR, JS8Call, HFDL, WEFAX, ALE, CW, SSB, AM, FreeDV
 #
-# First-time setup:
-#   1. Access http://<node-ip>:8073 (or via internal ingress below)
-#   2. Log in with the admin credentials set in OPENWEBRX_ADMIN_* env vars
-#   3. Go to Settings → SDR Devices → Add device:
-#        Type: SoapySDR
-#        Driver: sddc  (or rx888 depending on openwebrxplus version)
-#        Sample rate: 8000000 (8 MSPS for HF — reduces CPU vs full 64 MSPS)
-#        Profiles: add one per band (e.g. 40m, 20m, 17m, 15m, 10m, HFDL, WEFAX)
-#   4. Enable desired decoders per profile
-#
-# The /var/lib/openwebrx volume persists all settings across pod restarts.
+# The init container pre-populates /var/lib/openwebrx/settings.json with HF band
+# profiles on first run only (skipped if SDR devices are already configured).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,6 +23,15 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-14
+      initContainers:
+        - name: init-settings
+          image: python:3.11-slim
+          command: ["python3", "/init/init_settings.py"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/openwebrx
+            - name: init-scripts
+              mountPath: /init
       containers:
         - name: openwebrxplus
           image: slechev/openwebrxplus
@@ -43,7 +41,6 @@ spec:
             - containerPort: 8073
               name: http
           env:
-            # Admin credentials — change after first login
             - name: OPENWEBRX_ADMIN_USER
               value: "admin"
             - name: OPENWEBRX_ADMIN_PASSWORD
@@ -71,3 +68,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: openwebrxplus-data
+        - name: init-scripts
+          configMap:
+            name: openwebrxplus-init
+            defaultMode: 0755
