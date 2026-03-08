@@ -3231,6 +3231,124 @@ data:
             db.close()
 
 
+    # ── FT8/WSPR spot indexer ──────────────────────────────────────────
+    _ft8_ts: list[float] = [0.0]
+
+    def index_ft8_directory(text_dir: str):
+        """Index FT8/WSPR/FT4 decoded spot JSON files from /data/text/ft8/.
+        Each file contains one spot dict written by the ft8-wspr-decoder pod.
+        Spots are inserted into the 'spots' table (not 'recordings')."""
+        from sqlalchemy import text as sa_text
+        db = SessionLocal()
+        try:
+            # Ensure spots table exists (same DDL as spots.py router)
+            db.execute(sa_text("""
+                CREATE TABLE IF NOT EXISTS spots (
+                    id SERIAL PRIMARY KEY,
+                    "timestamp" TIMESTAMP NOT NULL,
+                    mode VARCHAR(10) NOT NULL,
+                    dial_frequency_hz BIGINT NOT NULL,
+                    audio_offset_hz INTEGER,
+                    snr_db REAL, dt REAL,
+                    callsign VARCHAR(20), grid VARCHAR(10),
+                    power_dbm INTEGER, message VARCHAR(255),
+                    band VARCHAR(10), distance_km REAL,
+                    tx_latitude REAL, tx_longitude REAL,
+                    created_at TIMESTAMP DEFAULT now()
+                );
+                CREATE INDEX IF NOT EXISTS ix_spots_timestamp ON spots ("timestamp");
+                CREATE INDEX IF NOT EXISTS ix_spots_mode ON spots (mode);
+                CREATE INDEX IF NOT EXISTS ix_spots_callsign ON spots (callsign);
+                CREATE INDEX IF NOT EXISTS ix_spots_band ON spots (band);
+            """))
+            db.commit()
+
+            ft8_path = Path(text_dir)
+            if not ft8_path.exists():
+                return
+            now_ts = _time.time()
+            if _ft8_ts[0] <= 0:
+                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
+            else:
+                scan_since_ts = _ft8_ts[0] - 2.0
+            processed = 0
+            for json_file in ft8_path.glob("*.json"):
+                try:
+                    file_mtime = json_file.stat().st_mtime
+                except Exception:
+                    continue
+                if file_mtime < scan_since_ts:
+                    continue
+                processed += 1
+                if processed % 200 == 0:
+                    db.expunge_all()
+                try:
+                    with open(json_file) as f:
+                        spot = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                # Parse timestamp
+                ts_str = spot.get("timestamp")
+                ts = None
+                if ts_str:
+                    try:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if ts.tzinfo:
+                            ts = ts.replace(tzinfo=None)
+                    except Exception:
+                        pass
+                if ts is None:
+                    ts = datetime.utcnow()
+
+                mode = spot.get("mode", "ft8")
+                dial_hz = spot.get("dial_frequency_hz", 0)
+                callsign = spot.get("callsign")
+
+                # Deduplicate: same mode + callsign + dial_freq within 30 seconds
+                if callsign:
+                    dup = db.execute(sa_text(
+                        'SELECT id FROM spots WHERE mode = :mode '
+                        'AND callsign = :call AND dial_frequency_hz = :freq '
+                        'AND ABS(EXTRACT(EPOCH FROM ("timestamp" - :ts))) < 30 '
+                        'LIMIT 1'
+                    ), {"mode": mode, "call": callsign, "freq": dial_hz, "ts": ts}).first()
+                    if dup:
+                        continue
+
+                db.execute(sa_text(
+                    'INSERT INTO spots ("timestamp", mode, dial_frequency_hz, '
+                    'audio_offset_hz, snr_db, dt, callsign, grid, power_dbm, '
+                    'message, band, distance_km, tx_latitude, tx_longitude) '
+                    'VALUES (:ts, :mode, :dial, :aoff, :snr, :dt, :call, :grid, '
+                    ':power, :msg, :band, :dist, :lat, :lon)'
+                ), {
+                    "ts": ts, "mode": mode, "dial": dial_hz,
+                    "aoff": spot.get("audio_offset_hz"),
+                    "snr": spot.get("snr_db"), "dt": spot.get("dt"),
+                    "call": callsign, "grid": spot.get("grid"),
+                    "power": spot.get("power_dbm"),
+                    "msg": spot.get("message", "")[:255],
+                    "band": spot.get("band"),
+                    "dist": spot.get("distance_km"),
+                    "lat": spot.get("tx_latitude"),
+                    "lon": spot.get("tx_longitude"),
+                })
+                db.commit()
+                spots_indexed.labels(mode=mode).inc()
+                # Delete the JSON file after successful indexing
+                try:
+                    json_file.unlink()
+                except OSError:
+                    pass
+            _ft8_ts[0] = now_ts
+        except Exception as e:
+            print(f"FT8/WSPR indexer error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
     def _refresh_db_gauges():
         """Query DB and update Prometheus gauge metrics. Called once per cycle."""
         from sqlalchemy import func as _func
@@ -3510,6 +3628,11 @@ data:
                 await asyncio.to_thread(
                     index_sstv_directory,
                     image_dir="/data/images/sstv",
+                )
+
+                await asyncio.to_thread(
+                    index_ft8_directory,
+                    text_dir=os.path.join(settings.text_base_path, "ft8"),
                 )
 
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
@@ -4193,6 +4316,14 @@ data:
 
     router = APIRouter()
 
+    # Mount FT8/WSPR spots router as sub-router of stats
+    # (main.py can't be overridden via configmap, so we piggyback here)
+    try:
+        from . import spots as _spots_module
+        router.include_router(_spots_module.router)
+    except Exception as _e:
+        print(f"[stats] spots router not available: {_e}")
+
     _cache: dict = {}
     _CACHE_TTL = 30.0  # seconds
 
@@ -4613,6 +4744,241 @@ data:
         'sdr_hardware_last_seen_seconds',
         'Seconds since the most recent audio file from SDR hardware',
     )
+    spots_indexed = Counter(
+        'sdr_spots_indexed_total',
+        'FT8/WSPR spots indexed',
+        ['mode'],
+    )
+    spots_total = Gauge(
+        'sdr_spots_total',
+        'Total spots in the database',
+        ['mode'],
+    )
+  spots.py: |
+    """FT8/WSPR/FT4 spot browser and statistics."""
+    import math
+    from datetime import datetime, timedelta, timezone
+    from fastapi import APIRouter, Depends, Query
+    from sqlalchemy import func, text, desc, distinct
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+
+    router = APIRouter(prefix="/spots", tags=["spots"])
+
+    # ── helpers ──────────────────────────────────────────────────────────
+    _CREATE_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS spots (
+        id SERIAL PRIMARY KEY,
+        "timestamp" TIMESTAMP NOT NULL,
+        mode VARCHAR(10) NOT NULL,
+        dial_frequency_hz BIGINT NOT NULL,
+        audio_offset_hz INTEGER,
+        snr_db REAL,
+        dt REAL,
+        callsign VARCHAR(20),
+        grid VARCHAR(10),
+        power_dbm INTEGER,
+        message VARCHAR(255),
+        band VARCHAR(10),
+        distance_km REAL,
+        tx_latitude REAL,
+        tx_longitude REAL,
+        created_at TIMESTAMP DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS ix_spots_timestamp ON spots ("timestamp");
+    CREATE INDEX IF NOT EXISTS ix_spots_mode ON spots (mode);
+    CREATE INDEX IF NOT EXISTS ix_spots_callsign ON spots (callsign);
+    CREATE INDEX IF NOT EXISTS ix_spots_dial_frequency_hz ON spots (dial_frequency_hz);
+    CREATE INDEX IF NOT EXISTS ix_spots_mode_ts ON spots (mode, "timestamp");
+    CREATE INDEX IF NOT EXISTS ix_spots_callsign_ts ON spots (callsign, "timestamp");
+    CREATE INDEX IF NOT EXISTS ix_spots_band ON spots (band);
+    """
+
+    _table_ensured = False
+
+    def _ensure_table(db: Session):
+        global _table_ensured
+        if _table_ensured:
+            return
+        for stmt in _CREATE_TABLE_SQL.strip().split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                db.execute(text(stmt))
+        db.commit()
+        _table_ensured = True
+
+    # ── browse spots ─────────────────────────────────────────────────────
+    @router.get("/browse")
+    def browse_spots(
+        mode: str | None = None,
+        band: str | None = None,
+        callsign: str | None = None,
+        hours: int = 24,
+        page: int = Query(1, ge=1),
+        limit: int = Query(100, ge=1, le=500),
+        db: Session = Depends(get_db),
+    ):
+        _ensure_table(db)
+        base = "FROM spots WHERE 1=1"
+        params: dict = {}
+
+        if mode:
+            base += " AND mode = :mode"
+            params["mode"] = mode
+        if band:
+            base += " AND band = :band"
+            params["band"] = band
+        if callsign:
+            base += " AND UPPER(callsign) = UPPER(:callsign)"
+            params["callsign"] = callsign
+        if hours > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            base += ' AND "timestamp" >= :cutoff'
+            params["cutoff"] = cutoff
+
+        # total count
+        row = db.execute(text(f"SELECT COUNT(*) {base}"), params).scalar()
+        total = row or 0
+
+        # items
+        offset = (page - 1) * limit
+        rows = db.execute(
+            text(f'SELECT * {base} ORDER BY "timestamp" DESC LIMIT :lim OFFSET :off'),
+            {**params, "lim": limit, "off": offset},
+        ).mappings().all()
+
+        items = [dict(r) for r in rows]
+        # serialize timestamps
+        for item in items:
+            for k in ("timestamp", "created_at"):
+                if isinstance(item.get(k), datetime):
+                    item[k] = item[k].isoformat()
+
+        return {"total": total, "page": page, "limit": limit, "items": items}
+
+    # ── spot map data ────────────────────────────────────────────────────
+    @router.get("/map")
+    def spot_map(
+        mode: str | None = None,
+        band: str | None = None,
+        hours: int = 24,
+        limit: int = Query(500, ge=1, le=2000),
+        db: Session = Depends(get_db),
+    ):
+        """Return spots with coordinates for map display (great circle lines)."""
+        _ensure_table(db)
+        base = "FROM spots WHERE tx_latitude IS NOT NULL AND tx_longitude IS NOT NULL"
+        params: dict = {}
+
+        if mode:
+            base += " AND mode = :mode"
+            params["mode"] = mode
+        if band:
+            base += " AND band = :band"
+            params["band"] = band
+        if hours > 0:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            base += ' AND "timestamp" >= :cutoff'
+            params["cutoff"] = cutoff
+
+        rows = db.execute(
+            text(f'SELECT callsign, grid, band, mode, snr_db, distance_km, '
+                 f'tx_latitude, tx_longitude, "timestamp" '
+                 f'{base} ORDER BY "timestamp" DESC LIMIT :lim'),
+            {**params, "lim": limit},
+        ).mappings().all()
+
+        items = []
+        for r in rows:
+            d = dict(r)
+            if isinstance(d.get("timestamp"), datetime):
+                d["timestamp"] = d["timestamp"].isoformat()
+            items.append(d)
+
+        return {"spots": items, "total": len(items)}
+
+    # ── band activity summary ────────────────────────────────────────────
+    @router.get("/bands")
+    def band_activity(
+        hours: int = 1,
+        db: Session = Depends(get_db),
+    ):
+        """Which bands are active right now (spot counts per band/mode)."""
+        _ensure_table(db)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        rows = db.execute(
+            text('SELECT band, mode, COUNT(*) as count '
+                 'FROM spots WHERE "timestamp" >= :cutoff '
+                 'GROUP BY band, mode ORDER BY count DESC'),
+            {"cutoff": cutoff},
+        ).mappings().all()
+        return {"hours": hours, "bands": [dict(r) for r in rows]}
+
+    # ── stats ────────────────────────────────────────────────────────────
+    @router.get("/stats")
+    def spot_stats(
+        hours: int = 24,
+        db: Session = Depends(get_db),
+    ):
+        _ensure_table(db)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        params = {"cutoff": cutoff}
+
+        total = db.execute(
+            text('SELECT COUNT(*) FROM spots WHERE "timestamp" >= :cutoff'), params
+        ).scalar() or 0
+
+        unique_calls = db.execute(
+            text('SELECT COUNT(DISTINCT callsign) FROM spots '
+                 'WHERE "timestamp" >= :cutoff AND callsign IS NOT NULL'), params
+        ).scalar() or 0
+
+        by_mode = db.execute(
+            text('SELECT mode, COUNT(*) as count FROM spots '
+                 'WHERE "timestamp" >= :cutoff GROUP BY mode'), params
+        ).mappings().all()
+
+        by_band = db.execute(
+            text('SELECT band, COUNT(*) as count FROM spots '
+                 'WHERE "timestamp" >= :cutoff GROUP BY band ORDER BY count DESC'), params
+        ).mappings().all()
+
+        top_callsigns = db.execute(
+            text('SELECT callsign, COUNT(*) as count FROM spots '
+                 'WHERE "timestamp" >= :cutoff AND callsign IS NOT NULL '
+                 'GROUP BY callsign ORDER BY count DESC LIMIT 20'), params
+        ).mappings().all()
+
+        farthest = db.execute(
+            text('SELECT callsign, grid, band, distance_km, "timestamp" FROM spots '
+                 'WHERE "timestamp" >= :cutoff AND distance_km IS NOT NULL '
+                 'ORDER BY distance_km DESC LIMIT 10'), params
+        ).mappings().all()
+        farthest_list = []
+        for r in farthest:
+            d = dict(r)
+            if isinstance(d.get("timestamp"), datetime):
+                d["timestamp"] = d["timestamp"].isoformat()
+            farthest_list.append(d)
+
+        # hourly histogram
+        hourly = db.execute(
+            text("SELECT EXTRACT(HOUR FROM \"timestamp\")::int as hour, COUNT(*) as count "
+                 "FROM spots WHERE \"timestamp\" >= :cutoff "
+                 "GROUP BY hour ORDER BY hour"), params
+        ).mappings().all()
+
+        return {
+            "hours": hours,
+            "total_spots": total,
+            "unique_callsigns": unique_calls,
+            "by_mode": {r["mode"]: r["count"] for r in by_mode},
+            "by_band": [dict(r) for r in by_band],
+            "top_callsigns": [dict(r) for r in top_callsigns],
+            "farthest": farthest_list,
+            "by_hour": [dict(r) for r in hourly],
+        }
 kind: ConfigMap
 metadata:
   creationTimestamp: null
