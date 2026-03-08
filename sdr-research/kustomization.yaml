@@ -64,6 +64,9 @@ resources:
   - 53-openwebrxplus-ingress.yaml
   # HFDL decoder — aviation HF datalink (scale openwebrxplus to 0 first)
   - 55-hfdl-decoder-deployment.yaml
+  # SSTV decoders
+  - 56-sstv-decoder-deployment.yaml        # VHF/UHF: watches WAV files (always on)
+  - 57-sstv-hf-decoder-deployment.yaml     # HF: RX888 direct (scale openwebrxplus to 0 first)
 
 generators:
   - ksops.yaml
@@ -90,4 +93,6 @@ images:
   - name: slechev/openwebrxplus
     newTag: "latest"
   - name: registry.white.fm/hfdl-decoder
+    newTag: "1.0.0"
+  - name: registry.white.fm/sstv-decoder
     newTag: "1.0.0"

@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sstv-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sstv-decoder
+  template:
+    metadata:
+      labels:
+        app: sstv-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: sstv-decoder
+          image: registry.white.fm/sstv-decoder
+          env:
+            - name: SDL_VIDEODRIVER
+              value: "offscreen"
+            - name: SDL_AUDIODRIVER
+              value: "dummy"
+            - name: AUDIO_DIR
+              value: "/data/audio/voice"
+            - name: SSTV_OUTPUT_DIR
+              value: "/data/images/sstv"
+            - name: MIN_FILE_AGE_SEC
+              value: "15"
+            - name: POLL_INTERVAL_SEC
+              value: "10"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts
