@@ -62,6 +62,8 @@ resources:
   - 51-openwebrxplus-deployment.yaml
   - 52-openwebrxplus-service.yaml
   - 53-openwebrxplus-ingress.yaml
+  # HFDL decoder — aviation HF datalink (scale openwebrxplus to 0 first)
+  - 55-hfdl-decoder-deployment.yaml
 
 generators:
   - ksops.yaml
@@ -87,3 +89,5 @@ images:
     newTag: "1.0.0"
   - name: slechev/openwebrxplus
     newTag: "latest"
+  - name: registry.white.fm/hfdl-decoder
+    newTag: "1.0.0"
