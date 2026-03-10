@@ -34,25 +34,6 @@ postgresql:
     nodeSelector:
       kubernetes.io/hostname: rke2-node-11
 
-    initContainers:
-      - name: pg-resetwal
-        image: docker.io/library/postgres:17.9-bookworm
-        securityContext:
-          runAsUser: 1001
-          runAsGroup: 1001
-        command:
-          - bash
-          - -c
-          - |
-            PGDATA=/bitnami/postgresql/data
-            if [ -f "$PGDATA/PG_VERSION" ]; then
-              echo "Running pg_resetwal to recover from WAL corruption..."
-              pg_resetwal -f "$PGDATA" || true
-            fi
-            echo "Init done."
-        volumeMounts:
-          - name: data
-            mountPath: /bitnami/postgresql
 
 # ---------------------------
 # Redis
