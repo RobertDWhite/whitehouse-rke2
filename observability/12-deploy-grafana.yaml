@@ -17,6 +17,15 @@ spec:
         fsGroup: 472
       nodeSelector:
         observability: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
       containers:
         - name: grafana
           image: grafana/grafana
