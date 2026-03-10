@@ -1,5 +1,5 @@
 # Second RTL-SDR dongle for 70cm (432 MHz band)
-# Requires a second USB RTL-SDR dongle with serial "00000002" on rke2-node-14.
+# Requires a second USB RTL-SDR dongle with serial "00000002" on rke2-node-13.
 # To set the serial on the dongle: rtl_eeprom -d <index> -s 00000002
 apiVersion: apps/v1
 kind: DaemonSet
@@ -16,7 +16,7 @@ spec:
         app: rtl-sdr-tcp-70cm
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-14
+        kubernetes.io/hostname: rke2-node-13
       containers:
         - name: rtl-tcp-70cm
           image: legacycode/rtlsdr
