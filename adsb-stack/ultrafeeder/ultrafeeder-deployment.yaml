@@ -18,37 +18,6 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-15
 
-      initContainers:
-      - name: format-rrd
-        image: busybox
-        command: ["sh", "-c"]
-        args:
-          - |
-            if ! blkid /dev/longhorn/* | grep -q ext4; then
-              echo "Formatting PVC for rrd..."
-              mkfs.ext4 -F /dev/longhorn/* || true
-            else
-              echo "PVC already formatted"
-            fi
-        volumeMounts:
-        - name: rrd
-          mountPath: /mnt
-
-      - name: format-autogain
-        image: busybox
-        command: ["sh", "-c"]
-        args:
-          - |
-            if ! blkid /dev/longhorn/* | grep -q ext4; then
-              echo "Formatting PVC for autogain..."
-              mkfs.ext4 -F /dev/longhorn/* || true
-            else
-              echo "PVC already formatted"
-            fi
-        volumeMounts:
-        - name: autogain
-          mountPath: /mnt
-
       containers:
       - name: ultrafeeder
         image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
@@ -157,14 +126,11 @@ spec:
           path: /dev/bus/usb
           type: Directory
       - name: rrd
-        persistentVolumeClaim:
-          claimName: readsbpb-rrd-v2
+        emptyDir: {}
       - name: autogain
-        persistentVolumeClaim:
-          claimName: readsbpb-autogain-v2
+        emptyDir: {}
       - name: globe-history
-        persistentVolumeClaim:
-          claimName: ultrafeeder-globe-history
+        emptyDir: {}
       - name: varlog
         emptyDir:
           medium: Memory
