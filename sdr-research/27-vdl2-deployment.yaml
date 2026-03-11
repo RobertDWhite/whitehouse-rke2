@@ -19,10 +19,10 @@ spec:
         kubernetes.io/hostname: rke2-node-13
       containers:
       - name: vdl2-decoder
-        image: debian:stable-slim
+        image: registry.white.fm/vdl2-decoder
         command: ["/bin/sh", "-c"]
         args:
-          - "apt-get update && apt-get install -y --no-install-recommends dumpvdl2 python3 && exec /bin/sh /scripts/run_vdl2.sh"
+          - "exec /bin/sh /scripts/run_vdl2.sh"
         env:
         - name: RTLTCP_HOST
           value: "rtl-tcp.sdr-research.svc.cluster.local"
