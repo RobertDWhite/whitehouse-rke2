@@ -40,11 +40,10 @@ spec:
               # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz without scanning within 2m
               value: "146000000"
             - name: SCAN_CENTERS
-              # 130.0 MHz = VHF airband ACARS (128.5–131.5 MHz)
-              # 153.0 MHz = VHF narrowband paging (151.8–154.2 MHz)
-              # 162.5 MHz = NOAA Weather Radio / EAS (162.4–162.55 MHz all channels)
-              # Note: 147 MHz removed — fully covered by 6 MHz BW at 146 MHz dwell
-              value: "[130000000, 153000000, 162500000]"
+              # Scanning disabled — retune causes double-free crash in SoapyRemote/osmosdr.
+              # Re-enable when a dedicated SDR covers airband/pager/weather.
+              # Was: [130000000, 153000000, 162500000]
+              value: "[]"
             - name: DWELL_SEC
               # Longer dwell: 6 MHz BW captures all 2m activity simultaneously
               value: "60"
