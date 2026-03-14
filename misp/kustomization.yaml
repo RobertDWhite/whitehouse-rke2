@@ -13,6 +13,9 @@ configMapGenerator:
   - name: misp-zmq-forwarder
     files:
       - push_zmq_to_influxdb.py=scripts/push_zmq_to_influxdb.py
+  - name: misp-raven-bridge
+    files:
+      - misp_to_raven.py=scripts/misp_to_raven.py
   - name: misp-config-overrides
     files:
       - optional.envars.json=config/optional.envars.json
@@ -21,10 +24,12 @@ resources:
   - 00-namespace.yaml
   - 15-ingress.yaml
   - 16-ingress-dashboard.yaml
+  - 17-ingress-raven-bridge.yaml
   - 20-pvc-misp-files.yaml
   - manifests/misp-dashboard-config.yaml
   - manifests/misp-dashboard-redis.yaml
   - manifests/misp-dashboard.yaml
+  - manifests/raven-bridge.yaml
   - manifests/deployment-misp.yaml
   - manifests/deployment-nginx.yaml
   - manifests/redis.yaml
@@ -38,3 +43,7 @@ resources:
   - manifests/cronjobs/update-noticelists.yaml
   - manifests/cronjobs/update-taxonomies.yaml
   - manifests/cronjobs/update-warninglists.yaml
+
+images:
+  - name: python
+    newTag: "3.12-slim"

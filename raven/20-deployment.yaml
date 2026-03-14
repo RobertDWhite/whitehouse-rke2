@@ -69,41 +69,6 @@ spec:
             - name: index
               mountPath: /usr/share/nginx/html/index.html
               subPath: index.html
-        - name: simulator
-          image: python
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              pip install --no-cache-dir websockets==12.0
-              python /opt/raven/simulator.py
-          securityContext:
-            allowPrivilegeEscalation: false
-          ports:
-            - name: ws
-              containerPort: 5678
-          readinessProbe:
-            tcpSocket:
-              port: ws
-            initialDelaySeconds: 20
-            periodSeconds: 10
-          livenessProbe:
-            tcpSocket:
-              port: ws
-            initialDelaySeconds: 40
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 256Mi
-          volumeMounts:
-            - name: simulator
-              mountPath: /opt/raven/simulator.py
-              subPath: simulator.py
       volumes:
         - name: site
           emptyDir: {}
@@ -113,6 +78,3 @@ spec:
         - name: index
           configMap:
             name: raven-index
-        - name: simulator
-          configMap:
-            name: raven-simulator
