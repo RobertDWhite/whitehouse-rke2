@@ -18,7 +18,23 @@ spec:
       containers:
         - name: openwebui
           image: ghcr.io/open-webui/open-webui
-
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: OLLAMA_API_BASE_URL
               value: "http://ollama:11434/api"

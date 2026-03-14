@@ -31,10 +31,31 @@ spec:
           image: ghcr.io/sdr-enthusiasts/docker-flightradar24 # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-flightradar24
           ports:
             - containerPort: 8754
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8754
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          livenessProbe:
+            tcpSocket:
+              port: 8754
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: BEASTHOST
               value: "ultrafeeder"
-
             - name: TZ
               valueFrom:
                 configMapKeyRef:

@@ -22,6 +22,8 @@ spec:
       containers:
         - name: unified-sdr-70cm
           image: librespace/gnuradio
+          securityContext:
+            allowPrivilegeEscalation: false
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
             - name: RTL_TCP_HOST

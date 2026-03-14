@@ -32,6 +32,30 @@ spec:
           image: dock.mau.dev/maubot/maubot
           ports:
             - containerPort: 29316
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /_matrix/maubot/v1/health
+              port: 29316
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /_matrix/maubot/v1/health
+              port: 29316
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POSTGRES_PASSWORD
               valueFrom:

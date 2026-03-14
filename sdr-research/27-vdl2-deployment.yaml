@@ -20,6 +20,17 @@ spec:
       containers:
       - name: vdl2-decoder
         image: registry.white.fm/vdl2-decoder
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
         env:
         - name: SOAPY_REMOTE
           value: "airspy-soapy.sdr-research.svc.cluster.local:55132"
