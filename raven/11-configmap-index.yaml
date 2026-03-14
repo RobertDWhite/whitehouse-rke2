@@ -36,6 +36,9 @@ data:
       <script type="text/javascript">
         document.getElementById('raven-iframe').addEventListener('load', function() {
           var wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+          var wsHost = window.location.hostname.endsWith('.internal.white.fm')
+            ? 'intel.internal.white.fm'
+            : 'intel.white.fm';
           var ravenOptions = {
             world_type: null,
             selected_countries: [],
@@ -54,7 +57,7 @@ data:
             panels: ['multi-output', 'single-output', 'taskbar', 'logo'],
             disable: ['tooltip', 'random', 'insert', 'move_to_country'],
             websocket: {
-              server: wsScheme + '://' + window.location.host + '/ws',
+              server: wsScheme + '://' + wsHost + '/raven-ws',
               request_timeout: 3000
             },
             verbose: false

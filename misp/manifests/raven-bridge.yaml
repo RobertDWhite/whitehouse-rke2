@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misp-raven-bridge
+  labels:
+    app.kubernetes.io/name: misp-raven-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: misp-raven-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: misp-raven-bridge
+    spec:
+      containers:
+        - name: misp-raven-bridge
+          image: python
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install --no-cache-dir pyzmq==26.2.1 websockets==12.0 && \
+              python /opt/misp-raven/misp_to_raven.py
+          env:
+            - name: MISP_ZMQ_URL
+              value: tcp://misp-zmq.misp.svc.cluster.local:50000
+            - name: MISP_API_URL
+              value: https://nginx.misp.svc.cluster.local
+            - name: MISP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: instance-secrets
+                  key: ADMIN_KEY
+            - name: BACKFILL_LIMIT
+              value: "40"
+            - name: BACKFILL_INTERVAL_SECONDS
+              value: "300"
+            - name: MESSAGE_TIMEOUT_MS
+              value: "2500"
+          ports:
+            - name: ws
+              containerPort: 5678
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: ws
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ws
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: misp-raven-bridge
+              mountPath: /opt/misp-raven/misp_to_raven.py
+              subPath: misp_to_raven.py
+      volumes:
+        - name: misp-raven-bridge
+          configMap:
+            name: misp-raven-bridge
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misp-raven-bridge
+  labels:
+    app.kubernetes.io/name: misp-raven-bridge
+spec:
+  selector:
+    app.kubernetes.io/name: misp-raven-bridge
+  ports:
+    - name: ws
+      port: 5678
+      targetPort: 5678
+      protocol: TCP
