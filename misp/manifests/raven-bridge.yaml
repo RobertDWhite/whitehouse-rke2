@@ -22,7 +22,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              pip install --no-cache-dir pyzmq==26.2.1 websockets==12.0 && \
+              pip install --no-cache-dir aiohttp==3.9.5 pyzmq==26.2.1 && \
               python /opt/misp-raven/misp_to_raven.py
           env:
             - name: MISP_ZMQ_URL
@@ -34,6 +34,8 @@ spec:
                 secretKeyRef:
                   name: instance-secrets
                   key: ADMIN_KEY
+            - name: CROWDSEC_DESTINATION_HOST
+              value: raven.white.fm
             - name: BACKFILL_LIMIT
               value: "40"
             - name: BACKFILL_INTERVAL_SECONDS

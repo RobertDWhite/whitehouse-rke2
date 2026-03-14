@@ -4,13 +4,13 @@ import collections
 import ipaddress
 import json
 import os
+import socket
 import ssl
 import urllib.request
 
+from aiohttp import WSMsgType, web
 import zmq
 import zmq.asyncio
-from websockets.exceptions import ConnectionClosed
-from websockets.legacy.server import serve
 
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "5678"))
@@ -22,6 +22,8 @@ BACKFILL_INTERVAL_SECONDS = int(os.environ.get("BACKFILL_INTERVAL_SECONDS", "300
 MESSAGE_TIMEOUT_MS = int(os.environ.get("MESSAGE_TIMEOUT_MS", "3500"))
 HISTORY_LIMIT = int(os.environ.get("HISTORY_LIMIT", "120"))
 SEEN_LIMIT = int(os.environ.get("SEEN_LIMIT", "4000"))
+CROWDSEC_DESTINATION_HOST = os.environ.get("CROWDSEC_DESTINATION_HOST", "").strip()
+CROWDSEC_DESTINATION_IP = os.environ.get("CROWDSEC_DESTINATION_IP", "").strip()
 MISP_NETWORK_TYPES = [
     item.strip()
     for item in os.environ.get(
@@ -41,6 +43,7 @@ TYPE_COLORS = {
     "ip-src|ip-dst": "#ff6b6b",
 }
 
+CROWDSEC_COLOR = "#ef4444"
 CLIENTS = set()
 HISTORY = collections.deque(maxlen=HISTORY_LIMIT)
 SEEN_QUEUE = collections.deque()
@@ -192,6 +195,89 @@ def fetch_recent_attributes():
     return payload.get("response", {}).get("Attribute", [])
 
 
+def crowdsec_destination_ip():
+    if is_ip(CROWDSEC_DESTINATION_IP):
+        return CROWDSEC_DESTINATION_IP
+    if CROWDSEC_DESTINATION_HOST:
+        try:
+            resolved = socket.gethostbyname(CROWDSEC_DESTINATION_HOST)
+            if is_ip(resolved):
+                return resolved
+        except OSError:
+            pass
+    return ""
+
+
+def crowdsec_events(payload):
+    if not isinstance(payload, dict):
+        return []
+
+    source_ip = str(payload.get("ip", "")).strip()
+    scenario = str(payload.get("scenario", "")).strip()
+    decision_type = str(payload.get("type", "")).strip()
+    scope = str(payload.get("scope", "")).strip()
+    timestamp = str(payload.get("timestamp", "")).strip()
+    if not is_ip(source_ip):
+        return []
+
+    event_id = str(payload.get("id", "")).strip() or "|".join(
+        ["crowdsec", source_ip, scenario, decision_type, scope, timestamp]
+    )
+    if not remember(event_id):
+        return []
+
+    metadata = {
+        "IP": source_ip,
+        "Source": "CrowdSec",
+        "Scenario": scenario,
+        "Decision": decision_type,
+        "Scope": scope,
+        "Country": str(payload.get("country", "")).strip(),
+        "Range": str(payload.get("range", "")).strip(),
+        "Latitude": str(payload.get("latitude", "")).strip(),
+        "Longitude": str(payload.get("longitude", "")).strip(),
+        "Timestamp": timestamp,
+    }
+    metadata = {key: value for key, value in metadata.items() if value not in ("", None)}
+
+    destination_ip = crowdsec_destination_ip()
+    if destination_ip:
+        destination_label = CROWDSEC_DESTINATION_HOST or destination_ip
+        destination_metadata = {
+            "IP": destination_ip,
+            "Role": "Ingress",
+            "Target": destination_label,
+            "Source": "CrowdSec",
+        }
+        return [line_event(source_ip, destination_ip, metadata, destination_metadata, CROWDSEC_COLOR)]
+    return [point_event(source_ip, metadata, CROWDSEC_COLOR)]
+
+
+def decode_objects(raw_body):
+    payload = raw_body.strip()
+    if not payload:
+        return []
+    try:
+        parsed = json.loads(payload)
+        return parsed if isinstance(parsed, list) else [parsed]
+    except json.JSONDecodeError:
+        decoder = json.JSONDecoder()
+        items = []
+        index = 0
+        length = len(payload)
+        while index < length:
+            while index < length and payload[index].isspace():
+                index += 1
+            if index >= length:
+                break
+            item, index = decoder.raw_decode(payload, index)
+            if isinstance(item, list):
+                items.extend(item)
+            else:
+                items.append(item)
+        return items
+
+
 async def broadcast(events):
     if not events:
         return
@@ -203,8 +289,8 @@ async def broadcast(events):
     stale = set()
     for client in list(CLIENTS):
         try:
-            await client.send(message)
-        except ConnectionClosed:
+            await client.send_str(message)
+        except Exception:
             stale.add(client)
     CLIENTS.difference_update(stale)
 
@@ -241,19 +327,54 @@ async def zmq_loop():
             await asyncio.sleep(2)
 
 
-async def websocket_handler(websocket, path=None):
+async def websocket_handler(request):
+    websocket = web.WebSocketResponse(heartbeat=30)
+    await websocket.prepare(request)
     CLIENTS.add(websocket)
     try:
         if HISTORY:
-            await websocket.send(json.dumps(list(HISTORY)))
-        await websocket.wait_closed()
+            await websocket.send_str(json.dumps(list(HISTORY)))
+        async for message in websocket:
+            if message.type in {WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED}:
+                break
     finally:
         CLIENTS.discard(websocket)
+    return websocket
+
+
+async def crowdsec_handler(request):
+    raw_body = await request.text()
+    try:
+        payloads = decode_objects(raw_body)
+    except json.JSONDecodeError as exc:
+        return web.json_response({"status": "error", "error": str(exc)}, status=400)
+
+    events = []
+    for payload in payloads:
+        events.extend(crowdsec_events(payload))
+    await broadcast(events)
+    return web.json_response({"status": "ok", "received": len(payloads), "emitted": len(events)})
+
+
+async def health_handler(_request):
+    return web.json_response({"status": "ok", "clients": len(CLIENTS), "history": len(HISTORY)})
 
 
 async def main():
-    async with serve(websocket_handler, HOST, PORT):
-        await asyncio.gather(backfill_loop(), zmq_loop())
+    app = web.Application()
+    app.router.add_post("/crowdsec", crowdsec_handler)
+    app.router.add_get("/healthz", health_handler)
+    app.router.add_get("/raven-ws", websocket_handler)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, HOST, PORT)
+    await site.start()
+
+    try:
+        await asyncio.gather(backfill_loop(), zmq_loop(), asyncio.Future())
+    finally:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
