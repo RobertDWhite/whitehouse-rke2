@@ -41,9 +41,25 @@ spec:
               # Avoid USB transfer starvation under sustained rtl_tcp load.
               echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
               echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
-              echo "Starting rtl_tcp for VHF/UHF ham bands"
+              echo "Starting rtl_tcp for pager (serial ${RTL_DEVICE_SERIAL})"
+              # Workaround: rtl_tcp -d treats "00000001" as octal → int 1,
+              # selecting device index 1 (wrong device) instead of doing a
+              # serial lookup. Find the correct index by parsing enumeration.
+              DEV_INDEX=""
+              for i in 0 1 2 3; do
+                INFO=$(rtl_eeprom -d $i 2>&1) || continue
+                if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
+                  DEV_INDEX=$i
+                  break
+                fi
+              done
+              if [ -z "$DEV_INDEX" ]; then
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found, defaulting to 0"
+                DEV_INDEX=0
+              fi
+              echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
               rtl_tcp \
-                -d ${RTL_DEVICE_SERIAL} \
+                -d ${DEV_INDEX} \
                 -a 0.0.0.0 \
                 -p 1234 \
                 -s ${RTL_SAMPLE_RATE}
