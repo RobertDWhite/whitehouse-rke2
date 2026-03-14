@@ -19,6 +19,17 @@ spec:
         - name: autokuma
           image: ghcr.io/bigboot/autokuma
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: AUTOKUMA__KUMA__URL
               value: http://uptime-kuma.uptime-kuma.svc.cluster.local:80
