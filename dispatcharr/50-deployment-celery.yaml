@@ -19,6 +19,17 @@ spec:
       containers:
         - name: celery
           image: ghcr.io/dispatcharr/dispatcharr
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           command:
             - bash
             - -c
