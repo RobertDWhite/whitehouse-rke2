@@ -77,7 +77,7 @@ spec:
             - |
               set -eu
               pip install --no-cache-dir websockets==12.0
-              python /site/simulation.py table
+              python /opt/raven/simulator.py
           securityContext:
             allowPrivilegeEscalation: false
           ports:
@@ -86,12 +86,12 @@ spec:
           readinessProbe:
             tcpSocket:
               port: ws
-            initialDelaySeconds: 10
+            initialDelaySeconds: 20
             periodSeconds: 10
           livenessProbe:
             tcpSocket:
               port: ws
-            initialDelaySeconds: 20
+            initialDelaySeconds: 40
             periodSeconds: 20
           resources:
             requests:
@@ -101,8 +101,9 @@ spec:
               cpu: 500m
               memory: 256Mi
           volumeMounts:
-            - name: site
-              mountPath: /site
+            - name: simulator
+              mountPath: /opt/raven/simulator.py
+              subPath: simulator.py
       volumes:
         - name: site
           emptyDir: {}
@@ -112,3 +113,6 @@ spec:
         - name: index
           configMap:
             name: raven-index
+        - name: simulator
+          configMap:
+            name: raven-simulator

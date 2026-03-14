@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raven-simulator
+data:
+  simulator.py: |
+    import asyncio
+    import json
+    import random
+
+    from websockets.legacy.server import serve
+
+    HOST = "0.0.0.0"
+    PORT = 5678
+    CLIENTS = set()
+
+
+    def build_batch():
+      events = []
+      for _ in range(100):
+        events.append(
+          {
+            "function": "table",
+            "object": {
+              "from": f"{random.uniform(-90, 90)},{random.uniform(-180, 180)}",
+              "to": f"{random.uniform(-90, 90)},{random.uniform(-180, 180)}",
+            },
+            "color": {
+              "line": {
+                "from": f"#{random.randint(255, 16777216):06x}",
+                "to": f"#{random.randint(255, 16777216):06x}",
+              }
+            },
+            "timeout": 2000,
+            "options": ["line", "multi-output", "country-by-coordinate"],
+          }
+        )
+      return json.dumps(events)
+
+
+    async def handler(websocket, path=None):
+      CLIENTS.add(websocket)
+      try:
+        while True:
+          if CLIENTS:
+            payload = build_batch()
+            await asyncio.gather(*(client.send(payload) for client in list(CLIENTS)))
+          await asyncio.sleep(4)
+      finally:
+        CLIENTS.discard(websocket)
+
+
+    async def main():
+      async with serve(handler, HOST, PORT):
+        await asyncio.Future()
+
+
+    asyncio.run(main())
