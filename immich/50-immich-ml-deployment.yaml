@@ -21,6 +21,17 @@ spec:
       containers:
         - name: immich-ml
           image: ghcr.io/immich-app/immich-machine-learning
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
           ports:
             - containerPort: 3003
           env:
