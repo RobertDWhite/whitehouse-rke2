@@ -41,6 +41,21 @@ spec:
               # Avoid USB transfer starvation under sustained rtl_tcp load.
               echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
               echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
+
+              # Unbind dvb_usb_rtl28xxu from all RTL-SDR devices — the kernel
+              # DVB driver claims generic RTL2838 dongles, blocking librtlsdr.
+              # Container is privileged so we can write to sysfs.
+              DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
+              if [ -d "$DVB_DRV" ]; then
+                for dev in "$DVB_DRV"/*/; do
+                  devid=$(basename "$dev")
+                  case "$devid" in
+                    *:*) echo -n "$devid" > "$DVB_DRV/unbind" 2>/dev/null && \
+                         echo "Unbound $devid from dvb_usb_rtl28xxu" || true ;;
+                  esac
+                done
+              fi
+
               echo "Starting rtl_tcp for pager (serial ${RTL_DEVICE_SERIAL})"
               # Workaround: rtl_tcp -d treats "00000001" as octal → int 1,
               # selecting device index 1 (wrong device) instead of doing a
