@@ -12,6 +12,7 @@ data:
 
     rule_files:
       - /etc/prometheus/sdr-alerts.yml
+      - /etc/prometheus/cluster-alerts.yml
 
     scrape_configs:
       - job_name: prometheus
@@ -496,4 +497,118 @@ data:
                 The local RepeaterBook cache has not been updated in over 48 hours.
                 Check the API pod logs for repeater sync errors.
 
+  cluster-alerts.yml: |
+    groups:
+      - name: cluster.node-resources
+        interval: 2m
+        rules:
+          - alert: NodeHighCPU
+            expr: |
+              100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} CPU usage > 90%"
 
+          - alert: NodeHighMemory
+            expr: |
+              (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} memory usage > 90%"
+
+          - alert: NodeDiskFilling
+            expr: |
+              (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} filesystem {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+
+          - alert: NodeDiskCritical
+            expr: |
+              (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.95
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.instance }} filesystem {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full — CRITICAL"
+
+      - name: cluster.pvc
+        interval: 5m
+        rules:
+          - alert: PVCFilling
+            expr: |
+              (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+
+      - name: cluster.pod-health
+        interval: 2m
+        rules:
+          - alert: PodCrashLooping
+            expr: |
+              rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 3
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value | humanize }} restarts in 15m)"
+
+          - alert: DeploymentReplicasMissing
+            expr: |
+              kube_deployment_spec_replicas - kube_deployment_status_ready_replicas > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} unavailable replicas"
+
+      - name: cluster.velero
+        interval: 5m
+        rules:
+          - alert: VeleroBackupFailed
+            expr: |
+              increase(velero_backup_failure_total[24h]) > 0
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Velero backup failure detected in the last 24h"
+
+          - alert: VeleroBackupStale
+            expr: |
+              time() - velero_backup_last_successful_timestamp > 172800
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No successful Velero backup in >48 hours"
+
+      - name: cluster.certificates
+        interval: 15m
+        rules:
+          - alert: CertificateExpiringSoon
+            expr: |
+              certmanager_certificate_expiration_timestamp_seconds - time() < 1209600
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in < 14 days"
+
+          - alert: CertificateExpiryCritical
+            expr: |
+              certmanager_certificate_expiration_timestamp_seconds - time() < 259200
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in < 3 days"

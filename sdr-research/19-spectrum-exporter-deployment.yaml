@@ -24,6 +24,10 @@ spec:
       containers:
         - name: spectrum-exporter
           image: python:3.12-slim
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           command: ["python3", "-u", "/scripts/spectrum_exporter.py"]
           env:
             - name: DETECTIONS_DIR
