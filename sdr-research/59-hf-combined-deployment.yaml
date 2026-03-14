@@ -27,6 +27,10 @@ spec:
       containers:
         - name: hf-combined-decoder
           image: registry.white.fm/hf-combined-decoder
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             # Shared
             - name: SOAPY_REMOTE

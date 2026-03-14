@@ -28,6 +28,27 @@ spec:
         image: postgres:15
         ports:
           - containerPort: 5432
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        readinessProbe:
+          exec:
+            command: ["pg_isready"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command: ["pg_isready"]
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
         envFrom:
           - secretRef:
               name: matrix-postgresql-secret

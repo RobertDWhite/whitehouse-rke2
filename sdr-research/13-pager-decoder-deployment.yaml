@@ -21,6 +21,8 @@ spec:
       containers:
         - name: pager-decoder
           image: debian:stable-slim
+          securityContext:
+            allowPrivilegeEscalation: false
           env:
             - name: MIN_FILE_AGE_SEC
               value: "15"
