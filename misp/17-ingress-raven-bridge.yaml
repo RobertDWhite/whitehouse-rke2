@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: raven
-  namespace: raven
+  name: misp-raven-bridge
+  namespace: misp
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
@@ -12,27 +12,27 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - raven.white.fm
-    - raven.internal.white.fm
-    secretName: raven-white-fm-tls
+    - intel.white.fm
+    - intel.internal.white.fm
+    secretName: intel-white-fm-tls
   rules:
-  - host: raven.white.fm
+  - host: intel.white.fm
     http:
       paths:
-      - path: /
+      - path: /raven-ws
         pathType: Prefix
         backend:
           service:
-            name: raven
+            name: misp-raven-bridge
             port:
-              number: 80
-  - host: raven.internal.white.fm
+              number: 5678
+  - host: intel.internal.white.fm
     http:
       paths:
-      - path: /
+      - path: /raven-ws
         pathType: Prefix
         backend:
           service:
-            name: raven
+            name: misp-raven-bridge
             port:
-              number: 80
+              number: 5678
