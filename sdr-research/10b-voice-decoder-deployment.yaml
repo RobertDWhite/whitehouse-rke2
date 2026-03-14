@@ -21,6 +21,8 @@ spec:
       containers:
         - name: voice-decoder
           image: registry.white.fm/sdr-whisper-cuda
+          securityContext:
+            allowPrivilegeEscalation: false
           resources:
             limits:
               nvidia.com/gpu: "1"

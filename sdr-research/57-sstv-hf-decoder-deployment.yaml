@@ -29,6 +29,10 @@ spec:
       containers:
         - name: sstv-hf-decoder
           image: registry.white.fm/sstv-decoder
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           command: ["python3", "/sstv-hf-entrypoint.py"]
           env:
             - name: SDL_VIDEODRIVER

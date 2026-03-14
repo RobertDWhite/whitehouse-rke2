@@ -23,6 +23,10 @@ spec:
         - name: api
           image: registry.white.fm/sdr-viewer-api
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8000
           env:
