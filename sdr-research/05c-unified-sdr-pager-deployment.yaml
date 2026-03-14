@@ -1,0 +1,128 @@
+# Third unified-sdr instance for pager/MURS/weather frequencies.
+# Connects to the rtl-tcp service (RTL-SDR serial 00000001, port 1234).
+# Dwells on 153 MHz center covering 151.8–154.2 MHz (pager) and scans
+# 157.5 MHz (MURS) and 162.5 MHz (NOAA Weather/EAS).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr-pager
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr-pager
+  template:
+    metadata:
+      labels:
+        app: unified-sdr-pager
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      containers:
+        - name: unified-sdr-pager
+          image: librespace/gnuradio
+          securityContext:
+            allowPrivilegeEscalation: false
+          command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
+          env:
+            - name: RTL_TCP_HOST
+              value: "rtl-tcp.sdr-research.svc.cluster.local"
+            - name: RTL_TCP_PORT
+              value: "1234"
+            - name: CAPTURE_ID
+              value: "pager"
+            - name: SAMPLE_RATE
+              value: "2400000"
+            - name: DWELL_CENTER_HZ
+              # 153 MHz center covers pager (151.82–154.20 MHz) within 2.4 MHz BW
+              value: "153000000"
+            - name: SCAN_CENTERS
+              # 158.1 MHz = MURS/business (157.45–158.70 MHz)
+              # 162.5 MHz = NOAA Weather Radio / EAS (162.40–162.55 MHz)
+              value: "[158100000, 162500000]"
+            - name: DWELL_SEC
+              value: "45"
+            - name: SCAN_SEC
+              value: "5"
+            - name: NUM_DYN_FM
+              value: "8"
+            - name: NUM_DYN_CW
+              value: "2"
+            - name: SLOT_RECYCLE_SEC
+              value: "300"
+            - name: CLEAR_SLOTS_ON_RETUNE
+              value: "false"
+            - name: SQUELCH_OPEN_DB
+              value: "-55"
+            - name: SQUELCH_CLOSE_DB
+              value: "-60"
+            - name: RF_SQUELCH_DB
+              value: "-55"
+            - name: TAIL_SEC
+              value: "1.5"
+            - name: MIN_REC_SEC
+              value: "0.5"
+            - name: MAX_REC_SEC
+              value: "120"
+            - name: FFT_SIZE
+              value: "4096"
+            - name: FFT_INTERVAL
+              value: "1.0"
+            - name: ENERGY_THRESH_DB
+              value: "10"
+            - name: RF_GAIN
+              value: "40"
+            - name: PPM_CORRECTION
+              value: "0"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+            - name: dshm
+              mountPath: /dev/shm
+      terminationGracePeriodSeconds: 10
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: unified-sdr-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
