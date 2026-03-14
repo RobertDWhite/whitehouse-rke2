@@ -60,7 +60,8 @@ spec:
                   key: station-grid
                   optional: true
             - name: CAPTURE_SAMPLE_RATE
-              value: "48000"
+              # RX888 MkII minimum supported rate; decimated to 12 kHz in software
+              value: "2000000"
             - name: DECODE_DEPTH
               value: "3"
           volumeMounts:
@@ -71,8 +72,9 @@ spec:
               cpu: 500m
               memory: 512Mi
             limits:
-              cpu: 2000m
-              memory: 1Gi
+              cpu: 3000m
+              # 2 MSPS * 15s * 8 bytes = 240 MB raw + scipy decimation overhead
+              memory: 2Gi
       volumes:
         - name: sdr-artifacts
           persistentVolumeClaim:
