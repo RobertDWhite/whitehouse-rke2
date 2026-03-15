@@ -29,10 +29,130 @@ data:
           display: block;
           border: none;
         }
+
+        #threat-feed {
+          position: fixed;
+          bottom: 12px;
+          left: 12px;
+          width: 480px;
+          max-height: 320px;
+          overflow-y: auto;
+          background: rgba(30, 30, 30, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 6px;
+          padding: 8px 0;
+          z-index: 9999;
+          font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+          font-size: 11px;
+          color: #ccc;
+          scrollbar-width: thin;
+          scrollbar-color: #555 transparent;
+        }
+
+        #threat-feed::-webkit-scrollbar { width: 4px; }
+        #threat-feed::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+
+        #threat-feed-header {
+          padding: 2px 12px 6px;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 1.5px;
+          color: #ef476f;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+          margin-bottom: 4px;
+        }
+
+        .feed-entry {
+          padding: 4px 12px;
+          border-bottom: 1px solid rgba(255,255,255,0.03);
+          animation: fadeIn 0.4s ease;
+          display: flex;
+          gap: 8px;
+          align-items: baseline;
+        }
+
+        .feed-entry:hover {
+          background: rgba(255,255,255,0.04);
+        }
+
+        .feed-time {
+          color: #666;
+          flex-shrink: 0;
+          font-size: 10px;
+        }
+
+        .feed-ip {
+          color: #ffd166;
+          flex-shrink: 0;
+          min-width: 110px;
+        }
+
+        .feed-tag {
+          display: inline-block;
+          padding: 0 4px;
+          border-radius: 2px;
+          font-size: 9px;
+          flex-shrink: 0;
+        }
+
+        .feed-tag-src { background: #ef476f33; color: #ef476f; }
+        .feed-tag-dst { background: #ffd16633; color: #ffd166; }
+        .feed-tag-cs  { background: #ef444433; color: #ef4444; }
+
+        .feed-detail {
+          color: #999;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .feed-org {
+          color: #06d6a0;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        #threat-stats {
+          position: fixed;
+          bottom: 12px;
+          left: 504px;
+          background: rgba(30, 30, 30, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 6px;
+          padding: 8px 14px;
+          z-index: 9999;
+          font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+          font-size: 11px;
+          color: #ccc;
+        }
+
+        .stat-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 1px 0;
+        }
+
+        .stat-label { color: #666; }
+        .stat-value { color: #ffd166; }
       </style>
     </head>
     <body>
       <iframe id="raven-iframe" src="src/raven.html" frameborder="0" width="100%" height="100%" scrolling="auto"></iframe>
+
+      <div id="threat-feed">
+        <div id="threat-feed-header">Live Threat Intel</div>
+      </div>
+
+      <div id="threat-stats">
+        <div class="stat-row"><span class="stat-label">Events</span><span class="stat-value" id="stat-total">0</span></div>
+        <div class="stat-row"><span class="stat-label">Unique IPs</span><span class="stat-value" id="stat-ips">0</span></div>
+        <div class="stat-row"><span class="stat-label">Sources</span><span class="stat-value" id="stat-orgs">0</span></div>
+      </div>
+
       <script type="text/javascript">
         document.getElementById('raven-iframe').addEventListener('load', function() {
           var wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -52,8 +172,8 @@ data:
             db_length: 1000,
             live_attacks_limit: 50,
             location: 'scripts',
-            panels: ['multi-output', 'single-output', 'taskbar', 'logo'],
-            disable: ['tooltip', 'random', 'insert', 'move_to_country'],
+            panels: ['taskbar', 'logo'],
+            disable: ['tooltip', 'random', 'insert', 'move_to_country', 'multi-output', 'single-output'],
             websocket: {
               server: wsScheme + '://' + wsHost + '/raven-ws',
               request_timeout: 3000
@@ -66,6 +186,80 @@ data:
           window.raven.init_world();
           window.raven.fetch_data_from_server();
         });
+
+        (function() {
+          var feed = document.getElementById('threat-feed');
+          var maxEntries = 50;
+          var totalCount = 0;
+          var seenIPs = {};
+          var seenOrgs = {};
+          var wsUrl = (window.location.protocol === 'https:' ? 'wss' : 'ws')
+            + '://' + window.location.host + '/raven-ws';
+
+          function formatTime() {
+            var d = new Date();
+            return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+          }
+
+          function addEntry(ev) {
+            var custom = ev.custom || {};
+            var from = custom.from || {};
+            var ip = from.IP || ev.object.from || '';
+            var role = from.Role || '';
+            var event = from.Event || '';
+            var org = from.Org || '';
+            var category = from.Category || '';
+            var source = from.Source || '';
+
+            if (!ip) return;
+
+            totalCount++;
+            seenIPs[ip] = true;
+            if (org) seenOrgs[org] = true;
+            if (source) seenOrgs[source] = true;
+
+            document.getElementById('stat-total').textContent = totalCount;
+            document.getElementById('stat-ips').textContent = Object.keys(seenIPs).length;
+            document.getElementById('stat-orgs').textContent = Object.keys(seenOrgs).length;
+
+            var tagClass = source === 'CrowdSec' ? 'feed-tag-cs'
+              : (role.indexOf('src') !== -1 ? 'feed-tag-src' : 'feed-tag-dst');
+            var tagLabel = source === 'CrowdSec' ? 'CROWDSEC'
+              : (role.indexOf('src') !== -1 ? 'SRC' : 'DST');
+
+            var detail = event || category || (from.Scenario || '');
+            var orgHtml = org ? ' <span class="feed-org">[' + org + ']</span>' : '';
+
+            var el = document.createElement('div');
+            el.className = 'feed-entry';
+            el.innerHTML = '<span class="feed-time">' + formatTime() + '</span>'
+              + '<span class="feed-tag ' + tagClass + '">' + tagLabel + '</span>'
+              + '<span class="feed-ip">' + ip + '</span>'
+              + '<span class="feed-detail">' + detail + orgHtml + '</span>';
+
+            feed.appendChild(el);
+
+            while (feed.children.length > maxEntries + 1) {
+              feed.removeChild(feed.children[1]);
+            }
+
+            feed.scrollTop = feed.scrollHeight;
+          }
+
+          function connect() {
+            var ws = new WebSocket(wsUrl);
+            ws.onmessage = function(e) {
+              try {
+                var events = JSON.parse(e.data);
+                events.forEach(addEntry);
+              } catch(err) {}
+            };
+            ws.onclose = function() { setTimeout(connect, 3000); };
+            ws.onerror = function() { ws.close(); };
+          }
+
+          connect();
+        })();
       </script>
     </body>
     </html>
