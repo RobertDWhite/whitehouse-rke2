@@ -94,7 +94,7 @@ def base_metadata(attr, payload):
 def point_event(ip_value, metadata, color):
     return {
         "function": "table",
-        "object": {"from": ip_value, "to": None},
+        "object": {"from": ip_value, "to": ""},
         "color": {"line": {"from": color, "to": color}},
         "timeout": MESSAGE_TIMEOUT_MS,
         "options": ["point", "multi-output", "single-output"],
