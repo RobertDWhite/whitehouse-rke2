@@ -19,6 +19,13 @@ spec:
   - host: raven.white.fm
     http:
       paths:
+      - path: /raven-ws
+        pathType: Prefix
+        backend:
+          service:
+            name: raven-bridge
+            port:
+              number: 5678
       - path: /
         pathType: Prefix
         backend:
@@ -29,6 +36,13 @@ spec:
   - host: raven.internal.white.fm
     http:
       paths:
+      - path: /raven-ws
+        pathType: Prefix
+        backend:
+          service:
+            name: raven-bridge
+            port:
+              number: 5678
       - path: /
         pathType: Prefix
         backend:
