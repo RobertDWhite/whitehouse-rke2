@@ -4,6 +4,7 @@ import collections
 import ipaddress
 import json
 import os
+import random
 import socket
 import ssl
 import urllib.request
@@ -22,6 +23,8 @@ BACKFILL_INTERVAL_SECONDS = int(os.environ.get("BACKFILL_INTERVAL_SECONDS", "300
 MESSAGE_TIMEOUT_MS = int(os.environ.get("MESSAGE_TIMEOUT_MS", "3500"))
 HISTORY_LIMIT = int(os.environ.get("HISTORY_LIMIT", "120"))
 SEEN_LIMIT = int(os.environ.get("SEEN_LIMIT", "4000"))
+REPLAY_INTERVAL_SECONDS = float(os.environ.get("REPLAY_INTERVAL_SECONDS", "4"))
+TRICKLE_DELAY_SECONDS = float(os.environ.get("TRICKLE_DELAY_SECONDS", "0.5"))
 CROWDSEC_DESTINATION_HOST = os.environ.get("CROWDSEC_DESTINATION_HOST", "").strip()
 CROWDSEC_DESTINATION_IP = os.environ.get("CROWDSEC_DESTINATION_IP", "").strip()
 MISP_NETWORK_TYPES = [
@@ -327,13 +330,34 @@ async def zmq_loop():
             await asyncio.sleep(2)
 
 
+async def replay_loop():
+    while True:
+        await asyncio.sleep(REPLAY_INTERVAL_SECONDS)
+        if not CLIENTS or not HISTORY:
+            continue
+        event = random.choice(list(HISTORY))
+        message = json.dumps([event])
+        stale = set()
+        for client in list(CLIENTS):
+            try:
+                await client.send_str(message)
+            except Exception:
+                stale.add(client)
+        CLIENTS.difference_update(stale)
+
+
 async def websocket_handler(request):
     websocket = web.WebSocketResponse(heartbeat=30)
     await websocket.prepare(request)
     CLIENTS.add(websocket)
     try:
         if HISTORY:
-            await websocket.send_str(json.dumps(list(HISTORY)))
+            for event in list(HISTORY):
+                try:
+                    await websocket.send_str(json.dumps([event]))
+                except Exception:
+                    break
+                await asyncio.sleep(TRICKLE_DELAY_SECONDS)
         async for message in websocket:
             if message.type in {WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED}:
                 break
@@ -372,7 +396,7 @@ async def main():
     await site.start()
 
     try:
-        await asyncio.gather(backfill_loop(), zmq_loop(), asyncio.Future())
+        await asyncio.gather(backfill_loop(), zmq_loop(), replay_loop(), asyncio.Future())
     finally:
         await runner.cleanup()
 
