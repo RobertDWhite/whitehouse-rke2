@@ -25,8 +25,8 @@ HISTORY_LIMIT = int(os.environ.get("HISTORY_LIMIT", "120"))
 SEEN_LIMIT = int(os.environ.get("SEEN_LIMIT", "4000"))
 REPLAY_INTERVAL_SECONDS = float(os.environ.get("REPLAY_INTERVAL_SECONDS", "4"))
 TRICKLE_DELAY_SECONDS = float(os.environ.get("TRICKLE_DELAY_SECONDS", "0.5"))
-CROWDSEC_DESTINATION_HOST = os.environ.get("CROWDSEC_DESTINATION_HOST", "").strip()
-CROWDSEC_DESTINATION_IP = os.environ.get("CROWDSEC_DESTINATION_IP", "").strip()
+DESTINATION_HOST = os.environ.get("CROWDSEC_DESTINATION_HOST", "").strip()
+DESTINATION_IP = os.environ.get("CROWDSEC_DESTINATION_IP", "").strip()
 MISP_NETWORK_TYPES = [
     item.strip()
     for item in os.environ.get(
@@ -142,25 +142,25 @@ def attribute_to_events(payload):
     if attr_type in {"ip-src", "ip-dst"}:
         value = str(attr.get("value", "")).strip()
         if is_ip(value):
-            point_meta = {"IP": value, "Role": attr_type}
-            point_meta.update(metadata)
-            return [point_event(value, point_meta, color)]
+            meta = {"IP": value, "Role": attr_type}
+            meta.update(metadata)
+            return [make_event(value, meta, color)]
         return []
 
     if attr_type in {"ip-src|port", "ip-dst|port"}:
         ip_value, port_value = split_compound_value(attr)
         if is_ip(ip_value):
-            point_meta = {"IP": ip_value, "Port": port_value, "Role": attr_type}
-            point_meta.update(metadata)
-            return [point_event(f"{ip_value}:{port_value}" if port_value else ip_value, point_meta, color)]
+            meta = {"IP": ip_value, "Port": port_value, "Role": attr_type}
+            meta.update(metadata)
+            return [make_event(ip_value, meta, color)]
         return []
 
     if attr_type in {"domain|ip", "hostname|ip"}:
         indicator, ip_value = split_compound_value(attr)
         if is_ip(ip_value):
-            point_meta = {"IP": ip_value, "Indicator": indicator, "Role": attr_type}
-            point_meta.update(metadata)
-            return [point_event(ip_value, point_meta, color)]
+            meta = {"IP": ip_value, "Indicator": indicator, "Role": attr_type}
+            meta.update(metadata)
+            return [make_event(ip_value, meta, color)]
         return []
 
     if attr_type == "ip-src|ip-dst":
@@ -198,17 +198,26 @@ def fetch_recent_attributes():
     return payload.get("response", {}).get("Attribute", [])
 
 
-def crowdsec_destination_ip():
-    if is_ip(CROWDSEC_DESTINATION_IP):
-        return CROWDSEC_DESTINATION_IP
-    if CROWDSEC_DESTINATION_HOST:
+def destination_ip():
+    if is_ip(DESTINATION_IP):
+        return DESTINATION_IP
+    if DESTINATION_HOST:
         try:
-            resolved = socket.gethostbyname(CROWDSEC_DESTINATION_HOST)
+            resolved = socket.gethostbyname(DESTINATION_HOST)
             if is_ip(resolved):
                 return resolved
         except OSError:
             pass
     return ""
+
+
+def make_event(ip_value, metadata, color):
+    dst = destination_ip()
+    if dst:
+        dst_label = DESTINATION_HOST or dst
+        dst_meta = {"IP": dst, "Role": "Target", "Host": dst_label}
+        return line_event(ip_value, dst, metadata, dst_meta, color)
+    return point_event(ip_value, metadata, color)
 
 
 def crowdsec_events(payload):
@@ -243,16 +252,16 @@ def crowdsec_events(payload):
     }
     metadata = {key: value for key, value in metadata.items() if value not in ("", None)}
 
-    destination_ip = crowdsec_destination_ip()
-    if destination_ip:
-        destination_label = CROWDSEC_DESTINATION_HOST or destination_ip
+    dst = destination_ip()
+    if dst:
+        destination_label = DESTINATION_HOST or dst
         destination_metadata = {
-            "IP": destination_ip,
+            "IP": dst,
             "Role": "Ingress",
             "Target": destination_label,
             "Source": "CrowdSec",
         }
-        return [line_event(source_ip, destination_ip, metadata, destination_metadata, CROWDSEC_COLOR)]
+        return [line_event(source_ip, dst, metadata, destination_metadata, CROWDSEC_COLOR)]
     return [point_event(source_ip, metadata, CROWDSEC_COLOR)]
 
 
