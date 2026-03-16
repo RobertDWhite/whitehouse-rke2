@@ -123,6 +123,22 @@ spec:
         - {protocol: TCP, port: 9300}
 
 ---
+# cloudflared tunnel → authentik (auth.white.fm routed directly)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudflared
+  namespace: authentik
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
