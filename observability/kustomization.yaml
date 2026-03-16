@@ -9,6 +9,7 @@ resources:
   - 01-config-loki.yaml
   - 02-config-prometheus.yaml
   - 03-config-promtail.yaml
+  - 03a-config-alertmanager.yaml
   - 04-config-unpoller.yaml
   - 24-config-grafana-dashboard-provider.yaml
   - 25-config-grafana-datasources.yaml
@@ -23,6 +24,7 @@ resources:
   - 11-deploy-prometheus.yaml
   - 12-deploy-grafana.yaml
   - 13-deploy-promtail.yaml
+  - 13a-deploy-alertmanager.yaml
 
   # Promtail ServiceAccounts and RBAC
   - 14-serviceaccount-promtail.yaml
@@ -33,6 +35,8 @@ resources:
   - 17-serviceaccount-prometheus.yaml
   - 18-clusterrole-prometheus.yaml
   - 19-clusterrolebinding-prometheus.yaml
+
+  # AlertManager service is in 13a-deploy-alertmanager.yaml
 
   # Services
   - 20-svc-loki.yaml
@@ -89,6 +93,7 @@ configMapGenerator:
       - app-health-overview.json=grafana_dashboards/app-health-overview.json
       - security-operations.json=grafana_dashboards/security-operations.json
       - argocd.json=grafana_dashboards/argocd.json
+      - database-health.json=grafana_dashboards/database-health.json
   - name: observability-grafana-dashboards-imported
     files:
       - coredns-15762.json=grafana_dashboards/coredns-15762.json
@@ -135,3 +140,6 @@ images:
 
   - name: grafana/loki
     newTag: "3.6.7"
+
+  - name: prom/alertmanager
+    newTag: "v0.28.1"

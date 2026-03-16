@@ -58,11 +58,13 @@ spec:
             - name: CLEAR_SLOTS_ON_RETUNE
               value: "false"
             - name: SQUELCH_OPEN_DB
-              value: "-55"
+              # Raised from -55: public safety channels have constant carrier;
+              # need higher threshold to only trigger on voice modulation
+              value: "-35"
             - name: SQUELCH_CLOSE_DB
-              value: "-60"
+              value: "-40"
             - name: RF_SQUELCH_DB
-              value: "-55"
+              value: "-35"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
