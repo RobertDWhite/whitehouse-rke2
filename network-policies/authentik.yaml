@@ -1,8 +1,8 @@
 # =============================================================
 # authentik namespace — Identity provider (SSO hub)
 # =============================================================
-# Receives auth traffic from ingress-nginx for ALL protected apps.
-# Needs egress to external (OIDC, email).
+# Receives auth traffic from ingress-nginx AND cloudflared tunnel.
+# Needs egress to external (OIDC, email) and postfix.
 # =============================================================
 
 apiVersion: networking.k8s.io/v1
@@ -47,7 +47,7 @@ spec:
     - to: [{podSelector: {}}]
 
 ---
-# ingress-nginx → authentik-server (all auth-proxied apps route through here)
+# ingress-nginx → authentik-server (all auth-proxied apps route here)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -61,6 +61,22 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+
+---
+# cloudflared tunnel → authentik (auth.white.fm routed directly)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudflared
+  namespace: authentik
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
 
 ---
 # Authentik egress → internet (OIDC providers, email, Gravatar, etc.)
@@ -121,22 +137,6 @@ spec:
         - {protocol: TCP, port: 9187}
         - {protocol: TCP, port: 9121}
         - {protocol: TCP, port: 9300}
-
----
-# cloudflared tunnel → authentik (auth.white.fm routed directly)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-cloudflared
-  namespace: authentik
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: cloudflared
 
 ---
 apiVersion: networking.k8s.io/v1
