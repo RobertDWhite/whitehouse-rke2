@@ -1,0 +1,200 @@
+# =============================================================
+# sdr-research namespace — SDR monitoring stack
+# =============================================================
+# Internal: API, UI, Postgres, decoders, RTL-SDR, SoapyRemote, spectrum-exporter
+# External deps: ai-stack/ollama, adsb/ultrafeeder, external APIs
+# =============================================================
+
+# --- Default deny all ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# --- Allow DNS ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+# --- Allow intra-namespace ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
+
+---
+# --- Allow ingress-nginx → UI, API, OpenWebRX ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [sdr-viewer-ui, sdr-viewer-api, openwebrxplus]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rke2-ingress-nginx
+
+---
+# --- Allow Prometheus scraping → API, spectrum-exporter, exporters ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9187
+        - protocol: TCP
+          port: 9121
+
+---
+# --- Allow uptime-kuma monitoring ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-uptime-kuma
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+
+---
+# --- API egress → ai-stack (Ollama) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-ollama
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchLabels:
+      app: sdr-viewer-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-stack
+      ports:
+        - protocol: TCP
+          port: 11434
+
+---
+# --- API egress → adsb (ultrafeeder aircraft data) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-adsb
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchLabels:
+      app: sdr-viewer-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: adsb
+      ports:
+        - protocol: TCP
+          port: 80
+
+---
+# --- API egress → internet (RepeaterBook, Hamdb, alert webhooks) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-internet
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchLabels:
+      app: sdr-viewer-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
