@@ -62,7 +62,8 @@ spec:
               app.kubernetes.io/name: rke2-ingress-nginx
 
 ---
-# Paperless egress → Authentik (OIDC login)
+# Paperless egress → Authentik (OIDC token/userinfo)
+# OIDC provider URL may resolve to ingress controller or Cloudflare external
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -72,6 +73,23 @@ spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
+    # Direct to authentik service
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - {protocol: TCP, port: 9443}
+        - {protocol: TCP, port: 9000}
+    # Via ingress controller (auth.white.fm → 10.99.5.110)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 80}
+    # Via Cloudflare external
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
