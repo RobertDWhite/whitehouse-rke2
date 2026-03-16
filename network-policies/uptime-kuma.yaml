@@ -1,0 +1,103 @@
+# =============================================================
+# uptime-kuma namespace — Monitoring: needs egress to ALL monitored services
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {}}]
+  egress:
+    - to: [{podSelector: {}}]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rke2-ingress-nginx
+
+---
+# Uptime-kuma needs to reach ALL monitored services across the cluster
+# and external endpoints (public URL checks)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-monitoring
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # All cluster namespaces (HTTP health checks)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - {protocol: TCP, port: 80}
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 3000}
+        - {protocol: TCP, port: 3001}
+        - {protocol: TCP, port: 5432}
+        - {protocol: TCP, port: 6379}
+        - {protocol: TCP, port: 8000}
+        - {protocol: TCP, port: 8008}
+        - {protocol: TCP, port: 8080}
+        - {protocol: TCP, port: 8086}
+        - {protocol: TCP, port: 9000}
+        - {protocol: TCP, port: 9090}
+        - {protocol: TCP, port: 9443}
+        - {protocol: TCP, port: 11434}
+        - {protocol: TCP, port: 2283}
+        - {protocol: TCP, port: 3100}
+    # External URL checks (internet)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 80}
