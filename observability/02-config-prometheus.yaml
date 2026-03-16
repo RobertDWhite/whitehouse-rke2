@@ -385,6 +385,16 @@ data:
         metrics_path: /metrics
         scrape_interval: 120s
 
+      # =========================
+      # Matrix Synapse metrics
+      # =========================
+      - job_name: synapse
+        static_configs:
+          - targets:
+              - synapse.matrix.svc.cluster.local:8008
+        metrics_path: /_synapse/metrics
+        scrape_interval: 30s
+
       # =================================
       # sdr-research spectrum survey
       # =================================
