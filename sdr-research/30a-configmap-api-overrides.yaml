@@ -2566,6 +2566,9 @@ data:
         try:
             outer = json.loads(body)
             response_text = outer.get("response", "")
+            # qwen3.5 "thinking" models may put the answer in the thinking field
+            if not response_text and outer.get("thinking"):
+                response_text = outer["thinking"]
         except Exception:
             response_text = ""
         parsed_tags: list[str] = []
