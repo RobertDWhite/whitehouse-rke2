@@ -1,7 +1,7 @@
-# Third unified-sdr instance for pager/MURS/weather frequencies.
+# Third unified-sdr instance for VHF public safety / pager frequencies.
 # Connects to the rtl-tcp service (RTL-SDR serial 00000001, port 1234).
-# Dwells on 153 MHz center covering 151.8–154.2 MHz (pager) and scans
-# 157.5 MHz (MURS) and 162.5 MHz (NOAA Weather/EAS).
+# Always-on at 155 MHz center covering 153.8–156.2 MHz (police/fire/EMS/pager).
+# No scanning — continuous monitoring.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,12 +40,11 @@ spec:
             - name: SAMPLE_RATE
               value: "2400000"
             - name: DWELL_CENTER_HZ
-              # 153 MHz center covers pager (151.82–154.20 MHz) within 2.4 MHz BW
-              value: "153000000"
+              # 155 MHz center covers 153.8–156.2 MHz (VHF public safety + pager)
+              value: "155000000"
             - name: SCAN_CENTERS
-              # 158.1 MHz = MURS/business (157.45–158.70 MHz)
-              # 162.5 MHz = NOAA Weather Radio / EAS (162.40–162.55 MHz)
-              value: "[158100000, 162500000]"
+              # No scanning — always-on continuous monitoring
+              value: "[]"
             - name: DWELL_SEC
               value: "45"
             - name: SCAN_SEC
