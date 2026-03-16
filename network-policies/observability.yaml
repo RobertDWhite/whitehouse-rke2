@@ -194,7 +194,9 @@ spec:
           port: 443
 
 ---
-# --- Grafana egress → Authentik (OAuth) ---
+# --- Grafana egress → Authentik (OAuth token/userinfo) ---
+# auth.white.fm may resolve to the ingress controller (10.99.5.110)
+# or to a Cloudflare external IP. Allow both paths.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -207,16 +209,29 @@ spec:
   policyTypes:
     - Egress
   egress:
+    # Direct to authentik service (in case of cluster-internal resolution)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - {protocol: TCP, port: 9443}
+        - {protocol: TCP, port: 9000}
+    # Via ingress controller (auth.white.fm → 10.99.5.110)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 80}
+    # Via Cloudflare (auth.white.fm → external IP)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
       ports:
-        - protocol: TCP
-          port: 443
+        - {protocol: TCP, port: 443}
 
 ---
 # --- Promtail egress → Loki (already covered by intra-namespace) ---
