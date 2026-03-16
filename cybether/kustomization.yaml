@@ -13,6 +13,11 @@ resources:
   - 45-deployment-frontend.yaml
   - 50-ingress.yaml
   - 51-ingress-internal.yaml
+  - 21-postgres-exporter.yaml
 
 generators:
   - ksops.yaml
+
+images:
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.16.0"
