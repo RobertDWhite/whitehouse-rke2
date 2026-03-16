@@ -12,27 +12,6 @@ spec:
       labels:
         app: raven
     spec:
-      initContainers:
-        - name: fetch-raven
-          image: alpine
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              apk add --no-cache git
-              git clone --depth 1 https://github.com/qeeqbox/raven.git /site
-              rm -rf /site/.git
-          volumeMounts:
-            - name: site
-              mountPath: /site
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
       containers:
         - name: nginx
           image: nginx
@@ -61,8 +40,6 @@ spec:
               cpu: 250m
               memory: 256Mi
           volumeMounts:
-            - name: site
-              mountPath: /usr/share/nginx/html
             - name: nginx-conf
               mountPath: /etc/nginx/conf.d/default.conf
               subPath: default.conf
@@ -70,8 +47,6 @@ spec:
               mountPath: /usr/share/nginx/html/index.html
               subPath: index.html
       volumes:
-        - name: site
-          emptyDir: {}
         - name: nginx-conf
           configMap:
             name: raven-nginx-conf

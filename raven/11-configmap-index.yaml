@@ -5,261 +5,419 @@ metadata:
 data:
   index.html: |
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-      <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
-      <meta content="utf-8" http-equiv="encoding">
-      <title>Raven Threat Map</title>
-      <style type="text/css">
-        html,
-        body {
-          height: 100%;
-          margin: 0;
-          padding: 0;
-          border: none;
-          overflow: hidden;
-          background: #212222;
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Threat Intelligence Operations</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{
+          background:#030308;color:#a0a0b0;
+          font-family:'JetBrains Mono','SF Mono','Fira Code','Consolas',monospace;
+          overflow:hidden;height:100vh;width:100vw;
         }
 
-        iframe {
-          height: 100%;
-          width: 100%;
-          margin: 0;
-          padding: 0;
-          display: block;
-          border: none;
+        #globe-wrap{position:absolute;top:0;left:0;right:0;bottom:0}
+        #globe-wrap canvas{filter:saturate(1.25) contrast(1.08)}
+
+        /* vignette overlay */
+        #vignette{
+          position:fixed;top:0;left:0;right:0;bottom:0;
+          background:radial-gradient(ellipse at 50% 50%,transparent 55%,rgba(3,3,8,0.7) 100%);
+          pointer-events:none;z-index:50;
         }
 
-        #threat-feed {
-          position: fixed;
-          bottom: 12px;
-          left: 12px;
-          width: 480px;
-          max-height: 320px;
-          overflow-y: auto;
-          background: rgba(30, 30, 30, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 6px;
-          padding: 8px 0;
-          z-index: 9999;
-          font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-          font-size: 11px;
-          color: #ccc;
-          scrollbar-width: thin;
-          scrollbar-color: #555 transparent;
+        /* ambient glow behind globe */
+        #glow{
+          position:fixed;top:50%;left:50%;
+          transform:translate(-50%,-50%);
+          width:55vmin;height:55vmin;border-radius:50%;
+          background:radial-gradient(circle,rgba(80,40,180,0.12) 0%,rgba(40,20,100,0.06) 40%,transparent 70%);
+          pointer-events:none;z-index:1;
         }
 
-        #threat-feed::-webkit-scrollbar { width: 4px; }
-        #threat-feed::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
-
-        #threat-feed-header {
-          padding: 2px 12px 6px;
-          font-size: 10px;
-          text-transform: uppercase;
-          letter-spacing: 1.5px;
-          color: #ef476f;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          margin-bottom: 4px;
+        /* ── Top bar ── */
+        #topbar{
+          position:fixed;top:0;left:0;right:0;height:48px;
+          background:linear-gradient(180deg,rgba(5,5,15,0.95),rgba(5,5,15,0.85));
+          border-bottom:1px solid rgba(100,80,220,0.1);
+          display:flex;align-items:center;justify-content:space-between;
+          padding:0 24px;z-index:200;
         }
-
-        .feed-entry {
-          padding: 4px 12px;
-          border-bottom: 1px solid rgba(255,255,255,0.03);
-          animation: fadeIn 0.4s ease;
-          display: flex;
-          gap: 8px;
-          align-items: baseline;
+        .tb-left{display:flex;align-items:center;gap:14px}
+        .tb-logo{
+          width:8px;height:8px;border-radius:50%;
+          background:#ff2d55;box-shadow:0 0 12px #ff2d55,0 0 24px rgba(255,45,85,0.3);
         }
-
-        .feed-entry:hover {
-          background: rgba(255,255,255,0.04);
+        .tb-title{
+          font-size:12px;font-weight:700;letter-spacing:4px;
+          text-transform:uppercase;
+          background:linear-gradient(90deg,#ff2d55,#ff6b8a);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent;
         }
-
-        .feed-time {
-          color: #666;
-          flex-shrink: 0;
-          font-size: 10px;
+        .tb-sub{font-size:9px;color:#444;letter-spacing:2px;text-transform:uppercase;margin-left:8px}
+        .tb-right{display:flex;align-items:center;gap:24px;font-size:10px;color:#555}
+        .pulse{
+          display:inline-block;width:7px;height:7px;border-radius:50%;
+          margin-right:6px;vertical-align:middle;
         }
+        .pulse-on{background:#00ff88;box-shadow:0 0 8px #00ff88,0 0 16px rgba(0,255,136,0.3);animation:glow-pulse 2s infinite}
+        .pulse-off{background:#ff2d55;box-shadow:0 0 6px #ff2d55;animation:blink 1.2s infinite}
+        @keyframes glow-pulse{0%,100%{box-shadow:0 0 8px #00ff88,0 0 16px rgba(0,255,136,0.3)}50%{box-shadow:0 0 4px #00ff88,0 0 8px rgba(0,255,136,0.15)}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 
-        .feed-ip {
-          color: #ffd166;
-          flex-shrink: 0;
-          min-width: 110px;
+        /* ── Hero stats ── */
+        #hero-stats{
+          position:fixed;top:48px;left:0;right:0;height:56px;
+          background:rgba(5,5,15,0.8);
+          border-bottom:1px solid rgba(100,80,220,0.06);
+          display:flex;align-items:center;justify-content:center;
+          gap:48px;z-index:200;
         }
+        .hero-item{text-align:center}
+        .hero-val{font-size:22px;font-weight:700;letter-spacing:1px;line-height:1.1}
+        .hero-val-pink{color:#ff2d55;text-shadow:0 0 20px rgba(255,45,85,0.4)}
+        .hero-val-cyan{color:#00ddff;text-shadow:0 0 20px rgba(0,221,255,0.4)}
+        .hero-val-gold{color:#ffcc00;text-shadow:0 0 20px rgba(255,204,0,0.4)}
+        .hero-val-green{color:#00ff88;text-shadow:0 0 20px rgba(0,255,136,0.4)}
+        .hero-lbl{font-size:8px;color:#444;letter-spacing:2px;text-transform:uppercase;margin-top:1px}
 
-        .feed-tag {
-          display: inline-block;
-          padding: 0 4px;
-          border-radius: 2px;
-          font-size: 9px;
-          flex-shrink: 0;
+        /* ── Feed panel ── */
+        #feed{
+          position:fixed;bottom:16px;left:16px;width:560px;max-height:400px;
+          background:rgba(5,5,18,0.88);
+          border:1px solid rgba(100,80,220,0.08);border-radius:8px;
+          z-index:200;display:flex;flex-direction:column;overflow:hidden;
+          backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+          box-shadow:0 4px 30px rgba(0,0,0,0.5);
         }
-
-        .feed-tag-src { background: #ef476f33; color: #ef476f; }
-        .feed-tag-dst { background: #ffd16633; color: #ffd166; }
-        .feed-tag-cs  { background: #ef444433; color: #ef4444; }
-
-        .feed-detail {
-          color: #999;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        #feed-hdr{
+          padding:10px 16px 8px;font-size:9px;letter-spacing:2.5px;
+          text-transform:uppercase;font-weight:700;
+          background:linear-gradient(90deg,#ff2d55,#ff6b8a);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+          border-bottom:1px solid rgba(100,80,220,0.06);flex-shrink:0;
         }
-
-        .feed-org {
-          color: #06d6a0;
+        #feed-list{
+          overflow-y:auto;padding:3px 0;flex:1;
+          scrollbar-width:thin;scrollbar-color:#1a1a2e transparent;
         }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(6px); }
-          to   { opacity: 1; transform: translateY(0); }
+        #feed-list::-webkit-scrollbar{width:3px}
+        #feed-list::-webkit-scrollbar-thumb{background:#2a2a44;border-radius:2px}
+        .fr{
+          padding:3px 16px;display:flex;gap:7px;align-items:baseline;
+          font-size:10px;border-bottom:1px solid rgba(255,255,255,0.012);
+          animation:slideIn .3s ease;
         }
-
-        #threat-stats {
-          position: fixed;
-          bottom: 12px;
-          left: 504px;
-          background: rgba(30, 30, 30, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 6px;
-          padding: 8px 14px;
-          z-index: 9999;
-          font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-          font-size: 11px;
-          color: #ccc;
+        .fr:hover{background:rgba(100,80,220,0.04)}
+        .ft{color:#2a2a44;font-size:9px;flex-shrink:0;width:54px}
+        .ftag{
+          display:inline-block;padding:1px 5px;border-radius:3px;
+          font-size:8px;font-weight:700;flex-shrink:0;letter-spacing:.5px;
         }
+        .ftag-m{background:rgba(255,45,85,.12);color:#ff2d55;border:1px solid rgba(255,45,85,.15)}
+        .ftag-c{background:rgba(255,51,51,.12);color:#ff3333;border:1px solid rgba(255,51,51,.15)}
+        .fip{color:#ffcc00;flex-shrink:0;min-width:108px;font-size:10px}
+        .floc{color:#00ddff;flex-shrink:0;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .fdet{color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .forg{color:#00ff88}
+        @keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
 
-        .stat-row {
-          display: flex;
-          justify-content: space-between;
-          gap: 16px;
-          padding: 1px 0;
+        /* ── Right panels ── */
+        .rpanel{
+          position:fixed;right:16px;width:260px;
+          background:rgba(5,5,18,0.88);
+          border:1px solid rgba(100,80,220,0.08);border-radius:8px;
+          z-index:200;padding:12px 16px;
+          backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+          box-shadow:0 4px 30px rgba(0,0,0,0.5);
         }
+        #countries-panel{top:120px}
+        #types-panel{bottom:16px}
+        .ptitle{
+          font-size:9px;letter-spacing:2.5px;text-transform:uppercase;font-weight:700;
+          background:linear-gradient(90deg,#ff2d55,#ff6b8a);
+          -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+          margin-bottom:10px;
+        }
+        .crow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:10px}
+        .crank{color:#2a2a44;font-size:9px;width:14px;text-align:right;flex-shrink:0}
+        .cname{flex:1;color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .cval{color:#ffcc00;font-weight:600;min-width:30px;text-align:right}
+        .cbar-bg{width:50px;height:3px;background:rgba(255,255,255,0.03);border-radius:2px;overflow:hidden}
+        .cbar{height:100%;border-radius:2px;transition:width .5s ease}
 
-        .stat-label { color: #666; }
-        .stat-value { color: #ffd166; }
+        .trow{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:10px}
+        .tdot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+        .tname{flex:1;color:#777}
+        .tval{font-weight:600;min-width:28px;text-align:right}
       </style>
     </head>
     <body>
-      <iframe id="raven-iframe" src="src/raven.html" frameborder="0" width="100%" height="100%" scrolling="auto"></iframe>
+      <div id="glow"></div>
+      <div id="globe-wrap"></div>
+      <div id="vignette"></div>
 
-      <div id="threat-feed">
-        <div id="threat-feed-header">Live Threat Intel</div>
+      <div id="topbar">
+        <div class="tb-left">
+          <div class="tb-logo"></div>
+          <span class="tb-title">Threat Intelligence</span>
+          <span class="tb-sub">Operations Center</span>
+        </div>
+        <div class="tb-right">
+          <span id="clock">00:00:00 UTC</span>
+          <span><span class="pulse pulse-off" id="wsd"></span><span id="wss">Connecting</span></span>
+        </div>
       </div>
 
-      <div id="threat-stats">
-        <div class="stat-row"><span class="stat-label">Events</span><span class="stat-value" id="stat-total">0</span></div>
-        <div class="stat-row"><span class="stat-label">Unique IPs</span><span class="stat-value" id="stat-ips">0</span></div>
-        <div class="stat-row"><span class="stat-label">Sources</span><span class="stat-value" id="stat-orgs">0</span></div>
+      <div id="hero-stats">
+        <div class="hero-item"><div class="hero-val hero-val-pink" id="st">0</div><div class="hero-lbl">Total Events</div></div>
+        <div class="hero-item"><div class="hero-val hero-val-cyan" id="si">0</div><div class="hero-lbl">Unique IPs</div></div>
+        <div class="hero-item"><div class="hero-val hero-val-gold" id="sc">0</div><div class="hero-lbl">Countries</div></div>
+        <div class="hero-item"><div class="hero-val hero-val-green" id="sr">0</div><div class="hero-lbl">Events / Min</div></div>
       </div>
 
-      <script type="text/javascript">
-        document.getElementById('raven-iframe').addEventListener('load', function() {
-          var wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-          var wsHost = window.location.host;
-          var ravenOptions = {
-            world_type: null,
-            selected_countries: [],
-            remove_countries: ['aq'],
-            height: window.innerHeight,
-            width: window.innerWidth,
-            backup_background_color: '#212222',
-            orginal_country_color: '#737373',
-            clicked_country_color: '#6c4242',
-            selected_country_color: '#ff726f',
-            global_timeout: 2000,
-            global_stats_limit: 10,
-            db_length: 1000,
-            live_attacks_limit: 50,
-            location: 'scripts',
-            panels: ['taskbar', 'logo'],
-            disable: ['tooltip', 'random', 'insert', 'move_to_country', 'multi-output', 'single-output'],
-            websocket: {
-              server: wsScheme + '://' + wsHost + '/raven-ws',
-              request_timeout: 3000
-            },
-            verbose: false
+      <div id="feed">
+        <div id="feed-hdr">Live Threat Intel Feed</div>
+        <div id="feed-list"></div>
+      </div>
+
+      <div class="rpanel" id="countries-panel">
+        <div class="ptitle">Top Source Countries</div>
+        <div id="clist"></div>
+      </div>
+
+      <div class="rpanel" id="types-panel">
+        <div class="ptitle">Attack Classification</div>
+        <div id="tlist"></div>
+      </div>
+
+      <script src="//unpkg.com/globe.gl@2.35.2/dist/globe.gl.min.js"></script>
+      <script>
+      (function(){
+        var ARCS=[], RINGS=[], POINTS=[], MAX_ARCS=120, ARC_TTL=10000, POINT_TTL=30000;
+        var totalCount=0, ipSet={}, countrySet={}, countryCounts={}, typeCounts={};
+        var evtTimes=[];
+        var feedEl=document.getElementById('feed-list');
+        var MAX_FEED=100;
+
+        // ── Globe ──
+        var G=Globe()
+          .globeImageUrl('//unpkg.com/three-globe@2.33.0/example/img/earth-night.jpg')
+          .bumpImageUrl('//unpkg.com/three-globe@2.33.0/example/img/earth-topology.png')
+          .backgroundImageUrl('//unpkg.com/three-globe@2.33.0/example/img/night-sky.png')
+          .atmosphereColor('#6030cc')
+          .atmosphereAltitude(0.25)
+          .showGraticules(true)
+          .arcColor(function(d){
+            var c=d.color||'#ff2d55';
+            return [c+'cc', '#ffffff66'];
+          })
+          .arcStartLat(function(d){return d.srcLat})
+          .arcStartLng(function(d){return d.srcLng})
+          .arcEndLat(function(d){return d.dstLat})
+          .arcEndLng(function(d){return d.dstLng})
+          .arcDashLength(0.3)
+          .arcDashGap(1.5)
+          .arcDashAnimateTime(1200)
+          .arcStroke(function(d){return d.source==='crowdsec'?0.7:0.4})
+          .arcAltitudeAutoScale(0.4)
+          .arcsData(ARCS)
+          .arcsTransitionDuration(0)
+          .pointsData(POINTS)
+          .pointLat('lat')
+          .pointLng('lng')
+          .pointColor('color')
+          .pointAltitude(0.01)
+          .pointRadius(0.3)
+          .pointsMerge(true)
+          .pointsTransitionDuration(0)
+          .ringsData(RINGS)
+          .ringColor(function(){return function(t){return 'rgba(255,45,85,'+(Math.pow(1-t,2)*0.8)+')'}})
+          .ringMaxRadius(4)
+          .ringPropagationSpeed(3)
+          .ringRepeatPeriod(800)
+          (document.getElementById('globe-wrap'));
+
+        // Dramatic intro zoom
+        G.pointOfView({lat:30,lng:-20,altitude:4.5});
+        setTimeout(function(){G.pointOfView({lat:30,lng:-20,altitude:2.0},3000)},600);
+
+        G.controls().autoRotate=true;
+        G.controls().autoRotateSpeed=0.2;
+        G.controls().enableZoom=true;
+        G.controls().minDistance=150;
+        G.controls().maxDistance=600;
+
+        // Custom globe material for dark purple glow
+        setTimeout(function(){
+          try{
+            var mat=G.globeMaterial();
+            mat.emissive={r:0.08,g:0.02,b:0.16};
+            mat.emissiveIntensity=0.15;
+            mat.shininess=80;
+          }catch(e){}
+        },1000);
+
+        function pruneArcs(){
+          var now=Date.now();
+          while(ARCS.length>0&&(now-ARCS[0]._ts>ARC_TTL||ARCS.length>MAX_ARCS))ARCS.shift();
+          while(RINGS.length>0&&(now-RINGS[0]._ts>ARC_TTL||RINGS.length>MAX_ARCS))RINGS.shift();
+          while(POINTS.length>0&&(now-POINTS[0]._ts>POINT_TTL))POINTS.shift();
+        }
+
+        function addArc(ev){
+          var now=Date.now();
+          ARCS.push({
+            srcLat:ev.srcLat,srcLng:ev.srcLng,
+            dstLat:ev.dstLat,dstLng:ev.dstLng,
+            color:ev.color||'#ff2d55',source:ev.source,_ts:now
+          });
+          RINGS.push({lat:ev.dstLat,lng:ev.dstLng,_ts:now});
+          POINTS.push({lat:ev.srcLat,lng:ev.srcLng,color:ev.color||'#ff2d55',_ts:now});
+          pruneArcs();
+          G.arcsData(ARCS.slice());
+          G.ringsData(RINGS.slice());
+          G.pointsData(POINTS.slice());
+        }
+
+        // ── Stats ──
+        function fmtTime(){
+          var d=new Date();
+          return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
+        }
+
+        function updateStats(){
+          document.getElementById('st').textContent=totalCount.toLocaleString();
+          document.getElementById('si').textContent=Object.keys(ipSet).length.toLocaleString();
+          document.getElementById('sc').textContent=Object.keys(countrySet).length;
+          var now=Date.now(),cutoff=now-60000;
+          while(evtTimes.length&&evtTimes[0]<cutoff)evtTimes.shift();
+          document.getElementById('sr').textContent=evtTimes.length;
+        }
+
+        var barColors=['#ff2d55','#ff6b8a','#ff8844','#ffcc00','#00ff88','#00ddff','#a78bfa','#f472b6','#fb923c','#34d399'];
+
+        function updateCountries(){
+          var sorted=Object.entries(countryCounts).sort(function(a,b){return b[1]-a[1]}).slice(0,10);
+          var max=sorted.length?sorted[0][1]:1;
+          var html='';
+          for(var i=0;i<sorted.length;i++){
+            var pct=Math.round(sorted[i][1]/max*100);
+            html+='<div class="crow">'
+              +'<span class="crank">'+(i+1)+'</span>'
+              +'<span class="cname">'+sorted[i][0]+'</span>'
+              +'<span class="cval">'+sorted[i][1]+'</span>'
+              +'<div class="cbar-bg"><div class="cbar" style="width:'+pct+'%;background:'+barColors[i]+'"></div></div>'
+              +'</div>';
+          }
+          document.getElementById('clist').innerHTML=html;
+        }
+
+        var typeInfo={
+          'ip-src':     {name:'Source IP',    color:'#ff2d55'},
+          'ip-dst':     {name:'Dest IP',     color:'#ffcc00'},
+          'ip-src|port':{name:'Source+Port',  color:'#ff8844'},
+          'ip-dst|port':{name:'Dest+Port',   color:'#ff8844'},
+          'domain|ip':  {name:'Domain/IP',   color:'#00ff88'},
+          'hostname|ip':{name:'Hostname/IP', color:'#00ddff'},
+          'ip-src|ip-dst':{name:'Src-Dst',   color:'#ff6b8a'},
+          'crowdsec':   {name:'CrowdSec',    color:'#ff3333'}
+        };
+
+        function updateTypes(){
+          var sorted=Object.entries(typeCounts).sort(function(a,b){return b[1]-a[1]});
+          var html='';
+          for(var i=0;i<sorted.length;i++){
+            var info=typeInfo[sorted[i][0]]||{name:sorted[i][0],color:'#ff2d55'};
+            html+='<div class="trow">'
+              +'<span class="tdot" style="background:'+info.color+';box-shadow:0 0 6px '+info.color+'"></span>'
+              +'<span class="tname">'+info.name+'</span>'
+              +'<span class="tval" style="color:'+info.color+'">'+sorted[i][1]+'</span>'
+              +'</div>';
+          }
+          document.getElementById('tlist').innerHTML=html;
+        }
+
+        // ── Feed ──
+        function addFeedEntry(ev){
+          var ip=ev.srcIp||'';
+          var country=ev.srcCountry||'';
+          var city=ev.srcCity||'';
+          var source=ev.source||'';
+          var label=ev.label||'';
+          var evName=ev.event||'';
+          var org=ev.org||'';
+          var category=ev.category||'';
+          if(!ip)return;
+
+          totalCount++;
+          evtTimes.push(Date.now());
+          ipSet[ip]=1;
+          if(country){countrySet[country]=1;countryCounts[country]=(countryCounts[country]||0)+1}
+          var typeKey=source==='crowdsec'?'crowdsec':(label||'unknown');
+          typeCounts[typeKey]=(typeCounts[typeKey]||0)+1;
+          updateStats();
+
+          var tagCls=source==='crowdsec'?'ftag-c':'ftag-m';
+          var tagLbl=source==='crowdsec'?'CS':'MISP';
+          var loc=[city,country].filter(Boolean).join(', ');
+          var det=evName||label||category||'';
+          var orgH=org?' <span class="forg">['+org+']</span>':'';
+
+          var el=document.createElement('div');
+          el.className='fr';
+          el.innerHTML='<span class="ft">'+fmtTime()+'</span>'
+            +'<span class="ftag '+tagCls+'">'+tagLbl+'</span>'
+            +'<span class="fip">'+ip+'</span>'
+            +'<span class="floc">'+loc+'</span>'
+            +'<span class="fdet">'+det+orgH+'</span>';
+          feedEl.appendChild(el);
+          while(feedEl.children.length>MAX_FEED)feedEl.removeChild(feedEl.firstChild);
+          feedEl.scrollTop=feedEl.scrollHeight;
+        }
+
+        // ── Clock ──
+        function tickClock(){
+          var d=new Date();
+          document.getElementById('clock').textContent=d.toUTCString().slice(17,25)+' UTC';
+        }
+        setInterval(tickClock,1000);tickClock();
+        setInterval(updateCountries,2000);
+        setInterval(updateTypes,2000);
+
+        // ── WebSocket ──
+        var wsUrl=(location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/raven-ws';
+        function connect(){
+          var ws=new WebSocket(wsUrl);
+          ws.onopen=function(){
+            document.getElementById('wsd').className='pulse pulse-on';
+            document.getElementById('wss').textContent='Live';
           };
+          ws.onmessage=function(e){
+            try{
+              var events=JSON.parse(e.data);
+              events.forEach(function(ev){
+                if(ev.srcLat!=null&&ev.srcLng!=null&&ev.dstLat!=null&&ev.dstLng!=null){
+                  addArc(ev);
+                  addFeedEntry(ev);
+                }
+              });
+            }catch(err){}
+          };
+          ws.onclose=function(){
+            document.getElementById('wsd').className='pulse pulse-off';
+            document.getElementById('wss').textContent='Reconnecting';
+            setTimeout(connect,3000);
+          };
+          ws.onerror=function(){ws.close()};
+        }
+        connect();
 
-          window.raven = document.getElementById('raven-iframe').contentWindow.raven;
-          window.raven.init_all(ravenOptions);
-          window.raven.init_world();
-          window.raven.fetch_data_from_server();
-        });
-
-        (function() {
-          var feed = document.getElementById('threat-feed');
-          var maxEntries = 50;
-          var totalCount = 0;
-          var seenIPs = {};
-          var seenOrgs = {};
-          var wsUrl = (window.location.protocol === 'https:' ? 'wss' : 'ws')
-            + '://' + window.location.host + '/raven-ws';
-
-          function formatTime() {
-            var d = new Date();
-            return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
-          }
-
-          function addEntry(ev) {
-            var custom = ev.custom || {};
-            var from = custom.from || {};
-            var ip = from.IP || ev.object.from || '';
-            var role = from.Role || '';
-            var event = from.Event || '';
-            var org = from.Org || '';
-            var category = from.Category || '';
-            var source = from.Source || '';
-
-            if (!ip) return;
-
-            totalCount++;
-            seenIPs[ip] = true;
-            if (org) seenOrgs[org] = true;
-            if (source) seenOrgs[source] = true;
-
-            document.getElementById('stat-total').textContent = totalCount;
-            document.getElementById('stat-ips').textContent = Object.keys(seenIPs).length;
-            document.getElementById('stat-orgs').textContent = Object.keys(seenOrgs).length;
-
-            var tagClass = source === 'CrowdSec' ? 'feed-tag-cs'
-              : (role.indexOf('src') !== -1 ? 'feed-tag-src' : 'feed-tag-dst');
-            var tagLabel = source === 'CrowdSec' ? 'CROWDSEC'
-              : (role.indexOf('src') !== -1 ? 'SRC' : 'DST');
-
-            var detail = event || category || (from.Scenario || '');
-            var orgHtml = org ? ' <span class="feed-org">[' + org + ']</span>' : '';
-
-            var el = document.createElement('div');
-            el.className = 'feed-entry';
-            el.innerHTML = '<span class="feed-time">' + formatTime() + '</span>'
-              + '<span class="feed-tag ' + tagClass + '">' + tagLabel + '</span>'
-              + '<span class="feed-ip">' + ip + '</span>'
-              + '<span class="feed-detail">' + detail + orgHtml + '</span>';
-
-            feed.appendChild(el);
-
-            while (feed.children.length > maxEntries + 1) {
-              feed.removeChild(feed.children[1]);
-            }
-
-            feed.scrollTop = feed.scrollHeight;
-          }
-
-          function connect() {
-            var ws = new WebSocket(wsUrl);
-            ws.onmessage = function(e) {
-              try {
-                var events = JSON.parse(e.data);
-                events.forEach(addEntry);
-              } catch(err) {}
-            };
-            ws.onclose = function() { setTimeout(connect, 3000); };
-            ws.onerror = function() { ws.close(); };
-          }
-
-          connect();
-        })();
+        // ── Resize ──
+        window.addEventListener('resize',function(){G.width(window.innerWidth).height(window.innerHeight)});
+      })();
       </script>
     </body>
     </html>
