@@ -1,0 +1,533 @@
+# =============================================================
+# Simple web apps — standard pattern:
+#   default-deny + DNS + intra-ns + ingress-nginx + uptime-kuma
+# Namespaces: homepage, homarr, jetlog, myspeed, cyberchef,
+#   openclaw, cybether, openhamclock, audiobookshelf,
+#   lazylibrarian, shelfmark, calibre, snappymail,
+#   ombi, tautulli, worldmonitor
+# =============================================================
+
+# ============= TEMPLATE per namespace =============
+# Each namespace gets: default-deny, dns, intra-ns, ingress-nginx
+
+# --- homepage ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+# Homepage needs egress to cluster services (dashboard widgets)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-widgets, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {}}]
+      ports:
+        - {protocol: TCP, port: 80}
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 3000}
+        - {protocol: TCP, port: 3001}
+        - {protocol: TCP, port: 8000}
+        - {protocol: TCP, port: 8080}
+        - {protocol: TCP, port: 9000}
+        - {protocol: TCP, port: 9090}
+        - {protocol: TCP, port: 9443}
+    - to:
+        - ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}
+      ports: [{protocol: TCP, port: 443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}}]
+
+---
+# --- homarr ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: homarr}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: homarr}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: homarr}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+# Homarr needs egress to k8s API for dashboard widgets
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-k8s-api, namespace: homarr}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {}}]
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 6443}
+
+---
+# --- Simple pattern for: jetlog, myspeed, cyberchef, openclaw, cybether, openhamclock ---
+# --- audiobookshelf, lazylibrarian, shelfmark, calibre, snappymail, ombi, tautulli ---
+# --- worldmonitor ---
+# All follow: deny + dns + ingress-nginx + optional internet egress
+
+# JETLOG
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: jetlog}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: jetlog}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: jetlog}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: jetlog}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+
+---
+# MYSPEED
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: myspeed}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: myspeed}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: myspeed}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-internet, namespace: myspeed}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
+      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
+
+---
+# CYBERCHEF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: cyberchef}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: cyberchef}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: cyberchef}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+
+---
+# OPENCLAW
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: openclaw}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-ollama, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ai-stack}}}]
+      ports: [{protocol: TCP, port: 11434}]
+
+---
+# CYBETHER
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: cybether}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: cybether}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: cybether}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: cybether}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-prometheus-scrape, namespace: cybether}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+          podSelector: {matchLabels: {app: prometheus}}
+      ports: [{protocol: TCP, port: 9187}]
+
+---
+# WORLDMONITOR
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: worldmonitor}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: worldmonitor}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: worldmonitor}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-internet, namespace: worldmonitor}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
+      ports: [{protocol: TCP, port: 443}]
+
+---
+# AUDIOBOOKSHELF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: audiobookshelf}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: audiobookshelf}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: audiobookshelf}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+
+---
+# LAZYLIBRARIAN
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: lazylibrarian}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: lazylibrarian}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: lazylibrarian}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-internet, namespace: lazylibrarian}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
+      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
+
+---
+# SHELFMARK
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: shelfmark}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: shelfmark}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: shelfmark}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: shelfmark}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+
+---
+# CALIBRE
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: calibre}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: calibre}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: calibre}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: [{from: [{podSelector: {}}]}]
+  egress: [{to: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: calibre}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+
+---
+# OPENHAMCLOCK
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: openhamclock}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-dns, namespace: openhamclock}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress-nginx, namespace: openhamclock}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {app.kubernetes.io/name: rke2-ingress-nginx}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress-internet, namespace: openhamclock}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
+      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
