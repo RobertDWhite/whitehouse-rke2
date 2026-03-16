@@ -14,19 +14,29 @@ data:
         try_files $uri $uri/ /index.html;
       }
 
+      # Proxy API calls to the worldmonitor API subdomain
+      # (worldmonitor.app itself 307-redirects / Cloudflare-challenges)
+      resolver 10.43.0.10 valid=60s ipv6=off;
+      set $wm_api https://api.worldmonitor.app;
+
       location /api/ {
-        proxy_pass https://worldmonitor.app;
+        proxy_pass $wm_api;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
-        proxy_set_header Host worldmonitor.app;
+        proxy_set_header Host api.worldmonitor.app;
         proxy_set_header Origin https://worldmonitor.app;
         proxy_set_header Referer https://worldmonitor.app/;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 
-        # Hide CORS headers from upstream — browser sees same-origin
+        # Hide upstream CORS headers — browser sees same-origin
         proxy_hide_header Access-Control-Allow-Origin;
         proxy_hide_header Access-Control-Allow-Methods;
         proxy_hide_header Access-Control-Allow-Headers;
+
+        # Generous timeouts for slow upstream fetches
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 10s;
       }
     }
