@@ -10,6 +10,12 @@ data:
       external_labels:
         origin_prometheus: whitehouse-rke2
 
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - alertmanager.observability.svc.cluster.local:9093
+
     rule_files:
       - /etc/prometheus/sdr-alerts.yml
       - /etc/prometheus/cluster-alerts.yml
@@ -404,6 +410,72 @@ data:
               - spectrum-exporter.sdr-research.svc.cluster.local:8080
         metrics_path: /metrics
         scrape_interval: 5s
+
+      # =========================
+      # PostgreSQL Exporter metrics
+      # =========================
+      - job_name: postgres-exporter
+        static_configs:
+          - targets:
+              - postgres-exporter.sdr-research.svc.cluster.local:9187
+            labels:
+              namespace: sdr-research
+          - targets:
+              - postgres-exporter.matrix.svc.cluster.local:9187
+            labels:
+              namespace: matrix
+          - targets:
+              - postgres-exporter.paperless.svc.cluster.local:9187
+            labels:
+              namespace: paperless
+          - targets:
+              - postgres-exporter.dispatcharr.svc.cluster.local:9187
+            labels:
+              namespace: dispatcharr
+          - targets:
+              - postgres-exporter.cybether.svc.cluster.local:9187
+            labels:
+              namespace: cybether
+          - targets:
+              - postgres-exporter.mastodon.svc.cluster.local:9187
+            labels:
+              namespace: mastodon
+          - targets:
+              - postgres-exporter.authentik.svc.cluster.local:9187
+            labels:
+              namespace: authentik
+        scrape_interval: 30s
+
+      # =========================
+      # Redis Exporter metrics
+      # =========================
+      - job_name: redis-exporter
+        static_configs:
+          - targets:
+              - redis-exporter.matrix.svc.cluster.local:9121
+            labels:
+              namespace: matrix
+          - targets:
+              - redis-exporter.paperless.svc.cluster.local:9121
+            labels:
+              namespace: paperless
+          - targets:
+              - redis-exporter.dispatcharr.svc.cluster.local:9121
+            labels:
+              namespace: dispatcharr
+          - targets:
+              - redis-exporter.mastodon.svc.cluster.local:9121
+            labels:
+              namespace: mastodon
+          - targets:
+              - redis-exporter.authentik.svc.cluster.local:9121
+            labels:
+              namespace: authentik
+          - targets:
+              - redis-exporter.immich.svc.cluster.local:9121
+            labels:
+              namespace: immich
+        scrape_interval: 30s
 
   sdr-alerts.yml: |
     groups:

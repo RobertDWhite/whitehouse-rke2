@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: observability
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      receiver: matrix-server-room
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - receiver: matrix-server-room
+          matchers:
+            - severity=~"critical|warning"
+
+    receivers:
+      - name: matrix-server-room
+        webhook_configs:
+          - url: "https://webhooks.white.fm/webhook/e8afc74e-26e5-4679-ab56-103d86aa6b6f"
+            send_resolved: true
+            http_config:
+              tls_config:
+                insecure_skip_verify: false
+
+    inhibit_rules:
+      - source_matchers:
+          - severity="critical"
+        target_matchers:
+          - severity="warning"
+        equal: [alertname, namespace]
+
+    templates: []

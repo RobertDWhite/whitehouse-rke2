@@ -24,7 +24,13 @@ spec:
           - containerPort: 3306
             name: misp-mysql
             protocol: TCP
-          resources: {}
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
           envFrom:
             - secretRef:
                 name: mysql-credentials
