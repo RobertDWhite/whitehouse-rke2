@@ -1,5 +1,5 @@
 # =============================================================
-# Infrastructure namespaces: postfix, cloudflare, registry, adsb, raven, convos
+# Infrastructure namespaces: postfix, cloudflared, registry, adsb, raven, convos
 # =============================================================
 
 # ---- POSTFIX (receives SMTP from matrix, mastodon, authentik) ----
@@ -75,7 +75,8 @@ spec:
         - {protocol: TCP, port: 587}
 
 ---
-# ---- CLOUDFLARE (cloudflared tunnel) ----
+# ---- CLOUDFLARED (tunnel) ----
+# TEMPORARILY PERMISSIVE while debugging auth.white.fm
 
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -90,63 +91,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-ingress
   namespace: cloudflared
 spec:
   podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+  policyTypes: [Ingress]
+  ingress:
+    - {}
 
 ---
-# Cloudflared egress → ingress-nginx (forwards tunnel traffic) + Cloudflare edge
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-egress
+  name: allow-all-egress
   namespace: cloudflared
 spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
-    # → ingress-nginx controller
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: TCP, port: 80}
-        - {protocol: TCP, port: 443}
-    # → authentik directly (tunnel routes auth.white.fm to authentik)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-      ports:
-        - {protocol: TCP, port: 9443}
-        - {protocol: TCP, port: 9000}
-        - {protocol: TCP, port: 443}
-    # → mastodon directly (tunnel routes mastodon.whitematter.tech)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: mastodon
-      ports:
-        - {protocol: TCP, port: 3000}
-    # → Cloudflare edge servers (internet)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
-      ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 7844}
+    - {}
 
 ---
 # ---- REGISTRY (Docker registry) ----
