@@ -32,6 +32,18 @@ spec:
           ports:
             - containerPort: 55132
               name: soapy
+          readinessProbe:
+            tcpSocket:
+              port: 55132
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 55132
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           volumeMounts:
             - name: usb
               mountPath: /dev/bus/usb

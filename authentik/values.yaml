@@ -62,7 +62,22 @@ redis:
 # ---------------------------
 server:
   enabled: true
-  replicas: 2
+  replicas: 5
+
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - server
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - authentik
+          topologyKey: kubernetes.io/hostname
 
   envFrom:
   - secretRef:
@@ -70,8 +85,8 @@ server:
 
   resources:
     requests:
-      cpu: 1000m
-      memory: 1Gi
+      cpu: 500m
+      memory: 512Mi
 
   persistence:
     enabled: true
@@ -114,6 +129,23 @@ server:
 worker:
   enabled: true
   replicas: 2
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - worker
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - authentik
+            topologyKey: kubernetes.io/hostname
 
   envFrom:
   - secretRef:
