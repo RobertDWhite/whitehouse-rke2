@@ -1,9 +1,9 @@
 # =============================================================
 # observability namespace — Prometheus, Grafana, Loki, InfluxDB, AlertManager
 # =============================================================
-# Prometheus needs egress to ALL namespaces for scraping.
-# Grafana, Loki, InfluxDB exposed via MetalLB + ingress.
-# AlertManager needs egress to external webhooks.
+# Observability is the monitoring backbone — it needs to reach everything
+# and everything needs to reach it. Locking it down breaks visibility
+# into all other namespaces. Keep it open.
 # =============================================================
 
 # --- Default deny all ---
@@ -19,259 +19,32 @@ spec:
     - Egress
 
 ---
+# --- Allow ALL ingress ---
+# Sources: ingress-nginx, MetalLB/LAN, uptime-kuma, FreshRSS BI, MISP ZMQ,
+# any future exporter or dashboard consumer
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-ingress
   namespace: observability
 spec:
   podSelector: {}
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-intra-namespace
-  namespace: observability
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
+  policyTypes: [Ingress]
   ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - podSelector: {}
-
----
-# --- Allow ingress-nginx → Grafana, InfluxDB ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-nginx
-  namespace: observability
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [grafana, influxdb]
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-
----
-# --- MetalLB / LAN access → Loki, InfluxDB, Syslog ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-lan-metallb
-  namespace: observability
-spec:
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [loki, influxdb, promtail]
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 10.0.0.0/8
-        - ipBlock:
-            cidr: 192.168.0.0/16
-
----
-# --- Prometheus egress → unrestricted ---
-# Prometheus must reach: k8s API (443/6443) for service discovery,
-# every namespace for scraping, plus external targets (MinIO, Pihole).
-# Restricting ports is fragile — any new scrape target breaks silently.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: prometheus-egress-all
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: prometheus
-  policyTypes:
-    - Egress
-  egress:
     - {}
 
 ---
-# --- AlertManager egress → external webhooks (Matrix Hookshot) ---
+# --- Allow ALL egress ---
+# Destinations: k8s API (service discovery), every namespace (scraping),
+# external targets (MinIO, Pihole), Cloudflare (Grafana OAuth),
+# webhooks (AlertManager), UniFi controller (poller)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: alertmanager-egress-webhooks
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: alertmanager
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 443
-
----
-# --- Grafana egress → Authentik (OAuth token/userinfo) ---
-# auth.white.fm may resolve to the ingress controller (10.99.5.110)
-# or to a Cloudflare external IP. Allow both paths.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: grafana-egress-authentik
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: grafana
-  policyTypes:
-    - Egress
-  egress:
-    # Direct to authentik service (in case of cluster-internal resolution)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-      ports:
-        - {protocol: TCP, port: 9443}
-        - {protocol: TCP, port: 9000}
-    # Via ingress controller (auth.white.fm → 10.99.5.110)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 80}
-    # Via Cloudflare (auth.white.fm → external IP)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
-      ports:
-        - {protocol: TCP, port: 443}
-
----
-# --- Promtail egress → Loki (already covered by intra-namespace) ---
-# --- Unifi-poller egress → UniFi controller (LAN) ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: unifi-poller-egress
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: unifi-poller
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.0.0/8
-        - ipBlock:
-            cidr: 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 443
-        - protocol: TCP
-          port: 8443
-
----
-# --- Allow uptime-kuma monitoring ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-uptime-kuma
+  name: allow-all-egress
   namespace: observability
 spec:
   podSelector: {}
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: uptime-kuma
-
----
-# --- Allow FreshRSS BI pipeline → InfluxDB ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-freshrss-to-influxdb
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: influxdb
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: freshrss
-      ports:
-        - protocol: TCP
-          port: 8086
-
----
-# --- Allow Promtail from all namespaces (DaemonSet reads pod logs via kubelet) ---
-# Promtail runs as a DaemonSet and reads logs from /var/log/pods on the host.
-# It only needs egress to Loki, which is intra-namespace.
-# No special ingress rules needed.
-
-# --- Allow MISP ZMQ-to-InfluxDB writer ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-misp-to-influxdb
-  namespace: observability
-spec:
-  podSelector:
-    matchLabels:
-      app: influxdb
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: misp
-      ports:
-        - protocol: TCP
-          port: 8086
+  policyTypes: [Egress]
+  egress:
+    - {}
