@@ -82,6 +82,10 @@ server:
     type: ClusterIP
     servicePortHttps: 443
     servicePortHttpsName: https
+    sessionAffinity: ClientIP
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: 3600
 
   ingress:
     enabled: true
