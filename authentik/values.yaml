@@ -36,26 +36,8 @@ postgresql:
 
 
 # ---------------------------
-# Redis
+# Redis (deployed separately via 22-redis.yaml, chart no longer bundles it)
 # ---------------------------
-redis:
-  enabled: true
-  architecture: standalone
-
-  auth:
-    existingSecret: authentik-env
-    existingSecretPasswordKey: redis-password
-
-  master:
-    persistence:
-      enabled: true
-      storageClass: longhorn
-      size: 5Gi
-
-    resources:
-      requests:
-        cpu: 500m
-        memory: 512Mi
 
 # ---------------------------
 # Authentik Server

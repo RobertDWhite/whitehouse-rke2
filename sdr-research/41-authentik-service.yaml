@@ -1,12 +1,29 @@
+# Selector-less ClusterIP + manual Endpoints so nginx-ingress can resolve
+# the upstream (ExternalName services no longer produce Endpoints in
+# ingress-nginx >= 1.12, breaking the Lua balancer).
 apiVersion: v1
 kind: Service
 metadata:
   name: authentik
   namespace: sdr-research
 spec:
-  type: ExternalName
-  externalName: authentik-server.authentik.svc.cluster.local
+  type: ClusterIP
   ports:
     - name: https
       port: 9443
+      protocol: TCP
       targetPort: 9443
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: authentik
+  namespace: sdr-research
+subsets:
+  - addresses:
+      # authentik-server ClusterIP in the authentik namespace
+      - ip: 10.43.191.75
+    ports:
+      - name: https
+        port: 9443
+        protocol: TCP
