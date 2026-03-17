@@ -1,7 +1,9 @@
 # =============================================================
 # Simple web apps — standard pattern per namespace:
-#   default-deny + DNS + intra-ns + ingress-nginx + uptime-kuma
-# Plus namespace-specific egress where needed.
+#   default-deny + allow-all-egress + ingress from kube-system + uptime-kuma
+# Ingress is locked down. Egress is open — these are simple leaf apps
+# with no sensitive data to exfiltrate, and restricting egress ports
+# just breaks things silently (DNS, k8s API, external APIs, etc.)
 # =============================================================
 
 # ======================== HOMEPAGE ========================
@@ -12,22 +14,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: homepage}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-intra-namespace, namespace: homepage}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
-  ingress: [{from: [{podSelector: {}}]}]
-  egress: [{to: [{podSelector: {}}]}]
+metadata: {name: allow-all-egress, namespace: homepage}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -39,17 +27,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-widgets, namespace: homepage}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {}}]
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
-      ports: [{protocol: TCP, port: 443}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== HOMARR ========================
@@ -60,13 +38,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: homarr}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: homarr}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -78,17 +51,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-# Homarr needs broad egress: k8s API (runs on node, not a pod — namespaceSelector
-# won't match), plus cluster services for dashboard widget data
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-all, namespace: homarr}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - {}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== JETLOG ========================
@@ -99,22 +62,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: jetlog}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-intra-namespace, namespace: jetlog}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress, Egress]
-  ingress: [{from: [{podSelector: {}}]}]
-  egress: [{to: [{podSelector: {}}]}]
+metadata: {name: allow-all-egress, namespace: jetlog}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -126,6 +75,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== MYSPEED ========================
@@ -136,13 +86,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: myspeed}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: myspeed}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -154,16 +99,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-internet, namespace: myspeed}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
-      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== CYBERCHEF ========================
@@ -174,13 +110,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: cyberchef}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: cyberchef}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -192,6 +123,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== OPENCLAW ========================
@@ -202,13 +134,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: openclaw}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: openclaw}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -220,16 +147,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-ollama, namespace: openclaw}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ai-stack}}}]
-      ports: [{protocol: TCP, port: 11434}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== CYBETHER ========================
@@ -240,22 +158,16 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: cybether}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: cybether}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: allow-intra-namespace, namespace: cybether}
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress: [{from: [{podSelector: {}}]}]
-  egress: [{to: [{podSelector: {}}]}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -278,13 +190,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: worldmonitor}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: worldmonitor}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -296,16 +203,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-internet, namespace: worldmonitor}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
-      ports: [{protocol: TCP, port: 443}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== AUDIOBOOKSHELF ========================
@@ -316,13 +214,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: audiobookshelf}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: audiobookshelf}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -334,6 +227,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== LAZYLIBRARIAN ========================
@@ -344,13 +238,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: lazylibrarian}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: lazylibrarian}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -362,16 +251,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-internet, namespace: lazylibrarian}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
-      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== SHELFMARK ========================
@@ -382,22 +262,16 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: shelfmark}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: shelfmark}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: allow-intra-namespace, namespace: shelfmark}
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress: [{from: [{podSelector: {}}]}]
-  egress: [{to: [{podSelector: {}}]}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -409,6 +283,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== CALIBRE ========================
@@ -419,22 +294,16 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: calibre}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: calibre}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: allow-intra-namespace, namespace: calibre}
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress: [{from: [{podSelector: {}}]}]
-  egress: [{to: [{podSelector: {}}]}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -446,6 +315,7 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
 # ======================== OPENHAMCLOCK ========================
@@ -456,13 +326,8 @@ spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-dns, namespace: openhamclock}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
-      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+metadata: {name: allow-all-egress, namespace: openhamclock}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -474,13 +339,4 @@ spec:
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-egress-internet, namespace: openhamclock}
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]}}]
-      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 80}]
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}

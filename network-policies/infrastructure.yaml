@@ -17,25 +17,19 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-egress
   namespace: postfix
 spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+    - {}
 
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-smtp-ingress
+  name: allow-ingress
   namespace: postfix
 spec:
   podSelector: {}
@@ -51,39 +45,12 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: authentik
-      ports:
-        - {protocol: TCP, port: 25}
-
----
-# Postfix egress → relay (internet or LAN)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-egress-smtp
-  namespace: postfix
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - ports:
-        - {protocol: TCP, port: 25}
-        - {protocol: TCP, port: 465}
-        - {protocol: TCP, port: 587}
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-uptime-kuma
-  namespace: postfix
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: uptime-kuma
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
 
 ---
 # ---- CLOUDFLARED (tunnel) ----
