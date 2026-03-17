@@ -8,10 +8,13 @@ generators:
 resources:
   - 20-service-alias-authentik.yaml
   - 21-postgres-exporter.yaml
+  - 22-redis.yaml
 
 images:
   - name: quay.io/prometheuscommunity/postgres-exporter
     newTag: "v0.19.1"
+  - name: redis
+    newTag: "7.4-alpine"
 
 helmCharts:
   - name: authentik
