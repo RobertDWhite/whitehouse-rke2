@@ -59,12 +59,43 @@ spec:
             - -c
             - |
               echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
-              echo "Starting rtl_tcp for 70cm UHF band (432 MHz)"
+              echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
+
+              # Unbind dvb_usb_rtl28xxu from all RTL-SDR devices — the kernel
+              # DVB driver claims generic RTL2838 dongles, blocking librtlsdr.
+              DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
+              if [ -d "$DVB_DRV" ]; then
+                for dev in "$DVB_DRV"/*/; do
+                  devid=$(basename "$dev")
+                  case "$devid" in
+                    *:*) echo -n "$devid" > "$DVB_DRV/unbind" 2>/dev/null && \
+                         echo "Unbound $devid from dvb_usb_rtl28xxu" || true ;;
+                  esac
+                done
+              fi
+
+              echo "Starting rtl_tcp for 70cm UHF band (serial ${RTL_DEVICE_SERIAL})"
+              # Resolve serial to device index (rtl_tcp -d treats numeric
+              # strings as device indices, not serial lookups).
+              DEV_INDEX=""
+              for i in 0 1 2 3; do
+                INFO=$(rtl_eeprom -d $i 2>&1) || continue
+                if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
+                  DEV_INDEX=$i
+                  break
+                fi
+              done
+              if [ -z "$DEV_INDEX" ]; then
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found, defaulting to 1"
+                DEV_INDEX=1
+              fi
+              echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
               rtl_tcp \
-                -d ${RTL_DEVICE_SERIAL} \
+                -d ${DEV_INDEX} \
                 -a 0.0.0.0 \
                 -p 1235 \
-                -s ${RTL_SAMPLE_RATE}
+                -s ${RTL_SAMPLE_RATE} \
+                -n 32
       volumes:
         - name: usb
           hostPath:
