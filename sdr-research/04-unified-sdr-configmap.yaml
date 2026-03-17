@@ -536,9 +536,15 @@ data:
                 except Exception as e:
                     print(f"[FFT] Error: {e}", flush=True)
 
+        _fft_empty_count = 0
+
         def _scan_fft(self):
             data = self.tb.fft_sink.data()
             if len(data) < FFT_SIZE:
+                self._fft_empty_count = getattr(self, '_fft_empty_count', 0) + 1
+                if self._fft_empty_count % 30 == 1:
+                    print(f"[FFT] No data from sink (len={len(data)}, need={FFT_SIZE}), "
+                          f"empty_count={self._fft_empty_count}", flush=True)
                 return
 
             # Take the last complete FFT frame

@@ -32,7 +32,7 @@ resources:
   - 13-pager-decoder-deployment.yaml
   - 14-eas-decoder-configmap.yaml
   - 15-eas-decoder-deployment.yaml
-  - 16-acars-decoder-configmap.yaml
+  # 16-acars-decoder-configmap.yaml no longer needed — acarsdec image has its own entrypoint
   - 17-acars-decoder-deployment.yaml
   - 24-ais-deployment.yaml
   - 25-ais-service.yaml
@@ -109,5 +109,7 @@ images:
     newTag: "1.0.4"
   - name: registry.white.fm/vdl2-decoder
     newTag: "1.1.0"
+  - name: registry.white.fm/acars-decoder
+    newTag: "1.0.0"
   - name: quay.io/prometheuscommunity/postgres-exporter
     newTag: "v0.19.1"
