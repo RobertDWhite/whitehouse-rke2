@@ -1,0 +1,524 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "SDR Pipeline Health — pod restarts, indexer performance, PVC forecast, decoder status",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Pod Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "kube_pod_container_status_restarts_total{namespace=\"sdr-research\", container=~\"api|unified-sdr|unified-sdr-70cm|unified-sdr-pager|rtl-tcp|rtl-tcp-70cm|airspy-soapy|rx888-soapy\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Pod Restart Count (Total)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 10, "spanNulls": false },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "rate(kube_pod_container_status_restarts_total{namespace=\"sdr-research\"}[1h]) * 3600",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Pod Restarts per Hour",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 10 },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "container_memory_working_set_bytes{namespace=\"sdr-research\", container=~\"api|unified-sdr|unified-sdr-70cm|unified-sdr-pager\"}",
+          "legendFormat": "{{container}} ({{pod}})",
+          "refId": "A"
+        }
+      ],
+      "title": "Container Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 10,
+      "title": "Indexer Performance",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "red", "value": 600 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+      "id": 11,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "time() - sdr_indexer_last_run_timestamp_seconds",
+          "legendFormat": "Time since last run",
+          "refId": "A"
+        }
+      ],
+      "title": "Indexer Last Run",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 200 },
+              { "color": "red", "value": 500 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+      "id": 12,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "sdr_recordings_pending_transcript_total",
+          "legendFormat": "Pending Transcripts",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending Transcripts",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+      "id": 13,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "sdr_recordings_pending_ai_tags_total",
+          "legendFormat": "Pending AI Tags",
+          "refId": "A"
+        }
+      ],
+      "title": "Pending AI Tags",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 0.8 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
+      "id": 14,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "rate(sdr_indexer_ollama_errors_total[10m]) / (rate(sdr_indexer_ollama_calls_total[10m]) > 0)",
+          "legendFormat": "Ollama Error Rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Ollama Error Rate (10m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 20, "stacking": { "mode": "normal" } },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "id": 15,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sdr_indexer_cycle_duration_seconds_sum / sdr_indexer_cycle_duration_seconds_count",
+          "legendFormat": "Avg Cycle Duration",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(sdr_indexer_cycle_duration_seconds_bucket[10m]))",
+          "legendFormat": "p95 Cycle Duration",
+          "refId": "B"
+        }
+      ],
+      "title": "Indexer Cycle Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 10 },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "id": 16,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "rate(sdr_indexer_ollama_calls_total[5m]) * 60",
+          "legendFormat": "Ollama calls/min",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(sdr_indexer_ollama_errors_total[5m]) * 60",
+          "legendFormat": "Ollama errors/min",
+          "refId": "B"
+        }
+      ],
+      "title": "Ollama Tagging Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+      "id": 20,
+      "title": "Storage & PVC",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.75 },
+              { "color": "red", "value": 0.90 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 29 },
+      "id": 21,
+      "options": { "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"sdr-research\", persistentvolumeclaim=~\"sdr-artifacts.*\"} / kubelet_volume_stats_capacity_bytes{namespace=\"sdr-research\", persistentvolumeclaim=~\"sdr-artifacts.*\"}",
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "refId": "A"
+        }
+      ],
+      "title": "SDR Artifacts PVC Usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 10 },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 6, "w": 16, "x": 8, "y": 29 },
+      "id": 22,
+      "options": { "legend": { "displayMode": "table", "placement": "right" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_used_bytes{namespace=\"sdr-research\", persistentvolumeclaim=~\"sdr-artifacts.*\"}",
+          "legendFormat": "Used",
+          "refId": "A"
+        },
+        {
+          "expr": "kubelet_volume_stats_capacity_bytes{namespace=\"sdr-research\", persistentvolumeclaim=~\"sdr-artifacts.*\"}",
+          "legendFormat": "Capacity",
+          "refId": "B"
+        }
+      ],
+      "title": "PVC Usage Over Time (Forecast)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "id": 30,
+      "title": "SDR Hardware",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "red", "value": 900 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 36 },
+      "id": 31,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "sdr_hardware_last_seen_seconds",
+          "legendFormat": "Last Audio File Age",
+          "refId": "A"
+        }
+      ],
+      "title": "SDR Hardware Last Seen",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 20, "stacking": { "mode": "normal" } },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 36 },
+      "id": 32,
+      "options": { "legend": { "displayMode": "table", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "expr": "sdr_recordings_total{mode=\"voice\"}",
+          "legendFormat": "Voice",
+          "refId": "A"
+        },
+        {
+          "expr": "sdr_recordings_total{mode=\"cw\"}",
+          "legendFormat": "CW",
+          "refId": "B"
+        },
+        {
+          "expr": "sdr_recordings_total{mode=\"aprs\"}",
+          "legendFormat": "APRS",
+          "refId": "C"
+        },
+        {
+          "expr": "sdr_recordings_total{mode=\"pager\"}",
+          "legendFormat": "Pager",
+          "refId": "D"
+        },
+        {
+          "expr": "sdr_recordings_total{mode=\"hfdl\"}",
+          "legendFormat": "HFDL",
+          "refId": "E"
+        },
+        {
+          "expr": "sdr_recordings_total{mode=\"acars\"}",
+          "legendFormat": "ACARS",
+          "refId": "F"
+        }
+      ],
+      "title": "Recordings by Mode",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 86400 },
+              { "color": "red", "value": 172800 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 40 },
+      "id": 33,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "expr": "sdr_repeater_sync_age_seconds",
+          "legendFormat": "Sync Age",
+          "refId": "A"
+        }
+      ],
+      "title": "RepeaterBook Sync Age",
+      "type": "stat"
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 37,
+  "tags": ["sdr", "pipeline", "health"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "Prometheus", "value": "Prometheus" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "multi": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "SDR Pipeline Health",
+  "uid": "sdr-pipeline-health",
+  "version": 1
+}

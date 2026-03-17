@@ -73,10 +73,25 @@ data:
 
     VOICE_DIR      = "/data/audio/voice"
     CW_DIR         = "/data/audio/cw"
+    PAGER_DIR      = "/data/audio/pager"
     DET_DIR        = "/data/detections"
     HEARTBEAT_PATH = os.path.join(DET_DIR, f"sdr_heartbeat_{CAPTURE_ID}.json")
-    for d in (VOICE_DIR, CW_DIR, DET_DIR):
+    for d in (VOICE_DIR, CW_DIR, PAGER_DIR, DET_DIR):
         os.makedirs(d, exist_ok=True)
+
+    # Frequency-based output routing — directs recordings to mode-specific
+    # subdirectories so downstream decoders process only relevant files.
+    _FREQ_ROUTE_TABLE = [
+        # (low_hz, high_hz, directory)
+        (150_000_000, 162_000_000, PAGER_DIR),   # VHF public safety / pager
+    ]
+
+    def route_voice_dir(freq_hz):
+        """Return the output directory for an FM voice recording based on frequency."""
+        for low, high, out_dir in _FREQ_ROUTE_TABLE:
+            if low <= freq_hz <= high:
+                return out_dir
+        return VOICE_DIR
 
     # ---------------------------------------------------------------------------
     # SquelchRecorder — custom sync block that opens/closes WAV per transmission
@@ -236,7 +251,7 @@ data:
                 RF_SQUELCH_DB, 0.001, 10, False)
             self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
             self.rec_fixed = SquelchRecorder(
-                self.fixed_freq, AUDIO_RATE_FM, VOICE_DIR)
+                self.fixed_freq, AUDIO_RATE_FM, route_voice_dir(self.fixed_freq))
             self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
                          self.nbfm_fixed, self.rec_fixed)
 
@@ -379,7 +394,8 @@ data:
             if target is None:
                 return  # all slots busy with active recordings
             offset = freq_hz - self.get_center_hz()
-            rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, VOICE_DIR)
+            out_dir = route_voice_dir(freq_hz)
+            rec = SquelchRecorder(freq_hz, AUDIO_RATE_FM, out_dir)
             with self._gr_lock:
                 self.lock()
                 self.disconnect(target["nbfm"], target["sink"])
@@ -391,7 +407,7 @@ data:
             target["freq"] = freq_hz
             target["assigned_at"] = time.time()
             self.all_recorders.append(rec)
-            print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
+            print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz ({os.path.basename(out_dir)})", flush=True)
 
         def _assign_cw_slot(self, freq_hz):
             """Assign a detected CW frequency to an available dynamic slot."""
@@ -456,7 +472,8 @@ data:
             if target is None:
                 return
             offset = freq_hz - self.get_center_hz()
-            rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, VOICE_DIR)
+            out_dir = route_voice_dir(freq_hz)
+            rec = SquelchRecorder(freq_hz, AUDIO_RATE_CW, out_dir)
             with self._gr_lock:
                 self.lock()
                 self.disconnect(target["dc_block"], target["sink"])

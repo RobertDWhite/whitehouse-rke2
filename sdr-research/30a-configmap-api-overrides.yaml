@@ -2399,6 +2399,11 @@ data:
     WEATHER_BANDS_HZ = (
         (162_325_000, 162_625_000),
     )
+    # VHF public-safety / pager band — digital data, not voice/CW.
+    # Skip CW auto-detection and DTMF detection on these frequencies.
+    PUBLIC_SAFETY_BANDS_HZ = (
+        (150_000_000, 162_000_000),
+    )
     APRS_DECODE_FAILED_MARKER = "APRS_DECODE_FAILED"
     _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
     _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
@@ -2421,6 +2426,12 @@ data:
             return False
         hz = int(round(frequency_hz))
         return any(low <= hz <= high for (low, high) in WEATHER_BANDS_HZ)
+
+    def is_public_safety_frequency_hz(frequency_hz: float | None) -> bool:
+        if frequency_hz is None:
+            return False
+        hz = int(round(frequency_hz))
+        return any(low <= hz <= high for (low, high) in PUBLIC_SAFETY_BANDS_HZ)
 
 
     def parse_voice_filename(filename: str) -> dict:
@@ -2592,6 +2603,29 @@ data:
         return tags
 
 
+    # Emergency keyword pre-scan — fast regex before Ollama, guarantees "emergency" tag
+    _EMERGENCY_PATTERNS = [
+        (re.compile(r"\b(fire|structure fire|wildfire|brush fire)\b", re.I), "fire"),
+        (re.compile(r"\b(ambulance|medic|ems|medical|cardiac|cpr|overdose|unresponsive)\b", re.I), "medical"),
+        (re.compile(r"\b(police|officer|pursuit|shots fired|weapon|robbery|suspect|stolen)\b", re.I), "law_enforcement"),
+        (re.compile(r"\b(accident|crash|collision|rollover|mva|mvc)\b", re.I), "accident"),
+        (re.compile(r"\b(hazmat|chemical|spill|leak|gas)\b", re.I), "hazmat"),
+        (re.compile(r"\b(missing person|missing child|amber alert|silver alert)\b", re.I), "missing_person"),
+        (re.compile(r"\b(tornado|flood|severe weather|evacuat)\b", re.I), "severe_weather"),
+    ]
+
+    def detect_emergency_tags(transcript: str) -> list[str]:
+        """Fast regex pre-scan for emergency/public-safety keywords."""
+        if not transcript:
+            return []
+        tags = []
+        for pattern, tag in _EMERGENCY_PATTERNS:
+            if pattern.search(transcript):
+                tags.append(tag)
+        if tags:
+            tags.insert(0, "emergency")
+        return list(dict.fromkeys(tags))  # dedupe preserving order
+
     def maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget=None):
         if recording.ai_tags:
             return
@@ -2599,7 +2633,9 @@ data:
             return
         if ollama_budget["remaining"] <= 0 and not settings.ollama_enabled:
             return
-        seed_tags: list[str] = []
+        # Fast emergency keyword pre-scan (always runs, no Ollama needed)
+        emergency_tags = detect_emergency_tags(transcript)
+        seed_tags: list[str] = list(emergency_tags)
         if recording.repeater_id:
             from .repeater import repeater_tags as get_repeater_tags
             from ..models import Repeater
@@ -2680,6 +2716,14 @@ data:
                 recording.frequency_label = repeater_label(rptr)
 
 
+    def _touch_heartbeat():
+        """Update liveness heartbeat from any thread."""
+        try:
+            with open("/tmp/indexer_heartbeat", "w") as _f:
+                _f.write(str(_time.time()))
+        except Exception:
+            pass
+
     def index_directory(mode: str, audio_dir: str, text_dir: str, ollama_budget: dict, hamdb_budget: dict | None = None):
         global _last_index_scan_ts
         db = SessionLocal()
@@ -2696,6 +2740,7 @@ data:
                 # Small overlap to avoid missing files around scan boundaries.
                 scan_since_ts = previous_scan - 2.0
             processed = 0
+            _last_hb_ts = _time.time()
             for wav_file in audio_path.glob("*.wav"):
                 try:
                     file_mtime = wav_file.stat().st_mtime
@@ -2704,6 +2749,10 @@ data:
                 if file_mtime < scan_since_ts:
                     continue
                 processed += 1
+                # Heartbeat every 60s so liveness probe stays happy during big batches
+                if _time.time() - _last_hb_ts > 60:
+                    _touch_heartbeat()
+                    _last_hb_ts = _time.time()
                 if processed % 250 == 0:
                     # Keep ORM identity map bounded during large scans.
                     db.expunge_all()
@@ -2763,7 +2812,8 @@ data:
                     print(f"Auto-deleted no-speech recording: {filename}")
                     continue
                 effective_mode = mode
-                if mode == "voice":
+                _rec_freq = metadata.get("frequency_hz")
+                if mode == "voice" and not is_public_safety_frequency_hz(_rec_freq):
                     try:
                         if detect_cw_from_audio(str(wav_file)):
                             effective_mode = "cw"
@@ -2784,8 +2834,8 @@ data:
                 )
                 recording.signal_db = compute_signal_db(str(wav_file))
                 maybe_set_frequency_metadata(db, recording)
-                # DTMF detection for voice recordings
-                if effective_mode == "voice" and recording.audio_path:
+                # DTMF detection for voice recordings (skip public-safety/pager digital data)
+                if effective_mode == "voice" and recording.audio_path and not is_public_safety_frequency_hz(_rec_freq):
                     try:
                         dtmf = detect_dtmf_tones(recording.audio_path)
                         if dtmf:
@@ -3581,7 +3631,15 @@ data:
             except Exception:
                 pass
             try:
+                def _hb():
+                    try:
+                        with open("/tmp/indexer_heartbeat", "w") as _f:
+                            _f.write(str(_time.time()))
+                    except Exception:
+                        pass
+
                 await asyncio.to_thread(prune_missing_recordings)
+                _hb()
 
                 ollama_budget = {"remaining": max(0, settings.ollama_max_per_cycle)}
                 hamdb_budget = {"remaining": max(0, settings.hamdb_max_per_cycle)}
@@ -3594,6 +3652,7 @@ data:
                     ollama_budget=ollama_budget,
                     hamdb_budget=hamdb_budget,
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_directory,
@@ -3603,46 +3662,68 @@ data:
                     ollama_budget=ollama_budget,
                     hamdb_budget=hamdb_budget,
                 )
+                _hb()
+
+                # Index pager-routed audio (public safety 150-162 MHz)
+                _pager_audio_dir = os.path.join(settings.audio_base_path, "pager")
+                if os.path.isdir(_pager_audio_dir):
+                    await asyncio.to_thread(
+                        index_directory,
+                        mode="voice",
+                        audio_dir=_pager_audio_dir,
+                        text_dir=os.path.join(settings.text_base_path, "voice"),
+                        ollama_budget=ollama_budget,
+                        hamdb_budget=hamdb_budget,
+                    )
+                _hb()
 
                 await asyncio.to_thread(
                     index_aprs_directory,
                     text_dir=os.path.join(settings.text_base_path, "aprs"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_pager_directory,
                     text_dir=os.path.join(settings.text_base_path, "pager"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_eas_directory,
                     text_dir=os.path.join(settings.text_base_path, "eas"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_acars_directory,
                     text_dir=os.path.join(settings.text_base_path, "acars"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_vdl2_directory,
                     text_dir=os.path.join(settings.text_base_path, "vdl2"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_hfdl_directory,
                     text_dir=os.path.join(settings.text_base_path, "hfdl"),
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_sstv_directory,
                     image_dir="/data/images/sstv",
                 )
+                _hb()
 
                 await asyncio.to_thread(
                     index_ft8_directory,
                     text_dir=os.path.join(settings.text_base_path, "ft8"),
                 )
+                _hb()
 
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
                 # fell outside the incremental scan window.
