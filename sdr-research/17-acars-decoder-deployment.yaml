@@ -4,7 +4,7 @@ metadata:
   name: acars-decoder
   namespace: sdr-research
 spec:
-  replicas: 1
+  replicas: 0   # shares Airspy SoapyRemote — mutually exclusive with vdl2-decoder & unified-sdr-2m
   strategy:
     type: Recreate
   selector:
@@ -17,50 +17,32 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-13
-      restartPolicy: Always
       containers:
-        - name: acars-decoder
-          image: debian:stable-slim
-          securityContext:
-            allowPrivilegeEscalation: false
-          env:
-            - name: MIN_FILE_AGE_SEC
-              value: "15"
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              echo "Installing ACARS decoder dependencies"
-              apt-get update -qq
-              apt-get install -y --no-install-recommends multimon-ng sox
-              rm -rf /var/lib/apt/lists/*
-
-              cp /scripts/acars_decode.sh /tmp/acars_decode.sh
-              chmod +x /tmp/acars_decode.sh
-
-              echo "Starting ACARS decoder loop"
-              while true; do
-                /tmp/acars_decode.sh
-                sleep 10
-              done
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
-          volumeMounts:
-            - name: artifacts
-              mountPath: /data
-            - name: scripts
-              mountPath: /scripts
+      - name: acars-decoder
+        image: registry.white.fm/acars-decoder
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        env:
+        - name: SOAPY_REMOTE
+          value: "airspy-soapy.sdr-research.svc.cluster.local:55132"
+        - name: ACARS_OUTPUT_DIR
+          value: "/data/text/acars"
+        - name: ACARS_FREQUENCIES
+          # Standard VHF ACARS channels (MHz)
+          value: "129.125 130.025 130.425 130.450 131.125 131.550"
+        - name: ACARS_GAIN
+          value: "18"
+        volumeMounts:
+        - name: sdr-data
+          mountPath: /data
       volumes:
-        - name: artifacts
-          persistentVolumeClaim:
-            claimName: sdr-artifacts-rwx
-        - name: scripts
-          configMap:
-            name: acars-decoder-scripts
-            defaultMode: 0755
+      - name: sdr-data
+        persistentVolumeClaim:
+          claimName: sdr-artifacts-rwx
