@@ -15,19 +15,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-egress
   namespace: misp
 spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+    - {}
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -37,11 +31,9 @@ metadata:
   namespace: misp
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress:
     - from: [{podSelector: {}}]
-  egress:
-    - to: [{podSelector: {}}]
 
 ---
 # ingress-nginx → MISP nginx frontend
@@ -100,47 +92,6 @@ spec:
               kubernetes.io/metadata.name: crowdsec
       ports:
         - {protocol: TCP, port: 5678}
-
----
-# MISP core egress → internet (feed syncs, push servers)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: misp-egress-internet
-  namespace: misp
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: misp
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
-      ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 80}
-
----
-# Raven-bridge egress → observability/influxdb (ZMQ-to-InfluxDB writer)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: bridge-egress-influxdb
-  namespace: misp
-spec:
-  podSelector:
-    matchLabels:
-      app: misp-zmq-to-influx
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: observability
-      ports:
-        - {protocol: TCP, port: 8086}
 
 ---
 apiVersion: networking.k8s.io/v1

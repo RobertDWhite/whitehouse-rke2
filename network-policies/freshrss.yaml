@@ -15,19 +15,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-egress
   namespace: freshrss
 spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+    - {}
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -37,11 +31,9 @@ metadata:
   namespace: freshrss
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress:
     - from: [{podSelector: {}}]
-  egress:
-    - to: [{podSelector: {}}]
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -57,49 +49,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
-
----
-# FreshRSS egress → internet (RSS feed fetching)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-egress-internet
-  namespace: freshrss
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
-      ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 80}
-
----
-# BI pipeline egress → ai-stack/ollama + observability/influxdb
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-egress-bi-pipeline
-  namespace: freshrss
-spec:
-  podSelector: {}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ai-stack
-      ports:
-        - {protocol: TCP, port: 11434}
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: observability
-      ports:
-        - {protocol: TCP, port: 8086}
 
 ---
 apiVersion: networking.k8s.io/v1
