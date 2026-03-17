@@ -40,8 +40,9 @@ spec:
               # 432 MHz = center of 70cm amateur band (430-440 MHz)
               value: "432000000"
             - name: SCAN_CENTERS
-              # 433.0 = FM simplex, 438.0 = repeater downlinks
-              value: "[433000000,438000000]"
+              # Scanning disabled — retune causes GNURadio SIGSEGV (graph thread race).
+              # 432 MHz center + 2.4 MHz BW covers 430.8–433.2 MHz (simplex + repeater inputs).
+              value: "[]"
             - name: DWELL_SEC
               value: "45"
             - name: SCAN_SEC

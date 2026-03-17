@@ -38,6 +38,18 @@ spec:
               value: "2400000"
             - name: RTL_GAIN
               value: "auto"
+          readinessProbe:
+            tcpSocket:
+              port: 1234
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 1234
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
           volumeMounts:
             - name: usb
               mountPath: /dev/bus/usb
