@@ -2128,6 +2128,139 @@ data:
     CALLSIGN_TAG_PATTERN = re.compile(r"^[AKNW][A-Z]?\d[A-Z]{1,3}$", re.IGNORECASE)
 
 
+    # ── One-time partition migration ────────────────────────────────
+    _PARTITION_MODES = [
+        "voice", "cw", "aprs", "pager", "hfdl", "acars", "vdl2", "eas", "sstv",
+    ]
+
+    def _maybe_partition_recordings():
+        """Convert recordings table from regular to LIST-partitioned by mode.
+
+        Idempotent — checks pg_class.relkind and skips if already partitioned ('p').
+        Runs once at indexer startup, before the main loop.
+        """
+        from ..database import engine
+
+        with engine.connect() as conn:
+            row = conn.execute(text(
+                "SELECT relkind FROM pg_class "
+                "WHERE relname = 'recordings' "
+                "AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')"
+            )).fetchone()
+            if row is None:
+                print("[Partition] recordings table does not exist yet, skipping")
+                return
+            if row[0] == 'p':
+                print("[Partition] recordings already partitioned, skipping")
+                return
+
+            print("[Partition] Converting recordings to LIST partitioning by mode...")
+
+            # Capture current sequence value so we can restore it after the swap.
+            seq_row = conn.execute(text(
+                "SELECT last_value FROM recordings_id_seq"
+            )).fetchone()
+            seq_val = seq_row[0] if seq_row else 1
+
+            # 1. Rename existing table (sequence recordings_id_seq stays in place)
+            conn.execute(text(
+                "ALTER TABLE recordings RENAME TO recordings_unpartitioned"
+            ))
+
+            # 2. Create partitioned table reusing the existing sequence
+            conn.execute(text("""
+                CREATE TABLE recordings (
+                    id          INTEGER NOT NULL DEFAULT nextval('recordings_id_seq'),
+                    filename    VARCHAR(255) NOT NULL,
+                    mode        VARCHAR(10) NOT NULL DEFAULT 'voice',
+                    frequency_hz    DOUBLE PRECISION,
+                    timestamp       TIMESTAMP,
+                    duration_seconds DOUBLE PRECISION,
+                    audio_path      VARCHAR(512),
+                    text_path       VARCHAR(512),
+                    transcript      TEXT,
+                    ai_tags         TEXT,
+                    repeater_id     INTEGER,
+                    frequency_label VARCHAR(255),
+                    waveform_cached VARCHAR(512),
+                    spectrogram_cached VARCHAR(512),
+                    notes           TEXT,
+                    dtmf_tones      VARCHAR(255),
+                    signal_db       DOUBLE PRECISION,
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW(),
+                    search_vector   TSVECTOR,
+                    PRIMARY KEY (id, mode)
+                ) PARTITION BY LIST (mode)
+            """))
+
+            # Reassign sequence ownership to the new table
+            conn.execute(text(
+                "ALTER SEQUENCE recordings_id_seq OWNED BY recordings.id"
+            ))
+
+            # 3. Create a partition for each known mode
+            for m in _PARTITION_MODES:
+                conn.execute(text(
+                    f"CREATE TABLE recordings_{m} PARTITION OF recordings "
+                    f"FOR VALUES IN ('{m}')"
+                ))
+            # Default partition catches future modes without schema changes
+            conn.execute(text(
+                "CREATE TABLE recordings_other PARTITION OF recordings DEFAULT"
+            ))
+
+            # 4. Recreate indexes (auto-propagated to each partition)
+            conn.execute(text(
+                "CREATE INDEX ix_recordings_search ON recordings "
+                "USING gin (search_vector)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX ix_recordings_timestamp ON recordings (timestamp)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX ix_recordings_filename ON recordings (filename)"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX uq_recordings_filename_mode "
+                "ON recordings (filename, mode)"
+            ))
+
+            # 5. Copy data — COALESCE(mode, 'voice') handles any NULLs
+            conn.execute(text("""
+                INSERT INTO recordings
+                    (id, filename, mode, frequency_hz, timestamp, duration_seconds,
+                     audio_path, text_path, transcript, ai_tags, repeater_id,
+                     frequency_label, waveform_cached, spectrogram_cached, notes,
+                     dtmf_tones, signal_db, created_at, updated_at, search_vector)
+                SELECT
+                    id, filename, COALESCE(mode, 'voice'), frequency_hz, timestamp,
+                    duration_seconds, audio_path, text_path, transcript, ai_tags,
+                    repeater_id, frequency_label, waveform_cached, spectrogram_cached,
+                    notes, dtmf_tones, signal_db, created_at, updated_at, search_vector
+                FROM recordings_unpartitioned
+            """))
+
+            # 6. Restore sequence position
+            conn.execute(text(
+                f"SELECT setval('recordings_id_seq', {seq_val})"
+            ))
+
+            # 7. Drop the old table
+            conn.execute(text("DROP TABLE recordings_unpartitioned"))
+
+            conn.commit()
+
+            row_count = conn.execute(text(
+                "SELECT count(*) FROM recordings"
+            )).fetchone()[0]
+            print(
+                f"[Partition] Migration complete. {row_count} recordings across "
+                f"{len(_PARTITION_MODES)} mode partitions + default."
+            )
+    # ── End partition migration ─────────────────────────────────────
+
+
     def detect_cw_from_audio(audio_path: str) -> bool:
         """Return True if audio content appears to be CW (Morse code).
 
@@ -3619,6 +3752,12 @@ data:
                 _hb.write(str(_time.time()))
         except Exception:
             pass
+
+        # One-time migration: partition recordings table by mode for 500k+ scale
+        try:
+            await asyncio.to_thread(_maybe_partition_recordings)
+        except Exception as _part_err:
+            print(f"[Partition] Migration error (non-fatal): {_part_err}")
 
         while True:
             _cycle_start = _time.time()
