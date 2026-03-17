@@ -15,19 +15,13 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
+  name: allow-all-egress
   namespace: matrix
 spec:
   podSelector: {}
   policyTypes: [Egress]
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - {protocol: UDP, port: 53}
-        - {protocol: TCP, port: 53}
+    - {}
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -37,11 +31,9 @@ metadata:
   namespace: matrix
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
+  policyTypes: [Ingress]
   ingress:
     - from: [{podSelector: {}}]
-  egress:
-    - to: [{podSelector: {}}]
 
 ---
 # ingress-nginx → synapse, element, hookshot, well-known
@@ -58,35 +50,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
-
----
-# Synapse egress → postfix (SMTP), federation (internet)
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: synapse-egress
-  namespace: matrix
-spec:
-  podSelector:
-    matchLabels:
-      app: synapse
-  policyTypes: [Egress]
-  egress:
-    # SMTP to postfix
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: postfix
-      ports:
-        - {protocol: TCP, port: 25}
-    # Federation + push notifications (internet HTTPS)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
-      ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: 8448}
 
 ---
 # Prometheus scraping
