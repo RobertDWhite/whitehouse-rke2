@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yeti-frontend-nginx
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+      root /www;
+      index index.html;
+
+      resolver 10.43.0.10 valid=10s ipv6=off;
+
+      location /api/ {
+        set $api_upstream http://yeti-api:8000;
+        proxy_pass $api_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+      }
+
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+    }

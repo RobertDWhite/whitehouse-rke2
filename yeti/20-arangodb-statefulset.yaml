@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: yeti-arangodb
+  labels:
+    app.kubernetes.io/name: yeti-arangodb
+spec:
+  serviceName: yeti-arangodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: yeti-arangodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: yeti-arangodb
+    spec:
+      containers:
+        - name: arangodb
+          image: arangodb
+          ports:
+            - name: http
+              containerPort: 8529
+          env:
+            - name: ARANGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: yeti-secrets
+                  key: ARANGO_ROOT_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /_api/version
+              port: 8529
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_api/version
+              port: 8529
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: arangodb-data
+              mountPath: /var/lib/arangodb3
+  volumeClaimTemplates:
+    - metadata:
+        name: arangodb-data
+      spec:
+        storageClassName: longhorn
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

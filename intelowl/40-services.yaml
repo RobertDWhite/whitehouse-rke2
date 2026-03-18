@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelowl-postgres
+  labels:
+    app.kubernetes.io/name: intelowl-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: intelowl-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelowl-redis
+  labels:
+    app.kubernetes.io/name: intelowl-redis
+spec:
+  selector:
+    app.kubernetes.io/name: intelowl-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelowl-rabbitmq
+  labels:
+    app.kubernetes.io/name: intelowl-rabbitmq
+spec:
+  selector:
+    app.kubernetes.io/name: intelowl-rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelowl-web
+  labels:
+    app.kubernetes.io/name: intelowl-web
+spec:
+  selector:
+    app.kubernetes.io/name: intelowl-web
+  ports:
+    - name: uwsgi
+      port: 8001
+      targetPort: 8001
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelowl-daphne
+  labels:
+    app.kubernetes.io/name: intelowl-daphne
+spec:
+  selector:
+    app.kubernetes.io/name: intelowl-daphne
+  ports:
+    - name: http
+      port: 8011
+      targetPort: 8011
