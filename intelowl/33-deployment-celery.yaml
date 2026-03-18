@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelowl-celery-beat
+  labels:
+    app.kubernetes.io/name: intelowl-celery-beat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: intelowl-celery-beat
+    spec:
+      initContainers:
+        - name: wait-uwsgi
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until nc -z intelowl-web 8001; do
+                echo "waiting for uwsgi..."
+                sleep 2
+              done
+      containers:
+        - name: celery-beat
+          image: intelowlproject/intelowl
+          command: ["./docker/entrypoints/celery_beat.sh"]
+          envFrom:
+            - configMapRef:
+                name: intelowl-env
+          env:
+            - name: DJANGO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DJANGO_SECRET
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
+            - name: shared-files
+              mountPath: /opt/deploy/files_required
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: shared-files
+          emptyDir:
+            sizeLimit: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelowl-celery-worker
+  labels:
+    app.kubernetes.io/name: intelowl-celery-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-celery-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: intelowl-celery-worker
+    spec:
+      terminationGracePeriodSeconds: 180
+      initContainers:
+        - name: wait-uwsgi
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until nc -z intelowl-web 8001; do
+                echo "waiting for uwsgi..."
+                sleep 2
+              done
+      containers:
+        - name: celery-worker
+          image: intelowlproject/intelowl
+          command: ["./docker/entrypoints/celery_default.sh"]
+          envFrom:
+            - configMapRef:
+                name: intelowl-env
+          env:
+            - name: DJANGO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DJANGO_SECRET
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 300m
+              memory: 1Gi
+            limits:
+              memory: 3Gi
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
+            - name: shared-files
+              mountPath: /opt/deploy/files_required
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: shared-files
+          emptyDir:
+            sizeLimit: 5Gi
