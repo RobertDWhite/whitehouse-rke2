@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: yeti
+
+generators:
+  - ksops.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+resources:
+  - 00-namespace.yaml
+  - 10-configmap-env.yaml
+  - 10-configmap-frontend-nginx.yaml
+  - 15-ingress.yaml
+  - 20-arangodb-statefulset.yaml
+  - 21-redis-deployment.yaml
+  - 30-deployment-api.yaml
+  - 31-deployment-tasks.yaml
+  - 32-deployment-frontend.yaml
+  - 40-services.yaml
+
+images:
+  - name: yetiplatform/yeti
+    newTag: "2.5.0"
+  - name: yetiplatform/yeti-frontend
+    newTag: "2.5.0"
+  - name: arangodb
+    newTag: "3.11.8"
+  - name: redis
+    newTag: "7.4-alpine"
+  - name: busybox
+    newTag: "1.37"

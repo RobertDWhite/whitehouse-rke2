@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intelowl-env
+data:
+  DB_HOST: intelowl-postgres
+  DB_PORT: "5432"
+  DB_NAME: intel_owl_db
+  BROKER_URL: amqp://guest:guest@intelowl-rabbitmq:5672
+  RESULT_BACKEND: redis://intelowl-redis:6379/1
+  WEBSOCKETS_URL: redis://intelowl-redis:6379/0
+  CELERY_BROKER_URL: amqp://guest:guest@intelowl-rabbitmq:5672
+  DJANGO_SETTINGS_MODULE: intel_owl.settings
+  HTTPS_ENABLED: "not_enabled"
+  INTELOWL_WEB_CLIENT_DOMAIN: intelowl.white.fm
+  STAGE: production
+  LOG_DIR: /var/log/intel_owl
+  PYTHONPATH: /opt/deploy/intel_owl
