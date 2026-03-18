@@ -13,7 +13,7 @@ data:
       resolver 10.43.0.10 valid=10s ipv6=off;
 
       location /api/ {
-        set $api_upstream http://yeti-api:8000;
+        set $api_upstream http://yeti-api.yeti.svc.cluster.local:8000;
         proxy_pass $api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
