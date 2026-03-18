@@ -48,6 +48,15 @@ spec:
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/control-plane: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values:
+                - rke2-node-10
       tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists

@@ -28,14 +28,12 @@ spec:
                   name: yeti-secrets
                   key: ARANGO_ROOT_PASSWORD
           readinessProbe:
-            httpGet:
-              path: /_api/version
+            tcpSocket:
               port: 8529
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /_api/version
+            tcpSocket:
               port: 8529
             initialDelaySeconds: 30
             periodSeconds: 15
