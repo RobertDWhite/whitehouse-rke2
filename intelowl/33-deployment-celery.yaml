@@ -15,6 +15,15 @@ spec:
         app.kubernetes.io/name: intelowl-celery-beat
     spec:
       initContainers:
+        - name: create-log-dirs
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - mkdir -p /var/log/intel_owl/asgi /var/log/intel_owl/django /var/log/intel_owl/celery
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
         - name: wait-uwsgi
           image: busybox
           command:
@@ -84,6 +93,15 @@ spec:
     spec:
       terminationGracePeriodSeconds: 180
       initContainers:
+        - name: create-log-dirs
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - mkdir -p /var/log/intel_owl/asgi /var/log/intel_owl/django /var/log/intel_owl/celery
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
         - name: wait-uwsgi
           image: busybox
           command:
