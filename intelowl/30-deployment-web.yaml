@@ -90,6 +90,9 @@ spec:
             limits:
               memory: 3Gi
           volumeMounts:
+            - name: uwsgi-conf
+              mountPath: /etc/uwsgi/sites/intel_owl.ini
+              subPath: intel_owl.ini
             - name: logs
               mountPath: /var/log/intel_owl
             - name: static-content
@@ -130,6 +133,9 @@ spec:
             - name: static-content
               mountPath: /var/www/static
       volumes:
+        - name: uwsgi-conf
+          configMap:
+            name: intelowl-uwsgi-conf
         - name: logs
           emptyDir: {}
         - name: static-content
