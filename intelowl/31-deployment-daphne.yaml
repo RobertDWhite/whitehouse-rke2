@@ -20,7 +20,21 @@ spec:
           command:
             - /bin/sh
             - -c
-            - mkdir -p /var/log/intel_owl/asgi /var/log/intel_owl/django /var/log/intel_owl/celery
+            - |
+              mkdir -p /var/log/intel_owl/asgi /var/log/intel_owl/django /var/log/intel_owl/celery
+              touch /var/log/intel_owl/django/api_app.log \
+                    /var/log/intel_owl/django/api_app_errors.log \
+                    /var/log/intel_owl/django/intel_owl.log \
+                    /var/log/intel_owl/django/intel_owl_errors.log \
+                    /var/log/intel_owl/django/celery.log \
+                    /var/log/intel_owl/django/celery_errors.log \
+                    /var/log/intel_owl/django/django_auth_ldap.log \
+                    /var/log/intel_owl/django/django_errors.log \
+                    /var/log/intel_owl/django/certego_saas.log \
+                    /var/log/intel_owl/django/certego_saas_errors.log \
+                    /var/log/intel_owl/django/authentication.log \
+                    /var/log/intel_owl/django/authentication_errors.log
+              chmod -R 777 /var/log/intel_owl
           volumeMounts:
             - name: logs
               mountPath: /var/log/intel_owl
