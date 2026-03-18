@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intelowl-nginx-conf
+data:
+  http.conf: |
+    upstream django {
+      server 127.0.0.1:8001 fail_timeout=0;
+    }
+    upstream daphne {
+      server intelowl-daphne:8011 fail_timeout=0;
+    }
+    server {
+      listen 80;
+      server_name _;
+      server_tokens off;
+      client_max_body_size 100M;
+
+      include locations.conf;
+      include websocket.conf;
+      include errors.conf;
+    }
+  locations.conf: |
+    location /static/ {
+      alias /var/www/static/;
+    }
+    location / {
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_set_header Host $http_host;
+      proxy_redirect off;
+      proxy_pass http://django;
+      proxy_connect_timeout 300;
+      proxy_send_timeout 300;
+      proxy_read_timeout 300;
+    }
+  websocket.conf: |
+    location /ws {
+      proxy_pass http://daphne;
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_read_timeout 86400;
+    }
+  errors.conf: |
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+      root /usr/share/nginx/html;
+    }
