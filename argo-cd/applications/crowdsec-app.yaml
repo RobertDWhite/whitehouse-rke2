@@ -42,20 +42,6 @@ spec:
               method: POST
               headers:
                 Content-Type: application/json
-            notifications/raven.yaml: |
-              type: http
-              name: raven_bridge
-              log_level: info
-              format: |
-                {{ range $Alert := . }}
-                {{ range .Decisions }}
-                {"ip":"{{ .Value }}","scope":"{{ .Scope }}","type":"{{ .Type }}","scenario":"{{ .Scenario }}","country":"{{ $Alert.Source.Cn }}","range":"{{ $Alert.Source.Range }}","latitude":"{{ $Alert.Source.Latitude }}","longitude":"{{ $Alert.Source.Longitude }}","timestamp":"{{ now | unixEpoch }}"}
-                {{ end }}
-                {{ end }}
-              url: http://misp-raven-bridge.misp.svc.cluster.local:5678/crowdsec
-              method: POST
-              headers:
-                Content-Type: application/json
             profiles.yaml: |
               name: default_ip_remediation
               filters:
@@ -65,7 +51,6 @@ spec:
                   duration: 4h
               notifications:
                 - http_default
-                - raven_bridge
               on_success: break
 
           agent:
