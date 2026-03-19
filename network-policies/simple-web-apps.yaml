@@ -137,10 +137,27 @@ kind: NetworkPolicy
 metadata: {name: default-deny, namespace: openclaw}
 spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
 ---
+# Egress: DNS + cluster + OpenAI/Telegram only — block OpenClaw telemetry
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata: {name: allow-all-egress, namespace: openclaw}
-spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+metadata: {name: allow-egress, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # DNS
+    - ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    # In-cluster pod network (Ollama, etc.)
+    - to: [{ipBlock: {cidr: 10.42.0.0/16}}, {ipBlock: {cidr: 10.43.0.0/16}}]
+    # External HTTPS — exclude OpenClaw home IPs
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 216.150.1.1/32
+              - 138.199.132.0/24
+      ports: [{protocol: TCP, port: 443}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

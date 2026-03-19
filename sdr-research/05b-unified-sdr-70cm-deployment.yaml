@@ -19,6 +19,15 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-13
+      initContainers:
+        - name: wait-for-rtl-tcp
+          image: busybox:stable
+          command: ["/bin/sh", "-c",
+            "until nc -z rtl-tcp-70cm.sdr-research.svc.cluster.local 1235; do echo 'waiting for rtl_tcp...'; sleep 3; done"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
       containers:
         - name: unified-sdr-70cm
           image: librespace/gnuradio
