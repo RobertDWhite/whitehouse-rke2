@@ -104,7 +104,7 @@ data:
         def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
                      open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
                      tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC,
-                     max_seconds=MAX_REC_SEC):
+                     max_seconds=MAX_REC_SEC, inhibited=False):
             gr.sync_block.__init__(self, name="SquelchRecorder",
                                    in_sig=[np.float32], out_sig=None)
             self.freq_hz      = freq_hz
@@ -123,7 +123,7 @@ data:
             self.samples_written = 0
             self.tail_counter  = 0
             self._lock         = threading.Lock()
-            self._inhibit_until = 0.0  # epoch time before which squelch-open is suppressed
+            self._inhibit_until = float('inf') if inhibited else 0.0
 
         def _open_wav(self):
             if self.is_cw:
@@ -166,6 +166,25 @@ data:
             """Suppress squelch-open for duration_sec (called after retune for PLL settling)."""
             with self._lock:
                 self._inhibit_until = time.time() + duration_sec
+
+        def activate(self, freq_hz, out_dir=None):
+            """Reconfigure and un-inhibit this recorder for a new frequency."""
+            with self._lock:
+                if self.state == self.RECORDING:
+                    self._close_wav()
+                    self.state = self.IDLE
+                self.freq_hz = freq_hz
+                if out_dir is not None:
+                    self.out_dir = out_dir
+                self._inhibit_until = 0.0
+
+        def deactivate(self):
+            """Inhibit forever and close any open recording."""
+            with self._lock:
+                self._inhibit_until = float('inf')
+                if self.state == self.RECORDING:
+                    self._close_wav()
+                    self.state = self.IDLE
 
         def work(self, input_items, output_items):
             samples = input_items[0]
