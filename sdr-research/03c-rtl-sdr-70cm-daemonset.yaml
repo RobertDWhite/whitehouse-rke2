@@ -90,12 +90,16 @@ spec:
                 DEV_INDEX=1
               fi
               echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
-              rtl_tcp \
-                -d ${DEV_INDEX} \
-                -a 0.0.0.0 \
-                -p 1235 \
-                -s ${RTL_SAMPLE_RATE} \
-                -n 32
+              while true; do
+                rtl_tcp \
+                  -d ${DEV_INDEX} \
+                  -a 0.0.0.0 \
+                  -p 1235 \
+                  -s ${RTL_SAMPLE_RATE} \
+                  -n 32
+                echo "rtl_tcp exited, restarting in 2s..."
+                sleep 2
+              done
       volumes:
         - name: usb
           hostPath:
