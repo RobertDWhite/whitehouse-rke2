@@ -1,0 +1,13 @@
+# ExternalName service for Authentik proxy (cross-namespace reference)
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik
+  namespace: external-services
+spec:
+  type: ExternalName
+  externalName: authentik-server.authentik.svc.cluster.local
+  ports:
+    - name: https
+      port: 9443
+      protocol: TCP

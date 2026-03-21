@@ -6,5 +6,10 @@ namespace: external-services
 resources:
   - 00-namespace.yaml
   - 10-service-homeassistant.yaml
+  - 12-service-authentik.yaml
   - 50-ingress-homeassistant.yaml
   - 51-ingress-homeassistant-internal.yaml
+
+# Synology services + all Synology ingresses (SOPS encrypted)
+generators:
+  - ksops.yaml
