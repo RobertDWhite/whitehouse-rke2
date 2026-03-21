@@ -364,6 +364,7 @@ data:
                     "has_transcript": bool((r.transcript or "").strip()),
                     "transcript_status": _transcript_status(r),
                     "signal_db": r.signal_db,
+                    "source_sdr": getattr(r, "source_sdr", None),
                     "callsign_tags": (callsign_tags := extract_callsign_tags(r.transcript)),
                     "ai_tags": (ai_tags := parse_ai_tags(r.ai_tags)),
                     "tags": _all_tags(callsign_tags, ai_tags),
@@ -487,6 +488,7 @@ data:
             "ai_tags": ai_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
             "signal_db": recording.signal_db,
+            "source_sdr": getattr(recording, "source_sdr", None),
             "has_waveform": recording.waveform_cached is not None,
             "has_spectrogram": recording.spectrogram_cached is not None,
             "repeater": repeater_info,
@@ -1584,6 +1586,13 @@ data:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
+        # Incremental migrations
+        from sqlalchemy import text as _t
+        with engine.connect() as _conn:
+            _conn.execute(_t("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS signal_db FLOAT"))
+            _conn.execute(_t("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS source_sdr VARCHAR(30)"))
+            _conn.execute(_t("CREATE INDEX IF NOT EXISTS ix_recordings_mode_ts ON recordings (mode, timestamp DESC)"))
+            _conn.commit()
         indexer_task = asyncio.create_task(run_indexer())
         repeater_task = asyncio.create_task(run_repeater_sync())
         yield
@@ -1604,7 +1613,13 @@ data:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "https://sdr.white.fm",
+            "https://sdr.w3rdw.radio",
+            "https://sdr.internal.white.fm",
+            "https://sdr.internal.w3rdw.radio",
+            "http://localhost:5173",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -2966,6 +2981,19 @@ data:
                     transcript=transcript,
                 )
                 recording.signal_db = compute_signal_db(str(wav_file))
+                # Infer source SDR from audio directory and frequency
+                _dir_name = audio_path.name  # voice, cw, pager
+                _freq = metadata.get("frequency_hz") or 0
+                if _dir_name == "pager" or (150e6 <= _freq <= 162e6):
+                    recording.source_sdr = "rtl-pager"
+                elif 420e6 <= _freq <= 450e6:
+                    recording.source_sdr = "rtl-70cm"
+                elif 130e6 <= _freq <= 180e6:
+                    recording.source_sdr = "airspy-2m"
+                elif _freq < 64e6:
+                    recording.source_sdr = "rx888-hf"
+                else:
+                    recording.source_sdr = "airspy-2m"
                 maybe_set_frequency_metadata(db, recording)
                 # DTMF detection for voice recordings (skip public-safety/pager digital data)
                 if effective_mode == "voice" and recording.audio_path and not is_public_safety_frequency_hz(_rec_freq):
@@ -4749,6 +4777,86 @@ data:
                 for lbl in sorted_labels
             ],
         }
+
+
+    # Band frequency order for sorting (lowest freq first)
+    _BAND_ORDER = {
+        "160m": 0, "80m": 1, "60m": 2, "40m": 3, "30m": 4,
+        "20m": 5, "17m": 6, "15m": 7, "12m": 8, "10m": 9, "6m": 10,
+    }
+
+
+    @router.get("/bands/activity")
+    async def band_activity(hours: int = 1, db: Session = Depends(get_db)):
+        """Real-time band conditions based on FT8/WSPR spot activity."""
+        from datetime import datetime, timedelta, timezone
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        rows = db.execute(
+            text("""
+                SELECT
+                    band,
+                    COUNT(*) AS spot_count,
+                    COUNT(DISTINCT callsign) AS unique_callsigns,
+                    MAX(distance_km) AS farthest_km,
+                    AVG(snr_db) AS avg_snr,
+                    ARRAY_AGG(DISTINCT mode) AS modes,
+                    MAX("timestamp") AS last_spot_at
+                FROM spots
+                WHERE "timestamp" >= :cutoff
+                  AND band IS NOT NULL
+                GROUP BY band
+            """),
+            {"cutoff": cutoff},
+        ).mappings().all()
+
+        # For each band, find the callsign of the farthest spot
+        farthest_map = {}
+        if rows:
+            farthest_rows = db.execute(
+                text("""
+                    SELECT DISTINCT ON (band)
+                        band, callsign, distance_km
+                    FROM spots
+                    WHERE "timestamp" >= :cutoff
+                      AND band IS NOT NULL
+                      AND distance_km IS NOT NULL
+                    ORDER BY band, distance_km DESC
+                """),
+                {"cutoff": cutoff},
+            ).mappings().all()
+            farthest_map = {r["band"]: r["callsign"] for r in farthest_rows}
+
+        bands = []
+        for r in rows:
+            count = r["spot_count"]
+            if count > 10:
+                status = "open"
+            elif count >= 1:
+                status = "marginal"
+            else:
+                status = "closed"
+
+            last_spot = r["last_spot_at"]
+            if isinstance(last_spot, datetime):
+                last_spot = last_spot.isoformat()
+
+            bands.append({
+                "band": r["band"],
+                "spot_count": count,
+                "unique_callsigns": r["unique_callsigns"],
+                "farthest_km": round(r["farthest_km"], 1) if r["farthest_km"] else None,
+                "farthest_callsign": farthest_map.get(r["band"]),
+                "avg_snr": round(r["avg_snr"], 1) if r["avg_snr"] is not None else None,
+                "modes": list(r["modes"]) if r["modes"] else [],
+                "status": status,
+                "last_spot_at": last_spot,
+            })
+
+        bands.sort(key=lambda b: _BAND_ORDER.get(b["band"], 99))
+
+        return {"hours": hours, "bands": bands}
 
   alerting.py: |
     """

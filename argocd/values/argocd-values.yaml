@@ -48,6 +48,13 @@ configs:
     accounts.api-bot: apiKey, login
     accounts.api-bot.enabled: "true"
     admin.enabled: "true"
+    resource.inclusions: |
+      - apiGroups:
+        - ""
+        kinds:
+        - Endpoints
+        namespaces:
+        - external-services
   rbac:
     policy.csv: |
       g, api-bot, role:admin
