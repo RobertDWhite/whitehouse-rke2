@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-pdb
+  namespace: sdr-research
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: sdr-viewer-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: sdr-research
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres
