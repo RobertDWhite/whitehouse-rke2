@@ -1,0 +1,73 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-restrict
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: sdr-viewer-api
+        - podSelector:
+            matchLabels:
+              app: postgres-exporter
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sdr-services-restrict
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [rtl-sdr-tcp, rtl-sdr-tcp-70cm, airspy-soapy, rx888-soapy]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [unified-sdr, unified-sdr-70cm, unified-sdr-pager, ft8-wspr-decoder, hfdl-decoder, hf-combined-decoder, vdl2-decoder, acars-decoder, ais-catcher, spectrum-exporter]
+      ports:
+        - protocol: TCP
+          port: 1234
+        - protocol: TCP
+          port: 1235
+        - protocol: TCP
+          port: 55132
+        - protocol: TCP
+          port: 55133
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-ingress-restrict
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchLabels:
+      app: sdr-viewer-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8000
