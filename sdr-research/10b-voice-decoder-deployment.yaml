@@ -24,9 +24,13 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
           resources:
-            limits:
-              nvidia.com/gpu: "1"
             requests:
+              cpu: 500m
+              memory: 1Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: 4000m
+              memory: 4Gi
               nvidia.com/gpu: "1"
           env:
             - name: PYTHONUNBUFFERED

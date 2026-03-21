@@ -1565,6 +1565,7 @@ data:
                     "digital_modes": [m.strip() for m in r.digital_modes.split(",")] if r.digital_modes else [],
                     "linked_nodes": r.linked_nodes,
                     "last_synced": r.last_synced.isoformat() if r.last_synced else None,
+                    "last_heard": r.last_heard.isoformat() if getattr(r, "last_heard", None) else None,
                 }
                 for r in repeaters
             ],
@@ -1591,6 +1592,7 @@ data:
         with engine.connect() as _conn:
             _conn.execute(_t("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS signal_db FLOAT"))
             _conn.execute(_t("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS source_sdr VARCHAR(30)"))
+            _conn.execute(_t("ALTER TABLE repeaters ADD COLUMN IF NOT EXISTS last_heard TIMESTAMP"))
             _conn.execute(_t("CREATE INDEX IF NOT EXISTS ix_recordings_mode_ts ON recordings (mode, timestamp DESC)"))
             _conn.commit()
         indexer_task = asyncio.create_task(run_indexer())
@@ -2862,6 +2864,15 @@ data:
             if rptr:
                 recording.repeater_id = rptr.id
                 recording.frequency_label = repeater_label(rptr)
+        # Update repeater last_heard timestamp
+        if recording.repeater_id and recording.timestamp:
+            try:
+                db.execute(
+                    text("UPDATE repeaters SET last_heard = :ts WHERE id = :rid AND (last_heard IS NULL OR last_heard < :ts)"),
+                    {"ts": recording.timestamp, "rid": recording.repeater_id},
+                )
+            except Exception:
+                pass
 
 
     def _touch_heartbeat():
@@ -3961,7 +3972,9 @@ data:
     import re
     import shutil
     import time as _time
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
+
+    import httpx
 
     from fastapi import APIRouter, Depends, HTTPException
     from pydantic import BaseModel
@@ -4562,6 +4575,150 @@ data:
         _send_daily_digest()
         _last_digest_sent = datetime.utcnow()
         return {"status": "sent", "sent_at": _last_digest_sent.isoformat()}
+
+
+    # ---------------------------------------------------------------------------
+    # Solar propagation data (NOAA SWPC)
+    # ---------------------------------------------------------------------------
+
+    _propagation_cache: dict = {}
+    _PROPAGATION_TTL = 900  # 15 minutes
+
+    _NOAA_SOLAR_WIND = "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json"
+    _NOAA_K_INDEX_FORECAST = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index-forecast.json"
+    _NOAA_SOLAR_FLUX = "https://services.swpc.noaa.gov/products/summary/10cm-flux.json"
+
+
+    def _derive_hf_conditions(sfi: float | None, k: float | None) -> dict:
+        """Derive HF band conditions from Solar Flux Index and K-index."""
+        if sfi is None or k is None:
+            return {"80m-40m": "Unknown", "30m-20m": "Unknown", "17m-10m": "Unknown"}
+        if sfi > 150 and k < 4:
+            return {"80m-40m": "Excellent", "30m-20m": "Excellent", "17m-10m": "Excellent"}
+        if sfi > 100 and k < 4:
+            return {"80m-40m": "Good", "30m-20m": "Good", "17m-10m": "Good"}
+        if sfi > 70 and k < 5:
+            return {"80m-40m": "Fair", "30m-20m": "Fair", "17m-10m": "Poor"}
+        return {"80m-40m": "Poor", "30m-20m": "Poor", "17m-10m": "Poor"}
+
+
+    async def _fetch_propagation_data() -> dict:
+        """Fetch solar propagation data from NOAA SWPC APIs."""
+        result = {
+            "solar_flux_index": None,
+            "k_index": None,
+            "k_index_forecast": [],
+            "bz": None,
+            "bt": None,
+            "hf_conditions": {"80m-40m": "Unknown", "30m-20m": "Unknown", "17m-10m": "Unknown"},
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "cached": False,
+        }
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            # Fetch solar wind magnetic field (Bz, Bt)
+            try:
+                resp = await client.get(_NOAA_SOLAR_WIND)
+                resp.raise_for_status()
+                data = resp.json()
+                bz_raw = data.get("Bz")
+                bt_raw = data.get("Bt")
+                if bz_raw is not None:
+                    try:
+                        result["bz"] = float(bz_raw)
+                    except (ValueError, TypeError):
+                        pass
+                if bt_raw is not None:
+                    try:
+                        result["bt"] = float(bt_raw)
+                    except (ValueError, TypeError):
+                        pass
+            except Exception:
+                pass
+
+            # Fetch solar flux index (SFI / 10.7cm flux)
+            try:
+                resp = await client.get(_NOAA_SOLAR_FLUX)
+                resp.raise_for_status()
+                data = resp.json()
+                flux_raw = data.get("Flux")
+                if flux_raw is not None:
+                    try:
+                        result["solar_flux_index"] = float(flux_raw)
+                    except (ValueError, TypeError):
+                        pass
+            except Exception:
+                pass
+
+            # Fetch K-index forecast
+            try:
+                resp = await client.get(_NOAA_K_INDEX_FORECAST)
+                resp.raise_for_status()
+                rows = resp.json()
+                # rows is a list of lists: [time_tag, kp, observed/predicted, noaa_scale]
+                # skip header row if present
+                k_values = []
+                for row in rows:
+                    if not isinstance(row, list) or len(row) < 2:
+                        continue
+                    # skip header
+                    if row[0] == "time_tag":
+                        continue
+                    try:
+                        k_values.append(float(row[1]))
+                    except (ValueError, TypeError):
+                        continue
+                if k_values:
+                    result["k_index"] = k_values[0]
+                    result["k_index_forecast"] = k_values[:8]
+            except Exception:
+                pass
+
+        result["hf_conditions"] = _derive_hf_conditions(
+            result["solar_flux_index"], result["k_index"]
+        )
+        return result
+
+
+    @router.get("/propagation")
+    async def get_propagation():
+        """Return solar propagation data from NOAA SWPC, cached for 15 minutes."""
+        global _propagation_cache
+        now = _time.monotonic()
+        if (
+            _propagation_cache.get("ts") is not None
+            and now - _propagation_cache["ts"] < _PROPAGATION_TTL
+            and _propagation_cache.get("data")
+        ):
+            cached = dict(_propagation_cache["data"])
+            cached["cached"] = True
+            return cached
+
+        try:
+            data = await _fetch_propagation_data()
+            _propagation_cache = {"ts": now, "data": data}
+            return data
+        except Exception:
+            # If fetch fails entirely, return stale cache if available
+            if _propagation_cache.get("data"):
+                cached = dict(_propagation_cache["data"])
+                cached["cached"] = True
+                return cached
+            return {
+                "solar_flux_index": None,
+                "k_index": None,
+                "k_index_forecast": [],
+                "bz": None,
+                "bt": None,
+                "hf_conditions": {
+                    "80m-40m": "Unknown",
+                    "30m-20m": "Unknown",
+                    "17m-10m": "Unknown",
+                },
+                "fetched_at": None,
+                "cached": False,
+                "error": "Failed to fetch NOAA data",
+            }
   stats.py: |
     import time
     from fastapi import APIRouter, Depends
