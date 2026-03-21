@@ -1567,7 +1567,7 @@ data:
   repeaters.py: |
     from typing import Optional
 
-    from fastapi import APIRouter, Depends, Query
+    from fastapi import APIRouter, Depends, Query, Response
     from sqlalchemy import asc
     from sqlalchemy.orm import Session
 
@@ -1589,6 +1589,7 @@ data:
 
     @router.get("")
     async def list_repeaters(
+        response: Response,
         state: Optional[str] = Query(None, min_length=2, max_length=50),
         callsign: Optional[str] = Query(None, min_length=1, max_length=20),
         frequency_min: Optional[float] = None,
@@ -1600,6 +1601,7 @@ data:
         db: Session = Depends(get_db),
     ):
         """Browse known repeaters from the local RepeaterBook cache."""
+        response.headers["Cache-Control"] = "public, max-age=3600"
         query = db.query(Repeater)
 
         if state:
@@ -1653,16 +1655,55 @@ data:
         }
   main.py: |
     import asyncio
+    import time
+    from collections import defaultdict
     from contextlib import asynccontextmanager
 
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
     from prometheus_fastapi_instrumentator import Instrumentator
 
     from .database import engine, Base
     from .routers import admin, aprs, files, repeaters, search, stats, waveform
     from .services.indexer import run_indexer
     from .services.repeater import run_repeater_sync
+
+
+    class RateLimitMiddleware(BaseHTTPMiddleware):
+        """In-memory per-IP rate limiter. No external dependencies needed."""
+
+        def __init__(self, app, requests_per_minute: int = 120):
+            super().__init__(app)
+            self.rpm = requests_per_minute
+            self._requests: dict[str, list[float]] = defaultdict(list)
+
+        async def dispatch(self, request, call_next):
+            # Don't rate limit health checks or metrics
+            if request.url.path in ("/api/v1/health", "/metrics"):
+                return await call_next(request)
+
+            client_ip = request.client.host if request.client else "unknown"
+            now = time.time()
+
+            # Clean old entries
+            self._requests[client_ip] = [
+                t for t in self._requests[client_ip] if now - t < 60
+            ]
+
+            if len(self._requests[client_ip]) >= self.rpm:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded. Try again in a minute."},
+                    headers={"X-RateLimit-Remaining": "0"},
+                )
+
+            self._requests[client_ip].append(now)
+            response = await call_next(request)
+            remaining = self.rpm - len(self._requests[client_ip])
+            response.headers["X-RateLimit-Remaining"] = str(remaining)
+            return response
 
 
     @asynccontextmanager
@@ -1713,6 +1754,8 @@ data:
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 
     app.add_middleware(
         CORSMiddleware,
@@ -1896,11 +1939,13 @@ data:
                         **p,
                         "last_heard": rec.timestamp.isoformat() if rec.timestamp else None,
                         "frequency_hz": rec.frequency_hz,
+                        "source": rec.source_sdr or "rf",
                     }
                 elif p["latitude"] is not None and stations[cs]["latitude"] is None:
                     stations[cs].update({
                         **p,
                         "last_heard": rec.timestamp.isoformat() if rec.timestamp else None,
+                        "source": rec.source_sdr or "rf",
                     })
         return {"stations": list(stations.values()), "hours": hours}
 
@@ -1979,6 +2024,7 @@ data:
                         "id": rec.id,
                         "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
                         "frequency_hz": rec.frequency_hz,
+                        "source": rec.source_sdr or "rf",
                     })
         return {"packets": packets, "total": total, "page": page, "limit": limit}
 
@@ -4049,6 +4095,13 @@ data:
         except Exception as _part_err:
             print(f"[Partition] Migration error (non-fatal): {_part_err}")
 
+        # Launch APRS-IS client as a sibling background task (opt-in via env var)
+        try:
+            from .aprs_is import run_aprs_is_client
+            asyncio.create_task(run_aprs_is_client())
+        except Exception as _aprs_is_err:
+            print(f"[APRS-IS] Failed to start: {_aprs_is_err}")
+
         while True:
             _cycle_start = _time.time()
             # Refresh heartbeat at cycle start so a slow-but-healthy cycle
@@ -5097,9 +5150,72 @@ data:
             "min_elevation": min_elevation,
             "satellites": satellites,
         }
+
+
+    # ---------------------------------------------------------------------------
+    # Live spectrum / FFT detection data
+    # ---------------------------------------------------------------------------
+
+    @router.get("/spectrum")
+    async def get_spectrum(capture_id: str | None = None):
+        """Return latest FFT detection data from unified-sdr.
+
+        Reads all detections_*.json files from the detections directory.
+        Optionally filter by capture_id (e.g. '2m', '70cm', 'pager').
+        Returns a list of capture snapshots with center_freq, noise_floor,
+        and detected peaks.
+        """
+        pattern = os.path.join(_DETECTIONS_DIR, "detections_*.json")
+        files = sorted(
+            _glob.glob(pattern), key=os.path.getmtime, reverse=True
+        )
+        if not files:
+            return {"captures": [], "error": "no detection data found"}
+
+        now = _time.time()
+        captures = []
+        for path in files:
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+
+            cid = data.get("capture_id", "unknown")
+            if capture_id and cid != capture_id:
+                continue
+
+            ts = data.get("timestamp", 0)
+            age = now - ts if ts else 9999
+
+            detections = data.get("detections", [])
+            # Sort detections by frequency
+            detections.sort(key=lambda d: d.get("frequency_hz", 0))
+
+            captures.append({
+                "capture_id": cid,
+                "center_freq_hz": data.get("center_freq_hz", 0),
+                "sample_rate": data.get("sample_rate", 0),
+                "noise_floor_db": data.get("noise_floor_db"),
+                "timestamp": ts,
+                "age_seconds": round(age, 1),
+                "stale": age > 30,
+                "detections": [
+                    {
+                        "frequency_hz": d.get("frequency_hz", 0),
+                        "power_db": d.get("power_db", 0),
+                        "bandwidth_hz": d.get("bandwidth_hz", 0),
+                        "mode": d.get("mode", "unknown"),
+                        "recording": d.get("recording", False),
+                    }
+                    for d in detections
+                ],
+            })
+
+        return {"captures": captures}
   stats.py: |
     import time
-    from fastapi import APIRouter, Depends
+    from fastapi import APIRouter, Depends, Query, Response
     from sqlalchemy import func, text
     from sqlalchemy.orm import Session
 
@@ -5121,7 +5237,8 @@ data:
 
 
     @router.get("")
-    async def get_stats(db: Session = Depends(get_db)):
+    async def get_stats(response: Response, db: Session = Depends(get_db)):
+        response.headers["Cache-Control"] = "public, max-age=30"
         now = time.monotonic()
         if _cache.get("ts") and now - _cache["ts"] < _CACHE_TTL:
             return _cache["data"]
@@ -5271,12 +5388,165 @@ data:
         return result
 
 
+    @router.get("/frequency/{frequency_hz}")
+    async def get_frequency_stats(
+        frequency_hz: float,
+        response: Response,
+        tolerance_hz: float = Query(default=10000.0, ge=100.0, le=500000.0),
+        db: Session = Depends(get_db),
+    ):
+        """Detailed statistics for a specific frequency (+/- tolerance_hz)."""
+        response.headers["Cache-Control"] = "public, max-age=60"
+
+        freq_min = frequency_hz - tolerance_hz
+        freq_max = frequency_hz + tolerance_hz
+
+        base_q = db.query(Recording).filter(
+            Recording.frequency_hz.between(freq_min, freq_max)
+        )
+
+        total = base_q.count()
+        if total == 0:
+            return {
+                "frequency_hz": frequency_hz,
+                "tolerance_hz": tolerance_hz,
+                "label": None,
+                "recordings_total": 0,
+                "by_mode": {},
+                "daily_last_30": [],
+                "by_hour": [{"hour": h, "count": 0} for h in range(24)],
+                "top_callsigns": [],
+                "repeaters": [],
+                "recent_recordings": [],
+            }
+
+        label_row = (
+            db.query(Recording.frequency_label, func.count(Recording.id).label("cnt"))
+            .filter(Recording.frequency_hz.between(freq_min, freq_max))
+            .filter(Recording.frequency_label.isnot(None))
+            .group_by(Recording.frequency_label)
+            .order_by(func.count(Recording.id).desc())
+            .first()
+        )
+        label = label_row.frequency_label if label_row else None
+
+        mode_rows = (
+            base_q.with_entities(Recording.mode, func.count(Recording.id))
+            .group_by(Recording.mode)
+            .all()
+        )
+        by_mode = {mode: cnt for mode, cnt in mode_rows}
+
+        daily_rows = db.execute(
+            text(
+                """
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz BETWEEN :fmin AND :fmax
+                  AND timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE(timestamp)
+                ORDER BY day DESC
+                """
+            ),
+            {"fmin": freq_min, "fmax": freq_max},
+        ).fetchall()
+        daily = [{"date": str(row.day), "count": row.cnt} for row in daily_rows]
+
+        hour_rows = db.execute(
+            text(
+                """
+                SELECT EXTRACT(HOUR FROM timestamp)::int AS hour, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz BETWEEN :fmin AND :fmax
+                  AND timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY EXTRACT(HOUR FROM timestamp)::int
+                ORDER BY hour
+                """
+            ),
+            {"fmin": freq_min, "fmax": freq_max},
+        ).fetchall()
+        hour_map = {row.hour: row.cnt for row in hour_rows}
+        by_hour = [{"hour": h, "count": hour_map.get(h, 0)} for h in range(24)]
+
+        cs_rows = db.execute(
+            text(
+                """
+                SELECT tag, COUNT(*) AS cnt
+                FROM (
+                    SELECT json_array_elements_text(ai_tags::json) AS tag
+                    FROM recordings
+                    WHERE frequency_hz BETWEEN :fmin AND :fmax
+                      AND ai_tags IS NOT NULL AND ai_tags <> ''
+                ) t
+                WHERE tag ~ '^[AKNW][A-Z0-9]{2,6}$'
+                GROUP BY tag
+                ORDER BY cnt DESC
+                LIMIT 10
+                """
+            ),
+            {"fmin": freq_min, "fmax": freq_max},
+        ).fetchall()
+        top_callsigns = [{"callsign": row.tag, "count": row.cnt} for row in cs_rows]
+
+        repeater_rows = (
+            db.query(Repeater)
+            .filter(Repeater.frequency_hz.between(freq_min, freq_max))
+            .limit(5)
+            .all()
+        )
+        repeaters = [
+            {
+                "id": r.id,
+                "callsign": r.callsign,
+                "frequency_hz": r.frequency_hz,
+                "location": r.location,
+                "state": r.state,
+                "pl_tone": r.pl_tone,
+                "use": r.use,
+            }
+            for r in repeater_rows
+        ]
+
+        recent = (
+            base_q.order_by(Recording.timestamp.desc())
+            .limit(10)
+            .all()
+        )
+        recent_recordings = [
+            {
+                "id": r.id,
+                "mode": r.mode,
+                "frequency_hz": r.frequency_hz,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "duration_seconds": r.duration_seconds,
+                "has_transcript": bool((r.transcript or "").strip()),
+                "frequency_label": r.frequency_label,
+                "signal_db": r.signal_db,
+            }
+            for r in recent
+        ]
+
+        return {
+            "frequency_hz": frequency_hz,
+            "tolerance_hz": tolerance_hz,
+            "label": label,
+            "recordings_total": total,
+            "by_mode": by_mode,
+            "daily_last_30": daily,
+            "by_hour": by_hour,
+            "top_callsigns": top_callsigns,
+            "repeaters": repeaters,
+            "recent_recordings": recent_recordings,
+        }
+
+
     @router.get("/activity")
-    async def get_activity(days: int = 30, db: Session = Depends(get_db)):
+    async def get_activity(response: Response, days: int = 30, db: Session = Depends(get_db)):
         """
         Frequency × hour-of-day activity heatmap.
         Returns a grid: for each frequency label, the count per hour (0-23).
         """
+        response.headers["Cache-Control"] = "public, max-age=300"
         rows = db.execute(
             text(
                 """
@@ -5322,8 +5592,9 @@ data:
 
 
     @router.get("/bands/activity")
-    async def band_activity(hours: int = 1, db: Session = Depends(get_db)):
+    async def band_activity(response: Response, hours: int = 1, db: Session = Depends(get_db)):
         """Real-time band conditions based on FT8/WSPR spot activity."""
+        response.headers["Cache-Control"] = "public, max-age=30"
         from datetime import datetime, timedelta, timezone
 
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -5392,6 +5663,115 @@ data:
         bands.sort(key=lambda b: _BAND_ORDER.get(b["band"], 99))
 
         return {"hours": hours, "bands": bands}
+
+  waveform.py: |
+    import os
+    from pathlib import Path
+
+    from fastapi import APIRouter, Depends, HTTPException, Response
+    from fastapi.responses import FileResponse, JSONResponse
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording
+    from ..config import settings
+    from ..services.audio import generate_waveform_peaks, generate_spectrogram
+
+    router = APIRouter()
+
+
+    def _ensure_cache_dir(subdir: str) -> Path:
+        """Return a writable cache subdirectory, falling back to /tmp when needed."""
+        preferred = Path(settings.cache_path) / subdir
+        try:
+            preferred.mkdir(parents=True, exist_ok=True)
+            return preferred
+        except PermissionError:
+            fallback = Path("/tmp/sdr-viewer-cache") / subdir
+            fallback.mkdir(parents=True, exist_ok=True)
+            return fallback
+
+
+    @router.get("/{file_id}")
+    async def get_waveform(file_id: int, response: Response, db: Session = Depends(get_db)):
+        """Get waveform peaks data for visualization."""
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        # Check cache
+        cache_dir = _ensure_cache_dir("waveforms")
+        cache_file = cache_dir / f"{recording.id}.json"
+
+        if cache_file.exists():
+            import json
+
+            with open(cache_file, "r") as f:
+                return JSONResponse(
+                    json.load(f),
+                    headers={"Cache-Control": "public, max-age=86400, immutable"},
+                )
+
+        # Generate waveform
+        if not os.path.exists(recording.audio_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+
+        try:
+            peaks_data = generate_waveform_peaks(recording.audio_path)
+
+            # Cache result
+            import json
+
+            with open(cache_file, "w") as f:
+                json.dump(peaks_data, f)
+
+            # Update database
+            recording.waveform_cached = str(cache_file)
+            db.commit()
+
+            return JSONResponse(peaks_data)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate waveform: {e}")
+
+
+    @router.get("/{file_id}/spectrogram")
+    async def get_spectrogram(file_id: int, response: Response, db: Session = Depends(get_db)):
+        """Get spectrogram image."""
+        response.headers["Cache-Control"] = "public, max-age=86400, immutable"
+        recording = db.query(Recording).filter(Recording.id == file_id).first()
+        if not recording:
+            raise HTTPException(status_code=404, detail="Recording not found")
+
+        # Check cache
+        cache_dir = _ensure_cache_dir("spectrograms")
+        cache_file = cache_dir / f"{recording.id}.png"
+
+        if cache_file.exists():
+            return FileResponse(
+                cache_file,
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=86400, immutable"},
+            )
+
+        # Generate spectrogram
+        if not os.path.exists(recording.audio_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+
+        try:
+            generate_spectrogram(recording.audio_path, str(cache_file))
+
+            # Update database
+            recording.spectrogram_cached = str(cache_file)
+            db.commit()
+
+            return FileResponse(
+                cache_file,
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=86400, immutable"},
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate spectrogram: {e}")
 
   alerting.py: |
     """
@@ -5630,6 +6010,14 @@ data:
         'sdr_spots_total',
         'Total spots in the database',
         ['mode'],
+    )
+    aprs_is_packets_indexed = Counter(
+        'sdr_aprs_is_packets_indexed_total',
+        'APRS-IS packets ingested from the internet',
+    )
+    aprs_is_connected = Gauge(
+        'sdr_aprs_is_connected',
+        'Whether the APRS-IS client is currently connected (1=yes, 0=no)',
     )
   events.py: |
     import asyncio
@@ -5954,6 +6342,184 @@ data:
             "farthest": farthest_list,
             "by_hour": [dict(r) for r in hourly],
         }
+  aprs_is.py: |
+    """APRS-IS network client — ingests packets from the APRS Internet System.
+
+    Supplements local RF APRS decoding with internet-sourced data for broader
+    coverage. Packets are stored as mode='aprs' recordings with source_sdr='aprs-is'
+    to distinguish them from RF-decoded packets.
+
+    Controlled by env vars:
+      APRS_IS_ENABLED   — "true" to activate (default "false")
+      APRS_IS_HOST      — server hostname (default "rotate.aprs2.net")
+      APRS_IS_PORT      — server port (default 14580)
+      APRS_IS_CALLSIGN  — login callsign (default "N0CALL")
+      APRS_IS_FILTER    — server-side filter (default "r/39.0/-84.0/100")
+    """
+    import asyncio
+    import os
+    import time as _time
+    from datetime import datetime
+
+    from ..database import SessionLocal
+    from ..models import Recording
+    from .alerting import check_alerts
+    from .metrics import aprs_is_packets_indexed, aprs_is_connected, aprs_packets_indexed
+    from .tagging import dump_ai_tags, extract_callsign_tags
+
+    APRS_IS_HOST = os.getenv("APRS_IS_HOST", "rotate.aprs2.net")
+    APRS_IS_PORT = int(os.getenv("APRS_IS_PORT", "14580"))
+    APRS_IS_CALLSIGN = os.getenv("APRS_IS_CALLSIGN", "N0CALL")
+    APRS_IS_FILTER = os.getenv("APRS_IS_FILTER", "r/39.0/-84.0/100")
+    APRS_IS_ENABLED = os.getenv("APRS_IS_ENABLED", "false").lower() == "true"
+
+
+    def _store_packet(packet_line: str, timestamp: datetime):
+        """Store a single APRS-IS packet as a Recording row."""
+        if ">" not in packet_line or ":" not in packet_line:
+            return False
+        try:
+            callsign = packet_line.split(">")[0].strip()
+        except Exception:
+            return False
+        if not callsign:
+            return False
+
+        # Unique filename for dedup — one row per callsign per second
+        epoch = int(timestamp.timestamp())
+        filename = f"aprs-is_{callsign}_{epoch}.txt"
+
+        db = SessionLocal()
+        try:
+            existing = db.query(Recording.id).filter(Recording.filename == filename).first()
+            if existing:
+                return False
+
+            recording = Recording(
+                filename=filename,
+                mode="aprs",
+                frequency_hz=144390000,  # Standard NA APRS-IS frequency (conceptual)
+                timestamp=timestamp,
+                duration_seconds=None,
+                audio_path=None,
+                text_path=None,
+                transcript=packet_line.strip(),
+                source_sdr="aprs-is",
+            )
+
+            callsign_tags = extract_callsign_tags(packet_line)
+            if callsign_tags:
+                recording.ai_tags = dump_ai_tags(callsign_tags)
+
+            check_alerts(recording, db)
+            db.add(recording)
+            db.commit()
+
+            # Broadcast to SSE subscribers
+            try:
+                from ..routers.events import broadcast_recording as _broadcast
+                asyncio.get_event_loop().call_soon_threadsafe(
+                    lambda rec=recording: asyncio.ensure_future(_broadcast({
+                        "id": rec.id,
+                        "mode": "aprs",
+                        "frequency_hz": rec.frequency_hz,
+                        "frequency_label": "APRS-IS",
+                        "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
+                        "duration_seconds": None,
+                        "has_transcript": True,
+                        "source_sdr": "aprs-is",
+                    }))
+                )
+            except Exception:
+                pass
+
+            aprs_is_packets_indexed.inc()
+            aprs_packets_indexed.inc()
+            return True
+        except Exception as e:
+            db.rollback()
+            print(f"[APRS-IS] DB error storing packet: {e}")
+            return False
+        finally:
+            db.close()
+
+
+    async def run_aprs_is_client():
+        """Connect to APRS-IS and ingest packets into the database.
+
+        Long-lived background task. Reconnects automatically on errors.
+        Returns immediately if APRS_IS_ENABLED is not 'true'.
+        """
+        if not APRS_IS_ENABLED:
+            print("[APRS-IS] Disabled (set APRS_IS_ENABLED=true to activate)")
+            return
+
+        print(f"[APRS-IS] Starting client: {APRS_IS_HOST}:{APRS_IS_PORT} "
+              f"callsign={APRS_IS_CALLSIGN} filter={APRS_IS_FILTER}")
+
+        while True:
+            writer = None
+            try:
+                reader, writer = await asyncio.open_connection(
+                    APRS_IS_HOST, APRS_IS_PORT,
+                )
+                print(f"[APRS-IS] Connected to {APRS_IS_HOST}:{APRS_IS_PORT}")
+                aprs_is_connected.set(1)
+
+                # Login: passcode -1 = receive-only (no TX)
+                login_line = (
+                    f"user {APRS_IS_CALLSIGN} pass -1 vers SDRViewer 1.0 "
+                    f"filter {APRS_IS_FILTER}\r\n"
+                )
+                writer.write(login_line.encode())
+                await writer.drain()
+
+                greeting = await asyncio.wait_for(reader.readline(), timeout=30)
+                print(f"[APRS-IS] Server: {greeting.decode('latin-1').strip()}")
+
+                stored_count = 0
+                last_log = _time.time()
+
+                while True:
+                    line = await asyncio.wait_for(reader.readline(), timeout=90)
+                    if not line:
+                        print("[APRS-IS] Connection closed by server")
+                        break
+
+                    packet = line.decode("latin-1").strip()
+                    if not packet or packet.startswith("#"):
+                        continue
+
+                    now = datetime.utcnow()
+                    stored = await asyncio.to_thread(_store_packet, packet, now)
+                    if stored:
+                        stored_count += 1
+
+                    # Progress log every 60s
+                    if _time.time() - last_log >= 60:
+                        print(f"[APRS-IS] Stored {stored_count} packets in last 60s")
+                        stored_count = 0
+                        last_log = _time.time()
+
+            except asyncio.CancelledError:
+                print("[APRS-IS] Task cancelled, disconnecting")
+                aprs_is_connected.set(0)
+                if writer is not None:
+                    try:
+                        writer.close()
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+                raise
+            except Exception as e:
+                print(f"[APRS-IS] Connection error: {e}, reconnecting in 30s")
+                aprs_is_connected.set(0)
+                if writer is not None:
+                    try:
+                        writer.close()
+                    except Exception:
+                        pass
+                await asyncio.sleep(30)
 kind: ConfigMap
 metadata:
   creationTimestamp: null
