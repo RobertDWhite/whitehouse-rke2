@@ -3780,16 +3780,50 @@ data:
     _DAILY_DIGEST_INTERVAL = 86400.0     # 24 hours
 
 
+    # Per-mode retention overrides (days). Modes not listed here use RETENTION_DAYS as default.
+    # Parsed from RETENTION_MODE_DAYS env var: "pager:30,eas:365,aprs:180,hfdl:30,vdl2:30,acars:30"
+    _RETENTION_MODE_DAYS: dict[str, int] = {}
+    _raw_mode_days = os.environ.get("RETENTION_MODE_DAYS", "")
+    if _raw_mode_days:
+        for _pair in _raw_mode_days.split(","):
+            _pair = _pair.strip()
+            if ":" in _pair:
+                _m, _d = _pair.split(":", 1)
+                try:
+                    _RETENTION_MODE_DAYS[_m.strip()] = int(_d.strip())
+                except ValueError:
+                    pass
+
     def _run_auto_retention():
-        """Delete recordings older than RETENTION_DAYS. Runs at most once per day."""
+        """Delete recordings older than RETENTION_DAYS with per-mode overrides. Runs at most once per day."""
         if settings.retention_days <= 0:
             return
+        default_days = settings.retention_days
         db = SessionLocal()
         try:
-            cutoff = datetime.utcnow() - timedelta(days=settings.retention_days)
-            recordings = db.query(Recording).filter(Recording.timestamp < cutoff).all()
+            # Build per-mode cutoffs
+            now = datetime.utcnow()
+            mode_cutoffs: dict[str, datetime] = {}
+            for mode_name, days in _RETENTION_MODE_DAYS.items():
+                if days > 0:
+                    mode_cutoffs[mode_name] = now - timedelta(days=days)
+            default_cutoff = now - timedelta(days=default_days)
+
+            # Query all recordings older than the most aggressive (shortest) cutoff
+            # so we don't miss any mode with shorter retention than the default
+            most_recent_cutoff = default_cutoff
+            for mc in mode_cutoffs.values():
+                if mc > most_recent_cutoff:
+                    most_recent_cutoff = mc
+            recordings = db.query(Recording).filter(Recording.timestamp < most_recent_cutoff).all()
+
             deleted = 0
+            deleted_by_mode: dict[str, int] = {}
             for rec in recordings:
+                rec_mode = rec.mode or "unknown"
+                cutoff = mode_cutoffs.get(rec_mode, default_cutoff)
+                if rec.timestamp >= cutoff:
+                    continue  # not yet expired for this mode
                 for path in [rec.audio_path, rec.text_path, rec.waveform_cached, rec.spectrogram_cached]:
                     if path:
                         try:
@@ -3798,9 +3832,11 @@ data:
                             pass
                 db.delete(rec)
                 deleted += 1
+                deleted_by_mode[rec_mode] = deleted_by_mode.get(rec_mode, 0) + 1
             db.commit()
             if deleted:
-                print(f"[AutoRetention] Deleted {deleted} recordings older than {settings.retention_days} days")
+                breakdown = ", ".join(f"{m}={c}" for m, c in sorted(deleted_by_mode.items()))
+                print(f"[AutoRetention] Deleted {deleted} recordings (default {default_days}d, overrides: {_RETENTION_MODE_DAYS}). Breakdown: {breakdown}")
         except Exception as exc:
             print(f"[AutoRetention] error: {exc}")
             db.rollback()
