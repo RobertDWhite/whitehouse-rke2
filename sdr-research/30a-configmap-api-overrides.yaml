@@ -1276,7 +1276,80 @@ data:
     from typing import List, Optional
 
 
-    CALLSIGN_PATTERN = re.compile(r"\b(?:[AKNW][A-Z]?\d[A-Z]{1,3})\b", re.IGNORECASE)
+    # Amateur radio callsign pattern — covers US and international allocations.
+    # US:   [AKNW][A-Z]?\d[A-Z]{1,3}       e.g. W1AW, KA2ABC, N3X
+    # Intl: [A-Z]{1,2}\d[A-Z]{1,4}         e.g. VE3ABC, G4XYZ, JA1ABC, DL1XYZ
+    # Intl: \d[A-Z]{1,2}\d[A-Z]{1,4}       e.g. 3D2ABC, 9A1XYZ, 4X1ABC
+    # All branches require the total match to be >= 4 characters (enforced in
+    # is_valid_callsign) to reject noise like "A1B".
+    CALLSIGN_PATTERN = re.compile(
+        r"\b(?:"
+        r"[AKNW][A-Z]?\d[A-Z]{1,3}"         # US
+        r"|[A-Z]{1,2}\d[A-Z]{1,4}"           # international 1-2 letter prefix
+        r"|\d[A-Z]{1,2}\d[A-Z]{1,4}"         # international digit-led prefix
+        r")\b",
+        re.IGNORECASE,
+    )
+
+    # Words / tokens that accidentally match callsign regex patterns but are not
+    # real callsigns.  All entries MUST be uppercase.
+    _CALLSIGN_BLACKLIST: set[str] = {
+        # Common English words / abbreviations that match [A-Z]{1,2}\d[A-Z]{1,4}
+        "AM1", "AM2", "AN1", "AN2", "AS1", "AT1", "AT2",
+        "BE1", "BE2", "BY1", "BY2",
+        "DO1", "DO2",
+        "GO1", "GO2",
+        "HA1", "HA2", "HE1", "HE2", "HI1", "HI2",
+        "IF1", "IF2",
+        "IS1", "IS2", "IT1", "IT2",
+        "LA1", "LA2",
+        "ME1", "ME2", "MY1", "MY2",
+        "NO1", "NO2",
+        "OF1", "OF2", "OK1", "OK2", "ON1", "ON2", "OR1", "OR2",
+        "SO1", "SO2",
+        "TO1", "TO2",
+        "UP1", "UP2", "US1", "US2",
+        "WE1", "WE2",
+        # Ollama hallucination patterns — repeated/sequential characters
+        "AA1AAA", "BB2BBB", "CC3CCC", "ZZ9ZZZ",
+        "AB1CDE", "QQ1QQQ", "XX1XXX",
+        # Other common false positives from LLM output
+        "FM1", "FM2", "AM1FM", "FM1AM",
+        "HF1", "HF2", "VHF1", "UHF1",
+        "RF1", "RF2", "DB1", "DB2",
+        "ID1", "ID2", "QC1", "QC2",
+    }
+
+
+    def is_valid_callsign(cs: str) -> bool:
+        """Validate that a string looks like a real amateur radio callsign.
+
+        Rules:
+        - Must be 4+ characters (rejects ultra-short noise like A1B)
+        - Must match CALLSIGN_PATTERN
+        - Must not be in the blacklist
+        - Must contain at least one digit (sanity check)
+        - Must not be all-same-letter suffix (e.g. QQ9QQQ → reject)
+        """
+        upper = cs.strip().upper()
+        if len(upper) < 4:
+            return False
+        if upper in _CALLSIGN_BLACKLIST:
+            return False
+        if not CALLSIGN_PATTERN.fullmatch(upper):
+            return False
+        # Must contain at least one digit
+        if not any(c.isdigit() for c in upper):
+            return False
+        # Reject if suffix (letters after the digit) are all the same character
+        # e.g. Q9QQQ → suffix = QQQ → suspicious
+        m = re.search(r"\d([A-Z]+)$", upper)
+        if m:
+            suffix = m.group(1)
+            if len(suffix) >= 3 and len(set(suffix)) == 1:
+                return False
+        return True
+
     NO_SPEECH_PATTERN = re.compile(
         r"^\s*(?:"
         r"\[?\s*no speech detected\s*\]?"
@@ -1339,7 +1412,7 @@ data:
         seen = set()
         for match in CALLSIGN_PATTERN.finditer(transcript):
             tag = normalize_callsign(match.group(0))
-            if tag and tag not in seen:
+            if tag and tag not in seen and is_valid_callsign(tag):
                 seen.add(tag)
                 tags.append(tag)
         normalized_text = normalize_callsign(transcript)
@@ -2150,7 +2223,7 @@ data:
     from .hamdb import callsign_context_str, lookup_callsigns
     from .known_freqs import lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
-    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript
+    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript, is_valid_callsign
     from .metrics import (
         indexer_files_indexed, indexer_files_deleted, indexer_cycle_duration,
         indexer_last_run, indexer_ollama_calls, indexer_ollama_errors,
@@ -2162,7 +2235,15 @@ data:
     )
 
 
-    CALLSIGN_TAG_PATTERN = re.compile(r"^[AKNW][A-Z]?\d[A-Z]{1,3}$", re.IGNORECASE)
+    # Must stay in sync with CALLSIGN_PATTERN in tagging.py
+    CALLSIGN_TAG_PATTERN = re.compile(
+        r"^(?:"
+        r"[AKNW][A-Z]?\d[A-Z]{1,3}"
+        r"|[A-Z]{1,2}\d[A-Z]{1,4}"
+        r"|\d[A-Z]{1,2}\d[A-Z]{1,4}"
+        r")$",
+        re.IGNORECASE,
+    )
 
 
     # ── One-time partition migration ────────────────────────────────
@@ -2661,7 +2742,11 @@ data:
             return None
         upper_tag = text_tag.upper()
         if CALLSIGN_TAG_PATTERN.match(upper_tag):
-            return upper_tag
+            # Looks like a callsign — validate before accepting
+            if is_valid_callsign(upper_tag):
+                return upper_tag
+            # Failed validation (too short, blacklisted, hallucinated) — drop it
+            return None
         lowered = text_tag.lower().replace("-", " ")
         lowered = re.sub(r"[^a-z0-9_ ]+", "", lowered)
         lowered = re.sub(r"\s+", "_", lowered).strip("_")
@@ -4834,6 +4919,113 @@ data:
                 "cached": False,
                 "error": "Failed to fetch NOAA data",
             }
+
+
+    # ---------------------------------------------------------------------------
+    # Satellite pass prediction — TLE data + frequencies for ham satellites
+    # ---------------------------------------------------------------------------
+
+    _HAM_SATELLITES = [
+        {"norad_id": 25544, "name": "ISS (ZARYA)", "frequencies": [
+            {"mhz": 145.800, "mode": "FM Voice/APRS", "direction": "downlink"},
+            {"mhz": 437.800, "mode": "SSTV", "direction": "downlink"},
+        ]},
+        {"norad_id": 25338, "name": "NOAA-15", "frequencies": [
+            {"mhz": 137.620, "mode": "APT", "direction": "downlink"},
+        ]},
+        {"norad_id": 28654, "name": "NOAA-18", "frequencies": [
+            {"mhz": 137.9125, "mode": "APT", "direction": "downlink"},
+        ]},
+        {"norad_id": 33591, "name": "NOAA-19", "frequencies": [
+            {"mhz": 137.100, "mode": "APT", "direction": "downlink"},
+        ]},
+        {"norad_id": 43013, "name": "NOAA-20 (JPSS-1)", "frequencies": [
+            {"mhz": 137.200, "mode": "APT", "direction": "downlink"},
+        ]},
+        {"norad_id": 43017, "name": "AO-91 (Fox-1B)", "frequencies": [
+            {"mhz": 145.960, "mode": "FM Uplink", "direction": "uplink"},
+            {"mhz": 435.250, "mode": "FM Downlink", "direction": "downlink"},
+        ]},
+        {"norad_id": 27607, "name": "SO-50 (SaudiSat-1C)", "frequencies": [
+            {"mhz": 145.850, "mode": "FM Uplink", "direction": "uplink"},
+            {"mhz": 436.795, "mode": "FM Downlink", "direction": "downlink"},
+        ]},
+        {"norad_id": 48274, "name": "CSS (Tianhe)", "frequencies": [
+            {"mhz": 437.550, "mode": "Telemetry", "direction": "downlink"},
+        ]},
+        {"norad_id": 7530,  "name": "AMSAT-OSCAR 7", "frequencies": [
+            {"mhz": 145.950, "mode": "CW Beacon", "direction": "downlink"},
+            {"mhz": 29.502,  "mode": "SSB/CW Transponder", "direction": "downlink"},
+        ]},
+        {"norad_id": 54684, "name": "TEVEL-3", "frequencies": [
+            {"mhz": 436.400, "mode": "FM Transponder", "direction": "downlink"},
+        ]},
+    ]
+
+    _tle_cache: dict = {}
+    _TLE_CACHE_TTL = 21600  # 6 hours
+
+
+    async def _fetch_satellite_tles() -> list[dict]:
+        """Fetch TLE data for ham satellites from Celestrak, cached for 6 hours."""
+        now = _time.monotonic()
+        if (
+            _tle_cache.get("ts") is not None
+            and now - _tle_cache["ts"] < _TLE_CACHE_TTL
+            and _tle_cache.get("data")
+        ):
+            return _tle_cache["data"]
+
+        results = []
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            for sat_info in _HAM_SATELLITES:
+                norad_id = sat_info["norad_id"]
+                try:
+                    url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad_id}&FORMAT=TLE"
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    text = resp.text.strip()
+                    lines = [l.strip() for l in text.split("\n") if l.strip()]
+                    if len(lines) < 3 or not lines[1].startswith("1 ") or not lines[2].startswith("2 "):
+                        continue
+                    results.append({
+                        "norad_id": norad_id,
+                        "name": sat_info["name"],
+                        "tle_name": lines[0],
+                        "tle_line1": lines[1],
+                        "tle_line2": lines[2],
+                        "frequencies": sat_info["frequencies"],
+                    })
+                except Exception:
+                    # If a single satellite fails, skip it
+                    continue
+
+        if results:
+            _tle_cache["ts"] = now
+            _tle_cache["data"] = results
+        elif _tle_cache.get("data"):
+            return _tle_cache["data"]
+
+        return results
+
+
+    @router.get("/satellite-passes")
+    async def get_satellite_passes(hours: int = 24, min_elevation: float = 10.0):
+        """Return TLE data and frequencies for ham satellites.
+        Pass prediction is computed client-side using satellite.js.
+        """
+        lat = settings.repeaterbook_latitude
+        lng = settings.repeaterbook_longitude
+        station = {"latitude": float(lat) if lat else None, "longitude": float(lng) if lng else None}
+
+        satellites = await _fetch_satellite_tles()
+
+        return {
+            "station": station,
+            "hours": hours,
+            "min_elevation": min_elevation,
+            "satellites": satellites,
+        }
   stats.py: |
     import time
     from fastapi import APIRouter, Depends
