@@ -541,6 +541,28 @@ data:
                 More than 200 voice/CW recordings are awaiting transcription.
                 The Whisper sidecar may be overloaded or stalled.
 
+          - alert: SdrPendingFreqLabelBacklog
+            expr: sdr_recordings_pending_freq_label_total > 1000
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR frequency label queue > 1000 recordings"
+              description: >
+                More than 1000 recordings are awaiting frequency label assignment.
+                The RepeaterBook sync or known-frequency matcher may be stalled.
+
+          - alert: SdrPendingAiTagsBacklog
+            expr: sdr_recordings_pending_ai_tags_total > 500
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR AI tagging queue > 500 recordings"
+              description: >
+                More than 500 recordings are awaiting Ollama AI tagging.
+                Check that the Ollama service is reachable and processing requests.
+
           - alert: SdrHardwareOffline
             expr: sdr_hardware_last_seen_seconds > 900
             for: 5m
