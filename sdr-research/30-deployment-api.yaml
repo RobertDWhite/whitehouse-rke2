@@ -108,6 +108,12 @@ spec:
                 secretKeyRef:
                   name: sdr-viewer-secrets
                   key: alert-keywords
+            - name: APRS_IS_ENABLED
+              value: "false"
+            - name: APRS_IS_CALLSIGN
+              value: "N0CALL"
+            - name: APRS_IS_FILTER
+              value: "r/39.0/-84.0/100"
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
@@ -168,6 +174,14 @@ spec:
             - name: api-overrides
               mountPath: /app/app/routers/events.py
               subPath: events.py
+              readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/routers/waveform.py
+              subPath: waveform.py
+              readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/services/aprs_is.py
+              subPath: aprs_is.py
               readOnly: true
           resources:
             requests:
