@@ -592,21 +592,18 @@ data:
             recording.ai_tags = dump_ai_tags(body.ai_tags)
 
         if body.transcript is not None:
+            from ..services.indexer import update_search_vector
             new_transcript = body.transcript.strip() or None
             recording.transcript = new_transcript
             db.execute(
                 sql_text("UPDATE recordings SET search_vector = NULL WHERE id = :id"),
                 {"id": recording.id},
             )
+            db.commit()
             if new_transcript:
-                db.execute(
-                    sql_text(
-                        "UPDATE recordings SET search_vector = to_tsvector('english', :t) WHERE id = :id"
-                    ),
-                    {"t": new_transcript, "id": recording.id},
-                )
-
-        db.commit()
+                update_search_vector(db, recording.id, new_transcript)
+        else:
+            db.commit()
         ai_tags = parse_ai_tags(recording.ai_tags)
         callsign_tags = extract_callsign_tags(recording.transcript)
         return {
@@ -1321,22 +1318,33 @@ data:
     }
 
 
+    # Anchored version of CALLSIGN_PATTERN for standalone validation (no \b needed)
+    _CALLSIGN_FULL = re.compile(
+        r"^(?:"
+        r"[AKNW][A-Z]?\d[A-Z]{1,3}"
+        r"|[A-Z]{1,2}\d[A-Z]{1,4}"
+        r"|\d[A-Z]{1,2}\d[A-Z]{1,4}"
+        r")$",
+        re.IGNORECASE,
+    )
+
+
     def is_valid_callsign(cs: str) -> bool:
         """Validate that a string looks like a real amateur radio callsign.
 
         Rules:
         - Must be 4+ characters (rejects ultra-short noise like A1B)
-        - Must match CALLSIGN_PATTERN
+        - Must match the callsign structural pattern
         - Must not be in the blacklist
         - Must contain at least one digit (sanity check)
-        - Must not be all-same-letter suffix (e.g. QQ9QQQ → reject)
+        - Must not have all-same-letter suffix (e.g. Q9QQQ → reject)
         """
         upper = cs.strip().upper()
         if len(upper) < 4:
             return False
         if upper in _CALLSIGN_BLACKLIST:
             return False
-        if not CALLSIGN_PATTERN.fullmatch(upper):
+        if not _CALLSIGN_FULL.match(upper):
             return False
         # Must contain at least one digit
         if not any(c.isdigit() for c in upper):
@@ -2223,7 +2231,7 @@ data:
     from .hamdb import callsign_context_str, lookup_callsigns
     from .known_freqs import lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
-    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript, is_valid_callsign
+    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript, is_valid_callsign, parse_ai_tags
     from .metrics import (
         indexer_files_indexed, indexer_files_deleted, indexer_cycle_duration,
         indexer_last_run, indexer_ollama_calls, indexer_ollama_errors,
@@ -2231,7 +2239,7 @@ data:
         recordings_with_ai_tags, recordings_with_repeater,
         recordings_pending_transcript, recordings_pending_ai_tags,
         recordings_pending_freq_label, repeater_count, repeater_sync_age_seconds,
-        sdr_hardware_last_seen_seconds,
+        sdr_hardware_last_seen_seconds, sdr_hardware_last_seen,
     )
 
 
@@ -3177,6 +3185,8 @@ data:
                 try:
                     import asyncio as _asyncio
                     from ..routers.events import broadcast_recording as _broadcast
+                    _cs_tags = extract_callsign_tags(recording.transcript)
+                    _ai_tags = parse_ai_tags(recording.ai_tags)
                     _asyncio.get_event_loop().call_soon_threadsafe(
                         lambda: _asyncio.ensure_future(_broadcast({
                             "id": recording.id,
@@ -3188,6 +3198,8 @@ data:
                             "has_transcript": bool((recording.transcript or "").strip()),
                             "transcript_status": _transcript_status(recording),
                             "signal_db": recording.signal_db,
+                            "callsign_tags": _cs_tags,
+                            "ai_tags": _ai_tags,
                         }))
                     )
                 except Exception:
@@ -3731,6 +3743,29 @@ data:
             _last_synced = _db.query(_func.max(Repeater.last_synced)).scalar()
             if _last_synced:
                 repeater_sync_age_seconds.set(_time.time() - _last_synced.timestamp())
+            # Per-band hardware last-seen (labeled) + global unlabeled
+            _SOURCE_BAND_MAP = {
+                "rtl-pager": "pager",
+                "rtl-70cm": "70cm",
+                "airspy-2m": "2m",
+                "rx888-hf": "HF",
+            }
+            _now = _time.time()
+            _global_max_ts = None
+            for _src, _max_ts in (
+                _db.query(Recording.source_sdr, _func.max(Recording.timestamp))
+                .filter(Recording.source_sdr.isnot(None))
+                .group_by(Recording.source_sdr)
+                .all()
+            ):
+                if _src and _max_ts:
+                    _band = _SOURCE_BAND_MAP.get(_src, _src)
+                    _age = _now - _max_ts.timestamp()
+                    sdr_hardware_last_seen.labels(band=_band, source_sdr=_src).set(_age)
+                    if _global_max_ts is None or _max_ts > _global_max_ts:
+                        _global_max_ts = _max_ts
+            if _global_max_ts:
+                sdr_hardware_last_seen_seconds.set(_now - _global_max_ts.timestamp())
         except Exception as _e:
             print(f"[metrics] DB gauge refresh error: {_e}")
         finally:
@@ -5545,6 +5580,11 @@ data:
         'sdr_hardware_last_seen_seconds',
         'Seconds since the most recent audio file from SDR hardware',
     )
+    sdr_hardware_last_seen = Gauge(
+        'sdr_hardware_last_seen_per_band_seconds',
+        'Seconds since last recording from SDR hardware, per band and source',
+        ['band', 'source_sdr'],
+    )
     spots_indexed = Counter(
         'sdr_spots_indexed_total',
         'FT8/WSPR spots indexed',
@@ -5555,6 +5595,104 @@ data:
         'Total spots in the database',
         ['mode'],
     )
+  events.py: |
+    import asyncio
+    import json
+    from typing import Optional
+
+    from fastapi import APIRouter, Query, Request
+    from fastapi.responses import StreamingResponse
+
+    router = APIRouter()
+
+    _subscribers: list[asyncio.Queue] = []
+
+
+    async def broadcast_recording(data: dict):
+        """Broadcast a new recording event to all connected SSE clients."""
+        for q in list(_subscribers):
+            try:
+                q.put_nowait(data)
+            except asyncio.QueueFull:
+                pass
+
+
+    def _matches_filters(
+        data: dict,
+        mode: Optional[str],
+        frequency_min: Optional[int],
+        frequency_max: Optional[int],
+        callsign: Optional[str],
+    ) -> bool:
+        """Return True if the event data passes all supplied filters."""
+        if mode and data.get("mode") != mode:
+            return False
+        freq = data.get("frequency_hz")
+        if frequency_min is not None:
+            if freq is None or freq < frequency_min:
+                return False
+        if frequency_max is not None:
+            if freq is None or freq > frequency_max:
+                return False
+        if callsign:
+            callsign_upper = callsign.upper()
+            all_tags = (data.get("callsign_tags") or []) + (data.get("ai_tags") or [])
+            if not any(callsign_upper in t.upper() for t in all_tags):
+                return False
+        return True
+
+
+    @router.get("/stream")
+    async def recordings_stream(
+        request: Request,
+        mode: Optional[str] = Query(None, description="Filter by mode (voice, cw, aprs, ft8, etc.)"),
+        frequency_min: Optional[int] = Query(None, description="Minimum frequency in Hz"),
+        frequency_max: Optional[int] = Query(None, description="Maximum frequency in Hz"),
+        callsign: Optional[str] = Query(None, description="Filter by callsign in tags"),
+    ):
+        """
+        Server-Sent Events stream of new recordings as they are indexed.
+
+        Optional query-parameter filters:
+        - **mode** — only emit events for this mode (voice, cw, aprs, ft8, etc.)
+        - **frequency_min** / **frequency_max** — only emit events within this frequency range (Hz)
+        - **callsign** — only emit events that mention this callsign in callsign_tags or ai_tags
+
+        Example: ``/api/v1/events/stream?mode=voice&frequency_min=144000000&frequency_max=148000000``
+        """
+        has_filters = any(v is not None for v in (mode, frequency_min, frequency_max, callsign))
+
+        async def generator():
+            q: asyncio.Queue = asyncio.Queue(maxsize=50)
+            _subscribers.append(q)
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        data = await asyncio.wait_for(q.get(), timeout=25.0)
+                        if has_filters and not _matches_filters(
+                            data, mode, frequency_min, frequency_max, callsign
+                        ):
+                            continue
+                        yield f"data: {json.dumps(data)}\n\n"
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+            finally:
+                try:
+                    _subscribers.remove(q)
+                except ValueError:
+                    pass
+
+        return StreamingResponse(
+            generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
   spots.py: |
     """FT8/WSPR/FT4 spot browser and statistics."""
     import math
