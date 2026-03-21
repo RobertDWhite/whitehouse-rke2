@@ -44,6 +44,18 @@ spec:
                 /tmp/eas_decode.sh
                 sleep 10
               done
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               cpu: 50m

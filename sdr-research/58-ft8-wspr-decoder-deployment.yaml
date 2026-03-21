@@ -67,6 +67,18 @@ spec:
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f ft8-wspr-entrypoint || exit 1"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f ft8-wspr-entrypoint || exit 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               cpu: 500m

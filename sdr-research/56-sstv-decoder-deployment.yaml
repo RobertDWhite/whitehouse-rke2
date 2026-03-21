@@ -38,6 +38,18 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /data
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               cpu: 100m

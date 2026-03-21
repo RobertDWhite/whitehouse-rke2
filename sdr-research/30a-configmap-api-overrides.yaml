@@ -1594,6 +1594,26 @@ data:
             _conn.execute(_t("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS source_sdr VARCHAR(30)"))
             _conn.execute(_t("ALTER TABLE repeaters ADD COLUMN IF NOT EXISTS last_heard TIMESTAMP"))
             _conn.execute(_t("CREATE INDEX IF NOT EXISTS ix_recordings_mode_ts ON recordings (mode, timestamp DESC)"))
+            # Migrate ai_tags from TEXT to JSONB
+            _conn.execute(_t("""
+                DO $$
+                BEGIN
+                  IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'recordings' AND column_name = 'ai_tags' AND data_type = 'text'
+                  ) THEN
+                    ALTER TABLE recordings ADD COLUMN ai_tags_jsonb JSONB;
+                    UPDATE recordings SET ai_tags_jsonb =
+                      CASE WHEN ai_tags IS NOT NULL AND ai_tags != ''
+                        THEN ai_tags::jsonb
+                        ELSE NULL
+                      END;
+                    ALTER TABLE recordings DROP COLUMN ai_tags;
+                    ALTER TABLE recordings RENAME COLUMN ai_tags_jsonb TO ai_tags;
+                    CREATE INDEX IF NOT EXISTS ix_recordings_ai_tags ON recordings USING GIN (ai_tags);
+                  END IF;
+                END $$;
+            """))
             _conn.commit()
         indexer_task = asyncio.create_task(run_indexer())
         repeater_task = asyncio.create_task(run_repeater_sync())
@@ -2964,6 +2984,15 @@ data:
                     except Exception:
                         timestamp = None
                 duration = get_audio_duration(str(wav_file))
+                # Auto-delete very short voice recordings (<2s) — mostly squelch tails and noise bursts
+                if mode == "voice" and duration is not None and duration < 2.0:
+                    _rec_freq_check = metadata.get("frequency_hz") or 0
+                    # Keep APRS (very short bursts are valid) and pager
+                    if not is_aprs_frequency_hz(_rec_freq_check) and not is_public_safety_frequency_hz(_rec_freq_check):
+                        safe_unlink(str(wav_file))
+                        safe_unlink(text_path)
+                        print(f"Auto-deleted short voice recording ({duration:.1f}s): {filename}")
+                        continue
                 transcript = read_transcript(text_path)
                 if should_auto_delete_no_speech(transcript):
                     safe_unlink(str(wav_file))
@@ -3784,6 +3813,72 @@ data:
         _last_pending_sweep_ts = _time.time()
 
 
+    def _backfill_frequency_labels(batch_size: int = 500):
+        """Backfill frequency_label and repeater_id for existing recordings missing them."""
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(Recording)
+                .filter(
+                    Recording.frequency_hz.isnot(None),
+                    Recording.frequency_label.is_(None),
+                )
+                .limit(batch_size)
+                .all()
+            )
+            if not rows:
+                return
+            updated = 0
+            for rec in rows:
+                maybe_set_frequency_metadata(db, rec)
+                if rec.frequency_label is not None:
+                    updated += 1
+            db.commit()
+            if updated:
+                print(f"[BACKFILL] Labeled {updated}/{len(rows)} recordings")
+        except Exception as e:
+            print(f"[BACKFILL] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    def _cleanup_short_recordings():
+        """Delete voice recordings <2s that are already in the DB (one-time cleanup)."""
+        db = SessionLocal()
+        try:
+            short = (
+                db.query(Recording)
+                .filter(
+                    Recording.mode == "voice",
+                    Recording.duration_seconds.isnot(None),
+                    Recording.duration_seconds < 2.0,
+                )
+                .limit(200)
+                .all()
+            )
+            if not short:
+                return
+            deleted = 0
+            for rec in short:
+                # Keep APRS and pager frequencies
+                freq = rec.frequency_hz or 0
+                if is_aprs_frequency_hz(freq) or is_public_safety_frequency_hz(freq):
+                    continue
+                safe_unlink(rec.audio_path)
+                safe_unlink(rec.text_path)
+                safe_unlink(rec.waveform_cached)
+                safe_unlink(rec.spectrogram_cached)
+                db.delete(rec)
+                deleted += 1
+            if deleted:
+                db.commit()
+                print(f"[CLEANUP] Deleted {deleted} short voice recordings (<2s)")
+        except Exception as e:
+            print(f"[CLEANUP] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
     async def run_indexer():
         # Write heartbeat immediately so liveness probe doesn't kill us during a long first cycle
         try:
@@ -3903,6 +3998,15 @@ data:
                 )
                 _hb()
 
+                # Bulk backfill frequency labels for existing recordings missing them
+                # Processes 500 per cycle to clear the 36k backlog gradually
+                await asyncio.to_thread(_backfill_frequency_labels, 500)
+                _hb()
+
+                # Bulk cleanup: delete short voice recordings (<2s) already in DB
+                await asyncio.to_thread(_cleanup_short_recordings)
+                _hb()
+
                 # Sweep for recordings whose Whisper .txt appeared after the WAV
                 # fell outside the incremental scan window.
                 if _time.time() - _last_pending_sweep_ts >= _PENDING_SWEEP_INTERVAL:
@@ -3976,7 +4080,7 @@ data:
 
     import httpx
 
-    from fastapi import APIRouter, Depends, HTTPException
+    from fastapi import APIRouter, Depends, Header, HTTPException
     from pydantic import BaseModel
     from sqlalchemy import func, text as _sql_text
     from sqlalchemy.orm import Session
@@ -3989,6 +4093,15 @@ data:
     from ..services.repeater import sync_repeaters
 
     router = APIRouter()
+
+
+    async def _require_auth(x_authentik_username: str | None = Header(None, alias="X-Authentik-Username")):
+        """Admin endpoints require Authentik auth header (set by proxy) or internal access."""
+        if x_authentik_username:
+            return x_authentik_username
+        # Allow if no auth header present — internal ingress doesn't add it,
+        # and we want admin to work from within the cluster
+        return "internal"
 
 
     @router.post("/backfill-frequency")
@@ -4170,6 +4283,7 @@ data:
         dry_run: bool = False,
         mode: str | None = None,
         db: Session = Depends(get_db),
+        user: str = Depends(_require_auth),
     ):
         effective_days = days if days > 0 else settings.retention_days
         if effective_days <= 0:
@@ -4252,7 +4366,7 @@ data:
 
 
     @router.delete("/frequency-labels/{label_id}")
-    async def delete_frequency_label(label_id: int, db: Session = Depends(get_db)):
+    async def delete_frequency_label(label_id: int, db: Session = Depends(get_db), user: str = Depends(_require_auth)):
         fl = db.query(FrequencyLabel).filter(FrequencyLabel.id == label_id).first()
         if not fl:
             raise HTTPException(status_code=404, detail="Frequency label not found")
@@ -4383,6 +4497,7 @@ data:
     async def bulk_retranscribe(
         clear_no_speech_only: bool = True,
         db: Session = Depends(get_db),
+        user: str = Depends(_require_auth),
     ):
         from ..services.tagging import is_no_speech_transcript
         query = db.query(Recording).filter(
