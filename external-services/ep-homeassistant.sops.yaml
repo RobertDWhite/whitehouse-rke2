@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+    name: homeassistant
+    namespace: external-services
+subsets:
+    - addresses:
+        - ip: 10.100.1.30
+      ports:
+        - name: http
+          port: 8123
+          protocol: TCP
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBUanBPTnpYamV1Mkw4ci93
+            NTNxWkc0UktKTGwwd3RlbURIUElnSDBRMmpNCmxBN2dXb1JnSldhWmF2SVBIYjJx
+            NzNWa0FCR2NxemhGdlFsUTFtUmFPeHMKLS0tIHd1TWNjTnIrWm9ZdG9OYVY4Vm5S
+            bnc0b2VHaU0vbFZMeWpWZGlaeW4xQlUK+lAwFI6G/lD6yv2Z9tbdxv62UItTxxdL
+            Wgaed5bKmC+iNy12igWodIz3g/q+iYB+kghP01Qu9qXwbK3BzX3A5g==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-03-21T06:23:27Z"
+    mac: ENC[AES256_GCM,data:8GCbQcCLNj7XfCdDEfObx05vq1JfCWOP8K8ojkw1UdbQy2sF7kZyjFNHhc6jJYektrsC4wfPhggMXZtpBL2tgFyLbANa67x/Jch/k2d4+460gJpWt6xCyRMMOmsOroNX0h/z8kRHMnz7vndqxdYTKQj++zzcB+MO6p3iToD6W+M=,iv:4S8y2BulqjfwwnoDjvmLACWXTPC8wmD4P6s5azKxsu8=,tag:l78om+vyTOu+AHHEZtdC1g==,type:str]
+    encrypted_regex: ^(data|stringData|parameters)$
+    version: 3.10.2
