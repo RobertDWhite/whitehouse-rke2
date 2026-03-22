@@ -4287,7 +4287,7 @@ data:
     import time as _time
     from datetime import datetime, timedelta, timezone
 
-    import httpx
+    import urllib.request
 
     from fastapi import APIRouter, Depends, Header, HTTPException
     from pydantic import BaseModel
@@ -4939,64 +4939,50 @@ data:
             "cached": False,
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            # Fetch solar wind magnetic field (Bz, Bt)
-            try:
-                resp = await client.get(_NOAA_SOLAR_WIND)
-                resp.raise_for_status()
-                data = resp.json()
-                bz_raw = data.get("Bz")
-                bt_raw = data.get("Bt")
-                if bz_raw is not None:
-                    try:
-                        result["bz"] = float(bz_raw)
-                    except (ValueError, TypeError):
-                        pass
-                if bt_raw is not None:
-                    try:
-                        result["bt"] = float(bt_raw)
-                    except (ValueError, TypeError):
-                        pass
-            except Exception:
-                pass
+        def _fetch_url(url):
+            req = urllib.request.Request(url, headers={"User-Agent": "SDRViewer/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read())
 
-            # Fetch solar flux index (SFI / 10.7cm flux)
-            try:
-                resp = await client.get(_NOAA_SOLAR_FLUX)
-                resp.raise_for_status()
-                data = resp.json()
-                flux_raw = data.get("Flux")
-                if flux_raw is not None:
+        # Fetch solar wind magnetic field (Bz, Bt)
+        try:
+            data = _fetch_url(_NOAA_SOLAR_WIND)
+            for key in ("Bz", "Bt"):
+                if data.get(key) is not None:
                     try:
-                        result["solar_flux_index"] = float(flux_raw)
+                        result[key.lower()] = float(data[key])
                     except (ValueError, TypeError):
                         pass
-            except Exception:
-                pass
+        except Exception:
+            pass
 
-            # Fetch K-index forecast
-            try:
-                resp = await client.get(_NOAA_K_INDEX_FORECAST)
-                resp.raise_for_status()
-                rows = resp.json()
-                # rows is a list of lists: [time_tag, kp, observed/predicted, noaa_scale]
-                # skip header row if present
-                k_values = []
-                for row in rows:
-                    if not isinstance(row, list) or len(row) < 2:
-                        continue
-                    # skip header
-                    if row[0] == "time_tag":
-                        continue
-                    try:
-                        k_values.append(float(row[1]))
-                    except (ValueError, TypeError):
-                        continue
-                if k_values:
-                    result["k_index"] = k_values[0]
-                    result["k_index_forecast"] = k_values[:8]
-            except Exception:
-                pass
+        # Fetch solar flux index (SFI / 10.7cm flux)
+        try:
+            data = _fetch_url(_NOAA_SOLAR_FLUX)
+            if data.get("Flux") is not None:
+                try:
+                    result["solar_flux_index"] = float(data["Flux"])
+                except (ValueError, TypeError):
+                    pass
+        except Exception:
+            pass
+
+        # Fetch K-index forecast
+        try:
+            rows = _fetch_url(_NOAA_K_INDEX_FORECAST)
+            k_values = []
+            for row in rows:
+                if not isinstance(row, list) or len(row) < 2 or row[0] == "time_tag":
+                    continue
+                try:
+                    k_values.append(float(row[1]))
+                except (ValueError, TypeError):
+                    continue
+            if k_values:
+                result["k_index"] = k_values[0]
+                result["k_index_forecast"] = k_values[:8]
+        except Exception:
+            pass
 
         result["hf_conditions"] = _derive_hf_conditions(
             result["solar_flux_index"], result["k_index"]
@@ -5101,28 +5087,26 @@ data:
             return _tle_cache["data"]
 
         results = []
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            for sat_info in _HAM_SATELLITES:
-                norad_id = sat_info["norad_id"]
-                try:
-                    url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad_id}&FORMAT=TLE"
-                    resp = await client.get(url)
-                    resp.raise_for_status()
-                    text = resp.text.strip()
-                    lines = [l.strip() for l in text.split("\n") if l.strip()]
-                    if len(lines) < 3 or not lines[1].startswith("1 ") or not lines[2].startswith("2 "):
-                        continue
-                    results.append({
-                        "norad_id": norad_id,
-                        "name": sat_info["name"],
-                        "tle_name": lines[0],
-                        "tle_line1": lines[1],
-                        "tle_line2": lines[2],
-                        "frequencies": sat_info["frequencies"],
-                    })
-                except Exception:
-                    # If a single satellite fails, skip it
+        for sat_info in _HAM_SATELLITES:
+            norad_id = sat_info["norad_id"]
+            try:
+                url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={norad_id}&FORMAT=TLE"
+                req = urllib.request.Request(url, headers={"User-Agent": "SDRViewer/1.0"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    text = resp.read().decode().strip()
+                lines = [l.strip() for l in text.split("\n") if l.strip()]
+                if len(lines) < 3 or not lines[1].startswith("1 ") or not lines[2].startswith("2 "):
                     continue
+                results.append({
+                    "norad_id": norad_id,
+                    "name": sat_info["name"],
+                    "tle_name": lines[0],
+                    "tle_line1": lines[1],
+                    "tle_line2": lines[2],
+                    "frequencies": sat_info["frequencies"],
+                })
+            except Exception:
+                continue
 
         if results:
             _tle_cache["ts"] = now
