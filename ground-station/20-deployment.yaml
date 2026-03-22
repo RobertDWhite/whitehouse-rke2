@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ground-station
+  namespace: ground-station
+  labels:
+    app: ground-station
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ground-station
+  template:
+    metadata:
+      labels:
+        app: ground-station
+    spec:
+      containers:
+        - name: ground-station
+          image: ghcr.io/sgoudelis/ground-station
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7000
+              name: http
+          env:
+            - name: GR_BUFFER_TYPE
+              value: vmcirc_mmap_tmpfile
+            - name: GS_ENVIRONMENT
+              value: production
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 7000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ground-station-data
