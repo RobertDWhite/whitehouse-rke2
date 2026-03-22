@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ground-station-internal
+  namespace: ground-station
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "ground-station/ws-headers"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sat.internal.white.fm
+      secretName: sat-internal-white-fm-tls
+  rules:
+    - host: sat.internal.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ground-station
+                port:
+                  number: 7000

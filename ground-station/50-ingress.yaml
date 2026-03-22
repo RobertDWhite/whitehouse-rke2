@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ground-station
+  namespace: ground-station
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: "ground-station/ws-headers"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sat.white.fm
+      secretName: sat-white-fm-tls
+  rules:
+    - host: sat.white.fm
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ground-station
+                port:
+                  number: 7000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ws-headers
+  namespace: ground-station
+data:
+  Upgrade: $http_upgrade
+  Connection: "upgrade"
