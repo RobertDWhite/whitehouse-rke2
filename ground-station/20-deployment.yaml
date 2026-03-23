@@ -36,19 +36,25 @@ spec:
             limits:
               cpu: 2000m
               memory: 2Gi
-          readinessProbe:
-            httpGet:
-              path: /
+          startupProbe:
+            tcpSocket:
               port: 7000
-            initialDelaySeconds: 15
-            periodSeconds: 15
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 3
+          readinessProbe:
+            tcpSocket:
+              port: 7000
+            periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
             httpGet:
               path: /
               port: 7000
-            initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 5
+            timeoutSeconds: 5
           volumeMounts:
             - name: data
               mountPath: /app/backend/data
