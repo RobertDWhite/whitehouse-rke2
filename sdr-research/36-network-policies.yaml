@@ -31,7 +31,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [rtl-sdr-tcp, rtl-sdr-tcp-70cm, airspy-soapy, rx888-soapy]
+        values: [rtl-sdr-tcp, rtl-sdr-tcp-70cm]
   policyTypes:
     - Ingress
   ingress:
@@ -46,10 +46,40 @@ spec:
           port: 1234
         - protocol: TCP
           port: 1235
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: soapy-remote-restrict
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [airspy-soapy, rx888-soapy]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [unified-sdr, unified-sdr-70cm, unified-sdr-pager, ft8-wspr-decoder, hfdl-decoder, hf-combined-decoder, vdl2-decoder, acars-decoder, ais-catcher, spectrum-exporter]
+      ports:
         - protocol: TCP
           port: 55132
         - protocol: TCP
           port: 55133
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [unified-sdr, unified-sdr-70cm, unified-sdr-pager, ft8-wspr-decoder, hfdl-decoder, hf-combined-decoder, vdl2-decoder, acars-decoder, ais-catcher, spectrum-exporter]
+      ports:
+        - protocol: UDP
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
