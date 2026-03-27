@@ -33,7 +33,7 @@ spec:
             - |
               set -eu
               for key in wmem_max rmem_max wmem_default rmem_default; do
-                echo 44040192 > "/host-proc-sys/net/core/${key}"
+                echo 44040192 > "/host-root/proc/sys/net/core/${key}"
               done
               exec SoapySDRServer --bind 0.0.0.0:55132
           securityContext:
@@ -56,8 +56,8 @@ spec:
           volumeMounts:
             - name: usb
               mountPath: /dev/bus/usb
-            - name: host-proc-sys
-              mountPath: /host-proc-sys
+            - name: host-root
+              mountPath: /host-root
           resources:
             requests:
               cpu: 200m
@@ -69,6 +69,6 @@ spec:
         - name: usb
           hostPath:
             path: /dev/bus/usb
-        - name: host-proc-sys
+        - name: host-root
           hostPath:
-            path: /proc/sys
+            path: /
