@@ -10,10 +10,9 @@
 #   kubectl scale deploy ft8-wspr-decoder -n sdr-research --replicas=1
 #
 # Build the image first:
-#   docker buildx build --platform linux/amd64 --load \
-#     -t registry.white.fm:5000/ft8-wspr-decoder:1.0.0 \
+#   docker buildx build --platform linux/amd64,linux/arm64 --push \
+#     -t registry.white.fm/ft8-wspr-decoder:1.0.5 \
 #     -f sdr-research/Dockerfile.ft8-wspr sdr-research/
-#   docker push registry.white.fm:5000/ft8-wspr-decoder:1.0.0
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,7 +31,7 @@ spec:
         app: ft8-wspr-decoder
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-13
+        kubernetes.io/hostname: rke2-node-10
       containers:
         - name: ft8-wspr-decoder
           image: registry.white.fm/ft8-wspr-decoder
