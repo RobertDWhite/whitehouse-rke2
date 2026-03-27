@@ -3971,8 +3971,14 @@ data:
                     text_path = rec.text_path
                 else:
                     base = os.path.basename(rec.audio_path).replace(".wav", ".txt")
-                    # Use audio_path dir to determine text subdir, not mode.
-                    if os.sep + "voice" + os.sep in rec.audio_path or rec.audio_path.endswith(os.sep + "voice"):
+                    # Pager-routed FM audio still lands in the voice text
+                    # directory, even though the WAV is stored under /audio/pager.
+                    if (
+                        os.sep + "voice" + os.sep in rec.audio_path
+                        or rec.audio_path.endswith(os.sep + "voice")
+                        or os.sep + "pager" + os.sep in rec.audio_path
+                        or rec.audio_path.endswith(os.sep + "pager")
+                    ):
                         sub = "voice"
                     else:
                         sub = "cw"
