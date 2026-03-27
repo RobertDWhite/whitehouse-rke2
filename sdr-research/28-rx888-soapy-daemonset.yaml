@@ -1,6 +1,6 @@
 # RX888 MkII SoapySDR remote server.
 # Exposes the RX888 (Cypress WestBridge / FX3) USB device to the cluster via
-# SoapyRemote protocol on port 55133. OpenWebRX+ connects as type=soapy_remote
+# SoapyRemote protocol on port 55132. OpenWebRX+ connects as type=soapy_remote
 # with remote_driver=sddc.
 #
 # Build and push the image before deploying:
@@ -27,24 +27,20 @@ spec:
       containers:
         - name: rx888-soapy
           image: registry.white.fm/soapy-rx888-server
-          command:
-            - /bin/sh
-            - -lc
-            - exec SoapySDRServer --bind 0.0.0.0:55133
           securityContext:
             privileged: true
           ports:
-            - containerPort: 55133
+            - containerPort: 55132
               name: soapy
           readinessProbe:
             tcpSocket:
-              port: 55133
+              port: 55132
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
           livenessProbe:
             tcpSocket:
-              port: 55133
+              port: 55132
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3

@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-SOAPY_REMOTE = os.getenv("SOAPY_REMOTE", "rx888-soapy.sdr-research.svc.cluster.local:55133")
+SOAPY_REMOTE = os.getenv("SOAPY_REMOTE", "rx888-soapy.sdr-research.svc.cluster.local:55132")
 OUTPUT_DIR = os.getenv("HFDL_OUTPUT_DIR", "/data/text/hfdl")
 # Frequencies to monitor in Hz — coverage for New York and San Francisco HFDL GS
 FREQUENCIES = os.getenv(

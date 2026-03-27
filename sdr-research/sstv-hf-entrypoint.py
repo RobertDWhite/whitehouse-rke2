@@ -27,7 +27,7 @@ from scipy import signal as sp_signal
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SOAPY_REMOTE  = os.getenv("SOAPY_REMOTE_RX888",
-                           "rx888-soapy.sdr-research.svc.cluster.local:55133")
+                           "rx888-soapy.sdr-research.svc.cluster.local:55132")
 OUTPUT_DIR    = os.getenv("SSTV_OUTPUT_DIR", "/data/images/sstv")
 SAMPLE_RATE   = int(os.getenv("HF_SAMPLE_RATE",   "2048000"))   # 2 MSPS from RX888
 AUDIO_RATE    = int(os.getenv("HF_AUDIO_RATE",     "16000"))     # 2048000/128 = 16000 Hz
