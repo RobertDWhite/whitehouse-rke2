@@ -12,7 +12,14 @@ data:
     import wave
     from faster_whisper import WhisperModel
 
-    AUDIO_DIR = "/data/audio/voice"
+    AUDIO_DIRS = tuple(
+        path.strip()
+        for path in os.getenv(
+            "TRANSCRIBE_AUDIO_DIRS",
+            "/data/audio/voice,/data/audio/pager",
+        ).split(",")
+        if path.strip()
+    )
     TEXT_DIR = "/data/text/voice"
     MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
     WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
@@ -41,6 +48,8 @@ data:
         re.IGNORECASE,
     )
 
+    for audio_dir in AUDIO_DIRS:
+        os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(TEXT_DIR, exist_ok=True)
 
     try:
@@ -63,7 +72,8 @@ data:
 
     print(
         "Voice decoder started "
-        f"(model={MODEL_NAME}, device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE})"
+        f"(model={MODEL_NAME}, device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE}, "
+        f"audio_dirs={','.join(AUDIO_DIRS)})"
     )
 
 
@@ -81,6 +91,26 @@ data:
         if freq_hz is None:
             return False
         return any(lo <= freq_hz <= hi for (lo, hi) in APRS_BANDS_HZ)
+
+
+    def iter_wav_candidates():
+        current_paths = set()
+        candidates = []
+        for audio_dir in AUDIO_DIRS:
+            try:
+                wav_names = [f for f in os.listdir(audio_dir) if f.endswith(".wav")]
+            except FileNotFoundError:
+                continue
+            for fname in wav_names:
+                wav_path = os.path.join(audio_dir, fname)
+                current_paths.add(wav_path)
+                try:
+                    mtime = os.path.getmtime(wav_path)
+                except OSError:
+                    continue
+                candidates.append((mtime, audio_dir, fname))
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        return current_paths, [(audio_dir, fname) for _, audio_dir, fname in candidates]
 
 
     def wav_bytes_for_frames(wf, start_frame, num_frames):
@@ -147,24 +177,13 @@ data:
         now = time.time()
 
         # Cleanup state for files that no longer exist.
-        current_wavs = {
-            os.path.join(AUDIO_DIR, f)
-            for f in os.listdir(AUDIO_DIR)
-            if f.endswith(".wav")
-        }
+        current_wavs, wav_entries = iter_wav_candidates()
         stale_paths = [p for p in file_state.keys() if p not in current_wavs]
         for p in stale_paths:
             file_state.pop(p, None)
 
-        wav_names = [f for f in os.listdir(AUDIO_DIR) if f.endswith(".wav")]
-        wav_names.sort(
-            key=lambda n: os.path.getmtime(os.path.join(AUDIO_DIR, n)),
-            reverse=True,
-        )
-
-        for fname in wav_names:
-
-            wav_path = os.path.join(AUDIO_DIR, fname)
+        for audio_dir, fname in wav_entries:
+            wav_path = os.path.join(audio_dir, fname)
             txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
             freq_hz = parse_voice_frequency_hz(fname)
 
