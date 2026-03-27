@@ -27,20 +27,24 @@ spec:
       containers:
         - name: rx888-soapy
           image: registry.white.fm/soapy-rx888-server
+          command:
+            - /bin/sh
+            - -lc
+            - exec SoapySDRServer --bind 0.0.0.0:55133
           securityContext:
             privileged: true
           ports:
-            - containerPort: 55132
+            - containerPort: 55133
               name: soapy
           readinessProbe:
             tcpSocket:
-              port: 55132
+              port: 55133
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
           livenessProbe:
             tcpSocket:
-              port: 55132
+              port: 55133
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
