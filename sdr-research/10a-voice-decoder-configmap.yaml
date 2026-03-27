@@ -103,14 +103,16 @@ data:
                 continue
             for fname in wav_names:
                 wav_path = os.path.join(audio_dir, fname)
+                txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
                 current_paths.add(wav_path)
                 try:
                     mtime = os.path.getmtime(wav_path)
                 except OSError:
                     continue
-                candidates.append((mtime, audio_dir, fname))
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        return current_paths, [(audio_dir, fname) for _, audio_dir, fname in candidates]
+                has_text = os.path.exists(txt_path) and os.path.getsize(txt_path) > 0
+                candidates.append((has_text, -mtime, audio_dir, fname))
+        candidates.sort()
+        return current_paths, [(audio_dir, fname) for _, _, audio_dir, fname in candidates]
 
 
     def wav_bytes_for_frames(wf, start_frame, num_frames):
