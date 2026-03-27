@@ -1,0 +1,58 @@
+# Keeps host network socket buffers large enough for SoapyRemote on node-10.
+# This applies to both the Airspy 2m path and the RX888 HF path.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: soapy-sysctl
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: soapy-sysctl
+  template:
+    metadata:
+      labels:
+        app: soapy-sysctl
+    spec:
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      containers:
+        - name: soapy-sysctl
+          image: ubuntu:24.04
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              while true; do
+                for key in wmem_max rmem_max wmem_default rmem_default; do
+                  echo 44040192 > "/host/proc/sys/net/core/${key}"
+                done
+                sleep 300
+              done
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -lc
+                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ]'
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
