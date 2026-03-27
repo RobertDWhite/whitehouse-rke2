@@ -2711,7 +2711,7 @@ data:
     )
     APRS_DECODE_FAILED_MARKER = "APRS_DECODE_FAILED"
     _INITIAL_INDEX_LOOKBACK_SECONDS = float(os.getenv("INDEX_INITIAL_LOOKBACK_SECONDS", "300"))
-    _last_index_scan_ts: dict[str, float] = {"voice": 0.0, "cw": 0.0}
+    _last_index_scan_ts: dict[str, float] = {}
     _last_aprs_scan_ts: float = 0.0
     _last_pager_scan_ts: float = 0.0
     _last_eas_scan_ts: float = 0.0
@@ -3051,7 +3051,8 @@ data:
             if not audio_path.exists():
                 return
             now_ts = _time.time()
-            previous_scan = _last_index_scan_ts.get(mode, 0.0)
+            scan_key = f"{mode}:{audio_path.name}"
+            previous_scan = _last_index_scan_ts.get(scan_key, 0.0)
             if previous_scan <= 0:
                 scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
             else:
@@ -3250,7 +3251,7 @@ data:
                     )
                 except Exception:
                     pass
-            _last_index_scan_ts[mode] = now_ts
+            _last_index_scan_ts[scan_key] = now_ts
         except Exception as e:
             print(f"Indexer error: {e}")
             db.rollback()
