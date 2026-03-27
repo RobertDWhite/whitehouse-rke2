@@ -4,14 +4,19 @@ resources:
   - 00-namespace.yaml
   - 10-pvc.yaml
   - 20-deployment.yaml
+  # - 21-configmap-litestream.yaml  # Enable after MinIO bucket + SOPS creds are set up
   - 30-service.yaml
   - 40-authentik-service.yaml
   - 50-ingress.yaml
   - 51-ingress-internal.yaml
+  - 60-networkpolicy.yaml
+  - 61-pdb.yaml
 
 generators:
   - ksops.yaml
 
 images:
   - name: registry.white.fm/jetlog
-    newTag: "2.1.2"
+    newTag: "2.2.0"
+  # - name: litestream/litestream  # Enable after MinIO setup
+  #   newTag: "0.3"

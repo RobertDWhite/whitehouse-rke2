@@ -15,9 +15,32 @@ spec:
       labels:
         app: jetlog
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Uncomment initContainers + litestream sidecar after MinIO bucket + SOPS creds are set up
+      # initContainers:
+      #   - name: litestream-restore
+      #     image: litestream/litestream:0.3
+      #     args: ['restore', '-if-db-not-exists', '-if-replica-exists', '/data/jetlog.db']
+      #     volumeMounts:
+      #       - name: jetlog-data
+      #         mountPath: /data
+      #       - name: litestream-config
+      #         mountPath: /etc/litestream.yml
+      #         subPath: litestream.yml
       containers:
         - name: jetlog
           image: registry.white.fm/jetlog
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # SQLite needs write access, and app writes to /data and /tmp
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3000
           env:
@@ -28,13 +51,17 @@ spec:
                 secretKeyRef:
                   name: jetlog-env
                   key: SECRET_KEY
+            - name: AUTH_HEADER
+              value: "X-Authentik-Username"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /config
               port: 3000
             initialDelaySeconds: 3
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /config
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 20
@@ -48,7 +75,31 @@ spec:
           volumeMounts:
             - name: jetlog-data
               mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+        # Uncomment after MinIO setup:
+        # - name: litestream
+        #   image: litestream/litestream:0.3
+        #   args: ['replicate']
+        #   volumeMounts:
+        #     - name: jetlog-data
+        #       mountPath: /data
+        #     - name: litestream-config
+        #       mountPath: /etc/litestream.yml
+        #       subPath: litestream.yml
+        #   resources:
+        #     requests:
+        #       cpu: 10m
+        #       memory: 32Mi
+        #     limits:
+        #       cpu: 100m
+        #       memory: 64Mi
       volumes:
         - name: jetlog-data
           persistentVolumeClaim:
             claimName: jetlog-data
+        # - name: litestream-config
+        #   configMap:
+        #     name: litestream-config
+        - name: tmp
+          emptyDir: {}

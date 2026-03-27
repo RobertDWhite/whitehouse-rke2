@@ -1,0 +1,20 @@
+# NOTE: Litestream S3 credentials must be added to jetlog-env secret (11-secret.sops.yaml):
+#   LITESTREAM_ACCESS_KEY_ID and LITESTREAM_SECRET_ACCESS_KEY
+# Also ensure the 'jetlog-backup' bucket exists in MinIO.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litestream-config
+  namespace: jetlog
+data:
+  litestream.yml: |
+    dbs:
+      - path: /data/jetlog.db
+        replicas:
+          - type: s3
+            bucket: jetlog-backup
+            path: db
+            endpoint: http://minio.minio.svc.cluster.local:9000
+            access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+            secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+            force-path-style: true
