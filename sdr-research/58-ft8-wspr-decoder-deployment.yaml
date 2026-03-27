@@ -70,13 +70,19 @@ spec:
               mountPath: /data
           livenessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f ft8-wspr-entrypoint || exit 1"]
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
             initialDelaySeconds: 60
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f ft8-wspr-entrypoint || exit 1"]
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
             initialDelaySeconds: 30
             periodSeconds: 15
             failureThreshold: 3
