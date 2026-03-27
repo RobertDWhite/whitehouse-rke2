@@ -27,15 +27,6 @@ spec:
       containers:
         - name: rx888-soapy
           image: registry.white.fm/soapy-rx888-server
-          command:
-            - /bin/sh
-            - -lc
-            - |
-              set -eu
-              for key in wmem_max rmem_max wmem_default rmem_default; do
-                echo 44040192 > "/host-root/proc/sys/net/core/${key}"
-              done
-              exec SoapySDRServer --bind 0.0.0.0:55132
           securityContext:
             privileged: true
           ports:
@@ -56,8 +47,6 @@ spec:
           volumeMounts:
             - name: usb
               mountPath: /dev/bus/usb
-            - name: host-root
-              mountPath: /host-root
           resources:
             requests:
               cpu: 200m
@@ -69,6 +58,3 @@ spec:
         - name: usb
           hostPath:
             path: /dev/bus/usb
-        - name: host-root
-          hostPath:
-            path: /
