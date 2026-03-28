@@ -26,21 +26,27 @@ spec:
         kubernetes.io/hostname: rke2-node-10
       containers:
         - name: rx888-soapy
-          image: registry.white.fm/soapy-rx888-server
+          image: registry.white.fm/soapy-rx888-server:1.0.2-arm64
           securityContext:
             privileged: true
           ports:
             - containerPort: 55132
               name: soapy
           readinessProbe:
-            tcpSocket:
-              port: 55132
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
           livenessProbe:
-            tcpSocket:
-              port: 55132
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3

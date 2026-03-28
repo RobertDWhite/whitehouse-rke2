@@ -10,7 +10,9 @@ data:
 
     AUDIO_DIR="/data/audio/voice"
     OUT_DIR="/data/text/aprs"
+    FAILED_DIR="/data/audio/aprs-failed"
     MIN_FILE_AGE_SEC="${MIN_FILE_AGE_SEC:-15}"
+    MAX_FILES_PER_SCAN="${MAX_FILES_PER_SCAN:-200}"
 
     # APRS frequency ranges (Hz):
     #   144.390 MHz — North American APRS primary (±20 kHz tolerance)
@@ -21,9 +23,58 @@ data:
       ( [ "$freq" -ge 145805000 ] && [ "$freq" -le 145845000 ] )
     }
 
-    mkdir -p "$OUT_DIR"
+    mkdir -p "$OUT_DIR" "$FAILED_DIR"
 
-    for f in "$AUDIO_DIR"/*.wav; do
+    decode_with_multimon() {
+      multimon-ng -q -t wav -a AFSK1200 "$1" 2>/dev/null \
+        | awk '
+            /^AFSK1200: fm / {
+              line = $0
+              sub(/^AFSK1200: fm /, "", line)
+              n = split(line, parts, / to /)
+              src = parts[1]
+              rest = parts[2]
+              if (match(rest, / via /)) {
+                dst = substr(rest, 1, RSTART-1)
+                via_rest = substr(rest, RSTART+5)
+                sub(/ UI.*/, "", via_rest)
+                header = src ">" dst "," via_rest
+              } else {
+                sub(/ UI.*/, "", rest)
+                header = src ">" rest
+              }
+              waiting = 1
+              next
+            }
+            waiting {
+              print header ":" $0
+              waiting = 0
+              header = ""
+            }
+          '
+    }
+
+    decode_with_cleanup() {
+      src="$1"
+      headroom="$2"
+      tmp=$(mktemp /tmp/aprs-clean-XXXXXX.wav)
+      if sox "$src" "$tmp" gain -n "$headroom" highpass 200 lowpass 3500 rate 22050 >/dev/null 2>&1; then
+        decode_with_multimon "$tmp"
+      fi
+      rm -f "$tmp"
+    }
+
+    find_aprs_candidates() {
+      find "$AUDIO_DIR" -maxdepth 1 -type f \
+        \( -name '1443*.wav' -o -name '1444*.wav' -o -name '1458*.wav' \) \
+        -printf '%T@ %p\n' 2>/dev/null \
+        | sort -nr \
+        | head -n "$MAX_FILES_PER_SCAN" \
+        | cut -d' ' -f2-
+    }
+
+    find_aprs_candidates | while IFS= read -r f; do
+      [ -n "$f" ] || continue
       [ -e "$f" ] || continue
 
       base=$(basename "$f" .wav)
@@ -55,42 +106,24 @@ data:
 
       echo "Decoding APRS from $f"
 
-      # Capture full multimon-ng output; join header+payload into TNC-2 format:
-      # "AFSK1200: fm SRC to DST [via PATH] UI  pid=F0" + next line = APRS data
-      decoded=$(multimon-ng -q -t wav -a AFSK1200 "$f" 2>/dev/null \
-                | awk '
-                    /^AFSK1200: fm / {
-                      line = $0
-                      sub(/^AFSK1200: fm /, "", line)
-                      n = split(line, parts, / to /)
-                      src = parts[1]
-                      rest = parts[2]
-                      if (match(rest, / via /)) {
-                        dst = substr(rest, 1, RSTART-1)
-                        via_rest = substr(rest, RSTART+5)
-                        sub(/ UI.*/, "", via_rest)
-                        header = src ">" dst "," via_rest
-                      } else {
-                        sub(/ UI.*/, "", rest)
-                        header = src ">" rest
-                      }
-                      waiting = 1
-                      next
-                    }
-                    waiting {
-                      print header ":" $0
-                      waiting = 0
-                      header = ""
-                    }
-                  ')
+      decoded=$(decode_with_multimon "$f")
+      if [ -z "$decoded" ]; then
+        decoded=$(decode_with_cleanup "$f" "-6")
+      fi
+      if [ -z "$decoded" ]; then
+        decoded=$(decode_with_cleanup "$f" "-12")
+      fi
 
       if [ -z "$decoded" ]; then
-        # Still index as APRS, but mark decode failure briefly and consume audio
-        # so Whisper does not spend cycles on APRS-band captures.
+        # Still index as APRS, but preserve the source WAV outside the voice
+        # directory so it can be inspected and retried later without Whisper
+        # picking it up.
         printf '%s\n' "APRS_DECODE_FAILED" > "$out.tmp"
         mv "$out.tmp" "$out"
-        rm -f "$f"
-        echo "APRS decode failed: $f (audio deleted)"
+        failed_path="$FAILED_DIR/$(basename "$f")"
+        rm -f "$failed_path"
+        mv "$f" "$failed_path"
+        echo "APRS decode failed: $f (moved to $failed_path)"
         continue
       fi
 
