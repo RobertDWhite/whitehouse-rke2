@@ -15,10 +15,9 @@ spec:
       labels:
         app: jetlog
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
@@ -36,11 +35,7 @@ spec:
       containers:
         - name: jetlog
           image: registry.white.fm/jetlog
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false  # SQLite needs write access, and app writes to /data and /tmp
-            capabilities:
-              drop: ["ALL"]
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
           env:
