@@ -1459,7 +1459,7 @@ data:
         return tags
 
 
-    def dump_ai_tags(tags: List[str]) -> Optional[str]:
+    def dump_ai_tags(tags: List[str], allow_empty: bool = False) -> Optional[str]:
         cleaned: List[str] = []
         seen = set()
         for tag in tags:
@@ -1468,8 +1468,19 @@ data:
                 seen.add(normalized)
                 cleaned.append(normalized)
         if not cleaned:
-            return None
+            return "[]" if allow_empty else None
         return json.dumps(cleaned)
+
+
+    def has_all_ai_tags(raw_tags, *required_tags: str) -> bool:
+        required = {tag.strip() for tag in required_tags if tag and tag.strip()}
+        if not required:
+            return False
+        if isinstance(raw_tags, list):
+            present = {str(tag).strip() for tag in raw_tags if str(tag).strip()}
+        else:
+            present = set(parse_ai_tags(raw_tags))
+        return required.issubset(present)
   known_freqs.py: |
     """
     Static lookup table of well-known frequencies.
@@ -1495,7 +1506,7 @@ data:
 
         # ── Amateur — 2m ──────────────────────────────────────────────────────
         (144_200_000, 3_000, "2m SSB Calling"),
-        (144_390_000, 3_000, "APRS 2m"),
+        (144_390_000, 20_000, "APRS 2m"),
         (146_520_000, 5_000, "2m National Simplex Calling"),
         (146_580_000, 5_000, "2m FM Simplex"),
         (147_555_000, 5_000, "2m FM Simplex"),
@@ -1512,7 +1523,7 @@ data:
         # ── ISS ───────────────────────────────────────────────────────────────
         (145_800_000, 5_000, "ISS Voice Downlink"),
         (437_550_000, 5_000, "ISS Packet"),
-        (145_825_000, 3_000, "ISS APRS"),
+        (145_825_000, 20_000, "ISS APRS"),
 
         # ── Aviation ──────────────────────────────────────────────────────────
         (121_500_000, 5_000, "Aviation Distress (Guard)"),
@@ -2841,9 +2852,9 @@ data:
 
     def generate_ollama_tags(transcript, frequency_label=None, repeater_info=None, operator_context=None):
         if not settings.ollama_enabled:
-            return []
+            return [], False
         if not transcript or is_no_speech_transcript(transcript):
-            return []
+            return [], False
         callsign_tags = extract_callsign_tags(transcript)
         payload = {
             "model": settings.ollama_model,
@@ -2871,11 +2882,11 @@ data:
         except error.URLError as exc:
             indexer_ollama_errors.inc()
             print(f"Ollama request failed: {exc}")
-            return callsign_tags
+            return callsign_tags, True
         except Exception as exc:
             indexer_ollama_errors.inc()
             print(f"Ollama request error: {exc}")
-            return callsign_tags
+            return callsign_tags, True
         tags: list[str] = []
         seen = set()
         for tag in callsign_tags:
@@ -2909,7 +2920,7 @@ data:
                 tags.append(cleaned)
             if len(tags) >= max_tags:
                 break
-        return tags
+        return tags, False
 
 
     # Emergency keyword pre-scan — fast regex before Ollama, guarantees "emergency" tag
@@ -2936,7 +2947,7 @@ data:
         return list(dict.fromkeys(tags))  # dedupe preserving order
 
     def maybe_set_ai_tags(db, recording, transcript, ollama_budget, hamdb_budget=None):
-        if recording.ai_tags:
+        if recording.ai_tags is not None:
             return
         if not transcript or is_no_speech_transcript(transcript):
             return
@@ -2950,10 +2961,9 @@ data:
             from ..models import Repeater
             rptr = db.query(Repeater).filter(Repeater.id == recording.repeater_id).first()
             if rptr:
-                seed_tags = get_repeater_tags(rptr)
+                seed_tags = list(dict.fromkeys(seed_tags + get_repeater_tags(rptr)))
         if not settings.ollama_enabled:
-            if seed_tags:
-                recording.ai_tags = dump_ai_tags(seed_tags)
+            recording.ai_tags = dump_ai_tags(seed_tags, allow_empty=True)
             return
         if ollama_budget["remaining"] <= 0:
             if seed_tags:
@@ -2979,16 +2989,31 @@ data:
         if callsigns and hamdb_budget is not None:
             info_map = lookup_callsigns(db, callsigns, hamdb_budget)
             operator_context = callsign_context_str(info_map)
-        tags = generate_ollama_tags(
+        tags, ollama_failed = generate_ollama_tags(
             transcript,
             frequency_label=recording.frequency_label,
             repeater_info=repeater_info,
             operator_context=operator_context,
         )
         merged = list(dict.fromkeys(seed_tags + tags))
-        serialized = dump_ai_tags(merged)
-        if serialized:
+        serialized = dump_ai_tags(merged, allow_empty=not ollama_failed)
+        if serialized is not None:
             recording.ai_tags = serialized
+
+
+    def format_frequency_label(frequency_hz):
+        if frequency_hz is None:
+            return None
+        value = f"{frequency_hz / 1_000_000:.6f}".rstrip("0").rstrip(".")
+        return f"{value} MHz"
+
+
+    def should_auto_delete_pager_decode_failed(mode, ai_tags, transcript) -> bool:
+        if mode != "pager":
+            return False
+        if has_all_ai_tags(ai_tags, "pager", "decode_failed"):
+            return True
+        return bool(transcript and transcript.upper().startswith("PAGER_DECODE_FAILED"))
 
 
     def should_auto_delete_no_speech(transcript: str | None) -> bool:
@@ -3032,6 +3057,8 @@ data:
                 )
             except Exception:
                 pass
+        if recording.frequency_label is None:
+            recording.frequency_label = format_frequency_label(recording.frequency_hz)
 
 
     def _touch_heartbeat():
@@ -3367,6 +3394,13 @@ data:
                 wav_name = txt_file.name.replace(".txt", ".wav")
                 existing = db.query(Recording).filter(Recording.filename == wav_name).first()
                 if existing:
+                    if should_auto_delete_pager_decode_failed(existing.mode, existing.ai_tags, existing.transcript):
+                        safe_unlink(existing.waveform_cached)
+                        safe_unlink(existing.spectrogram_cached)
+                        db.delete(existing)
+                        db.commit()
+                        print(f"Auto-deleted pager decode_failed record: {wav_name}")
+                        continue
                     continue
                 metadata = parse_voice_filename(wav_name)
                 timestamp = metadata.get("timestamp")
@@ -3395,6 +3429,9 @@ data:
                 maybe_set_frequency_metadata(db, recording)
                 if decode_failed:
                     recording.ai_tags = dump_ai_tags([mode, "decode_failed"])
+                    if should_auto_delete_pager_decode_failed(recording.mode, recording.ai_tags, recording.transcript):
+                        print(f"Auto-deleted pager decode_failed record: {wav_name}")
+                        continue
                 else:
                     callsign_tags = extract_callsign_tags(transcript)
                     mode_tag = [mode]
@@ -3424,6 +3461,37 @@ data:
 
     def index_pager_directory(text_dir: str):
         _index_text_only_directory("pager", text_dir, _pager_ts, "PAGER_DECODE_FAILED")
+
+
+    def _cleanup_pager_decode_failed_records(batch_size: int = 5000):
+        """Delete pager records tagged as decode_failed while keeping decoder marker files."""
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(Recording)
+                .filter(Recording.mode == "pager")
+                .order_by(Recording.id.asc())
+                .limit(batch_size)
+                .all()
+            )
+            if not rows:
+                return
+            deleted = 0
+            for rec in rows:
+                if not should_auto_delete_pager_decode_failed(rec.mode, rec.ai_tags, rec.transcript):
+                    continue
+                safe_unlink(rec.waveform_cached)
+                safe_unlink(rec.spectrogram_cached)
+                db.delete(rec)
+                deleted += 1
+            if deleted:
+                db.commit()
+                print(f"[PAGER CLEANUP] Deleted {deleted} pager decode_failed recording(s)")
+        except Exception as e:
+            print(f"[PAGER CLEANUP] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 
     def index_eas_directory(text_dir: str):
@@ -4022,7 +4090,7 @@ data:
         _last_pending_sweep_ts = _time.time()
 
 
-    def _backfill_frequency_labels(batch_size: int = 500):
+    def _backfill_frequency_labels(batch_size: int = 5000):
         """Backfill frequency_label and repeater_id for existing recordings missing them."""
         db = SessionLocal()
         try:
@@ -4032,6 +4100,7 @@ data:
                     Recording.frequency_hz.isnot(None),
                     Recording.frequency_label.is_(None),
                 )
+                .order_by(Recording.id.asc())
                 .limit(batch_size)
                 .all()
             )
@@ -4043,10 +4112,46 @@ data:
                 if rec.frequency_label is not None:
                     updated += 1
             db.commit()
-            if updated:
-                print(f"[BACKFILL] Labeled {updated}/{len(rows)} recordings")
+            print(f"[BACKFILL] Labeled {updated}/{len(rows)} recordings")
         except Exception as e:
             print(f"[BACKFILL] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    def _backfill_ai_tags(batch_size: int = 1000, ollama_budget: dict | None = None, hamdb_budget: dict | None = None):
+        """Backfill ai_tags for existing transcripts missing them."""
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(Recording)
+                .filter(
+                    Recording.transcript.isnot(None),
+                    Recording.ai_tags.is_(None),
+                )
+                .order_by(Recording.id.asc())
+                .limit(batch_size)
+                .all()
+            )
+            if not rows:
+                return
+            updated = 0
+            local_ollama_budget = ollama_budget if ollama_budget is not None else {
+                "remaining": max(0, settings.ollama_max_per_cycle)
+            }
+            local_hamdb_budget = hamdb_budget if hamdb_budget is not None else {
+                "remaining": max(0, settings.hamdb_max_per_cycle)
+            }
+            for rec in rows:
+                before_tags = rec.ai_tags
+                maybe_set_frequency_metadata(db, rec)
+                maybe_set_ai_tags(db, rec, rec.transcript, local_ollama_budget, local_hamdb_budget)
+                if rec.ai_tags != before_tags:
+                    updated += 1
+            db.commit()
+            print(f"[AI BACKFILL] Tagged {updated}/{len(rows)} recordings")
+        except Exception as e:
+            print(f"[AI BACKFILL] error: {e}")
             db.rollback()
         finally:
             db.close()
@@ -4178,6 +4283,9 @@ data:
                 )
                 _hb()
 
+                await asyncio.to_thread(_cleanup_pager_decode_failed_records, 5000)
+                _hb()
+
                 await asyncio.to_thread(
                     index_eas_directory,
                     text_dir=os.path.join(settings.text_base_path, "eas"),
@@ -4214,9 +4322,12 @@ data:
                 )
                 _hb()
 
-                # Bulk backfill frequency labels for existing recordings missing them
-                # Processes 500 per cycle to clear the 36k backlog gradually
-                await asyncio.to_thread(_backfill_frequency_labels, 500)
+                # Bulk backfill frequency labels for existing recordings missing them.
+                await asyncio.to_thread(_backfill_frequency_labels, 5000)
+                _hb()
+
+                # Backfill AI tags for recordings whose transcripts already exist.
+                await asyncio.to_thread(_backfill_ai_tags, 1000, ollama_budget, hamdb_budget)
                 _hb()
 
                 # Bulk cleanup: delete short voice recordings (<2s) already in DB
@@ -4305,7 +4416,7 @@ data:
     from ..database import get_db
     from ..models import AlertHistory, FrequencyLabel, Recording, Repeater
     from ..services.alerting import _send_webhook
-    from ..services.indexer import maybe_set_frequency_metadata
+    from ..services.indexer import maybe_set_ai_tags, maybe_set_frequency_metadata
     from ..services.repeater import sync_repeaters
 
     router = APIRouter()
@@ -4343,6 +4454,39 @@ data:
                 updated += 1
         db.commit()
         return {"scanned": len(recordings), "updated": updated}
+
+
+    @router.post("/backfill-ai-tags")
+    async def backfill_ai_tags(
+        limit: int = 200,
+        db: Session = Depends(get_db),
+    ):
+        recordings = (
+            db.query(Recording)
+            .filter(
+                Recording.transcript.isnot(None),
+                Recording.ai_tags.is_(None),
+            )
+            .order_by(Recording.id.asc())
+            .limit(limit)
+            .all()
+        )
+        updated = 0
+        ollama_budget = {"remaining": limit if settings.ollama_enabled else 0}
+        hamdb_budget = {"remaining": max(limit, settings.hamdb_max_per_cycle)}
+        for rec in recordings:
+            before_tags = rec.ai_tags
+            maybe_set_frequency_metadata(db, rec)
+            maybe_set_ai_tags(db, rec, rec.transcript, ollama_budget, hamdb_budget)
+            if rec.ai_tags != before_tags:
+                updated += 1
+        db.commit()
+        return {
+            "scanned": len(recordings),
+            "updated": updated,
+            "ollama_remaining": ollama_budget["remaining"],
+            "hamdb_remaining": hamdb_budget["remaining"],
+        }
 
 
     @router.post("/sync-repeaters")
@@ -5205,15 +5349,24 @@ data:
 
         return {"captures": captures}
   stats.py: |
+    import re
     import time
+    from collections import Counter
     from fastapi import APIRouter, Depends, Query, Response
     from sqlalchemy import func, text
     from sqlalchemy.orm import Session
 
     from ..database import get_db
     from ..models import Recording, Repeater
+    from ..services.tagging import parse_ai_tags
 
     router = APIRouter()
+    _CALLSIGN_TAG_RE = re.compile(r"^[AKNW][A-Z0-9]{2,6}$")
+
+    def _safe_parse_tags(raw_tags):
+        if isinstance(raw_tags, list):
+            return [str(tag).strip() for tag in raw_tags if str(tag).strip()]
+        return parse_ai_tags(raw_tags)
 
     # Mount FT8/WSPR spots router as sub-router of stats
     # (main.py can't be overridden via configmap, so we piggyback here)
@@ -5262,22 +5415,18 @@ data:
         ).fetchall()
         daily = [{"date": str(row.day), "count": row.cnt} for row in daily_rows]
 
-        tag_rows = db.execute(
-            text(
-                """
-                SELECT tag, COUNT(*) AS cnt
-                FROM (
-                    SELECT json_array_elements_text(ai_tags::json) AS tag
-                    FROM recordings
-                    WHERE ai_tags IS NOT NULL AND ai_tags <> ''
-                ) t
-                GROUP BY tag
-                ORDER BY cnt DESC
-                LIMIT 20
-                """
-            )
-        ).fetchall()
-        top_tags = [{"tag": row.tag, "count": row.cnt} for row in tag_rows]
+        tag_counter: Counter[str] = Counter()
+        for (raw_tags,) in (
+            db.query(Recording.ai_tags)
+            .filter(Recording.ai_tags.isnot(None))
+            .yield_per(1000)
+        ):
+            for tag in _safe_parse_tags(raw_tags):
+                tag_counter[tag] += 1
+        top_tags = [
+            {"tag": tag, "count": count}
+            for tag, count in tag_counter.most_common(20)
+        ]
 
         total_repeaters = db.query(func.count(Repeater.id)).scalar() or 0
         matched_recordings = (
@@ -5341,23 +5490,13 @@ data:
         by_hour_map = {row.hour: row.cnt for row in hour_rows}
         by_hour = [{"hour": h, "count": by_hour_map.get(h, 0)} for h in range(24)]
 
-        cs_rows = db.execute(
-            text(
-                """
-                SELECT tag, COUNT(*) AS cnt
-                FROM (
-                    SELECT json_array_elements_text(ai_tags::json) AS tag
-                    FROM recordings
-                    WHERE ai_tags IS NOT NULL AND ai_tags <> ''
-                ) t
-                WHERE tag ~ '^[AKNW][A-Z0-9]{2,6}$'
-                GROUP BY tag
-                ORDER BY cnt DESC
-                LIMIT 10
-                """
-            )
-        ).fetchall()
-        top_callsigns = [{"callsign": row.tag, "count": row.cnt} for row in cs_rows]
+        top_callsigns = [
+            {"callsign": tag, "count": count}
+            for tag, count in tag_counter.items()
+            if _CALLSIGN_TAG_RE.match(tag)
+        ]
+        top_callsigns.sort(key=lambda item: item["count"], reverse=True)
+        top_callsigns = top_callsigns[:10]
 
         result = {
             "total_recordings": total_recordings,
@@ -5459,25 +5598,22 @@ data:
         hour_map = {row.hour: row.cnt for row in hour_rows}
         by_hour = [{"hour": h, "count": hour_map.get(h, 0)} for h in range(24)]
 
-        cs_rows = db.execute(
-            text(
-                """
-                SELECT tag, COUNT(*) AS cnt
-                FROM (
-                    SELECT json_array_elements_text(ai_tags::json) AS tag
-                    FROM recordings
-                    WHERE frequency_hz BETWEEN :fmin AND :fmax
-                      AND ai_tags IS NOT NULL AND ai_tags <> ''
-                ) t
-                WHERE tag ~ '^[AKNW][A-Z0-9]{2,6}$'
-                GROUP BY tag
-                ORDER BY cnt DESC
-                LIMIT 10
-                """
-            ),
-            {"fmin": freq_min, "fmax": freq_max},
-        ).fetchall()
-        top_callsigns = [{"callsign": row.tag, "count": row.cnt} for row in cs_rows]
+        callsign_counter: Counter[str] = Counter()
+        for (raw_tags,) in (
+            db.query(Recording.ai_tags)
+            .filter(
+                Recording.frequency_hz.between(freq_min, freq_max),
+                Recording.ai_tags.isnot(None),
+            )
+            .yield_per(1000)
+        ):
+            for tag in _safe_parse_tags(raw_tags):
+                if _CALLSIGN_TAG_RE.match(tag):
+                    callsign_counter[tag] += 1
+        top_callsigns = [
+            {"callsign": tag, "count": count}
+            for tag, count in callsign_counter.most_common(10)
+        ]
 
         repeater_rows = (
             db.query(Repeater)
