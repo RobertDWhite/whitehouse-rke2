@@ -1,7 +1,7 @@
 # Airspy Mini SoapySDR remote server.
 # Exposes the Airspy Mini USB device to the cluster via the SoapyRemote
 # protocol (TCP port 55132) so that unified-sdr-2m can connect with:
-#   soapy=0,driver=remote,remote=tcp://airspy-soapy.sdr-research.svc.cluster.local:55132,remote:driver=airspy
+#   soapy=0,driver=remote,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,remote:driver=airspy
 #
 # Build the image (arm64 — runs on bare-metal node-10):
 #   docker buildx build --platform linux/arm64 --load \
@@ -26,21 +26,27 @@ spec:
         kubernetes.io/hostname: rke2-node-10
       containers:
         - name: airspy-soapy
-          image: registry.white.fm/soapy-airspy-server
+          image: registry.white.fm/soapy-airspy-server:1.0.4-arm64
           securityContext:
             privileged: true
           ports:
             - containerPort: 55132
               name: soapy
           readinessProbe:
-            tcpSocket:
-              port: 55132
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
           livenessProbe:
-            tcpSocket:
-              port: 55132
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3

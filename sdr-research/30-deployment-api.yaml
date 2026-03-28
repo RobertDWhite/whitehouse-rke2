@@ -21,7 +21,7 @@ spec:
         kubernetes.io/hostname: rke2-node-13
       containers:
         - name: api
-          image: registry.white.fm/sdr-viewer-api
+          image: registry.white.fm/sdr-viewer-api:1.7.11
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 1000
@@ -109,9 +109,9 @@ spec:
                   name: sdr-viewer-secrets
                   key: alert-keywords
             - name: APRS_IS_ENABLED
-              value: "false"
+              value: "true"
             - name: APRS_IS_CALLSIGN
-              value: "N0CALL"
+              value: "W3RDW"
             - name: APRS_IS_FILTER
               value: "r/39.0/-84.0/100"
           volumeMounts:

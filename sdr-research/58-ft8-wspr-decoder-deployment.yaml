@@ -32,14 +32,88 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-10
+      initContainers:
+        - name: install-rx888-plugin
+          image: registry.white.fm/soapy-rx888-server:1.0.2-arm64
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /plugins
+              cp /usr/local/lib/SoapySDR/modules0.8/libSDDCSupport.so /plugins/
+          volumeMounts:
+            - name: soapy-plugins
+              mountPath: /plugins
       containers:
         - name: ft8-wspr-decoder
-          image: registry.white.fm/ft8-wspr-decoder
+          image: registry.white.fm/ft8-wspr-decoder:1.0.8
           securityContext:
-            allowPrivilegeEscalation: false
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp /app/ft8-wspr-entrypoint.py /tmp/ft8-wspr-entrypoint.py
+              python3 - <<'PY'
+              from pathlib import Path
+
+              path = Path("/tmp/ft8-wspr-entrypoint.py")
+              text = path.read_text()
+
+              def replace_once(old: str, new: str) -> None:
+                  global text
+                  if old not in text:
+                      raise SystemExit(f"missing patch target: {old[:80]!r}")
+                  text = text.replace(old, new, 1)
+
+              if 'SOAPY_DEVICE_STRING = os.getenv("SOAPY_DEVICE_STRING", "").strip()' not in text:
+                  replace_once(
+                      'SOAPY_DEVICE_ARGS = os.getenv("SOAPY_DEVICE_ARGS", "")\n',
+                      'SOAPY_DEVICE_ARGS = os.getenv("SOAPY_DEVICE_ARGS", "")\n'
+                      'SOAPY_DEVICE_STRING = os.getenv("SOAPY_DEVICE_STRING", "").strip()\n'
+                      'SOAPY_GAIN = float(os.getenv("SOAPY_GAIN", "20"))\n',
+                  )
+
+              replace_once(
+                  'def _soapysdr_device_string() -> str:\n'
+                  '    device = f"driver=remote,remote=tcp://{SOAPY_REMOTE},remote:format=CF32"\n'
+                  '    if SOAPY_DEVICE_ARGS.strip():\n'
+                  '        device += "," + SOAPY_DEVICE_ARGS.strip().lstrip(",")\n'
+                  '    return device\n',
+                  'def _soapysdr_device_string() -> str:\n'
+                  '    if SOAPY_DEVICE_STRING:\n'
+                  '        return SOAPY_DEVICE_STRING\n'
+                  '    remote = SOAPY_REMOTE.strip()\n'
+                  '    if remote.startswith("tcp://"):\n'
+                  '        remote = remote[len("tcp://"):]\n'
+                  '    device = f"driver=remote,remote={remote},remote:format=CF32"\n'
+                  '    if SOAPY_DEVICE_ARGS.strip():\n'
+                  '        device += "," + SOAPY_DEVICE_ARGS.strip().lstrip(",")\n'
+                  '    return device\n',
+              )
+              replace_once(
+                  '        self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, 0)\n',
+                  '        self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, SOAPY_GAIN)\n',
+              )
+              replace_once(
+                  '            "-g", "0",\n',
+                  '            "-g", str(SOAPY_GAIN),\n',
+              )
+
+              path.write_text(text)
+              PY
+              exec python3 /tmp/ft8-wspr-entrypoint.py
           env:
             - name: SOAPY_REMOTE
               value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
+            - name: SOAPY_DEVICE_STRING
+              value: "driver=sddc"
+            - name: SOAPY_SDR_PLUGIN_PATH
+              value: "/opt/soapy-modules"
+            - name: SOAPY_GAIN
+              value: "20"
             - name: FT8_OUTPUT_DIR
               value: "/data/text/ft8"
             # Standard FT8 dial frequencies (Hz) — most active HF bands
@@ -66,6 +140,10 @@ spec:
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
+            - name: soapy-plugins
+              mountPath: /opt/soapy-modules
+            - name: usb
+              mountPath: /dev/bus/usb
           livenessProbe:
             exec:
               command:
@@ -96,3 +174,8 @@ spec:
         - name: sdr-artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: soapy-plugins
+          emptyDir: {}
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

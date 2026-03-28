@@ -18,18 +18,19 @@ spec:
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-13
+        kubernetes.io/hostname: rke2-node-10
       containers:
         - name: unified-sdr
           image: librespace/gnuradio
           securityContext:
-            allowPrivilegeEscalation: false
+            privileged: true
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
-            # Airspy Mini via SoapyRemote — overrides rtl_tcp default device string.
-            # Airspy Mini: 24 MHz–1.8 GHz, 6 MHz real-time BW covers full 2m band.
+            # Airspy Mini via direct local USB access on node-10.
+            # SoapyRemote control connected successfully but delivered empty sample
+            # buffers; using the native osmosdr airspy source removes that layer.
             - name: OSMOSDR_ARGS
-              value: "soapy=0,driver=remote,remote=tcp://airspy-soapy.sdr-research.svc.cluster.local:55132,remote:driver=airspy"
+              value: "airspy=0"
             - name: CAPTURE_ID
               value: "2m"
             - name: FIXED_MONITOR_HZ
@@ -83,8 +84,9 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              # Airspy Mini gain index (0–21); start at 18 and tune down if overloaded
-              value: "18"
+              # Airspy Mini gain index (0–21); direct USB access was clipping APRS
+              # captures at 18, so run lower to preserve packet decode quality.
+              value: "10"
             - name: PPM_CORRECTION
               # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
               value: "0"
@@ -124,6 +126,8 @@ spec:
               mountPath: /scripts
             - name: dshm
               mountPath: /dev/shm
+            - name: usb
+              mountPath: /dev/bus/usb
       terminationGracePeriodSeconds: 20
       volumes:
         - name: artifacts
@@ -137,3 +141,6 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb
