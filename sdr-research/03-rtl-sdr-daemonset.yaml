@@ -39,14 +39,20 @@ spec:
             - name: RTL_GAIN
               value: "auto"
           readinessProbe:
-            tcpSocket:
-              port: 1234
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
           livenessProbe:
-            tcpSocket:
-              port: 1234
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
@@ -92,12 +98,16 @@ spec:
                 DEV_INDEX=0
               fi
               echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
-              rtl_tcp \
-                -d ${DEV_INDEX} \
-                -a 0.0.0.0 \
-                -p 1234 \
-                -s ${RTL_SAMPLE_RATE} \
-                -n 32
+              while true; do
+                rtl_tcp \
+                  -d ${DEV_INDEX} \
+                  -a 0.0.0.0 \
+                  -p 1234 \
+                  -s ${RTL_SAMPLE_RATE} \
+                  -n 32
+                echo "rtl_tcp exited, restarting in 2s..."
+                sleep 2
+              done
       volumes:
         - name: usb
           hostPath:
