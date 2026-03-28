@@ -156,9 +156,12 @@ spec:
           readinessProbe:
             exec:
               command:
-                - sh
+                - python3
                 - -c
-                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
+                - |
+                  import os, sys, SoapySDR
+                  args = os.environ.get("SOAPY_DEVICE_STRING", "driver=sddc")
+                  sys.exit(0 if SoapySDR.Device.enumerate(args) else 1)
             initialDelaySeconds: 30
             periodSeconds: 15
             failureThreshold: 3
