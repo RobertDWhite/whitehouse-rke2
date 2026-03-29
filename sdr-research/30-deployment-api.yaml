@@ -203,13 +203,12 @@ spec:
             periodSeconds: 60
             failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /api/v1/health
+            tcpSocket:
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
       volumes:
         - name: sdr-artifacts
           persistentVolumeClaim:
