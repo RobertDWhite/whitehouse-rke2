@@ -143,6 +143,7 @@ data:
 
     from ..database import get_db
     from ..models import CallsignInfo, Recording, Repeater
+    from ..services.known_freqs import classify_frequency_group, frequency_group_label
     from ..services.tagging import extract_callsign_tags, is_no_speech_transcript, normalize_callsign, parse_ai_tags
 
     router = APIRouter()
@@ -196,6 +197,24 @@ data:
 
     def _all_tags(callsign_tags: List[str], ai_tags: List[str]) -> List[str]:
         return list(dict.fromkeys(callsign_tags + ai_tags))
+
+
+    def _frequency_group_fields(
+        frequency_hz: Optional[float],
+        frequency_label: Optional[str],
+        mode: Optional[str] = None,
+        repeater_id: Optional[int] = None,
+    ) -> dict:
+        group = classify_frequency_group(
+            frequency_hz=frequency_hz,
+            label=frequency_label,
+            mode=mode,
+            repeater_id=repeater_id,
+        )
+        return {
+            "frequency_group": group,
+            "frequency_group_label": frequency_group_label(group),
+        }
 
 
     _FAILED_MARKERS = frozenset({
@@ -309,7 +328,7 @@ data:
         has_transcript: Optional[bool] = None,
         transcript_pending: Optional[bool] = None,
         page: int = Query(1, ge=1),
-        limit: int = Query(50, ge=1, le=200),
+        limit: int = Query(50, ge=1, le=500),
         db: Session = Depends(get_db),
     ):
         """List recordings with optional filters. APRS is excluded — use the APRS tab."""
@@ -359,6 +378,7 @@ data:
                     "mode": r.mode,
                     "frequency_hz": r.frequency_hz,
                     "frequency_label": r.frequency_label,
+                    **_frequency_group_fields(r.frequency_hz, r.frequency_label, r.mode, r.repeater_id),
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
@@ -484,6 +504,7 @@ data:
             "transcript": recording.transcript,
             "transcript_status": _transcript_status(recording),
             "frequency_label": recording.frequency_label,
+            **_frequency_group_fields(recording.frequency_hz, recording.frequency_label, recording.mode, recording.repeater_id),
             "callsign_tags": callsign_tags,
             "ai_tags": ai_tags,
             "tags": _all_tags(callsign_tags, ai_tags),
@@ -567,6 +588,7 @@ data:
                     "mode": r.mode,
                     "frequency_hz": r.frequency_hz,
                     "frequency_label": r.frequency_label,
+                    **_frequency_group_fields(r.frequency_hz, r.frequency_label, r.mode, r.repeater_id),
                     "timestamp": r.timestamp.isoformat() if r.timestamp else None,
                     "duration_seconds": r.duration_seconds,
                     "has_transcript": bool((r.transcript or "").strip()),
@@ -1076,9 +1098,28 @@ data:
 
     from ..database import get_db
     from ..models import Recording
+    from ..services.known_freqs import classify_frequency_group, frequency_group_label
     from ..services.tagging import extract_callsign_tags, normalize_callsign, parse_ai_tags
 
     router = APIRouter()
+
+
+    def _frequency_group_fields(
+        frequency_hz: Optional[float],
+        frequency_label: Optional[str],
+        mode: Optional[str] = None,
+        repeater_id: Optional[int] = None,
+    ) -> dict:
+        group = classify_frequency_group(
+            frequency_hz=frequency_hz,
+            label=frequency_label,
+            mode=mode,
+            repeater_id=repeater_id,
+        )
+        return {
+            "frequency_group": group,
+            "frequency_group_label": frequency_group_label(group),
+        }
 
 
     @router.get("/text")
@@ -1169,6 +1210,12 @@ data:
                     "mode": r.Recording.mode,
                     "frequency_hz": r.Recording.frequency_hz,
                     "frequency_label": r.Recording.frequency_label,
+                    **_frequency_group_fields(
+                        r.Recording.frequency_hz,
+                        r.Recording.frequency_label,
+                        r.Recording.mode,
+                        r.Recording.repeater_id,
+                    ),
                     "timestamp": r.Recording.timestamp.isoformat() if r.Recording.timestamp else None,
                     "headline": r.headline,
                     "rank": float(r.rank),
@@ -1257,6 +1304,12 @@ data:
                     "mode": r.Recording.mode,
                     "frequency_hz": r.Recording.frequency_hz,
                     "frequency_label": r.Recording.frequency_label,
+                    **_frequency_group_fields(
+                        r.Recording.frequency_hz,
+                        r.Recording.frequency_label,
+                        r.Recording.mode,
+                        r.Recording.repeater_id,
+                    ),
                     "timestamp": r.Recording.timestamp.isoformat() if r.Recording.timestamp else None,
                     "transcript": (r.Recording.transcript or "")[:300],
                     "rank": float(r.rank),
@@ -1441,10 +1494,15 @@ data:
     def parse_ai_tags(raw: Optional[str]) -> List[str]:
         if not raw:
             return []
-        try:
-            value = json.loads(raw)
-        except json.JSONDecodeError:
-            return []
+        if isinstance(raw, list):
+            value = raw
+        elif isinstance(raw, tuple):
+            value = list(raw)
+        else:
+            try:
+                value = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return []
         if not isinstance(value, list):
             return []
         tags: List[str] = []
@@ -1490,91 +1548,184 @@ data:
     Edit this configmap to add or adjust entries without rebuilding the image.
     """
 
+    import re
     from typing import Optional
 
 
-    # (center_hz, tolerance_hz, label)
-    _KNOWN: list[tuple[float, float, str]] = [
+    _GROUP_LABELS = {
+        "ham": "Ham",
+        "emergency": "Emergency / Safety",
+        "other": "Other",
+    }
+
+    _HAM_BANDS_HZ = (
+        (1_800_000, 2_000_000),
+        (3_500_000, 4_000_000),
+        (5_330_500, 5_406_500),
+        (7_000_000, 7_300_000),
+        (10_100_000, 10_150_000),
+        (14_000_000, 14_350_000),
+        (18_068_000, 18_168_000),
+        (21_000_000, 21_450_000),
+        (24_890_000, 24_990_000),
+        (28_000_000, 29_700_000),
+        (50_000_000, 54_000_000),
+        (144_000_000, 148_000_000),
+        (222_000_000, 225_000_000),
+        (420_000_000, 450_000_000),
+    )
+    _EMERGENCY_BANDS_HZ = (
+        (121_450_000, 121_550_000),
+        (150_000_000, 162_625_000),
+    )
+    _HAM_LABEL_RE = re.compile(
+        r"\b(?:HAM|AMATEUR|APRS|ISS|2M|6M|10M|12M|15M|17M|20M|30M|40M|60M|70CM|80M|160M|1\.25M)\b",
+        re.IGNORECASE,
+    )
+    _EMERGENCY_LABEL_RE = re.compile(
+        r"\b(?:NOAA|WX|WEATHER|DISTRESS|GUARD|USCG|COAST GUARD|SAFETY|EMERGENCY|FIRE|EMS|RESCUE|POLICE|SHERIFF|DISPATCH|AIR-TO-AIR|MULTICOM|UNICOM|MARINE|AVIATION)\b",
+        re.IGNORECASE,
+    )
+
+
+    # (center_hz, tolerance_hz, label, group)
+    _KNOWN: list[tuple[float, float, str, str]] = [
         # ── NOAA Weather Radio ────────────────────────────────────────────────
-        (162_400_000, 3_000, "NOAA WX-1"),
-        (162_425_000, 3_000, "NOAA WX-2"),
-        (162_450_000, 3_000, "NOAA WX-3"),
-        (162_475_000, 3_000, "NOAA WX-4"),
-        (162_500_000, 3_000, "NOAA WX-5"),
-        (162_525_000, 3_000, "NOAA WX-6"),
-        (162_550_000, 3_000, "NOAA WX-7"),
+        (162_400_000, 3_000, "NOAA WX-1", "emergency"),
+        (162_425_000, 3_000, "NOAA WX-2", "emergency"),
+        (162_450_000, 3_000, "NOAA WX-3", "emergency"),
+        (162_475_000, 3_000, "NOAA WX-4", "emergency"),
+        (162_500_000, 3_000, "NOAA WX-5", "emergency"),
+        (162_525_000, 3_000, "NOAA WX-6", "emergency"),
+        (162_550_000, 3_000, "NOAA WX-7", "emergency"),
 
         # ── Amateur — 2m ──────────────────────────────────────────────────────
-        (144_200_000, 3_000, "2m SSB Calling"),
-        (144_390_000, 20_000, "APRS 2m"),
-        (146_520_000, 5_000, "2m National Simplex Calling"),
-        (146_580_000, 5_000, "2m FM Simplex"),
-        (147_555_000, 5_000, "2m FM Simplex"),
+        (144_200_000, 3_000, "2m SSB Calling", "ham"),
+        (144_390_000, 20_000, "APRS 2m", "ham"),
+        (146_520_000, 5_000, "2m National Simplex Calling", "ham"),
+        (146_580_000, 5_000, "2m FM Simplex", "ham"),
+        (147_555_000, 5_000, "2m FM Simplex", "ham"),
 
         # ── Amateur — 70cm ────────────────────────────────────────────────────
-        (432_100_000, 3_000, "70cm SSB Calling"),
-        (433_920_000, 5_000, "70cm FM Simplex"),
-        (446_000_000, 5_000, "70cm National Simplex Calling"),
-        (446_500_000, 5_000, "70cm FM Simplex"),
+        (432_100_000, 3_000, "70cm SSB Calling", "ham"),
+        (433_920_000, 5_000, "70cm FM Simplex", "ham"),
+        (446_000_000, 5_000, "70cm National Simplex Calling", "ham"),
+        (446_500_000, 5_000, "70cm FM Simplex", "ham"),
 
         # ── Amateur — 1.25m ───────────────────────────────────────────────────
-        (223_500_000, 5_000, "1.25m National Simplex Calling"),
+        (223_500_000, 5_000, "1.25m National Simplex Calling", "ham"),
 
         # ── ISS ───────────────────────────────────────────────────────────────
-        (145_800_000, 5_000, "ISS Voice Downlink"),
-        (437_550_000, 5_000, "ISS Packet"),
-        (145_825_000, 20_000, "ISS APRS"),
+        (145_800_000, 5_000, "ISS Voice Downlink", "ham"),
+        (437_550_000, 5_000, "ISS Packet", "ham"),
+        (145_825_000, 20_000, "ISS APRS", "ham"),
 
         # ── Aviation ──────────────────────────────────────────────────────────
-        (121_500_000, 5_000, "Aviation Distress (Guard)"),
-        (122_750_000, 5_000, "Aviation Multicom"),
-        (123_025_000, 5_000, "Aviation Unicom"),
-        (123_450_000, 5_000, "Aviation Air-to-Air"),
+        (121_500_000, 5_000, "Aviation Distress (Guard)", "emergency"),
+        (122_750_000, 5_000, "Aviation Multicom", "emergency"),
+        (123_025_000, 5_000, "Aviation Unicom", "emergency"),
+        (123_450_000, 5_000, "Aviation Air-to-Air", "emergency"),
 
         # ── Marine VHF ───────────────────────────────────────────────────────
-        (156_800_000, 5_000, "Marine Ch 16 (Distress/Calling)"),
-        (156_300_000, 5_000, "Marine Ch 6 (Safety)"),
-        (157_050_000, 5_000, "Marine Ch 22A (USCG Working)"),
+        (156_800_000, 5_000, "Marine Ch 16 (Distress/Calling)", "emergency"),
+        (156_300_000, 5_000, "Marine Ch 6 (Safety)", "emergency"),
+        (157_050_000, 5_000, "Marine Ch 22A (USCG Working)", "emergency"),
 
         # ── FRS/GMRS simplex ─────────────────────────────────────────────────
-        (462_562_500, 5_000, "FRS/GMRS Ch 1"),
-        (462_587_500, 5_000, "FRS/GMRS Ch 2"),
-        (462_612_500, 5_000, "FRS/GMRS Ch 3"),
-        (462_637_500, 5_000, "FRS/GMRS Ch 4"),
-        (462_662_500, 5_000, "FRS/GMRS Ch 5"),
-        (462_687_500, 5_000, "FRS/GMRS Ch 6"),
-        (462_712_500, 5_000, "FRS/GMRS Ch 7"),
-        (467_562_500, 5_000, "FRS Ch 8"),
-        (467_587_500, 5_000, "FRS Ch 9"),
-        (467_612_500, 5_000, "FRS Ch 10"),
-        (467_637_500, 5_000, "FRS Ch 11"),
-        (467_662_500, 5_000, "FRS Ch 12"),
-        (467_687_500, 5_000, "FRS Ch 13"),
-        (467_712_500, 5_000, "FRS Ch 14"),
-        (462_550_000, 5_000, "GMRS Ch 15 (Calling)"),
-        (462_575_000, 5_000, "GMRS Ch 16"),
-        (462_600_000, 5_000, "GMRS Ch 17"),
-        (462_625_000, 5_000, "GMRS Ch 18"),
-        (462_650_000, 5_000, "GMRS Ch 19"),
-        (462_675_000, 5_000, "GMRS Ch 20"),
-        (462_700_000, 5_000, "GMRS Ch 21"),
-        (462_725_000, 5_000, "GMRS Ch 22"),
+        (462_562_500, 5_000, "FRS/GMRS Ch 1", "other"),
+        (462_587_500, 5_000, "FRS/GMRS Ch 2", "other"),
+        (462_612_500, 5_000, "FRS/GMRS Ch 3", "other"),
+        (462_637_500, 5_000, "FRS/GMRS Ch 4", "other"),
+        (462_662_500, 5_000, "FRS/GMRS Ch 5", "other"),
+        (462_687_500, 5_000, "FRS/GMRS Ch 6", "other"),
+        (462_712_500, 5_000, "FRS/GMRS Ch 7", "other"),
+        (467_562_500, 5_000, "FRS Ch 8", "other"),
+        (467_587_500, 5_000, "FRS Ch 9", "other"),
+        (467_612_500, 5_000, "FRS Ch 10", "other"),
+        (467_637_500, 5_000, "FRS Ch 11", "other"),
+        (467_662_500, 5_000, "FRS Ch 12", "other"),
+        (467_687_500, 5_000, "FRS Ch 13", "other"),
+        (467_712_500, 5_000, "FRS Ch 14", "other"),
+        (462_550_000, 5_000, "GMRS Ch 15 (Calling)", "other"),
+        (462_575_000, 5_000, "GMRS Ch 16", "other"),
+        (462_600_000, 5_000, "GMRS Ch 17", "other"),
+        (462_625_000, 5_000, "GMRS Ch 18", "other"),
+        (462_650_000, 5_000, "GMRS Ch 19", "other"),
+        (462_675_000, 5_000, "GMRS Ch 20", "other"),
+        (462_700_000, 5_000, "GMRS Ch 21", "other"),
+        (462_725_000, 5_000, "GMRS Ch 22", "other"),
 
         # ── MURS ─────────────────────────────────────────────────────────────
-        (151_820_000, 5_000, "MURS Ch 1"),
-        (151_880_000, 5_000, "MURS Ch 2"),
-        (151_940_000, 5_000, "MURS Ch 3"),
-        (154_570_000, 5_000, "MURS Ch 4"),
-        (154_600_000, 5_000, "MURS Ch 5"),
+        (151_820_000, 5_000, "MURS Ch 1", "other"),
+        (151_880_000, 5_000, "MURS Ch 2", "other"),
+        (151_940_000, 5_000, "MURS Ch 3", "other"),
+        (154_570_000, 5_000, "MURS Ch 4", "other"),
+        (154_600_000, 5_000, "MURS Ch 5", "other"),
     ]
+
+
+    def lookup_known_freq_metadata(frequency_hz: float) -> Optional[dict[str, str]]:
+        """Return known-frequency metadata, or None if unrecognized."""
+        for center, tolerance, label, group in _KNOWN:
+            if abs(frequency_hz - center) <= tolerance:
+                return {
+                    "label": label,
+                    "group": group,
+                    "group_label": _GROUP_LABELS.get(group, _GROUP_LABELS["other"]),
+                }
+        return None
 
 
     def lookup_known_freq(frequency_hz: float) -> Optional[str]:
         """Return a human label for a known frequency, or None if unrecognized."""
-        for center, tolerance, label in _KNOWN:
-            if abs(frequency_hz - center) <= tolerance:
-                return label
-        return None
+        metadata = lookup_known_freq_metadata(frequency_hz)
+        return metadata["label"] if metadata else None
+
+
+    def lookup_known_freq_group(frequency_hz: float) -> Optional[str]:
+        metadata = lookup_known_freq_metadata(frequency_hz)
+        return metadata["group"] if metadata else None
+
+
+    def frequency_group_label(group: Optional[str]) -> str:
+        return _GROUP_LABELS.get(group or "other", _GROUP_LABELS["other"])
+
+
+    def is_ham_frequency_hz(frequency_hz: float | None) -> bool:
+        if frequency_hz is None:
+            return False
+        hz = int(round(frequency_hz))
+        return any(low <= hz <= high for (low, high) in _HAM_BANDS_HZ)
+
+
+    def classify_frequency_group(
+        frequency_hz: float | None,
+        label: str | None = None,
+        mode: str | None = None,
+        repeater_id: int | None = None,
+    ) -> str:
+        if repeater_id is not None:
+            return "ham"
+        if frequency_hz is not None:
+            known_group = lookup_known_freq_group(frequency_hz)
+            if known_group:
+                return known_group
+        if (mode or "").lower() == "aprs":
+            return "ham"
+
+        normalized_label = (label or "").strip()
+        if normalized_label and _HAM_LABEL_RE.search(normalized_label):
+            return "ham"
+        if normalized_label and _EMERGENCY_LABEL_RE.search(normalized_label):
+            return "emergency"
+        if is_ham_frequency_hz(frequency_hz):
+            return "ham"
+
+        if frequency_hz is not None:
+            hz = int(round(frequency_hz))
+            if any(low <= hz <= high for (low, high) in _EMERGENCY_BANDS_HZ):
+                return "emergency"
+        return "other"
   repeaters.py: |
     from typing import Optional
 
@@ -2262,10 +2413,20 @@ data:
             with _ureq.urlopen(AIS_URL, timeout=5) as resp:
                 data = json.loads(resp.read())
         except _uerr.URLError as exc:
-            raise HTTPException(status_code=503, detail=f"ais-catcher unreachable: {exc}")
+            print(f"[AIS] ais-catcher unreachable: {exc}")
+            return {"vessels": [], "available": False}
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"AIS data error: {exc}")
-        return data
+            print(f"[AIS] AIS data error: {exc}")
+            return {"vessels": [], "available": False}
+        if isinstance(data, list):
+            return {"vessels": data, "available": True}
+        if isinstance(data, dict):
+            payload = dict(data)
+            vessels = payload.get("vessels")
+            if isinstance(vessels, list):
+                payload.setdefault("available", True)
+                return payload
+        return {"vessels": [], "available": True}
 
   indexer.py: |
     import asyncio
@@ -2286,9 +2447,9 @@ data:
     from .audio import compute_signal_db, generate_waveform_peaks, get_time_segments
     from .alerting import check_alerts
     from .hamdb import callsign_context_str, lookup_callsigns
-    from .known_freqs import lookup_known_freq
+    from .known_freqs import classify_frequency_group, frequency_group_label, lookup_known_freq
     from .repeater import lookup_repeater, repeater_label, repeater_tags
-    from .tagging import dump_ai_tags, extract_callsign_tags, is_no_speech_transcript, is_valid_callsign, parse_ai_tags
+    from .tagging import dump_ai_tags, extract_callsign_tags, has_all_ai_tags, is_no_speech_transcript, is_valid_callsign, parse_ai_tags
     from .metrics import (
         indexer_files_indexed, indexer_files_deleted, indexer_cycle_duration,
         indexer_last_run, indexer_ollama_calls, indexer_ollama_errors,
@@ -3261,12 +3422,20 @@ data:
                     from ..routers.events import broadcast_recording as _broadcast
                     _cs_tags = extract_callsign_tags(recording.transcript)
                     _ai_tags = parse_ai_tags(recording.ai_tags)
+                    _frequency_group = classify_frequency_group(
+                        frequency_hz=recording.frequency_hz,
+                        label=recording.frequency_label,
+                        mode=recording.mode,
+                        repeater_id=recording.repeater_id,
+                    )
                     _asyncio.get_event_loop().call_soon_threadsafe(
-                        lambda: _asyncio.ensure_future(_broadcast({
+                        lambda grp=_frequency_group: _asyncio.ensure_future(_broadcast({
                             "id": recording.id,
                             "mode": recording.mode,
                             "frequency_hz": recording.frequency_hz,
                             "frequency_label": recording.frequency_label,
+                            "frequency_group": grp,
+                            "frequency_group_label": frequency_group_label(grp),
                             "timestamp": recording.timestamp.isoformat() if recording.timestamp else None,
                             "duration_seconds": recording.duration_seconds,
                             "has_transcript": bool((recording.transcript or "").strip()),
@@ -4853,6 +5022,18 @@ data:
         }
 
 
+    # Backward-compatible aliases for older UI clients that still poll
+    # /api/v1/admin/health and /api/v1/admin/health/{band}.
+    @router.get("/health")
+    async def get_sdr_health_legacy():
+        return await get_sdr_health(None)
+
+
+    @router.get("/health/{band}")
+    async def get_sdr_health_band_legacy(band: str):
+        return await get_sdr_health(band)
+
+
     @router.post("/bulk-retranscribe")
     async def bulk_retranscribe(
         clear_no_speech_only: bool = True,
@@ -5358,6 +5539,7 @@ data:
 
     from ..database import get_db
     from ..models import Recording, Repeater
+    from ..services.known_freqs import classify_frequency_group, frequency_group_label
     from ..services.tagging import parse_ai_tags
 
     router = APIRouter()
@@ -5367,6 +5549,24 @@ data:
         if isinstance(raw_tags, list):
             return [str(tag).strip() for tag in raw_tags if str(tag).strip()]
         return parse_ai_tags(raw_tags)
+
+
+    def _frequency_group_fields(
+        frequency_hz: float | None,
+        frequency_label: str | None,
+        mode: str | None = None,
+        repeater_id: int | None = None,
+    ) -> dict:
+        group = classify_frequency_group(
+            frequency_hz=frequency_hz,
+            label=frequency_label,
+            mode=mode,
+            repeater_id=repeater_id,
+        )
+        return {
+            "frequency_group": group,
+            "frequency_group_label": frequency_group_label(group),
+        }
 
     # Mount FT8/WSPR spots router as sub-router of stats
     # (main.py can't be overridden via configmap, so we piggyback here)
@@ -5452,29 +5652,58 @@ data:
             )
         ).fetchall()
         collapsed_freqs = {}
+        frequency_group_totals: Counter[str] = Counter()
         for row in freq_rows:
             label = row.frequency_label.strip() if isinstance(row.frequency_label, str) else row.frequency_label
+            hz = float(row.frequency_hz) if row.frequency_hz is not None else None
             count = int(row.cnt or 0)
-            if label:
+            fields = _frequency_group_fields(hz, label)
+            frequency_group_totals[fields["frequency_group"]] += count
+            if fields["frequency_group"] == "emergency":
+                key = ("group", fields["frequency_group"])
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {
+                        "frequency_hz": None,
+                        "label": fields["frequency_group_label"],
+                        "count": 0,
+                        "is_grouped": True,
+                        "collapsed_labels": set(),
+                        **fields,
+                    },
+                )
+                if label:
+                    entry["collapsed_labels"].add(label)
+            elif label:
                 # Collapse all labeled frequencies (APRS/repeater labels) into one row per label.
                 key = ("label", label)
                 entry = collapsed_freqs.setdefault(
                     key,
-                    {"frequency_hz": None, "label": label, "count": 0},
+                    {"frequency_hz": None, "label": label, "count": 0, "is_grouped": False, **fields},
                 )
             else:
-                hz = float(row.frequency_hz) if row.frequency_hz is not None else None
                 key = ("freq", hz)
                 entry = collapsed_freqs.setdefault(
                     key,
-                    {"frequency_hz": hz, "label": label, "count": 0},
+                    {"frequency_hz": hz, "label": label, "count": 0, "is_grouped": False, **fields},
                 )
             entry["count"] += count
+        for entry in collapsed_freqs.values():
+            if isinstance(entry.get("collapsed_labels"), set):
+                entry["collapsed_labels"] = sorted(entry["collapsed_labels"])
         top_frequencies = sorted(
             collapsed_freqs.values(),
             key=lambda item: item["count"],
             reverse=True,
         )[:10]
+        top_frequency_groups = [
+            {
+                "frequency_group": group,
+                "frequency_group_label": frequency_group_label(group),
+                "count": count,
+            }
+            for group, count in frequency_group_totals.most_common()
+        ]
 
         hour_rows = db.execute(
             text(
@@ -5509,6 +5738,7 @@ data:
             "total_repeaters_known": total_repeaters,
             "daily_last_30": daily,
             "top_tags": top_tags,
+            "top_frequency_groups": top_frequency_groups,
             "top_frequencies": top_frequencies,
             "by_hour": by_hour,
             "top_callsigns": top_callsigns,
@@ -5537,10 +5767,12 @@ data:
 
         total = base_q.count()
         if total == 0:
+            fields = _frequency_group_fields(frequency_hz, None)
             return {
                 "frequency_hz": frequency_hz,
                 "tolerance_hz": tolerance_hz,
                 "label": None,
+                **fields,
                 "recordings_total": 0,
                 "by_mode": {},
                 "daily_last_30": [],
@@ -5633,6 +5865,11 @@ data:
             }
             for r in repeater_rows
         ]
+        fields = _frequency_group_fields(
+            frequency_hz,
+            label,
+            repeater_id=repeater_rows[0].id if repeater_rows else None,
+        )
 
         recent = (
             base_q.order_by(Recording.timestamp.desc())
@@ -5648,6 +5885,7 @@ data:
                 "duration_seconds": r.duration_seconds,
                 "has_transcript": bool((r.transcript or "").strip()),
                 "frequency_label": r.frequency_label,
+                **_frequency_group_fields(r.frequency_hz, r.frequency_label, r.mode, r.repeater_id),
                 "signal_db": r.signal_db,
             }
             for r in recent
@@ -5657,6 +5895,7 @@ data:
             "frequency_hz": frequency_hz,
             "tolerance_hz": tolerance_hz,
             "label": label,
+            **fields,
             "recordings_total": total,
             "by_mode": by_mode,
             "daily_last_30": daily,
@@ -5679,6 +5918,7 @@ data:
                 """
                 SELECT
                     COALESCE(frequency_label, 'Unknown') AS label,
+                    MIN(frequency_hz) AS frequency_hz,
                     EXTRACT(HOUR FROM timestamp)::int AS hour,
                     COUNT(*) AS cnt
                 FROM recordings
@@ -5689,25 +5929,42 @@ data:
                 """.replace(":d", str(int(days)))
             )
         ).fetchall()
-        # Pivot: label -> [count_per_hour for hour 0..23]
-        grid: dict[str, list[int]] = {}
-        totals: dict[str, int] = {}
+        series_map: dict[tuple[str, str], dict] = {}
         for row in rows:
             label = row.label
-            if label not in grid:
-                grid[label] = [0] * 24
-                totals[label] = 0
-            grid[label][row.hour] += row.cnt
-            totals[label] += row.cnt
-        # Sort by total activity descending, cap at top 20
-        sorted_labels = sorted(totals.keys(), key=lambda l: totals[l], reverse=True)[:20]
+            fields = _frequency_group_fields(
+                row.frequency_hz,
+                None if label == "Unknown" else label,
+            )
+            display_label = fields["frequency_group_label"] if fields["frequency_group"] == "emergency" else label
+            key = (fields["frequency_group"], display_label)
+            series = series_map.setdefault(
+                key,
+                {
+                    "label": display_label,
+                    "data": [0] * 24,
+                    "total": 0,
+                    "is_grouped": fields["frequency_group"] == "emergency",
+                    **fields,
+                },
+            )
+            series["data"][row.hour] += row.cnt
+            series["total"] += row.cnt
+            if fields["frequency_group"] == "emergency" and label != "Unknown":
+                series.setdefault("collapsed_labels", set())
+                series["collapsed_labels"].add(label)
+        sorted_series = sorted(
+            series_map.values(),
+            key=lambda item: item["total"],
+            reverse=True,
+        )[:20]
+        for series in sorted_series:
+            if isinstance(series.get("collapsed_labels"), set):
+                series["collapsed_labels"] = sorted(series["collapsed_labels"])
         return {
             "days": days,
             "hours": list(range(24)),
-            "series": [
-                {"label": lbl, "data": grid[lbl], "total": totals[lbl]}
-                for lbl in sorted_labels
-            ],
+            "series": sorted_series,
         }
 
 
@@ -6492,6 +6749,7 @@ data:
     from ..models import Recording
     from .alerting import check_alerts
     from .metrics import aprs_is_packets_indexed, aprs_is_connected, aprs_packets_indexed
+    from .known_freqs import classify_frequency_group, frequency_group_label
     from .tagging import dump_ai_tags, extract_callsign_tags
 
     APRS_IS_HOST = os.getenv("APRS_IS_HOST", "rotate.aprs2.net")
@@ -6545,12 +6803,19 @@ data:
             # Broadcast to SSE subscribers
             try:
                 from ..routers.events import broadcast_recording as _broadcast
+                _frequency_group = classify_frequency_group(
+                    frequency_hz=recording.frequency_hz,
+                    label="APRS-IS",
+                    mode="aprs",
+                )
                 asyncio.get_event_loop().call_soon_threadsafe(
-                    lambda rec=recording: asyncio.ensure_future(_broadcast({
+                    lambda rec=recording, grp=_frequency_group: asyncio.ensure_future(_broadcast({
                         "id": rec.id,
                         "mode": "aprs",
                         "frequency_hz": rec.frequency_hz,
                         "frequency_label": "APRS-IS",
+                        "frequency_group": grp,
+                        "frequency_group_label": frequency_group_label(grp),
                         "timestamp": rec.timestamp.isoformat() if rec.timestamp else None,
                         "duration_seconds": None,
                         "has_transcript": True,

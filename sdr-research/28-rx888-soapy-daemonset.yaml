@@ -29,6 +29,9 @@ spec:
           image: registry.white.fm/soapy-rx888-server:1.0.2-arm64
           securityContext:
             privileged: true
+          env:
+            - name: SDR_USB_PROBE_REGEX
+              value: "RX888|RX-888|RX999|RXLucy|HF103|BBRF103|FX3|Cypress|SDDC"
           ports:
             - containerPort: 55132
               name: soapy
@@ -37,7 +40,18 @@ spec:
               command:
                 - sh
                 - -c
-                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
+                - |
+                  found_proc=0
+                  for f in /proc/[0-9]*/comm; do
+                    [ "$(cat "$f")" = "SoapySDRServer" ] && found_proc=1 && break
+                  done
+                  [ "$found_proc" -eq 1 ] || exit 1
+                  for d in /sys/bus/usb/devices/*; do
+                    [ -f "$d/idVendor" ] || continue
+                    dev="$(cat "$d/manufacturer" 2>/dev/null) $(cat "$d/product" 2>/dev/null) $(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)"
+                    printf '%s\n' "$dev" | grep -Eiq "${SDR_USB_PROBE_REGEX}" && exit 0
+                  done
+                  exit 1
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3
