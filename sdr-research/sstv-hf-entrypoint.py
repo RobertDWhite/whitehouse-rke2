@@ -156,6 +156,7 @@ def main() -> None:
             sdr = SoapySDR.Device({
                 "driver": "remote",
                 "remote": f"tcp://{SOAPY_REMOTE}",
+                "remote:driver": "sddc",
             })
             sdr.setSampleRate(SoapySDR.SOAPY_SDR_RX, 0, SAMPLE_RATE)
             sdr.setGain(SoapySDR.SOAPY_SDR_RX, 0, GAIN)
