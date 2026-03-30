@@ -3,8 +3,6 @@ kind: Gateway
 metadata:
   name: main
   namespace: envoy-gateway-system
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-dns
 spec:
   gatewayClassName: eg-metallb
   listeners:
@@ -37,7 +35,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: wildcard-internal-white-fm-tls
+          - name: wildcard-white-fm-tls
       allowedRoutes:
         namespaces:
           from: All
@@ -63,7 +61,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: wildcard-internal-w3rdw-radio-tls
+          - name: wildcard-w3rdw-radio-tls
       allowedRoutes:
         namespaces:
           from: All
@@ -89,7 +87,7 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: wildcard-internal-whitematter-tech-tls
+          - name: wildcard-whitematter-tech-tls
       allowedRoutes:
         namespaces:
           from: All
