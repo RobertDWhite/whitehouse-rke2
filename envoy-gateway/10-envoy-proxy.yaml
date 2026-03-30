@@ -7,6 +7,10 @@ spec:
   provider:
     type: Kubernetes
     kubernetes:
+      envoyDeployment:
+        pod:
+          nodeSelector:
+            kubernetes.io/hostname: rke2-node-15
       envoyService:
         type: LoadBalancer
         annotations:
