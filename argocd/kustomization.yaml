@@ -5,6 +5,9 @@ resources:
   - image-updater-role.yaml
   - image-updater-rolebinding.yaml
 
+generators:
+  - ksops.yaml
+
 helmCharts:
   - name: argo-cd
     repo: https://argoproj.github.io/argo-helm
@@ -13,6 +16,5 @@ helmCharts:
     releaseName: argocd
     valuesFile: values/argocd-values.yaml
     namespace: argocd
-
 
 
