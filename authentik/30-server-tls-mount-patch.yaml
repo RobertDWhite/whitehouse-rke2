@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-server
+  namespace: authentik
+spec:
+  template:
+    spec:
+      volumes:
+        - name: authentik-tls
+          secret:
+            secretName: auth-white-fm-tls
+      containers:
+        - name: server
+          volumeMounts:
+            - name: authentik-tls
+              mountPath: /certs
+              readOnly: true
