@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-envoy-gateway
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  name: envoy-gateway
+  project: default
+  type: helm
+  url: docker.io/envoyproxy
+  enableOCI: "true"
