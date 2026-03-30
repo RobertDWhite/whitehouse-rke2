@@ -88,7 +88,7 @@ spec:
                   '    remote = SOAPY_REMOTE.strip()\n'
                   '    if remote.startswith("tcp://"):\n'
                   '        remote = remote[len("tcp://"):]\n'
-                  '    device = f"driver=remote,remote={remote},remote:driver=sddc,remote:format=CF32"\n'
+                  '    device = f"driver=remote,remote={remote},remote:driver=SDDC,remote:format=CF32"\n'
                   '    if SOAPY_DEVICE_ARGS.strip():\n'
                   '        device += "," + SOAPY_DEVICE_ARGS.strip().lstrip(",")\n'
                   '    return device\n',
@@ -109,7 +109,7 @@ spec:
             - name: SOAPY_REMOTE
               value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
             - name: SOAPY_DEVICE_STRING
-              value: "driver=remote,remote=rx888-soapy.sdr-research.svc.cluster.local:55132,remote:driver=sddc"
+              value: "driver=SDDC"
             - name: SOAPY_SDR_PLUGIN_PATH
               value: "/opt/soapy-modules"
             - name: SOAPY_GAIN
@@ -160,7 +160,7 @@ spec:
                 - -c
                 - |
                   import os, sys, SoapySDR
-                  args = os.environ.get("SOAPY_DEVICE_STRING", "driver=sddc")
+                  args = os.environ.get("SOAPY_DEVICE_STRING", "driver=SDDC")
                   sys.exit(0 if SoapySDR.Device.enumerate(args) else 1)
             initialDelaySeconds: 30
             periodSeconds: 15
