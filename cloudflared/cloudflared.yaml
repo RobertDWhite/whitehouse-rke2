@@ -21,18 +21,12 @@ spec:
             - tunnel
             - --config
             - /etc/cloudflared/config/config.yaml
+            - --protocol
+            - http2
             - --no-autoupdate
             - run
-            - --token
-            - $(TUNNEL_TOKEN)
           args:
             []
-          env:
-            - name: TUNNEL_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: cloudflared-secret
-                  key: TUNNEL_TOKEN
           volumeMounts:
             - name: config
               mountPath: /etc/cloudflared/config
@@ -47,4 +41,3 @@ spec:
         - name: creds
           secret:
             secretName: cloudflared-secret
-            optional: true
