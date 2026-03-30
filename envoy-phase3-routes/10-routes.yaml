@@ -1,0 +1,592 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: argocd-server-tls
+  namespace: argocd
+spec:
+  endpoints:
+    - fqdn:
+        hostname: argocd-server.argocd.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+    sni: argocd-server.argocd.svc.cluster.local
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: worldmonitor-public
+  namespace: worldmonitor
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - worldmonitor.white.fm
+  rules:
+    - backendRefs:
+        - name: worldmonitor
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn-public
+  namespace: longhorn-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - longhorn.white.fm
+  rules:
+    - backendRefs:
+        - name: longhorn-frontend
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: matrix-public
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - matrix.white.fm
+  rules:
+    - backendRefs:
+        - name: synapse
+          port: 8008
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: element-public
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - element.white.fm
+  rules:
+    - backendRefs:
+        - name: element-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: maubot-public
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - maubot.white.fm
+  rules:
+    - backendRefs:
+        - name: maubot
+          port: 29316
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: webhooks-public
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - webhooks.white.fm
+  rules:
+    - backendRefs:
+        - name: matrix-hookshot
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: white-fm-public
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-root-white-fm
+  hostnames:
+    - white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /.well-known/matrix
+      backendRefs:
+        - name: matrix-well-known
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tautulli-public
+  namespace: tautulli
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - tautulli.white.fm
+  rules:
+    - backendRefs:
+        - name: tautulli
+          port: 8181
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: streaming-mastodon-public
+  namespace: mastodon
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-whitematter-tech
+  hostnames:
+    - streaming.mastodon.whitematter.tech
+  rules:
+    - backendRefs:
+        - name: mastodon-streaming
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mastodon-public
+  namespace: mastodon
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-whitematter-tech
+  hostnames:
+    - mastodon.whitematter.tech
+  rules:
+    - backendRefs:
+        - name: mastodon-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homarr-public
+  namespace: homarr
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - homarr.white.fm
+  rules:
+    - backendRefs:
+        - name: homarr
+          port: 7575
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: photos-public
+  namespace: immich
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - photos.white.fm
+  rules:
+    - backendRefs:
+        - name: immich-server
+          port: 2283
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: status-public
+  namespace: uptime-kuma
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - status.white.fm
+  rules:
+    - backendRefs:
+        - name: uptime-kuma
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ombi-public
+  namespace: ombi
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - ombi.white.fm
+  rules:
+    - backendRefs:
+        - name: ombi
+          port: 3579
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: portainer-public
+  namespace: portainer
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - portainer.white.fm
+  rules:
+    - backendRefs:
+        - name: portainer
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: registry-public
+  namespace: registry
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - registry.white.fm
+  rules:
+    - backendRefs:
+        - name: registry
+          port: 5000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: audiobookshelf-public
+  namespace: audiobookshelf
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - abs.white.fm
+    - audiobooks.white.fm
+    - audiobookshelf.white.fm
+  rules:
+    - backendRefs:
+        - name: audiobookshelf
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-public
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - grafana.white.fm
+  rules:
+    - backendRefs:
+        - name: grafana
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: influxdb-public
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - influxdb.white.fm
+  rules:
+    - backendRefs:
+        - name: influxdb
+          port: 8086
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: books-public
+  namespace: calibre
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - books.white.fm
+  rules:
+    - backendRefs:
+        - name: calibre-web-automated
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: paperless-public
+  namespace: paperless
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - paperless.white.fm
+  rules:
+    - backendRefs:
+        - name: paperless
+          port: 8000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tv-public
+  namespace: dispatcharr
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - tv.white.fm
+  rules:
+    - backendRefs:
+        - name: dispatcharr-web
+          port: 9191
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hamclock-public
+  namespace: openhamclock
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-w3rdw-radio
+  hostnames:
+    - hamclock.w3rdw.radio
+  rules:
+    - backendRefs:
+        - name: openhamclock
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sat-public
+  namespace: ground-station
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - sat.white.fm
+  rules:
+    - backendRefs:
+        - name: ground-station
+          port: 7000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argo-public
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - argo.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: argocd-server-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: intel-public
+  namespace: misp
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - intel.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /raven-ws
+      backendRefs:
+        - name: misp-raven-bridge
+          port: 5678
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: misp-dashboard
+          port: 8001
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: auth-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - auth.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: auth-whitematter-tech-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-whitematter-tech
+  hostnames:
+    - auth.whitematter.tech
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openwebui-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - openwebui.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sdr-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - sdr.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: calibre-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - calibre.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: monica-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - monica.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: everydocs-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - everydocs.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
