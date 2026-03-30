@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - install.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: envoy-gateway
+      namespace: envoy-gateway-system
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          kubernetes.io/hostname: rke2-node-15
