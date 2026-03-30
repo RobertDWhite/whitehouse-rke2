@@ -5,9 +5,9 @@
 #
 # Build and push the image before deploying:
 #   docker buildx build --platform linux/amd64 --load \
-#     -t registry.white.fm:5000/soapy-rx888-server:1.0.0 \
+#     -t registry.white.fm:5000/soapy-rx888-server:1.0.5-amd64 \
 #     -f sdr-research/Dockerfile.soapy-rx888 sdr-research/
-#   docker push registry.white.fm:5000/soapy-rx888-server:1.0.0
+#   docker push registry.white.fm:5000/soapy-rx888-server:1.0.5-amd64
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -23,10 +23,10 @@ spec:
         app: rx888-soapy
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-10
+        kubernetes.io/hostname: rke2-node-12
       containers:
         - name: rx888-soapy
-          image: registry.white.fm/soapy-rx888-server:1.0.2-arm64
+          image: registry.white.fm/soapy-rx888-server:1.0.5-amd64
           securityContext:
             privileged: true
           env:
