@@ -1,5 +1,5 @@
-# Keeps host network socket buffers large enough for SoapyRemote on node-10.
-# This applies to both the Airspy 2m path and the RX888 HF path.
+# Keeps host network socket buffers large enough for SoapyRemote on the
+# Airspy node and the RX888 node.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -16,8 +16,16 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
-      nodeSelector:
-        kubernetes.io/hostname: rke2-node-10
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - rke2-node-10
+                      - rke2-node-12
       containers:
         - name: soapy-sysctl
           image: ubuntu:24.04
