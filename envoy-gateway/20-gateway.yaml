@@ -1,0 +1,95 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main
+  namespace: envoy-gateway-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns
+spec:
+  gatewayClassName: eg-metallb
+  listeners:
+    # HTTP catch-all — redirected to HTTPS via 25-http-redirect.yaml
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.white.fm
+    - name: https-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "*.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.white.fm
+    - name: https-internal-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-internal-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.w3rdw.radio
+    - name: https-w3rdw-radio
+      protocol: HTTPS
+      port: 443
+      hostname: "*.w3rdw.radio"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-w3rdw-radio-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.w3rdw.radio
+    - name: https-internal-w3rdw-radio
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.w3rdw.radio"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-internal-w3rdw-radio-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.whitematter.tech
+    - name: https-whitematter-tech
+      protocol: HTTPS
+      port: 443
+      hostname: "*.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-whitematter-tech-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.whitematter.tech
+    - name: https-internal-whitematter-tech
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-internal-whitematter-tech-tls
+      allowedRoutes:
+        namespaces:
+          from: All
