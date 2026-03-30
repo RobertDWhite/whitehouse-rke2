@@ -7,6 +7,10 @@ spec:
   parentRefs:
     - name: main
       namespace: envoy-gateway-system
+      sectionName: https-w3rdw-radio
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-w3rdw-radio
   hostnames:
     - adsb.w3rdw.radio
     - adsb.internal.w3rdw.radio
@@ -14,3 +18,23 @@ spec:
     - backendRefs:
         - name: ultrafeeder
           port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ultrafeeder-http-redirect
+  namespace: adsb
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: http
+  hostnames:
+    - adsb.w3rdw.radio
+    - adsb.internal.w3rdw.radio
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
