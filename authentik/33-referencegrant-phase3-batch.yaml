@@ -1,0 +1,26 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-phase3-batch-authentik-server
+  namespace: authentik
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: adsb
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: freshrss
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: homepage
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: jetlog
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: myspeed
+  to:
+    - group: ""
+      kind: Service
+      name: authentik-server
