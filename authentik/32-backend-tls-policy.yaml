@@ -1,0 +1,14 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: authentik-server-https
+  namespace: authentik
+spec:
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: authentik-server
+      sectionName: https-9443
+  validation:
+    hostname: auth.white.fm
+    wellKnownCACertificates: System
