@@ -1,0 +1,964 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: pihole-rke2-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: pihole-rke2.external-services.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: pihole1-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: pihole1.external-services.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: pihole2-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: pihole2.external-services.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: scrypted-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: scrypted.external-services.svc.cluster.local
+        port: 10443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ollama-internal
+  namespace: ai-stack
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - ollama.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: ollama
+          port: 11434
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openwebui-internal
+  namespace: ai-stack
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - openwebui.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: openwebui
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argo-internal
+  namespace: argocd
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - argo.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: argocd-server-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: audiobookshelf-internal
+  namespace: audiobookshelf
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - abs.internal.white.fm
+    - audiobooks.internal.white.fm
+    - audiobookshelf.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: audiobookshelf
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: auth-internal
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - auth.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: books-internal
+  namespace: calibre
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - books.internal.white.fm
+    - calibre.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: calibre-web-automated
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: lazylibrarian-internal
+  namespace: calibre
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - lazylibrarian.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: lazylibrarian
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: shelfmark-internal
+  namespace: calibre
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - shelfmark.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: shelfmark
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tv-internal
+  namespace: dispatcharr
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - tv.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: dispatcharr-web
+          port: 9191
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bazarr-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - bazarr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: baz
+          port: 6767
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: filebot-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - filebot.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: fbot
+          port: 5803
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homebridge-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - homebridge.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: hbridge
+          port: 8581
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homeassistant-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - homeassistant.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: homeassistant
+          port: 8123
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pihole-rke2-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - pihole-rke2.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: pihole-rke2-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pihole1-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - pihole1.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: pihole1-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pihole2-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - pihole2.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: pihole2-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prowlarr-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - prowlarr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: prowl
+          port: 9696
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: qbit-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - qbit.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: qbit
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: radarr-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - radarr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: rad
+          port: 7878
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: readarr-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - readarr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: read
+          port: 8787
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sabnzbd-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - sabnzbd.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: sab
+          port: 8088
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: scrypted-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - scrypted.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: scrypted-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sonarr-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - sonarr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: son
+          port: 8989
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: synology-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - synology.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: synology-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ytdl-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - ytdl.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: ytdl
+          port: 8998
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sat-internal
+  namespace: ground-station
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - sat.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: ground-station
+          port: 7000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: photos-internal
+  namespace: immich
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - photos.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: immich-server
+          port: 2283
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: intelowl-internal
+  namespace: intelowl
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - intelowl.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: intelowl-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn-internal
+  namespace: longhorn-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - longhorn.internal.white.fm
+    - longhornui.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: longhorn-frontend
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: streaming-mastodon-internal
+  namespace: mastodon
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-whitematter-tech
+  hostnames:
+    - streaming.mastodon.internal.whitematter.tech
+  rules:
+    - backendRefs:
+        - name: mastodon-streaming
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mastodon-internal
+  namespace: mastodon
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-whitematter-tech
+  hostnames:
+    - mastodon.internal.whitematter.tech
+  rules:
+    - backendRefs:
+        - name: mastodon-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: element-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - element.internal.white.fm
+    - messaging.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: element-web
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: matrix-server-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - matrix.internal.white.fm
+    - synapse.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: synapse
+          port: 8008
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: webhooks-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - webhooks.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: matrix-hookshot
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: white-fm-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - white.internal.white.fm
+    - federation.internal.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /.well-known/matrix
+      backendRefs:
+        - name: matrix-well-known
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: maubot-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - maubot.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: maubot
+          port: 29316
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: misp-internal
+  namespace: misp
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - misp.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: misp-nginx-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: intel-internal
+  namespace: misp
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - intel.internal.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /raven-ws
+      backendRefs:
+        - name: misp-raven-bridge
+          port: 5678
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: misp-dashboard
+          port: 8001
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-internal
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - grafana.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: grafana
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: influxdb-internal
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - influxdb.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: influxdb
+          port: 8086
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ombi-internal
+  namespace: ombi
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - ombi.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: ombi
+          port: 3579
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openclaw-internal
+  namespace: openclaw
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - openclaw.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: openclaw
+          port: 18789
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hamclock-internal
+  namespace: openhamclock
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-w3rdw-radio
+  hostnames:
+    - hamclock.internal.w3rdw.radio
+  rules:
+    - backendRefs:
+        - name: openhamclock
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: portainer-internal
+  namespace: portainer
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - portainer.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: portainer
+          port: 9000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: raven-internal
+  namespace: raven
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - raven.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: raven
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: registry-internal
+  namespace: registry
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - registry.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: registry
+          port: 5000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sdr-internal-white-fm
+  namespace: sdr-research
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - sdr.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: sdr-viewer-ui
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sdr-internal-w3rdw-radio
+  namespace: sdr-research
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-w3rdw-radio
+  hostnames:
+    - sdr.internal.w3rdw.radio
+  rules:
+    - backendRefs:
+        - name: sdr-viewer-ui
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: tautulli-internal
+  namespace: tautulli
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - tautulli.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: tautulli
+          port: 8181
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: status-internal
+  namespace: uptime-kuma
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - status.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: uptime-kuma
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: worldmonitor-internal
+  namespace: worldmonitor
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - worldmonitor.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: worldmonitor
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: yeti-internal
+  namespace: yeti
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - yeti.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: yeti-frontend
+          port: 80
