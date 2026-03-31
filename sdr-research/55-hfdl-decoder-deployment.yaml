@@ -1,10 +1,10 @@
-# HFDL decoder — connects to rx888-soapy SoapyRemote, decodes HFDL aviation
-# HF datalink frames, writes one JSON file per frame to /data/text/hfdl/.
+# HFDL decoder — prefers direct RX888 access on rke2-node-12 and falls back
+# to rx888-soapy if needed. Decodes HFDL aviation HF datalink frames and
+# writes one JSON file per frame to /data/text/hfdl/.
 # The API indexer picks these up as mode="hfdl" recordings in sdr.white.fm.
 #
-# IMPORTANT: The RX888 SoapyRemote server only serves one client at a time.
-# Scale openwebrxplus to 0 while running this decoder (or use a second HF SDR).
-#   kubectl scale deploy openwebrxplus -n sdr-research --replicas=0
+# IMPORTANT: The RX888 can only be opened by one workload at a time.
+# Scale other RX888 consumers to 0 while running this decoder.
 #   kubectl scale deploy hfdl-decoder   -n sdr-research --replicas=1
 #
 # Build the image first:
