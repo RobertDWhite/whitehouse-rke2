@@ -83,7 +83,7 @@ spec:
         - {protocol: TCP, port: 53}
 
 ---
-# Cloudflared egress → ingress-nginx, authentik, mastodon, Cloudflare edge
+# Cloudflared egress → ingress-nginx, Envoy Gateway, authentik, mastodon, Cloudflare edge
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -101,6 +101,14 @@ spec:
       ports:
         - {protocol: TCP, port: 80}
         - {protocol: TCP, port: 443}
+    # → Envoy Gateway controller service (current tunnel origin)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 10443}
     # → authentik directly (auth.white.fm tunnel route)
     - to:
         - namespaceSelector:
