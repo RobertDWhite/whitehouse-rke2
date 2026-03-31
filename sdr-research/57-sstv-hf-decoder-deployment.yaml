@@ -39,6 +39,8 @@ spec:
               value: "dummy"
             - name: SOAPY_REMOTE_RX888
               value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
+            - name: SOAPY_DEVICE_STRING
+              value: "driver=SDDC"
             - name: SSTV_OUTPUT_DIR
               value: "/data/images/sstv"
             - name: HF_SAMPLE_RATE
@@ -56,6 +58,8 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /data
+            - name: usb
+              mountPath: /dev/bus/usb
           resources:
             requests:
               cpu: 500m
@@ -67,3 +71,6 @@ spec:
         - name: artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb
