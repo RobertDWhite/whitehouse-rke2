@@ -52,13 +52,19 @@ spec:
               done
           livenessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q aprs_decode.sh"
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f 'multimon-ng\\|python3\\|sox\\|slowrx' || exit 1"]
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q aprs_decode.sh"
             initialDelaySeconds: 10
             periodSeconds: 15
             failureThreshold: 3

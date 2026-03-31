@@ -2776,6 +2776,7 @@ data:
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS frequency_label TEXT"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS notes TEXT"))
         db.execute(text("ALTER TABLE recordings ADD COLUMN IF NOT EXISTS dtmf_tones TEXT"))
+        db.execute(text("ALTER TABLE recordings ALTER COLUMN dtmf_tones TYPE TEXT"))
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS alert_rules (
                 id SERIAL PRIMARY KEY,
@@ -3368,8 +3369,8 @@ data:
                     try:
                         dtmf = detect_dtmf_tones(recording.audio_path)
                         if dtmf:
-                            recording.dtmf_tones = dtmf
-                            print(f"[DTMF] '{dtmf}' in {filename}")
+                            recording.dtmf_tones = dtmf[:255]
+                            print(f"[DTMF] '{recording.dtmf_tones}' in {filename}")
                     except Exception as _dtmf_err:
                         print(f"[DTMF] error on {filename}: {_dtmf_err}")
                 # Weather radio auto-tagging
