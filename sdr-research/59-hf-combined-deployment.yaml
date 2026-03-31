@@ -33,6 +33,8 @@ spec:
             # Shared
             - name: SOAPY_REMOTE
               value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
+            - name: SOAPY_DEVICE_STRING
+              value: "driver=SDDC"
             # HFDL
             - name: HFDL_OUTPUT_DIR
               value: "/data/text/hfdl"
@@ -63,6 +65,8 @@ spec:
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
+            - name: usb
+              mountPath: /dev/bus/usb
           resources:
             requests:
               cpu: 500m
@@ -74,3 +78,6 @@ spec:
         - name: sdr-artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb
