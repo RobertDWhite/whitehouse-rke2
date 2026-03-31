@@ -11,7 +11,7 @@ metadata:
   name: hf-combined-decoder
   namespace: sdr-research
 spec:
-  replicas: 0   # shares the same RX888 with ft8-wspr — can't run simultaneously
+  replicas: 1   # shares the same RX888 with ft8-wspr — can't run simultaneously
   strategy:
     type: Recreate
   selector:
@@ -24,17 +24,79 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-12
+      initContainers:
+        - name: install-rx888-plugin
+          image: registry.white.fm/soapy-rx888-server:1.0.5-amd64
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /plugins
+              cp /usr/local/lib/SoapySDR/modules0.8/libSDDCSupport.so /plugins/
+          volumeMounts:
+            - name: soapy-plugins
+              mountPath: /plugins
       containers:
         - name: hf-combined-decoder
           image: registry.white.fm/hf-combined-decoder
           securityContext:
-            allowPrivilegeEscalation: false
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp /hf-combined-entrypoint.py /tmp/hf-combined-entrypoint.py
+              python3 - <<'PY'
+              from pathlib import Path
+
+              path = Path("/tmp/hf-combined-entrypoint.py")
+              text = path.read_text()
+
+              def replace_once(old: str, new: str) -> None:
+                  global text
+                  if old not in text:
+                      raise SystemExit(f"missing patch target: {old[:80]!r}")
+                  text = text.replace(old, new, 1)
+
+              replace_once(
+                  'HFDL_DWELL_SEC = int(os.getenv("HFDL_DWELL_SEC", "300"))  # 5 min default\n',
+                  'HFDL_DWELL_SEC = int(os.getenv("HFDL_DWELL_SEC", "300"))  # 5 min default\n'
+                  'HFDL_SAMPLE_RATE = int(os.getenv("HFDL_SAMPLE_RATE", "8000000"))\n'
+                  'HFDL_CENTERFREQ = os.getenv("HFDL_CENTERFREQ", "").strip()\n'
+                  'HFDL_GAIN = float(os.getenv("HFDL_GAIN", "20"))\n',
+              )
+              replace_once(
+                  '    cmd = [\n'
+                  '        "dumphfdl",\n'
+                  '        "--soapysdr", _soapysdr_device_string(),\n'
+                  '        "--output", "decoded:json:file:path=-",\n'
+                  '    ] + HFDL_FREQUENCIES\n',
+                  '    cmd = [\n'
+                  '        "dumphfdl",\n'
+                  '        "--soapysdr", _soapysdr_device_string(),\n'
+                  '        "--sample-rate", str(HFDL_SAMPLE_RATE),\n'
+                  '        "--gain", str(HFDL_GAIN),\n'
+                  '    ]\n'
+                  '    if HFDL_CENTERFREQ:\n'
+                  '        cmd += ["--centerfreq", HFDL_CENTERFREQ]\n'
+                  '    cmd += [\n'
+                  '        "--output", "decoded:json:file:path=-",\n'
+                  '    ] + HFDL_FREQUENCIES\n',
+              )
+
+              path.write_text(text)
+              PY
+              exec python3 /tmp/hf-combined-entrypoint.py
           env:
             # Shared
             - name: SOAPY_REMOTE
               value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
             - name: SOAPY_DEVICE_STRING
               value: "driver=SDDC"
+            - name: SOAPY_SDR_PLUGIN_PATH
+              value: "/opt/soapy-modules"
             # HFDL
             - name: HFDL_OUTPUT_DIR
               value: "/data/text/hfdl"
@@ -43,6 +105,12 @@ spec:
               value: "8912 8927 10081 11384 13303"
             - name: HFDL_DWELL_SEC
               value: "300"
+            - name: HFDL_SAMPLE_RATE
+              value: "8000000"
+            - name: HFDL_CENTERFREQ
+              value: "11107.5"
+            - name: HFDL_GAIN
+              value: "20"
             # SSTV
             - name: SDL_VIDEODRIVER
               value: "offscreen"
@@ -65,6 +133,8 @@ spec:
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
+            - name: soapy-plugins
+              mountPath: /opt/soapy-modules
             - name: usb
               mountPath: /dev/bus/usb
           resources:
@@ -78,6 +148,8 @@ spec:
         - name: sdr-artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: soapy-plugins
+          emptyDir: {}
         - name: usb
           hostPath:
             path: /dev/bus/usb
