@@ -94,8 +94,9 @@ spec:
                 fi
               done
               if [ -z "$DEV_INDEX" ]; then
-                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found, defaulting to 0"
-                DEV_INDEX=0
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found; waiting for the correct pager dongle"
+                sleep 10
+                exit 1
               fi
               echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
               while true; do
