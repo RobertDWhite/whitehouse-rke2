@@ -1,17 +1,17 @@
-# Combined HF decoder — time-shares RX888 SoapyRemote between HFDL and SSTV.
+# Combined HF decoder — time-shares the RX888 on rke2-node-12 between HFDL
+# and SSTV, with rx888-soapy available as a fallback if needed.
 # Alternates: HFDL dwell (dumphfdl, 5 min) → SSTV dwell (slowrx-cli, 2 min/freq) → repeat.
 #
-# Replaces running 55-hfdl-decoder and 57-sstv-hf-decoder as separate pods
-# (SoapyRemote only accepts one streaming client at a time).
+# Replaces running 55-hfdl-decoder and 57-sstv-hf-decoder as separate pods.
 #
-# IMPORTANT: Scale openwebrxplus to 0 while this pod is running.
+# IMPORTANT: Scale other RX888 consumers to 0 while this pod is running.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hf-combined-decoder
   namespace: sdr-research
 spec:
-  replicas: 0   # shares RX888 SoapyRemote with ft8-wspr — can't run simultaneously
+  replicas: 0   # shares the same RX888 with ft8-wspr — can't run simultaneously
   strategy:
     type: Recreate
   selector:

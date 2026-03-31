@@ -1,8 +1,8 @@
-# HF SSTV decoder — connects directly to RX888 via SoapyRemote.
+# HF SSTV decoder — prefers direct RX888 access on rke2-node-12 and falls
+# back to rx888-soapy if needed.
 #
-# IMPORTANT: SoapyRemote only allows one client at a time.
-# Scale openwebrxplus to 0 before enabling this pod:
-#   kubectl scale deploy openwebrxplus  -n sdr-research --replicas=0
+# IMPORTANT: The RX888 can only be opened by one workload at a time.
+# Scale other RX888 consumers to 0 before enabling this pod:
 #   kubectl scale deploy sstv-hf-decoder -n sdr-research --replicas=1
 #
 # HF SSTV frequencies (USB): 14.230, 21.340, 28.680, 7.171 MHz
@@ -70,7 +70,7 @@ spec:
       volumes:
         - name: artifacts
           persistentVolumeClaim:
-            claimName: sdr-artifacts
+            claimName: sdr-artifacts-rwx
         - name: usb
           hostPath:
             path: /dev/bus/usb
