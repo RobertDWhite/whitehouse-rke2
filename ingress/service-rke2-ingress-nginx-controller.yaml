@@ -3,11 +3,8 @@ kind: Service
 metadata:
   name: rke2-ingress-nginx-controller
   namespace: kube-system
-  annotations:
-    metallb.universe.tf/address-pool: lan-pool
 spec:
-  type: LoadBalancer
-  loadBalancerIP: 10.99.5.110
+  type: ClusterIP
   selector:
     app.kubernetes.io/component: controller 
     app.kubernetes.io/instance: rke2-ingress-nginx

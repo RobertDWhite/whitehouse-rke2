@@ -1,0 +1,19 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: ollama-internal-source-cidrs
+  namespace: ai-stack
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: ollama-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 192.168.0.0/16
+            - 10.0.0.0/8
