@@ -164,8 +164,6 @@ spec:
               value: "/opt/soapy-modules"
             - name: SOAPY_GAIN
               value: "20"
-            - name: FT8_CAPTURE_BACKEND
-              value: "rx_sdr"
             - name: FT8_OUTPUT_DIR
               value: "/data/text/ft8"
             # Standard FT8 dial frequencies (Hz) — most active HF bands
@@ -208,12 +206,9 @@ spec:
           readinessProbe:
             exec:
               command:
-                - python3
+                - sh
                 - -c
-                - |
-                  import os, sys, SoapySDR
-                  args = os.environ.get("SOAPY_DEVICE_STRING", "driver=SDDC")
-                  sys.exit(0 if SoapySDR.Device.enumerate(args) else 1)
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
             initialDelaySeconds: 30
             periodSeconds: 15
             failureThreshold: 3
