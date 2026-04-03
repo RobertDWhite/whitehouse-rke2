@@ -35,6 +35,7 @@ spec:
             - |
               set -eu
               while true; do
+                echo 1024 > /host/sys/module/usbcore/parameters/usbfs_memory_mb || true
                 for key in wmem_max rmem_max wmem_default rmem_default; do
                   echo 44040192 > "/host/proc/sys/net/core/${key}"
                 done
@@ -50,7 +51,7 @@ spec:
               command:
                 - /bin/sh
                 - -lc
-                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ]'
+                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ] && [ "$(cat /host/sys/module/usbcore/parameters/usbfs_memory_mb)" = "1024" ]'
             initialDelaySeconds: 5
             periodSeconds: 30
           resources:
