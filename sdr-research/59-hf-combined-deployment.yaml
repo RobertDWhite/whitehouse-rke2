@@ -11,7 +11,7 @@ metadata:
   name: hf-combined-decoder
   namespace: sdr-research
 spec:
-  replicas: 1   # shares the same RX888 with ft8-wspr — can't run simultaneously
+  replicas: 0   # keep disabled by default; enable only for dedicated HFDL/SSTV runs
   strategy:
     type: Recreate
   selector:
@@ -101,14 +101,14 @@ spec:
             - name: HFDL_OUTPUT_DIR
               value: "/data/text/hfdl"
             - name: HFDL_FREQUENCIES
-              # New York + San Francisco HFDL ground stations (kHz — dumphfdl expects kHz)
-              value: "8912 8927 10081 11384 13303"
+              # Use a narrower 4 MHz passband around the most active East/Central US HFDL channels.
+              value: "10081 11384"
             - name: HFDL_DWELL_SEC
               value: "300"
             - name: HFDL_SAMPLE_RATE
-              value: "8000000"
+              value: "2000000"
             - name: HFDL_CENTERFREQ
-              value: "11107.5"
+              value: "10732.5"
             - name: HFDL_GAIN
               value: "20"
             # SSTV
@@ -121,13 +121,11 @@ spec:
             - name: HF_SSTV_FREQS
               value: "14230000,21340000,28680000,7171000"
             - name: HF_SAMPLE_RATE
-              value: "2048000"
+              value: "2000000"
             - name: HF_AUDIO_RATE
               value: "16000"
             - name: HF_DWELL_SEC
-              # Per-frequency dwell — longest SSTV mode (Scottie DX) ~270s;
-              # 120s catches most common modes (Robot 36 = 36s, Scottie 1 = 110s)
-              value: "120"
+              value: "60"
             - name: HF_GAIN
               value: "20"
           volumeMounts:
@@ -140,10 +138,10 @@ spec:
           resources:
             requests:
               cpu: 500m
-              memory: 512Mi
-            limits:
-              cpu: 2000m
               memory: 1Gi
+            limits:
+              cpu: 3000m
+              memory: 4Gi
       volumes:
         - name: sdr-artifacts
           persistentVolumeClaim:
