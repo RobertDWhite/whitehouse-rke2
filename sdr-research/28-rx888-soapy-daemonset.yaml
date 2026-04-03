@@ -1,7 +1,7 @@
 # RX888 MkII SoapySDR remote server.
-# Exposes the RX888 (Cypress WestBridge / FX3) USB device to the cluster via
-# SoapyRemote protocol on port 55132. OpenWebRX+ connects as type=soapy_remote
-# with remote_driver=sddc.
+# Disabled by default on the directly attached node because the always-on
+# SoapyRemote server keeps the RX888 busy and prevents the local decoders from
+# opening the radio. Re-enable only when a remote Soapy client is needed.
 #
 # Build and push the image before deploying:
 #   docker buildx build --platform linux/amd64 --push \
@@ -23,6 +23,7 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-12
+        sdr.white.fm/rx888-remote-enabled: "true"
       containers:
         - name: rx888-soapy
           image: registry.white.fm/soapy-rx888-server:1.0.5-amd64
