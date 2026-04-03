@@ -151,6 +151,10 @@ spec:
                   '        audio = np.concatenate(all_audio)\n'
                   '        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)\n',
               )
+              replace_once(
+                  '        self.buffer = np.empty(CAPTURE_RATE, np.complex64)\n',
+                  '        self.buffer = np.empty(65536, np.complex64)\n',
+              )
 
               path.write_text(text)
               PY
