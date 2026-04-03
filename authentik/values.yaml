@@ -34,6 +34,12 @@ postgresql:
     nodeSelector:
       kubernetes.io/hostname: rke2-node-11
 
+    tolerations:
+      - key: kube-vip
+        operator: Equal
+        value: disabled
+        effect: NoSchedule
+
 
 # ---------------------------
 # Redis (deployed separately via 22-redis.yaml, chart no longer bundles it)
