@@ -75,6 +75,12 @@ spec:
                       'SOAPY_DEVICE_STRING = os.getenv("SOAPY_DEVICE_STRING", "").strip()\n'
                       'SOAPY_GAIN = float(os.getenv("SOAPY_GAIN", "20"))\n',
                   )
+              if 'FT8_CAPTURE_BACKEND = os.getenv("FT8_CAPTURE_BACKEND", "auto").strip().lower()' not in text:
+                  replace_once(
+                      'CAPTURE_RETRY_DELAY_SEC = float(os.getenv("CAPTURE_RETRY_DELAY_SEC", "2"))\n',
+                      'CAPTURE_RETRY_DELAY_SEC = float(os.getenv("CAPTURE_RETRY_DELAY_SEC", "2"))\n'
+                      'FT8_CAPTURE_BACKEND = os.getenv("FT8_CAPTURE_BACKEND", "auto").strip().lower()\n',
+                  )
 
               replace_once(
                   'def _soapysdr_device_string() -> str:\n'
@@ -101,6 +107,50 @@ spec:
                   '            "-g", "0",\n',
                   '            "-g", str(SOAPY_GAIN),\n',
               )
+              replace_once(
+                  'def capture_audio(freq_hz: int, duration_sec: int, wav_path: str) -> bool:\n'
+                  '    if SoapySDR is None:\n',
+                  'def capture_audio(freq_hz: int, duration_sec: int, wav_path: str) -> bool:\n'
+                  '    if FT8_CAPTURE_BACKEND == "rx_sdr" or SoapySDR is None:\n',
+              )
+              replace_once(
+                  '        # rx_sdr -n counts complex samples for CF32\n'
+                  '        n_samples = CAPTURE_RATE * duration_sec\n'
+                  '        cmd = [\n'
+                  '            "rx_sdr",\n'
+                  '            "-d", _soapysdr_device_string(),\n'
+                  '            "-f", str(freq_hz + 1500),  # center on USB passband\n'
+                  '            "-s", str(CAPTURE_RATE),\n'
+                  '            "-g", str(SOAPY_GAIN),\n'
+                  '            "-n", str(n_samples),\n'
+                  '            "-I", "CF32",  # SDDC only supports CF32 input\n'
+                  '            "-F", "CF32",\n'
+                  '            raw_path,\n'
+                  '        ]\n',
+                  '        cmd = [\n'
+                  '            "timeout",\n'
+                  '            "-s", "INT",\n'
+                  '            "-k", "2",\n'
+                  '            str(duration_sec + 2),\n'
+                  '            "rx_sdr",\n'
+                  '            "-d", _soapysdr_device_string(),\n'
+                  '            "-f", str(freq_hz + 1500),  # center on USB passband\n'
+                  '            "-s", str(CAPTURE_RATE),\n'
+                  '            "-g", str(SOAPY_GAIN),\n'
+                  '            "-I", "CF32",  # SDDC only supports CF32 input\n'
+                  '            "-F", "CF32",\n'
+                  '            raw_path,\n'
+                  '        ]\n',
+              )
+              replace_once(
+                  '            if proc.returncode == 0:\n',
+                  '            if proc.returncode in (0, 124, 130) and os.path.exists(raw_path):\n',
+              )
+              replace_once(
+                  '        audio = np.concatenate(all_audio)\n',
+                  '        audio = np.concatenate(all_audio)\n'
+                  '        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)\n',
+              )
 
               path.write_text(text)
               PY
@@ -114,6 +164,8 @@ spec:
               value: "/opt/soapy-modules"
             - name: SOAPY_GAIN
               value: "20"
+            - name: FT8_CAPTURE_BACKEND
+              value: "rx_sdr"
             - name: FT8_OUTPUT_DIR
               value: "/data/text/ft8"
             # Standard FT8 dial frequencies (Hz) — most active HF bands
