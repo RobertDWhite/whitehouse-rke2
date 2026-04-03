@@ -131,7 +131,7 @@ spec:
                   '            "timeout",\n'
                   '            "-s", "INT",\n'
                   '            "-k", "2",\n'
-                  '            str(duration_sec + 2),\n'
+                  '            str(duration_sec + 5),\n'
                   '            "rx_sdr",\n'
                   '            "-d", _soapysdr_device_string(),\n'
                   '            "-f", str(freq_hz + 1500),  # center on USB passband\n'
@@ -144,11 +144,11 @@ spec:
               )
               replace_once(
                   '            if proc.returncode == 0:\n',
-                  '            if proc.returncode in (0, 124, 130) and os.path.exists(raw_path):\n',
+                  '            if proc.returncode in (0, 124, 130, 137) and os.path.exists(raw_path):\n',
               )
               replace_once(
                   '        if proc is None or proc.returncode != 0:\n',
-                  '        if proc is None or proc.returncode not in (0, 124, 130):\n',
+                  '        if proc is None or proc.returncode not in (0, 124, 130, 137):\n',
               )
               replace_once(
                   '        audio = np.concatenate(all_audio)\n',
