@@ -147,6 +147,10 @@ spec:
                   '            if proc.returncode in (0, 124, 130) and os.path.exists(raw_path):\n',
               )
               replace_once(
+                  '        if proc is None or proc.returncode != 0:\n',
+                  '        if proc is None or proc.returncode not in (0, 124, 130):\n',
+              )
+              replace_once(
                   '        audio = np.concatenate(all_audio)\n',
                   '        audio = np.concatenate(all_audio)\n'
                   '        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)\n',
@@ -154,6 +158,29 @@ spec:
               replace_once(
                   '        self.buffer = np.empty(CAPTURE_RATE, np.complex64)\n',
                   '        self.buffer = np.empty(65536, np.complex64)\n',
+              )
+              replace_once(
+                  '                if status.ret == SoapySDR.SOAPY_SDR_TIMEOUT and time.time() < deadline:\n'
+                  '                    continue\n'
+                  '\n'
+                  '                raise RuntimeError(f"readStream failed: {status.ret}")\n',
+                  '                if status.ret == SoapySDR.SOAPY_SDR_TIMEOUT and time.time() < deadline:\n'
+                  '                    continue\n'
+                  '\n'
+                  '                if status.ret < 0 and time.time() < deadline:\n'
+                  '                    print(f"[CAPTURE] Transient Soapy read error {status.ret}, restarting stream", flush=True)\n'
+                  '                    try:\n'
+                  '                        self.device.deactivateStream(self.stream)\n'
+                  '                    except Exception:\n'
+                  '                        pass\n'
+                  '                    self._active = False\n'
+                  '                    time.sleep(0.25)\n'
+                  '                    self.device.activateStream(self.stream)\n'
+                  '                    self._active = True\n'
+                  '                    self._flush_after_retune()\n'
+                  '                    continue\n'
+                  '\n'
+                  '                raise RuntimeError(f"readStream failed: {status.ret}")\n',
               )
 
               path.write_text(text)
@@ -168,6 +195,8 @@ spec:
               value: "/opt/soapy-modules"
             - name: SOAPY_GAIN
               value: "20"
+            - name: FT8_CAPTURE_BACKEND
+              value: "rx_sdr"
             - name: FT8_OUTPUT_DIR
               value: "/data/text/ft8"
             # Standard FT8 dial frequencies (Hz) — most active HF bands
