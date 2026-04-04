@@ -2798,6 +2798,10 @@ data:
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """))
+        # Performance indexes — idempotent, safe to re-run
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_recordings_created_at ON recordings (created_at)"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_recordings_timestamp_desc ON recordings (timestamp DESC)"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_recordings_freq_label_comp ON recordings (frequency_hz, frequency_label)"))
         db.commit()
 
 
@@ -3501,8 +3505,6 @@ data:
                 if file_mtime < scan_since_ts:
                     continue
                 processed += 1
-                if processed % 500 == 0:
-                    db.expunge_all()
                 wav_name = txt_file.name.replace(".txt", ".wav")
                 existing = db.query(Recording).filter(Recording.filename == wav_name).first()
                 if existing:
@@ -3541,11 +3543,16 @@ data:
                         recording.ai_tags = dump_ai_tags(callsign_tags)
                 check_alerts(recording, db)
                 db.add(recording)
-                db.commit()
+                db.flush()  # assign ID without committing
                 if transcript:
                     update_search_vector(db, recording.id, transcript)
                 aprs_packets_indexed.inc()
                 print(f"Indexed APRS: {txt_file.name}")
+                # Batch commit every 50 records for throughput
+                if processed % 50 == 0:
+                    db.commit()
+                    db.expunge_all()
+            db.commit()  # flush remaining batch
             _last_aprs_scan_ts = now_ts
         except Exception as e:
             print(f"APRS indexer error: {e}")
@@ -3572,6 +3579,7 @@ data:
             else:
                 scan_since_ts = last_ts_ref[0] - 2.0
             processed = 0
+            _pending_inserts = 0
             for txt_file in text_path.glob("*.txt"):
                 try:
                     file_mtime = txt_file.stat().st_mtime
@@ -3580,8 +3588,6 @@ data:
                 if file_mtime < scan_since_ts:
                     continue
                 processed += 1
-                if processed % 500 == 0:
-                    db.expunge_all()
                 wav_name = txt_file.name.replace(".txt", ".wav")
                 existing = db.query(Recording).filter(Recording.filename == wav_name).first()
                 if existing:
@@ -3629,11 +3635,17 @@ data:
                     recording.ai_tags = dump_ai_tags(mode_tag + callsign_tags)
                 check_alerts(recording, db)
                 db.add(recording)
-                db.commit()
+                db.flush()  # assign ID without committing
                 if transcript:
                     update_search_vector(db, recording.id, transcript)
+                _pending_inserts += 1
                 indexer_files_indexed.labels(mode=mode).inc()
                 print(f"Indexed {mode.upper()}: {txt_file.name}")
+                # Batch commit every 50 records for throughput
+                if _pending_inserts % 50 == 0:
+                    db.commit()
+                    db.expunge_all()
+            db.commit()  # flush remaining batch
             last_ts_ref[0] = now_ts
         except Exception as e:
             print(f"{mode.upper()} indexer error: {e}")
@@ -3935,6 +3947,7 @@ data:
             else:
                 scan_since_ts = _ft8_ts[0] - 2.0
             processed = 0
+            _pending_json_files = []
             for json_file in ft8_path.glob("*.json"):
                 try:
                     file_mtime = json_file.stat().st_mtime
@@ -3943,8 +3956,6 @@ data:
                 if file_mtime < scan_since_ts:
                     continue
                 processed += 1
-                if processed % 200 == 0:
-                    db.expunge_all()
                 try:
                     with open(json_file) as f:
                         spot = json.load(f)
@@ -3997,11 +4008,22 @@ data:
                     "lat": spot.get("tx_latitude"),
                     "lon": spot.get("tx_longitude"),
                 })
-                db.commit()
                 spots_indexed.labels(mode=mode).inc()
-                # Delete the JSON file after successful indexing
+                _pending_json_files.append(json_file)
+                # Batch commit every 50 spots; delete JSON only after commit
+                if processed % 50 == 0:
+                    db.commit()
+                    for _jf in _pending_json_files:
+                        try:
+                            _jf.unlink()
+                        except OSError:
+                            pass
+                    _pending_json_files.clear()
+                    db.expunge_all()
+            db.commit()  # flush remaining batch
+            for _jf in _pending_json_files:
                 try:
-                    json_file.unlink()
+                    _jf.unlink()
                 except OSError:
                     pass
             _ft8_ts[0] = now_ts

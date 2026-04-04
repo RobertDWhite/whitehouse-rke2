@@ -1,7 +1,13 @@
 # RX888 MkII SoapySDR remote server.
-# Disabled by default on the directly attached node because the always-on
-# SoapyRemote server keeps the RX888 busy and prevents the local decoders from
-# opening the radio. Re-enable only when a remote Soapy client is needed.
+# Disabled by default because the always-on SoapyRemote server keeps the RX888
+# busy and prevents local decoders (ft8-wspr-decoder, hfdl-decoder) from
+# opening the radio.  Enable ONLY when a remote Soapy client is needed AND
+# all local decoders are scaled to 0.
+#
+# To enable:
+#   kubectl label node rke2-node-12 sdr.white.fm/rx888-remote-enabled=true
+# To disable again:
+#   kubectl label node rke2-node-12 sdr.white.fm/rx888-remote-enabled-
 #
 # Build and push the image before deploying:
 #   docker buildx build --platform linux/amd64 --push \
