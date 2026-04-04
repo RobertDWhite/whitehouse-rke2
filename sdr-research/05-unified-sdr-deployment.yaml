@@ -38,10 +38,11 @@ spec:
               # ensures short APRS bursts are captured even when energy detector misses them
               value: "144390000"
             - name: SAMPLE_RATE
-              # Airspy Mini supports 3 MSPS or 6 MSPS; 6 MSPS covers full 2m band (143–149 MHz)
-              value: "6000000"
+              # Airspy Mini supports 3 MSPS or 6 MSPS; 3 MSPS covers core 2m (144.5–147.5 MHz)
+              # with much lower CPU/memory pressure on arm64 node-10.
+              value: "3000000"
             - name: DWELL_CENTER_HZ
-              # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz without scanning within 2m
+              # Center of 2m amateur band; 3 MHz BW covers 144.5–147.5 MHz
               value: "146000000"
             - name: SCAN_CENTERS
               # Scanning disabled — retune causes double-free crash in SoapyRemote/osmosdr.
@@ -54,13 +55,13 @@ spec:
             - name: SCAN_SEC
               value: "5"
             - name: NUM_DYN_FM
-              # More slots to handle wider 6 MHz capture window
-              value: "12"
+              # 6 slots for 3 MHz BW — sufficient for 2m activity
+              value: "6"
             - name: NUM_DYN_CW
-              value: "4"
+              value: "2"
             - name: NUM_DYN_ACARS
-              # More ACARS slots — full 128–132 MHz ACARS band fits in one tune
-              value: "8"
+              # ACARS not in 2m band — keep minimal
+              value: "0"
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
@@ -92,11 +93,11 @@ spec:
               value: "0"
           resources:
             requests:
-              cpu: 750m
+              cpu: 500m
               memory: 512Mi
             limits:
-              cpu: 3000m
-              memory: 2Gi
+              cpu: 2000m
+              memory: 3Gi
           readinessProbe:
             exec:
               command:
