@@ -17,6 +17,7 @@ spec:
       annotations:
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
+      terminationGracePeriodSeconds: 60
       nodeSelector:
         kubernetes.io/hostname: rke2-node-13
       containers:
@@ -185,29 +186,26 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 250m
+              memory: 1Gi
             limits:
               cpu: 2000m
               memory: 6Gi
           livenessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - |
-                  TS=$(cat /tmp/indexer_heartbeat 2>/dev/null || echo 0)
-                  NOW=$(date +%s)
-                  test $(( NOW - ${TS%.*} )) -lt 600
-            initialDelaySeconds: 300
-            periodSeconds: 60
-            failureThreshold: 3
-          readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/v1/health
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 5
             failureThreshold: 6
       volumes:
         - name: sdr-artifacts
