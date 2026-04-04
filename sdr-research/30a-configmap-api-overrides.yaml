@@ -306,9 +306,9 @@ data:
         cleaned = tag.strip().lower()
         if not cleaned:
             return query
-        # ai_tags is a JSON-encoded list like ["repeater","W3RDW","voice"]
-        # Match tag as a JSON string element, case-insensitive.
-        query = query.filter(Recording.ai_tags.ilike(f'%"{cleaned}"%'))
+        # ai_tags is JSONB — cast to text for ILIKE compatibility
+        from sqlalchemy import String as _StrType
+        query = query.filter(Recording.ai_tags.cast(_StrType).ilike(f'%"{cleaned}"%'))
         return query
 
 
@@ -978,7 +978,8 @@ data:
         if date_to:
             query = query.filter(Recording.timestamp <= date_to)
         if tag:
-            query = query.filter(Recording.ai_tags.ilike(f'%"{tag}"%'))
+            from sqlalchemy import String as _StrType
+            query = query.filter(Recording.ai_tags.cast(_StrType).ilike(f'%"{tag}"%'))
         recordings = query.order_by(Recording.timestamp.desc()).limit(limit).all()
 
         def generate_zip():

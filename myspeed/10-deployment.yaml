@@ -22,23 +22,27 @@ spec:
           resources:
             requests:
               cpu: 25m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 500m
-              memory: 256Mi
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 5216
+            failureThreshold: 10
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /
               port: 5216
-            initialDelaySeconds: 10
             periodSeconds: 15
           livenessProbe:
             httpGet:
               path: /
               port: 5216
-            initialDelaySeconds: 20
             periodSeconds: 30
-            failureThreshold: 3
+            failureThreshold: 5
           securityContext:
             allowPrivilegeEscalation: false
           volumeMounts:
