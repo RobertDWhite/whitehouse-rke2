@@ -209,7 +209,12 @@ SYSTEM_PROMPT = (
     "- Each bullet is 1-2 sentences covering one key story or theme\n"
     "- Merge related articles into one bullet\n"
     "- Lead each bullet with the most important fact\n"
-    "- Skip filler, opinion pieces, and routine press releases\n"
+    "- SKIP: court case metadata, document download notices, routine filings, "
+    "procedural updates, press release boilerplate, opinion pieces, listicles\n"
+    "- Only include stories with real substance — policy changes, major events, "
+    "significant business moves, things a busy person needs to know\n"
+    "- If most articles are noise, write fewer bullets. If ALL are noise, "
+    "reply with exactly: (nothing noteworthy)\n"
     "- No headers, no intro, no closing — just the bullets\n"
     "- Use plain text, not markdown"
 )
