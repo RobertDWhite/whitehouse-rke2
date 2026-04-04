@@ -72,25 +72,32 @@ def _linked_nodes(row: dict) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 def fetch_repeaterbook() -> list[dict]:
-    url = REPEATERBOOK_URL.format(
-        state=settings.repeaterbook_state,
-        lat=settings.repeaterbook_latitude,
-        lng=settings.repeaterbook_longitude,
-        radius=settings.repeaterbook_radius_miles,
-    )
-    req = request.Request(url, headers={"User-Agent": "sdr-research/1.0"})
-    try:
-        with request.urlopen(req, timeout=30) as resp:
-            body = resp.read().decode("utf-8", errors="ignore")
-    except error.URLError as exc:
-        print(f"[RepeaterBook] Fetch failed: {exc}")
-        return []
-    try:
-        data = json.loads(body)
-        return data.get("results", []) or []
-    except Exception as exc:
-        print(f"[RepeaterBook] JSON parse failed: {exc}")
-        return []
+    all_results: list[dict] = []
+    for state in settings.repeaterbook_states.split(","):
+        state = state.strip()
+        if not state:
+            continue
+        url = REPEATERBOOK_URL.format(
+            state=state,
+            lat=settings.repeaterbook_latitude,
+            lng=settings.repeaterbook_longitude,
+            radius=settings.repeaterbook_radius_miles,
+        )
+        req = request.Request(url, headers={"User-Agent": "sdr-research/1.0"})
+        try:
+            with request.urlopen(req, timeout=30) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+        except error.URLError as exc:
+            print(f"[RepeaterBook] Fetch failed for {state}: {exc}")
+            continue
+        try:
+            data = json.loads(body)
+            results = data.get("results", []) or []
+            all_results.extend(results)
+            print(f"[RepeaterBook] {state}: {len(results)} repeaters")
+        except Exception as exc:
+            print(f"[RepeaterBook] JSON parse failed for {state}: {exc}")
+    return all_results
 
 
 def sync_repeaters():
@@ -127,8 +134,8 @@ def sync_repeaters():
             existing.location = str(row.get("Location", "")).strip() or None
             existing.county = str(row.get("County", "")).strip() or None
             existing.state = str(row.get("ST", row.get("State", ""))).strip() or None
-            existing.latitude = _mhz_to_hz(row.get("Latitude", "")) and float(row.get("Latitude", 0)) or None
-            existing.longitude = float(row.get("Longitude", 0)) or None
+            existing.latitude = float(row.get("Latitude", 0)) if row.get("Latitude") else None
+            existing.longitude = float(row.get("Longitude", 0)) if row.get("Longitude") else None
             existing.use = str(row.get("Use", "")).strip() or None
             existing.digital_modes = _digital_modes(row)
             existing.linked_nodes = _linked_nodes(row)
