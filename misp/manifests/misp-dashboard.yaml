@@ -18,6 +18,13 @@ spec:
         - name: misp-dashboard
           image: registry.white.fm/misp-dashboard:20260304-2
           imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           env:
             - name: MISP_INSTANCE_NAME
               value: whitehouse-misp
@@ -27,26 +34,22 @@ spec:
             - name: http
               containerPort: 8001
               protocol: TCP
-          readinessProbe:
-            exec:
-              command:
-                - python
-                - -c
-                - |
-                  import socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1", 8001)); s.close()
-            initialDelaySeconds: 20
+          startupProbe:
+            tcpSocket:
+              port: 8001
+            failureThreshold: 12
             periodSeconds: 10
-            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 8001
+            periodSeconds: 10
+            timeoutSeconds: 3
           livenessProbe:
-            exec:
-              command:
-                - python
-                - -c
-                - |
-                  import socket; s=socket.socket(); s.settimeout(1); s.connect(("127.0.0.1", 8001)); s.close()
-            initialDelaySeconds: 40
+            tcpSocket:
+              port: 8001
             periodSeconds: 15
-            timeoutSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 5
           volumeMounts:
             - name: config
               mountPath: /etc/misp-dashboard/config.cfg

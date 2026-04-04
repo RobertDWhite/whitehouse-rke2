@@ -229,8 +229,8 @@ class OllamaSummarizer:
         self.api_key = str(cfg.get("api_key", ""))
         self.temperature = float(cfg.get("temperature", 0.3))
         self.max_tokens = int(cfg.get("max_tokens", 4000))
-        self.timeout = int(cfg.get("timeout_seconds", 120))
-        self.max_article_chars = int(cfg.get("max_article_chars", 2000))
+        self.timeout = int(cfg.get("timeout_seconds", 300))
+        self.max_article_chars = int(cfg.get("max_article_chars", 1000))
         self.system_prompt = str(cfg.get("system_prompt", SYSTEM_PROMPT))
         self.session = requests.Session()
 
