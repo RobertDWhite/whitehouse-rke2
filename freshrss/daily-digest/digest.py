@@ -218,7 +218,7 @@ class OllamaSummarizer:
         self.model = str(cfg.get("model", ""))
         self.api_key = str(cfg.get("api_key", ""))
         self.temperature = float(cfg.get("temperature", 0.3))
-        self.max_tokens = int(cfg.get("max_tokens", 4000))
+        self.max_tokens = int(cfg.get("max_tokens", 8000))
         self.timeout = int(cfg.get("timeout_seconds", 300))
         self.max_article_chars = int(cfg.get("max_article_chars", 1000))
         self.system_prompt = str(cfg.get("system_prompt", SYSTEM_PROMPT))
@@ -264,7 +264,13 @@ class OllamaSummarizer:
                 print(f"[warn] Ollama error for '{category}' ({resp.status_code}): {resp.text[:200]}", file=sys.stderr)
                 return f"({len(articles)} articles — AI summary unavailable)"
             data = resp.json()
-            content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "").strip()
+            msg = ((data.get("choices") or [{}])[0].get("message") or {})
+            content = (msg.get("content") or "").strip()
+            # qwen3.5 thinking: strip <think> blocks if model embeds them in content
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+            finish = (data.get("choices") or [{}])[0].get("finish_reason", "")
+            if not content and finish == "length":
+                print(f"[warn] '{category}': model used all tokens on thinking, no output", file=sys.stderr)
             return content or f"({len(articles)} articles — empty AI response)"
         except (requests.RequestException, ValueError) as exc:
             print(f"[warn] Ollama failed for '{category}': {exc}", file=sys.stderr)
