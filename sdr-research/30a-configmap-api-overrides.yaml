@@ -3012,11 +3012,21 @@ data:
         )
 
 
+    # Ollama circuit breaker: skip calls after consecutive failures
+    _ollama_consecutive_failures = 0
+    _ollama_circuit_open_until = 0.0
+    _OLLAMA_FAILURE_THRESHOLD = 3
+    _OLLAMA_COOLDOWN_SECONDS = 300  # 5 min backoff when circuit opens
+
     def generate_ollama_tags(transcript, frequency_label=None, repeater_info=None, operator_context=None):
+        global _ollama_consecutive_failures, _ollama_circuit_open_until
         if not settings.ollama_enabled:
             return [], False
         if not transcript or is_no_speech_transcript(transcript):
             return [], False
+        # Circuit breaker: skip if in cooldown
+        if _time.time() < _ollama_circuit_open_until:
+            return extract_callsign_tags(transcript), True
         callsign_tags = extract_callsign_tags(transcript)
         payload = {
             "model": settings.ollama_model,
@@ -3041,12 +3051,23 @@ data:
             indexer_ollama_calls.inc()
             with request.urlopen(req, timeout=settings.ollama_timeout_seconds) as resp:
                 body = resp.read().decode("utf-8", errors="ignore")
+            _ollama_consecutive_failures = 0
         except error.URLError as exc:
             indexer_ollama_errors.inc()
+            _ollama_consecutive_failures += 1
+            if _ollama_consecutive_failures >= _OLLAMA_FAILURE_THRESHOLD:
+                _ollama_circuit_open_until = _time.time() + _OLLAMA_COOLDOWN_SECONDS
+                print(f"[Ollama] Circuit breaker OPEN — {_ollama_consecutive_failures} failures, cooling down {_OLLAMA_COOLDOWN_SECONDS}s")
+                _ollama_consecutive_failures = 0
             print(f"Ollama request failed: {exc}")
             return callsign_tags, True
         except Exception as exc:
             indexer_ollama_errors.inc()
+            _ollama_consecutive_failures += 1
+            if _ollama_consecutive_failures >= _OLLAMA_FAILURE_THRESHOLD:
+                _ollama_circuit_open_until = _time.time() + _OLLAMA_COOLDOWN_SECONDS
+                print(f"[Ollama] Circuit breaker OPEN — {_ollama_consecutive_failures} failures, cooling down {_OLLAMA_COOLDOWN_SECONDS}s")
+                _ollama_consecutive_failures = 0
             print(f"Ollama request error: {exc}")
             return callsign_tags, True
         tags: list[str] = []
@@ -5578,12 +5599,12 @@ data:
         print(f"[stats] spots router not available: {_e}")
 
     _cache: dict = {}
-    _CACHE_TTL = 30.0  # seconds
+    _CACHE_TTL = 60.0  # seconds
 
 
     @router.get("")
     async def get_stats(response: Response, db: Session = Depends(get_db)):
-        response.headers["Cache-Control"] = "public, max-age=30"
+        response.headers["Cache-Control"] = "public, max-age=60"
         now = time.monotonic()
         if _cache.get("ts") and now - _cache["ts"] < _CACHE_TTL:
             return _cache["data"]
@@ -6085,9 +6106,12 @@ data:
         if not recording:
             raise HTTPException(status_code=404, detail="Recording not found")
 
+        rec_id = recording.id
+        audio_path = recording.audio_path
+
         # Check cache
         cache_dir = _ensure_cache_dir("waveforms")
-        cache_file = cache_dir / f"{recording.id}.json"
+        cache_file = cache_dir / f"{rec_id}.json"
 
         if cache_file.exists():
             import json
@@ -6098,22 +6122,32 @@ data:
                     headers={"Cache-Control": "public, max-age=86400, immutable"},
                 )
 
-        # Generate waveform
-        if not os.path.exists(recording.audio_path):
+        # Release DB session before heavy generation
+        db.close()
+
+        if not os.path.exists(audio_path):
             raise HTTPException(status_code=404, detail="Audio file not found")
 
         try:
-            peaks_data = generate_waveform_peaks(recording.audio_path)
+            peaks_data = generate_waveform_peaks(audio_path)
 
-            # Cache result
             import json
-
             with open(cache_file, "w") as f:
                 json.dump(peaks_data, f)
 
-            # Update database
-            recording.waveform_cached = str(cache_file)
-            db.commit()
+            # Update cache path in a fresh session
+            from ..database import SessionLocal
+            _db = SessionLocal()
+            try:
+                _db.execute(
+                    __import__("sqlalchemy").text(
+                        "UPDATE recordings SET waveform_cached = :p WHERE id = :id"
+                    ),
+                    {"p": str(cache_file), "id": rec_id},
+                )
+                _db.commit()
+            finally:
+                _db.close()
 
             return JSONResponse(peaks_data)
         except Exception as e:
@@ -6128,9 +6162,12 @@ data:
         if not recording:
             raise HTTPException(status_code=404, detail="Recording not found")
 
+        rec_id = recording.id
+        audio_path = recording.audio_path
+
         # Check cache
         cache_dir = _ensure_cache_dir("spectrograms")
-        cache_file = cache_dir / f"{recording.id}.png"
+        cache_file = cache_dir / f"{rec_id}.png"
 
         if cache_file.exists():
             return FileResponse(
@@ -6139,16 +6176,28 @@ data:
                 headers={"Cache-Control": "public, max-age=86400, immutable"},
             )
 
-        # Generate spectrogram
-        if not os.path.exists(recording.audio_path):
+        # Release DB session before heavy generation
+        db.close()
+
+        if not os.path.exists(audio_path):
             raise HTTPException(status_code=404, detail="Audio file not found")
 
         try:
-            generate_spectrogram(recording.audio_path, str(cache_file))
+            generate_spectrogram(audio_path, str(cache_file))
 
-            # Update database
-            recording.spectrogram_cached = str(cache_file)
-            db.commit()
+            # Update cache path in a fresh session
+            from ..database import SessionLocal
+            _db = SessionLocal()
+            try:
+                _db.execute(
+                    __import__("sqlalchemy").text(
+                        "UPDATE recordings SET spectrogram_cached = :p WHERE id = :id"
+                    ),
+                    {"p": str(cache_file), "id": rec_id},
+                )
+                _db.commit()
+            finally:
+                _db.close()
 
             return FileResponse(
                 cache_file,
