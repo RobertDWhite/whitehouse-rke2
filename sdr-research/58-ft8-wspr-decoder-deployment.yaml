@@ -34,7 +34,7 @@ spec:
         kubernetes.io/hostname: rke2-node-12
       initContainers:
         - name: install-rx888-plugin
-          image: registry.white.fm/soapy-rx888-server:1.0.5-amd64
+          image: registry.white.fm/soapy-rx888-server:1.0.7-amd64
           command:
             - /bin/sh
             - -c
@@ -101,6 +101,7 @@ spec:
               )
               replace_once(
                   '        self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, 0)\n',
+                  '        self.device.setGainMode(SoapySDR.SOAPY_SDR_RX, 0, False)\n'
                   '        self.device.setGain(SoapySDR.SOAPY_SDR_RX, 0, SOAPY_GAIN)\n',
               )
               replace_once(

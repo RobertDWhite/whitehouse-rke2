@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freshrss-digest-config
+  namespace: freshrss
+data:
+  config.yaml: |
+    freshrss:
+      greader_api_url: "http://freshrss.freshrss.svc.cluster.local/api/greader.php"
+      username: "${FRESHRSS_USERNAME}"
+      api_password: "${FRESHRSS_API_PASSWORD}"
+      verify_tls: false
+      timeout_seconds: 20
+      page_size: 200
+      max_items: 500
+      lookback_hours: 24
+      unread_only: false
+      retry_attempts: 3
+      retry_backoff_seconds: 2
+
+    ai:
+      base_url: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+      api_key: "${AI_API_KEY}"
+      model: "llama3.1:8b"
+      temperature: 0.3
+      max_tokens: 2000
+      timeout_seconds: 120
+      max_article_chars: 3000
+
+    digest:
+      # include_categories:
+      #   - Technology
+      #   - Security
+      # exclude_categories:
+      #   - Comics
+      # category_order:
+      #   - Security
+      #   - Technology
+
+    output:
+      directory: "/data/digests"
+      webhook_url: "${WEBHOOK_URL}"
+      keep_days: 30
