@@ -189,6 +189,77 @@ spec:
                   '                raise RuntimeError(f"readStream failed: {status.ret}")\n',
               )
 
+              # Add shutil import for SSTV file copy
+              replace_once(
+                  'import wave\n',
+                  'import wave\nimport shutil\n',
+              )
+
+              # --- SSTV capture integration ---
+              # Add SSTV frequency rotation to the main loop.
+              # Captures 60s WAVs on HF SSTV frequencies, saves to /data/audio/voice/
+              # for the sstv-decoder pod to process.
+              replace_once(
+                  'STATION_GRID = os.getenv("STATION_GRID", "EM79")  # default ~Ohio/KY area\n',
+                  'STATION_GRID = os.getenv("STATION_GRID", "EM79")  # default ~Ohio/KY area\n'
+                  '\n'
+                  '# SSTV capture — interleaved with FT8/WSPR\n'
+                  'SSTV_FREQS = [int(f) for f in os.getenv("SSTV_FREQUENCIES", "").split() if f.strip()]\n'
+                  'SSTV_EVERY_N = int(os.getenv("SSTV_EVERY_N", "12"))\n'
+                  'SSTV_DWELL_SEC = int(os.getenv("SSTV_DWELL_SEC", "60"))\n'
+                  'SSTV_OUTPUT_DIR = os.getenv("SSTV_OUTPUT_DIR", "/data/audio/voice")\n',
+              )
+              replace_once(
+                  '    ft8_idx = 0\n'
+                  '    wspr_idx = 0\n'
+                  '    cycle_count = 0\n',
+                  '    ft8_idx = 0\n'
+                  '    wspr_idx = 0\n'
+                  '    sstv_idx = 0\n'
+                  '    cycle_count = 0\n',
+              )
+              replace_once(
+                  '                # Decide: FT8 or WSPR this cycle\n'
+                  '                do_wspr = (cycle_count > 0 and cycle_count % WSPR_EVERY_N == 0\n'
+                  '                           and len(WSPR_FREQS) > 0)\n'
+                  '\n'
+                  '                if do_wspr:\n',
+                  '                # Decide: FT8, WSPR, or SSTV this cycle\n'
+                  '                do_wspr = (cycle_count > 0 and cycle_count % WSPR_EVERY_N == 0\n'
+                  '                           and len(WSPR_FREQS) > 0)\n'
+                  '                do_sstv = (not do_wspr and cycle_count > 0\n'
+                  '                           and cycle_count % SSTV_EVERY_N == 0\n'
+                  '                           and len(SSTV_FREQS) > 0)\n'
+                  '\n'
+                  '                if do_sstv:\n'
+                  '                    freq = SSTV_FREQS[sstv_idx % len(SSTV_FREQS)]\n'
+                  '                    sstv_idx += 1\n'
+                  '                    mode = "sstv"\n'
+                  '                    duration = SSTV_DWELL_SEC\n'
+                  '                    print(f"[SSTV] Capturing {freq} Hz ({freq_to_band(freq)}) for {duration}s…",\n'
+                  '                          flush=True)\n'
+                  '                elif do_wspr:\n',
+              )
+              replace_once(
+                  '                # Decode\n'
+                  '                if mode == "wspr":\n'
+                  '                    spots = decode_wspr(wav_path, freq)\n'
+                  '                else:\n'
+                  '                    spots = decode_ft8(wav_path, freq)\n',
+                  '                # Decode\n'
+                  '                if mode == "sstv":\n'
+                  '                    # Save WAV for sstv-decoder; use voice dir naming convention\n'
+                  '                    os.makedirs(SSTV_OUTPUT_DIR, exist_ok=True)\n'
+                  '                    dst = os.path.join(SSTV_OUTPUT_DIR, f"{freq}_{int(time.time())}.wav")\n'
+                  '                    shutil.copy2(wav_path, dst)\n'
+                  '                    print(f"[SSTV] Saved {os.path.basename(dst)} for decode", flush=True)\n'
+                  '                    spots = []\n'
+                  '                elif mode == "wspr":\n'
+                  '                    spots = decode_wspr(wav_path, freq)\n'
+                  '                else:\n'
+                  '                    spots = decode_ft8(wav_path, freq)\n',
+              )
+
               path.write_text(text)
               PY
               exec python3 /tmp/ft8-wspr-entrypoint.py
@@ -214,6 +285,14 @@ spec:
             # Capture one WSPR window (2 min) every N FT8 cycles
             - name: WSPR_EVERY_N
               value: "6"
+            # HF SSTV calling frequencies (Hz) — captured and saved for sstv-decoder
+            - name: SSTV_FREQUENCIES
+              value: "14230000 21340000 28680000 7171000"
+            # Capture SSTV every N FT8 cycles (interleaved with WSPR)
+            - name: SSTV_EVERY_N
+              value: "12"
+            - name: SSTV_DWELL_SEC
+              value: "60"
             # Station Maidenhead grid (for distance calculations)
             - name: STATION_GRID
               valueFrom:
