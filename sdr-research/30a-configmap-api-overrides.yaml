@@ -1233,40 +1233,66 @@ data:
     def search_callsign(
         q: str = Query(..., min_length=1, max_length=100),
     ):
-        """Look up an amateur radio callsign or operator name via FCC ULS."""
+        """Look up an amateur radio callsign or operator name via FCC ULS, with HamDB fallback."""
+        results = []
+
+        # Try FCC ULS first
         try:
             resp = requests.get(
                 "https://data.fcc.gov/api/license-view/basicSearch/getLicenses",
                 params={"searchValue": q.strip(), "service": "HA", "format": "json", "rows": 25},
-                timeout=10.0,
+                timeout=8.0,
             )
             resp.raise_for_status()
             data = resp.json()
-        except requests.RequestException as e:
-            raise HTTPException(status_code=502, detail=f"FCC ULS lookup failed: {e}")
+            raw = data.get("Licenses", {}).get("License", [])
+            if isinstance(raw, dict):
+                raw = [raw]
+            for lic in raw:
+                callsign = (lic.get("callsign") or "").strip().upper()
+                if not callsign:
+                    continue
+                lic_name = (lic.get("licName") or "").strip()
+                if "," in lic_name:
+                    last, _, first = lic_name.partition(",")
+                    name = f"{first.strip().title()} {last.strip().title()}"
+                else:
+                    name = lic_name.title()
+                results.append({
+                    "callsign": callsign,
+                    "name": name or None,
+                    "status": lic.get("statusDesc", ""),
+                    "expired_date": lic.get("expiredDate") or None,
+                })
+        except Exception as fcc_err:
+            print(f"[LOOKUP] FCC ULS failed: {fcc_err}, trying HamDB fallback", flush=True)
 
-        raw = data.get("Licenses", {}).get("License", [])
-        if isinstance(raw, dict):
-            raw = [raw]
+        # Fallback to HamDB if FCC returned nothing
+        if not results:
+            try:
+                from urllib import request as _req
+                hamdb_url = f"https://hamdb.org/api/call/{q.strip().upper()}/json"
+                hamdb_r = _req.Request(hamdb_url, headers={"User-Agent": "sdr-research/1.0"})
+                with _req.urlopen(hamdb_r, timeout=8) as hamdb_resp:
+                    hamdb_data = json.loads(hamdb_resp.read().decode("utf-8", errors="ignore"))
+                cs = hamdb_data.get("hamdb", {}).get("callsign", {})
+                status_msg = hamdb_data.get("hamdb", {}).get("messages", {}).get("status", "")
+                if status_msg == "OK" and cs:
+                    fname = (cs.get("fname") or "").strip()
+                    lname = (cs.get("name") or "").strip()
+                    full = f"{fname} {lname}".strip() or None
+                    ham_status = cs.get("status", "").strip().upper()
+                    results.append({
+                        "callsign": (cs.get("call") or q).strip().upper(),
+                        "name": full,
+                        "status": "Active" if ham_status == "A" else ham_status or "Unknown",
+                        "expired_date": cs.get("expdate") or None,
+                    })
+            except Exception as hamdb_err:
+                print(f"[LOOKUP] HamDB also failed: {hamdb_err}", flush=True)
 
-        results = []
-        for lic in raw:
-            callsign = (lic.get("callsign") or "").strip().upper()
-            if not callsign:
-                continue
-            lic_name = (lic.get("licName") or "").strip()
-            # FCC format: "SMITH, JOHN A" → "John A Smith"
-            if "," in lic_name:
-                last, _, first = lic_name.partition(",")
-                name = f"{first.strip().title()} {last.strip().title()}"
-            else:
-                name = lic_name.title()
-            results.append({
-                "callsign": callsign,
-                "name": name or None,
-                "status": lic.get("statusDesc", ""),
-                "expired_date": lic.get("expiredDate") or None,
-            })
+        if not results:
+            return {"query": q, "results": [], "total": 0}
 
         return {"query": q, "results": results, "total": len(results)}
 
