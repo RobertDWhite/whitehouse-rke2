@@ -22,6 +22,49 @@ spec:
           image: registry.white.fm/sstv-decoder
           securityContext:
             allowPrivilegeEscalation: false
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              cp /sstv-entrypoint.py /tmp/sstv-entrypoint.py
+              python3 - <<'PY'
+              import os
+              from pathlib import Path
+              path = Path("/tmp/sstv-entrypoint.py")
+              text = path.read_text()
+              # Inject extra SSTV ranges from env var (format: "lo:hi:label,...")
+              extra = os.getenv("EXTRA_SSTV_RANGES", "").strip()
+              if extra:
+                  lines = []
+                  for entry in extra.split(","):
+                      parts = entry.strip().split(":")
+                      if len(parts) == 3:
+                          lines.append(f'    ({parts[0]}, {parts[1]}, "{parts[2]}"),')
+                  if lines:
+                      marker = '    (432_075_000, 432_125_000, "70cm"),'
+                      inject = marker + "\n" + "\n".join(lines)
+                      text = text.replace(marker, inject)
+
+              # Read WAV sample rate from file header instead of using fixed AUDIO_RATE
+              text = text.replace(
+                  '    result = subprocess.run(\n'
+                  '            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),\n'
+                  '             "-o", bmp_path, wav_path],',
+                  '    import wave as _wave\n'
+                  '    try:\n'
+                  '        _wf = _wave.open(wav_path, "rb")\n'
+                  '        _sr = _wf.getframerate()\n'
+                  '        _wf.close()\n'
+                  '    except Exception:\n'
+                  '        _sr = AUDIO_RATE\n'
+                  '    result = subprocess.run(\n'
+                  '            ["slowrx-cli", "-v", "-r", str(_sr),\n'
+                  '             "-o", bmp_path, wav_path],',
+              )
+              path.write_text(text)
+              PY
+              exec python3 /tmp/sstv-entrypoint.py
           env:
             - name: SDL_VIDEODRIVER
               value: "offscreen"
@@ -35,6 +78,10 @@ spec:
               value: "15"
             - name: POLL_INTERVAL_SEC
               value: "10"
+            # Extra SSTV frequency ranges: "lo_hz:hi_hz:label,..."
+            # HF SSTV calling frequencies ±25 kHz
+            - name: EXTRA_SSTV_RANGES
+              value: "14205000:14255000:20m,21315000:21365000:15m,28655000:28705000:10m,7146000:7196000:40m"
           volumeMounts:
             - name: artifacts
               mountPath: /data
