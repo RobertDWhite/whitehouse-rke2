@@ -219,7 +219,7 @@ SYSTEM_PROMPT = (
     "- Use plain text, not markdown"
 )
 
-MAX_ARTICLES_PER_CATEGORY = 40
+MAX_ARTICLES_PER_CATEGORY = 20
 
 
 class OllamaSummarizer:
