@@ -67,13 +67,13 @@ spec:
             - name: CLEAR_SLOTS_ON_RETUNE
               value: "false"
             - name: SQUELCH_OPEN_DB
-              value: "-55"
+              value: "-45"
             - name: SQUELCH_CLOSE_DB
-              value: "-60"
+              value: "-50"
             - name: RF_SQUELCH_DB
-              # Lowered from -55 to -65 — at RF_GAIN=14, narrowband channel power
-              # was consistently below -55 dBFS, blocking all recordings.
-              value: "-65"
+              # -55 blocked everything at gain=14; -65 never closed (noise floor).
+              # -50 with gain=14 should pass real signals and close on silence.
+              value: "-50"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
