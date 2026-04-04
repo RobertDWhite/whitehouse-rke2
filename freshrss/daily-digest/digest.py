@@ -397,14 +397,8 @@ def write_file(digest: str, output_dir: Path, date_str: str) -> Path:
 
 
 def post_to_matrix(webhook_url: str, digest: str, timeout: int = 30) -> None:
-    """Post the entire digest as ONE message."""
-    html_body = digest_to_html(digest)
-    payload = {
-        "msgtype": "m.notice",
-        "body": digest,
-        "format": "org.matrix.custom.html",
-        "formatted_body": html_body,
-    }
+    """Post the entire digest as one plain text message."""
+    payload = {"text": digest}
     resp = requests.post(webhook_url, json=payload, timeout=timeout)
     if resp.status_code >= 400:
         raise RuntimeError(f"Hookshot webhook failed ({resp.status_code}): {resp.text[:300]}")
