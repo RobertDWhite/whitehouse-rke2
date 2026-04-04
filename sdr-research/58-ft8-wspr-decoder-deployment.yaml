@@ -153,7 +153,12 @@ spec:
               replace_once(
                   '        audio = np.concatenate(all_audio)\n',
                   '        audio = np.concatenate(all_audio)\n'
-                  '        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)\n',
+                  '        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)\n'
+                  '        target_audio_samples = duration_sec * TARGET_AUDIO_RATE\n'
+                  '        if len(audio) > target_audio_samples:\n'
+                  '            audio = audio[:target_audio_samples]\n'
+                  '        elif len(audio) < target_audio_samples:\n'
+                  '            audio = np.pad(audio, (0, target_audio_samples - len(audio)))\n',
               )
               replace_once(
                   '        self.buffer = np.empty(CAPTURE_RATE, np.complex64)\n',
