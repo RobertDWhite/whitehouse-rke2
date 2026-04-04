@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import json
 import os
 import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+import html
 
 import requests
 import yaml
@@ -274,21 +275,10 @@ class OllamaSummarizer:
 # Digest builder
 # ---------------------------------------------------------------------------
 
-def build_digest(
+def order_categories(
     groups: Dict[str, List[Dict[str, Any]]],
-    summarizer: OllamaSummarizer,
-    date_str: str,
     category_order: Optional[List[str]] = None,
-) -> str:
-    sections: List[str] = []
-    sections.append(f"# Daily RSS Digest — {date_str}\n")
-
-    # Stats
-    total_articles = sum(len(arts) for arts in groups.values())
-    sections.append(f"**{total_articles} articles** across **{len(groups)} categories**\n")
-    sections.append("---\n")
-
-    # Order categories: pinned order first, then alphabetical remainder
+) -> List[str]:
     ordered = []
     if category_order:
         for cat in category_order:
@@ -297,16 +287,42 @@ def build_digest(
     for cat in sorted(groups.keys()):
         if cat not in ordered:
             ordered.append(cat)
+    return ordered
 
+
+def summarize_all(
+    groups: Dict[str, List[Dict[str, Any]]],
+    summarizer: OllamaSummarizer,
+    ordered: List[str],
+) -> Dict[str, str]:
+    """Summarize each category, return {category: summary_text}."""
+    summaries: Dict[str, str] = {}
     for cat in ordered:
         articles = groups[cat]
         print(f"[info] Summarizing '{cat}' ({len(articles)} articles)...", file=sys.stderr)
-        summary = summarizer.summarize_category(cat, articles)
-        sections.append(f"## {cat} ({len(articles)} articles)\n")
-        sections.append(summary)
-        sections.append("")  # blank line between sections
+        summaries[cat] = summarizer.summarize_category(cat, articles)
+    return summaries
 
-    # Source index
+
+def build_digest(
+    groups: Dict[str, List[Dict[str, Any]]],
+    summaries: Dict[str, str],
+    ordered: List[str],
+    date_str: str,
+) -> str:
+    sections: List[str] = []
+    sections.append(f"# Daily RSS Digest — {date_str}\n")
+
+    total_articles = sum(len(arts) for arts in groups.values())
+    sections.append(f"**{total_articles} articles** across **{len(groups)} categories**\n")
+    sections.append("---\n")
+
+    for cat in ordered:
+        articles = groups[cat]
+        sections.append(f"## {cat} ({len(articles)} articles)\n")
+        sections.append(summaries.get(cat, ""))
+        sections.append("")
+
     sections.append("---\n")
     sections.append("### Sources\n")
     for cat in ordered:
@@ -323,6 +339,73 @@ def build_digest(
 
 
 # ---------------------------------------------------------------------------
+# Markdown → HTML (lightweight, no extra deps)
+# ---------------------------------------------------------------------------
+
+_MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+_MD_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_MD_ITALIC_RE = re.compile(r"\*(.+?)\*")
+
+
+def md_to_html(md: str) -> str:
+    """Convert simple markdown to HTML for Matrix formatted_body."""
+    lines = md.split("\n")
+    html_lines: List[str] = []
+    in_list = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Close list if we left bullet context
+        if in_list and not stripped.startswith("- "):
+            html_lines.append("</ul>")
+            in_list = False
+
+        if not stripped or stripped == "---":
+            if stripped == "---":
+                html_lines.append("<hr>")
+            continue
+
+        # Headers
+        if stripped.startswith("### "):
+            html_lines.append(f"<h4>{_inline(stripped[4:])}</h4>")
+        elif stripped.startswith("## "):
+            html_lines.append(f"<h3>{_inline(stripped[3:])}</h3>")
+        elif stripped.startswith("# "):
+            html_lines.append(f"<h2>{_inline(stripped[2:])}</h2>")
+        elif stripped.startswith("- "):
+            if not in_list:
+                html_lines.append("<ul>")
+                in_list = True
+            html_lines.append(f"<li>{_inline(stripped[2:])}</li>")
+        else:
+            html_lines.append(f"<p>{_inline(stripped)}</p>")
+
+    if in_list:
+        html_lines.append("</ul>")
+
+    return "\n".join(html_lines)
+
+
+def _inline(text: str) -> str:
+    """Convert inline markdown (bold, italic, links) to HTML."""
+    # Process markdown syntax before escaping so patterns still match
+    # Links: [text](url) — extract before escaping
+    text = _MD_LINK_RE.sub(r'%%LINK_START%%\1%%LINK_MID%%\2%%LINK_END%%', text)
+    # Bold: **text**
+    text = _MD_BOLD_RE.sub(r"%%BOLD_START%%\1%%BOLD_END%%", text)
+    # Italic: *text*
+    text = _MD_ITALIC_RE.sub(r"%%EM_START%%\1%%EM_END%%", text)
+    # Now HTML-escape the plain text parts
+    text = html.escape(text)
+    # Restore the HTML tags from placeholders
+    text = text.replace("%%LINK_START%%", '<a href="').replace("%%LINK_MID%%", '">').replace("%%LINK_END%%", "</a>")
+    text = text.replace("%%BOLD_START%%", "<strong>").replace("%%BOLD_END%%", "</strong>")
+    text = text.replace("%%EM_START%%", "<em>").replace("%%EM_END%%", "</em>")
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Output writers
 # ---------------------------------------------------------------------------
 
@@ -333,20 +416,61 @@ def write_file(digest: str, output_dir: Path, date_str: str) -> Path:
     return path
 
 
-def post_webhook(digest: str, webhook_url: str, date_str: str, timeout: int = 30) -> None:
-    if not webhook_url:
-        return
+# ---------------------------------------------------------------------------
+# Matrix (via Hookshot webhook)
+# ---------------------------------------------------------------------------
+
+def send_hookshot(webhook_url: str, markdown: str, timeout: int = 30) -> None:
+    """Post a single message to a Matrix room via Hookshot generic webhook."""
+    html_body = md_to_html(markdown)
     payload = {
-        "text": f"**Daily RSS Digest — {date_str}**\n\n{digest[:3500]}",
+        "msgtype": "m.notice",
+        "body": markdown,
+        "format": "org.matrix.custom.html",
+        "formatted_body": html_body,
     }
-    try:
-        resp = requests.post(webhook_url, json=payload, timeout=timeout)
-        if resp.status_code >= 400:
-            print(f"[warn] Webhook post failed ({resp.status_code}): {resp.text[:200]}", file=sys.stderr)
-        else:
-            print(f"[ok] Webhook posted ({resp.status_code})", file=sys.stderr)
-    except requests.RequestException as exc:
-        print(f"[warn] Webhook failed: {exc}", file=sys.stderr)
+    resp = requests.post(webhook_url, json=payload, timeout=timeout)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Hookshot webhook failed ({resp.status_code}): {resp.text[:300]}")
+
+
+def post_to_matrix(
+    webhook_url: str,
+    groups: Dict[str, List[Dict[str, Any]]],
+    category_summaries: Dict[str, str],
+    ordered_categories: List[str],
+    date_str: str,
+    timeout: int = 30,
+) -> None:
+    """Post digest to Matrix as a series of messages (header + per-category + sources)."""
+    total = sum(len(arts) for arts in groups.values())
+
+    # Header message
+    header = (
+        f"# Daily RSS Digest — {date_str}\n\n"
+        f"**{total} articles** across **{len(groups)} categories**"
+    )
+    send_hookshot(webhook_url, header, timeout)
+
+    # One message per category summary
+    for cat in ordered_categories:
+        articles = groups[cat]
+        summary = category_summaries.get(cat, "")
+        msg = f"## {cat} ({len(articles)} articles)\n\n{summary}"
+        send_hookshot(webhook_url, msg, timeout)
+
+    # Sources message
+    source_lines = ["### Sources\n"]
+    for cat in ordered_categories:
+        for a in groups[cat]:
+            title = a.get("title", "(untitled)")
+            url = a.get("url", "")
+            source = a.get("source", "")
+            if url:
+                source_lines.append(f"- [{title}]({url}) — *{source}*")
+            else:
+                source_lines.append(f"- {title} — *{source}*")
+    send_hookshot(webhook_url, "\n".join(source_lines), timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -421,7 +545,9 @@ def main() -> int:
     # --- Summarize ---
     summarizer = OllamaSummarizer(cfg["ai"])
     category_order = cfg.get("digest", {}).get("category_order", [])
-    digest = build_digest(groups, summarizer, date_str, category_order)
+    ordered = order_categories(groups, category_order)
+    summaries = summarize_all(groups, summarizer, ordered)
+    digest = build_digest(groups, summaries, ordered, date_str)
 
     # --- Output ---
     if args.dry_run:
@@ -432,10 +558,15 @@ def main() -> int:
     path = write_file(digest, output_dir, date_str)
     print(f"[ok] Digest written: {path}", file=sys.stderr)
 
-    # Webhook
-    webhook_url = cfg.get("output", {}).get("webhook_url", "")
+    # Matrix via Hookshot
+    webhook_url = cfg.get("matrix", {}).get("webhook_url", "")
     if webhook_url:
-        post_webhook(digest, webhook_url, date_str)
+        try:
+            timeout = int(cfg.get("matrix", {}).get("timeout_seconds", 30))
+            post_to_matrix(webhook_url, groups, summaries, ordered, date_str, timeout)
+            print(f"[ok] Posted to Matrix via Hookshot", file=sys.stderr)
+        except Exception as exc:
+            print(f"[warn] Matrix post failed: {exc}", file=sys.stderr)
 
     # Retention
     keep_days = int(cfg.get("output", {}).get("keep_days", 30))
