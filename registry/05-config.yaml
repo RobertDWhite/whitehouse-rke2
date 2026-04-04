@@ -11,8 +11,17 @@ stringData:
       level: info
 
     storage:
+      delete:
+        enabled: true
       filesystem:
         rootdirectory: /var/lib/registry
+
+    maintenance:
+      uploadpurging:
+        enabled: true
+        age: 168h
+        interval: 24h
+        dryrun: false
 
     http:
       addr: :5000
