@@ -186,8 +186,8 @@ spec:
               readOnly: true
           resources:
             requests:
-              cpu: 250m
-              memory: 1Gi
+              cpu: 500m
+              memory: 2Gi
             limits:
               cpu: 2000m
               memory: 6Gi
@@ -199,14 +199,21 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 10
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /api/v1/health
               port: 8000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 6
+            failureThreshold: 3
       volumes:
         - name: sdr-artifacts
           persistentVolumeClaim:
