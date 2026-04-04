@@ -31,13 +31,19 @@ spec:
           image: postgres:15
           args:
             - -c
-            - shared_buffers=512MB
+            - shared_buffers=1GB
             - -c
-            - work_mem=16MB
+            - work_mem=32MB
             - -c
-            - effective_cache_size=2GB
+            - maintenance_work_mem=256MB
             - -c
-            - max_connections=200
+            - effective_cache_size=3GB
+            - -c
+            - random_page_cost=1.1
+            - -c
+            - effective_io_concurrency=200
+            - -c
+            - max_connections=300
           env:
             - name: POSTGRES_DB
               value: "sdr_viewer"
@@ -55,10 +61,10 @@ spec:
           resources:
             requests:
               cpu: 500m
-              memory: 1Gi
+              memory: 2Gi
             limits:
               cpu: 2000m
-              memory: 4Gi
+              memory: 6Gi
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "sdr_viewer"]
