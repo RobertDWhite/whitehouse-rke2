@@ -201,22 +201,12 @@ def group_by_category(articles: List[Dict[str, Any]]) -> Dict[str, List[Dict[str
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = (
-    "You are a daily news briefing writer. You will receive a batch of articles "
-    "from one RSS feed category. Write a SHORT, scannable summary — like a morning "
-    "briefing someone reads on their phone.\n\n"
-    "Rules:\n"
-    "- Write 3-6 bullet points maximum for the whole section\n"
-    "- Each bullet is 1-2 sentences covering one key story or theme\n"
-    "- Merge related articles into one bullet\n"
-    "- Lead each bullet with the most important fact\n"
-    "- SKIP: court case metadata, document download notices, routine filings, "
-    "procedural updates, press release boilerplate, opinion pieces, listicles\n"
-    "- Only include stories with real substance — policy changes, major events, "
-    "significant business moves, things a busy person needs to know\n"
-    "- If most articles are noise, write fewer bullets. If ALL are noise, "
-    "reply with exactly: (nothing noteworthy)\n"
-    "- No headers, no intro, no closing — just the bullets\n"
-    "- Use plain text, not markdown"
+    "Write a brief daily news briefing from the articles below.\n\n"
+    "Format: one bullet per distinct story, 1 sentence each, 3-6 bullets total.\n"
+    "Merge duplicate coverage of the same story into one bullet.\n"
+    "Skip noise: court filings metadata, document download notices, routine press releases, opinion pieces.\n"
+    "If nothing is noteworthy, write: (nothing noteworthy)\n"
+    "No intro, no headers, no closing. Just the bullet lines starting with •"
 )
 
 MAX_ARTICLES_PER_CATEGORY = 20
