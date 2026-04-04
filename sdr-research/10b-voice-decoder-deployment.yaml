@@ -84,6 +84,5 @@ spec:
             name: voice-decoder-scripts
             defaultMode: 0755
         - name: model-cache
-          # Longhorn RWO attach has been stalling the decoder pod for hours.
-          # Use node-local ephemeral cache so transcription can resume immediately.
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: whisper-model-cache

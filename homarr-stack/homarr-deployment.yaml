@@ -27,23 +27,27 @@ spec:
           resources:
             requests:
               cpu: 50m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 500m
               memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 7575
+            failureThreshold: 12
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /
               port: 7575
-            initialDelaySeconds: 15
             periodSeconds: 15
           livenessProbe:
             httpGet:
               path: /
               port: 7575
-            initialDelaySeconds: 30
             periodSeconds: 30
-            failureThreshold: 3
+            failureThreshold: 5
           securityContext:
             allowPrivilegeEscalation: false
           env:
