@@ -78,6 +78,26 @@ spec:
         - {protocol: TCP, port: 9121}
 
 ---
+# freshrss daily-digest → hookshot (webhook)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-freshrss-hookshot
+  namespace: matrix
+spec:
+  podSelector:
+    matchLabels:
+      app: matrix-hookshot
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: freshrss
+      ports:
+        - {protocol: TCP, port: 9000}
+
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
