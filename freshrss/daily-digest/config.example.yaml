@@ -1,0 +1,51 @@
+freshrss:
+  # FreshRSS Greader API endpoint (internal cluster URL or external)
+  greader_api_url: "http://freshrss.freshrss.svc.cluster.local/api/greader.php"
+  username: "${FRESHRSS_USERNAME}"
+  api_password: "${FRESHRSS_API_PASSWORD}"
+  verify_tls: false
+  timeout_seconds: 20
+  page_size: 200
+  max_items: 500
+  # How far back to look for articles (hours)
+  lookback_hours: 24
+  # Set true to only include unread articles
+  unread_only: false
+  retry_attempts: 3
+  retry_backoff_seconds: 2
+
+ai:
+  base_url: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+  api_key: "${AI_API_KEY}"
+  model: "llama3.1:8b"
+  temperature: 0.3
+  max_tokens: 2000
+  timeout_seconds: 120
+  # Truncate each article body to this many characters before sending to Ollama
+  max_article_chars: 3000
+  # Override the default system prompt for summarization
+  # system_prompt: "You are a concise news analyst..."
+
+digest:
+  # Only include these categories (omit to include all)
+  # include_categories:
+  #   - Technology
+  #   - Security
+  #   - World News
+
+  # Exclude these categories
+  # exclude_categories:
+  #   - Comics
+
+  # Pin category order in digest (remaining categories sorted alphabetically)
+  # category_order:
+  #   - Security
+  #   - Technology
+
+output:
+  # Where to write digest markdown files
+  directory: "/data/digests"
+  # Post digest to a webhook (Slack, Discord, etc.) — leave empty to skip
+  webhook_url: "${WEBHOOK_URL}"
+  # Auto-delete digests older than N days (0 = keep forever)
+  keep_days: 30
