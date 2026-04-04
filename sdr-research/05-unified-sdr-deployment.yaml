@@ -71,7 +71,9 @@ spec:
             - name: SQUELCH_CLOSE_DB
               value: "-60"
             - name: RF_SQUELCH_DB
-              value: "-55"
+              # Lowered from -55 to -65 — at RF_GAIN=14, narrowband channel power
+              # was consistently below -55 dBFS, blocking all recordings.
+              value: "-65"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
@@ -85,9 +87,9 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              # Airspy Mini gain index (0–21); direct USB access was clipping APRS
-              # captures at 18, so run lower to preserve packet decode quality.
-              value: "10"
+              # Airspy Mini gain index (0–21); raised from 10 to 14 to ensure
+              # narrowband channel power exceeds RF squelch threshold.
+              value: "14"
             - name: PPM_CORRECTION
               # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
               value: "0"
