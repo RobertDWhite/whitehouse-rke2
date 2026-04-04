@@ -418,6 +418,47 @@ data:
               namespace: immich
         scrape_interval: 30s
 
+      # =========================
+      # Envoy Gateway controller (control plane)
+      # =========================
+      - job_name: envoy-gateway-controller
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: envoy-gateway-system
+          - source_labels: [__meta_kubernetes_pod_label_control_plane]
+            action: keep
+            regex: envoy-gateway
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "19001"
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
+      # Envoy Proxy (data plane)
+      # =========================
+      - job_name: envoy-proxy
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: envoy-gateway-system
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: keep
+            regex: proxy
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_gateway_envoyproxy_io_owning_gateway_name]
+            target_label: gateway
+
   sdr-alerts.yml: |
     groups:
       - name: sdr-research.pvc
