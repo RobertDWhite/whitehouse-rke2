@@ -46,21 +46,21 @@ spec:
                       inject = marker + "\n" + "\n".join(lines)
                       text = text.replace(marker, inject)
 
-              # Read WAV sample rate from file header instead of using fixed AUDIO_RATE
+              # Read WAV sample rate from file header instead of using fixed AUDIO_RATE.
+              # The decode_wav function body is indented 4 spaces; the subprocess.run
+              # call uses 8-space continuation indent.
               text = text.replace(
-                  '    result = subprocess.run(\n'
-                  '            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),\n'
-                  '             "-o", bmp_path, wav_path],',
-                  '    import wave as _wave\n'
-                  '    try:\n'
-                  '        _wf = _wave.open(wav_path, "rb")\n'
-                  '        _sr = _wf.getframerate()\n'
-                  '        _wf.close()\n'
-                  '    except Exception:\n'
-                  '        _sr = AUDIO_RATE\n'
-                  '    result = subprocess.run(\n'
-                  '            ["slowrx-cli", "-v", "-r", str(_sr),\n'
-                  '             "-o", bmp_path, wav_path],',
+                  '        result = subprocess.run(\n'
+                  '            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),\n',
+                  '        import wave as _wave\n'
+                  '        try:\n'
+                  '            _wf = _wave.open(wav_path, "rb")\n'
+                  '            _sr = _wf.getframerate()\n'
+                  '            _wf.close()\n'
+                  '        except Exception:\n'
+                  '            _sr = AUDIO_RATE\n'
+                  '        result = subprocess.run(\n'
+                  '            ["slowrx-cli", "-v", "-r", str(_sr),\n',
               )
               path.write_text(text)
               PY

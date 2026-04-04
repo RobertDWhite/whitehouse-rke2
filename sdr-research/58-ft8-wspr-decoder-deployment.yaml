@@ -189,10 +189,10 @@ spec:
                   '                raise RuntimeError(f"readStream failed: {status.ret}")\n',
               )
 
-              # Add shutil import for SSTV file copy
+              # Add shutil import for SSTV file copy, threading for HFDL
               replace_once(
                   'import wave\n',
-                  'import wave\nimport shutil\n',
+                  'import wave\nimport shutil\nimport threading\n',
               )
 
               # --- SSTV capture integration ---
@@ -207,7 +207,17 @@ spec:
                   'SSTV_FREQS = [int(f) for f in os.getenv("SSTV_FREQUENCIES", "").split() if f.strip()]\n'
                   'SSTV_EVERY_N = int(os.getenv("SSTV_EVERY_N", "12"))\n'
                   'SSTV_DWELL_SEC = int(os.getenv("SSTV_DWELL_SEC", "60"))\n'
-                  'SSTV_OUTPUT_DIR = os.getenv("SSTV_OUTPUT_DIR", "/data/audio/voice")\n',
+                  'SSTV_OUTPUT_DIR = os.getenv("SSTV_OUTPUT_DIR", "/data/audio/voice")\n'
+                  '\n'
+                  '# HFDL — runs dumphfdl subprocess (releases radio during capture)\n'
+                  'HFDL_ENABLED = os.getenv("HFDL_ENABLED", "false").lower() in ("true", "1", "yes")\n'
+                  'HFDL_FREQS = os.getenv("HFDL_FREQUENCIES", "10081 11384").split()\n'
+                  'HFDL_DWELL_SEC = int(os.getenv("HFDL_DWELL_SEC", "120"))\n'
+                  'HFDL_EVERY_N = int(os.getenv("HFDL_EVERY_N", "18"))\n'
+                  'HFDL_OUTPUT_DIR = os.getenv("HFDL_OUTPUT_DIR", "/data/text/hfdl")\n'
+                  'HFDL_SAMPLE_RATE = os.getenv("HFDL_SAMPLE_RATE", "2000000")\n'
+                  'HFDL_CENTERFREQ = os.getenv("HFDL_CENTERFREQ", "10732.5")\n'
+                  'HFDL_GAIN = os.getenv("HFDL_GAIN", "20")\n',
               )
               replace_once(
                   '    ft8_idx = 0\n'
@@ -224,12 +234,68 @@ spec:
                   '                           and len(WSPR_FREQS) > 0)\n'
                   '\n'
                   '                if do_wspr:\n',
-                  '                # Decide: FT8, WSPR, or SSTV this cycle\n'
+                  '                # Decide: FT8, WSPR, SSTV, or HFDL this cycle\n'
                   '                do_wspr = (cycle_count > 0 and cycle_count % WSPR_EVERY_N == 0\n'
                   '                           and len(WSPR_FREQS) > 0)\n'
                   '                do_sstv = (not do_wspr and cycle_count > 0\n'
                   '                           and cycle_count % SSTV_EVERY_N == 0\n'
                   '                           and len(SSTV_FREQS) > 0)\n'
+                  '                do_hfdl = (not do_wspr and not do_sstv and cycle_count > 0\n'
+                  '                           and cycle_count % HFDL_EVERY_N == 0\n'
+                  '                           and HFDL_ENABLED and len(HFDL_FREQS) > 0)\n'
+                  '\n'
+                  '                if do_hfdl:\n'
+                  '                    # Release radio, run dumphfdl subprocess\n'
+                  '                    _close_capture_session()\n'
+                  '                    os.makedirs(HFDL_OUTPUT_DIR, exist_ok=True)\n'
+                  '                    hfdl_cmd = [\n'
+                  '                        "dumphfdl",\n'
+                  '                        "--soapysdr", _soapysdr_device_string(),\n'
+                  '                        "--sample-rate", HFDL_SAMPLE_RATE,\n'
+                  '                        "--gain", HFDL_GAIN,\n'
+                  '                    ]\n'
+                  '                    if HFDL_CENTERFREQ:\n'
+                  '                        hfdl_cmd += ["--centerfreq", HFDL_CENTERFREQ]\n'
+                  '                    hfdl_cmd += ["--output", "decoded:json:file:path=-"] + HFDL_FREQS\n'
+                  '                    print(f"[HFDL] Running dumphfdl for {HFDL_DWELL_SEC}s on {HFDL_FREQS}",\n'
+                  '                          flush=True)\n'
+                  '                    try:\n'
+                  '                        hfdl_proc = subprocess.Popen(\n'
+                  '                            hfdl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,\n'
+                  '                            text=True, bufsize=1)\n'
+                  '                        hfdl_end = time.time() + HFDL_DWELL_SEC\n'
+                  '                        hfdl_frames = 0\n'
+                  '                        while time.time() < hfdl_end and not SHUTDOWN:\n'
+                  '                            import select\n'
+                  '                            if select.select([hfdl_proc.stdout], [], [], 1.0)[0]:\n'
+                  '                                line = hfdl_proc.stdout.readline().strip()\n'
+                  '                                if not line:\n'
+                  '                                    if hfdl_proc.poll() is not None:\n'
+                  '                                        break\n'
+                  '                                    continue\n'
+                  '                                try:\n'
+                  '                                    frame = json.loads(line)\n'
+                  '                                    t = frame.get("t", {})\n'
+                  '                                    freq_k = int(frame.get("freq", 0))\n'
+                  '                                    ts_sec = t.get("sec", int(time.time()))\n'
+                  '                                    ts_ms = ts_sec * 1000 + (t.get("usec", 0) // 1000)\n'
+                  '                                    fname = f"hfdl_{freq_k}_{ts_ms}.json"\n'
+                  '                                    with open(os.path.join(HFDL_OUTPUT_DIR, fname), "w") as hf:\n'
+                  '                                        json.dump(frame, hf)\n'
+                  '                                    hfdl_frames += 1\n'
+                  '                                    print(f"[HFDL] {fname}", flush=True)\n'
+                  '                                except Exception as he:\n'
+                  '                                    print(f"[HFDL] Parse error: {he}", flush=True)\n'
+                  '                        hfdl_proc.terminate()\n'
+                  '                        hfdl_proc.wait(timeout=5)\n'
+                  '                        print(f"[HFDL] Done — {hfdl_frames} frames decoded", flush=True)\n'
+                  '                    except FileNotFoundError:\n'
+                  '                        print("[HFDL] dumphfdl not found — skipping (rebuild image with Dockerfile.unified-hf)",\n'
+                  '                              flush=True)\n'
+                  '                    except Exception as he:\n'
+                  '                        print(f"[HFDL] Error: {he}", flush=True)\n'
+                  '                    cycle_count += 1\n'
+                  '                    continue\n'
                   '\n'
                   '                if do_sstv:\n'
                   '                    freq = SSTV_FREQS[sstv_idx % len(SSTV_FREQS)]\n'
@@ -293,6 +359,24 @@ spec:
               value: "12"
             - name: SSTV_DWELL_SEC
               value: "60"
+            # HFDL — run dumphfdl periodically (releases radio, runs subprocess)
+            - name: HFDL_ENABLED
+              value: "true"
+            - name: HFDL_OUTPUT_DIR
+              value: "/data/text/hfdl"
+            # dumphfdl expects kHz, not Hz
+            - name: HFDL_FREQUENCIES
+              value: "10081 11384"
+            - name: HFDL_DWELL_SEC
+              value: "120"
+            - name: HFDL_EVERY_N
+              value: "18"
+            - name: HFDL_SAMPLE_RATE
+              value: "2000000"
+            - name: HFDL_CENTERFREQ
+              value: "10732.5"
+            - name: HFDL_GAIN
+              value: "20"
             # Station Maidenhead grid (for distance calculations)
             - name: STATION_GRID
               valueFrom:
