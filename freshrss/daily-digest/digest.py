@@ -529,8 +529,13 @@ def main() -> int:
     print(f"[ok] {len(groups)} categories: {', '.join(sorted(groups.keys()))}", file=sys.stderr)
 
     # --- Filter categories if configured ---
-    include = cfg.get("digest", {}).get("include_categories")
-    exclude = cfg.get("digest", {}).get("exclude_categories", [])
+    digest_cfg = cfg.get("digest") or {}
+    include = digest_cfg.get("include_categories")
+    exclude = digest_cfg.get("exclude_categories", [])
+
+    # Filter out BI pipeline auto-tags (entity:*, event:*, signal:*, etc.)
+    bi_prefixes = ("entity:", "event:", "signal:", "impact:", "horizon:", "sector:")
+    groups = {k: v for k, v in groups.items() if not k.lower().startswith(bi_prefixes)}
     if include:
         include_lower = [c.lower() for c in include]
         groups = {k: v for k, v in groups.items() if k.lower() in include_lower}
@@ -544,7 +549,7 @@ def main() -> int:
 
     # --- Summarize ---
     summarizer = OllamaSummarizer(cfg["ai"])
-    category_order = cfg.get("digest", {}).get("category_order", [])
+    category_order = digest_cfg.get("category_order", [])
     ordered = order_categories(groups, category_order)
     summaries = summarize_all(groups, summarizer, ordered)
     digest = build_digest(groups, summaries, ordered, date_str)
