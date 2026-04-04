@@ -682,6 +682,9 @@ data:
 
         tb = UnifiedSDR()
 
+        tb.start()
+        print("[MAIN] Flowgraph running — starting detector threads", flush=True)
+
         fft_det = FFTDetector(tb)
         fft_det.start()
 
@@ -690,9 +693,6 @@ data:
 
         rf_mon = RFPowerMonitor(tb)
         rf_mon.start()
-
-        tb.start()
-        print("[MAIN] Flowgraph running", flush=True)
 
         try:
             tb.wait()
