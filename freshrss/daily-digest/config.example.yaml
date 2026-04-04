@@ -42,10 +42,15 @@ digest:
   #   - Security
   #   - Technology
 
+matrix:
+  # Post digest to a Matrix room via Hookshot webhook
+  # Create a webhook in the room with: !hookshot webhook create
+  # Internal cluster URL avoids going through external DNS
+  webhook_url: "http://matrix-hookshot.matrix.svc.cluster.local:9000/webhook/${MATRIX_WEBHOOK_UUID}"
+  timeout_seconds: 30
+
 output:
   # Where to write digest markdown files
   directory: "/data/digests"
-  # Post digest to a webhook (Slack, Discord, etc.) — leave empty to skip
-  webhook_url: "${WEBHOOK_URL}"
   # Auto-delete digests older than N days (0 = keep forever)
   keep_days: 30
