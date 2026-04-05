@@ -67,14 +67,11 @@ spec:
             - name: CLEAR_SLOTS_ON_RETUNE
               value: "false"
             - name: SQUELCH_OPEN_DB
-              value: "-40"
+              value: "-55"
             - name: SQUELCH_CLOSE_DB
-              value: "-45"
+              value: "-60"
             - name: RF_SQUELCH_DB
-              # Disable RF squelch — let the audio-level SquelchRecorder handle gating.
-              # pwr_squelch_cc at any threshold above noise floor blocks real signals
-              # because Airspy gain levels don't map predictably to dBFS.
-              value: "-200"
+              value: "-55"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
@@ -88,9 +85,9 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              # Airspy Mini gain index (0–21); raised from 10 to 14 to ensure
-              # narrowband channel power exceeds RF squelch threshold.
-              value: "14"
+              # Airspy Mini gain index (0–21); 18 provides sufficient signal
+              # to exceed RF squelch -55 dBFS in narrowband channels.
+              value: "18"
             - name: PPM_CORRECTION
               # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
               value: "0"
