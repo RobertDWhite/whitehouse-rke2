@@ -12,9 +12,22 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "enable": true,
+        "expr": "changes(envoy_server_live{pod=~\"$pod\"}[2m])",
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "limit": 100,
+        "name": "Envoy Restarts",
+        "step": "30s",
+        "tagKeys": "pod",
+        "titleFormat": "Envoy Restarted"
       }
     ]
   },
+  "description": "Envoy Gateway Ingress monitoring — replacement for Nginx Ingress Prometheus NextGen dashboard",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -31,6 +44,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total number of requests made in the selected time range",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -67,6 +81,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Percentage of successful requests over the entire period. Ignoring 404s (normal for scanners/probes).",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -75,7 +90,7 @@
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-              { "color": "orange", "value": 0.9 },
+              { "color": "orange", "value": 0.8 },
               { "color": "green", "value": 0.95 }
             ]
           },
@@ -89,7 +104,7 @@
       "id": 2,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -99,7 +114,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) / clamp_min(sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) - sum(increase(envoy_http_downstream_rq_4xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) + sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])),1)",
+          "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s]) + increase(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) / clamp_min(sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) - sum(increase(envoy_http_downstream_rq_4xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) + sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s]) + increase(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])),1)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -107,6 +122,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Current active downstream connections",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -121,7 +137,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "gridPos": { "h": 4, "w": 2, "x": 6, "y": 1 },
       "id": 3,
       "options": {
         "colorMode": "value",
@@ -131,7 +147,7 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Active Connections",
+      "title": "Conns",
       "type": "stat",
       "targets": [
         {
@@ -143,6 +159,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Number of HTTP requests in the last interval",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -157,7 +174,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "gridPos": { "h": 4, "w": 2, "x": 8, "y": 1 },
       "id": 4,
       "options": {
         "colorMode": "value",
@@ -167,11 +184,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Requests (2m)",
+      "title": "Reqs (2m)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
+          "expr": "sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m]))",
           "legendFormat": "",
           "refId": "A"
         }
@@ -179,6 +196,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Percentage of successful requests in the last interval",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -187,8 +205,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-              { "color": "orange", "value": 0.9 },
-              { "color": "green", "value": 0.95 }
+              { "color": "orange", "value": 0.8 },
+              { "color": "green", "value": 0.9 }
             ]
           },
           "unit": "percentunit",
@@ -197,11 +215,11 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 3, "x": 10, "y": 1 },
       "id": 5,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
@@ -211,7 +229,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) / clamp_min(sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])),1)",
+          "expr": "sum(rate(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m]) + rate(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) / clamp_min(sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])),0.001)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -219,6 +237,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Successful 1xx/2xx requests in the last interval",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -233,7 +252,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "gridPos": { "h": 4, "w": 2, "x": 13, "y": 1 },
       "id": 6,
       "options": {
         "colorMode": "value",
@@ -243,11 +262,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP 2xx (2m)",
+      "title": "2xx (2m)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) or vector(0)",
+          "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -269,7 +288,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "gridPos": { "h": 4, "w": 2, "x": 15, "y": 1 },
       "id": 7,
       "options": {
         "colorMode": "value",
@@ -279,11 +298,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP 3xx (2m)",
+      "title": "3xx (2m)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) or vector(0)",
+          "expr": "sum(increase(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -305,7 +324,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "gridPos": { "h": 4, "w": 2, "x": 17, "y": 1 },
       "id": 8,
       "options": {
         "colorMode": "value",
@@ -315,11 +334,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP 4xx (2m)",
+      "title": "4xx (2m)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_4xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) or vector(0)",
+          "expr": "sum(increase(envoy_http_downstream_rq_4xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -341,7 +360,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 5 },
+      "gridPos": { "h": 4, "w": 2, "x": 19, "y": 1 },
       "id": 9,
       "options": {
         "colorMode": "value",
@@ -351,11 +370,11 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "HTTP 5xx (2m)",
+      "title": "5xx (2m)",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_5xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) or vector(0)",
+          "expr": "sum(increase(envoy_http_downstream_rq_5xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) or vector(0)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -363,6 +382,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Envoy proxy uptime",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -377,7 +397,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 5 },
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
       "id": 10,
       "options": {
         "colorMode": "value",
@@ -398,52 +418,15 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "orange", "value": 134217728 },
-              { "color": "red", "value": 268435456 }
-            ]
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 5 },
-      "id": 11,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "title": "Memory Allocated",
-      "type": "stat",
-      "targets": [
-        {
-          "expr": "sum(envoy_server_memory_allocated{pod=~\"$pod\"})",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ]
-    },
-    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
       "id": 200,
       "title": "Traffic",
       "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total number of HTTP requests broken down by backend cluster (equivalent of per-ingress in nginx)",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -462,24 +445,26 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
       "id": 12,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "HTTP Requests by Backend",
+      "title": "HTTP Requests / Backend Cluster",
       "type": "timeseries",
       "targets": [
         {
           "expr": "sum(increase(envoy_cluster_upstream_rq_total{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__interval])) by (envoy_cluster_name)",
           "legendFormat": "{{ envoy_cluster_name }}",
+          "interval": "2m",
           "refId": "A"
         }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "HTTP status code breakdown across all traffic",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -515,7 +500,7 @@
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
       "id": 13,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
@@ -527,27 +512,70 @@
         {
           "expr": "sum(increase(envoy_http_downstream_rq_2xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
           "legendFormat": "2xx",
+          "interval": "2m",
           "refId": "A"
         },
         {
           "expr": "sum(increase(envoy_http_downstream_rq_3xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
           "legendFormat": "3xx",
+          "interval": "2m",
           "refId": "B"
         },
         {
           "expr": "sum(increase(envoy_http_downstream_rq_4xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
           "legendFormat": "4xx",
+          "interval": "2m",
           "refId": "C"
         },
         {
           "expr": "sum(increase(envoy_http_downstream_rq_5xx{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
           "legendFormat": "5xx",
+          "interval": "2m",
           "refId": "D"
         }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total HTTP requests per interval as a bar chart",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Requests",
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "id": 14,
+      "options": {
+        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "title": "Total HTTP Requests",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
+          "legendFormat": "Total Requests",
+          "interval": "5m",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Request rate per second broken out by listener",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -566,8 +594,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
-      "id": 14,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 15,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -584,6 +612,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Request rate per second broken out by upstream backend cluster",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -602,8 +631,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
-      "id": 15,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "id": 16,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -620,13 +649,14 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
       "id": 300,
       "title": "Latency",
       "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Downstream request latency percentiles (client-facing). Helps assess SLA compliance.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -643,82 +673,83 @@
           },
           "unit": "ms"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p95" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "dark-blue", "mode": "fixed" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p90" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p75" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "light-blue", "mode": "fixed" } }, { "id": "custom.fillOpacity", "value": 5 } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "white", "mode": "fixed" } }, { "id": "custom.fillOpacity", "value": 0 } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Average" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }, { "id": "custom.fillOpacity", "value": 0 }, { "id": "custom.showPoints", "value": "always" }, { "id": "custom.pointSize", "value": 3 } ]
+          }
+        ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
-      "id": 16,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "id": 17,
       "options": {
-        "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
+        "legend": { "calcs": ["mean", "min", "max"], "displayMode": "table", "placement": "right" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Downstream Latency Percentiles",
+      "title": "Latency (Average Percentiles)",
       "type": "timeseries",
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])))",
           "legendFormat": "p99",
+          "interval": "5m",
           "refId": "A"
         },
         {
           "expr": "histogram_quantile(0.95, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])))",
           "legendFormat": "p95",
+          "interval": "5m",
           "refId": "B"
         },
         {
           "expr": "histogram_quantile(0.90, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])))",
           "legendFormat": "p90",
+          "interval": "5m",
           "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.75, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])))",
+          "legendFormat": "p75",
+          "interval": "5m",
+          "refId": "D"
         },
         {
           "expr": "histogram_quantile(0.50, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])))",
           "legendFormat": "p50",
-          "refId": "D"
+          "interval": "5m",
+          "refId": "E"
+        },
+        {
+          "expr": "sum(rate(envoy_http_downstream_rq_time_sum{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])) / clamp_min(sum(rate(envoy_http_downstream_rq_time_count{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval])),0.001)",
+          "legendFormat": "Average",
+          "interval": "5m",
+          "refId": "F"
         }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisLabel": "Latency (ms)",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "never",
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 },
-      "id": 17,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "title": "Upstream Latency Percentiles by Cluster",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.99, sum by (le, envoy_cluster_name) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])))",
-          "legendFormat": "{{ envoy_cluster_name }} p99",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.50, sum by (le, envoy_cluster_name) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])))",
-          "legendFormat": "{{ envoy_cluster_name }} p50",
-          "refId": "B"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Downstream request latency as a heatmap",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -728,7 +759,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 35 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "id": 18,
       "options": {
         "calculate": false,
@@ -753,34 +784,36 @@
           "unit": "ms"
         }
       },
-      "title": "Downstream Latency Heatmap",
+      "title": "Latency Heatmap",
       "type": "heatmap",
       "targets": [
         {
           "expr": "sum by (le) (increase(envoy_http_downstream_rq_time_bucket{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
           "format": "heatmap",
           "legendFormat": "{{ le }}",
+          "interval": "5m",
           "refId": "A"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 43 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
       "id": 400,
       "title": "Connections",
       "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Number of new downstream connections opened per interval",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
             "axisCenteredZero": false,
             "axisLabel": "Connections",
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "gradientMode": "none",
             "lineWidth": 1,
             "pointSize": 5,
@@ -789,34 +822,41 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "New Connections" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } } ]
+          }
+        ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "id": 19,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Downstream Connections (new)",
+      "title": "New Connections Opened",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_cx_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval])) by (envoy_http_conn_manager_prefix)",
-          "legendFormat": "{{ envoy_http_conn_manager_prefix }}",
+          "expr": "sum(increase(envoy_http_downstream_cx_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__interval]))",
+          "legendFormat": "New Connections",
+          "interval": "2m",
           "refId": "A"
         }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total active downstream connections over time",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
           "custom": {
             "axisCenteredZero": false,
             "axisLabel": "Connections",
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "drawStyle": "bars",
+            "fillOpacity": 60,
             "gradientMode": "none",
             "lineWidth": 1,
             "pointSize": 5,
@@ -825,69 +865,139 @@
           },
           "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Active Connections" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } } ]
+          }
+        ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "id": 20,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Active Downstream Connections",
+      "title": "Total Active Connections",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(envoy_http_downstream_cx_active{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}) by (envoy_http_conn_manager_prefix)",
-          "legendFormat": "{{ envoy_http_conn_manager_prefix }}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisLabel": "Connections",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "never",
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 },
-      "id": 21,
-      "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "desc" }
-      },
-      "title": "Active Upstream Connections by Cluster",
-      "type": "timeseries",
-      "targets": [
-        {
-          "expr": "sum(envoy_cluster_upstream_cx_active{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}) by (envoy_cluster_name)",
-          "legendFormat": "{{ envoy_cluster_name }}",
+          "expr": "sum(envoy_http_downstream_cx_active{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"})",
+          "legendFormat": "Active Connections",
           "refId": "A"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 60 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
       "id": 500,
+      "title": "Network I/O",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Downstream bytes received and transmitted by the proxy",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Bytes / sec",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "Bps"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Bytes In" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } } ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Bytes Out" },
+            "properties": [ { "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } } ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "Downstream Network I/O",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(envoy_http_downstream_cx_rx_bytes_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "Bytes In",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(envoy_http_downstream_cx_tx_bytes_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[$__rate_interval]))",
+          "legendFormat": "Bytes Out",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Upstream bytes sent and received per backend cluster",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Bytes / sec",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "id": 22,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "Upstream Network I/O by Cluster",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(envoy_cluster_upstream_cx_rx_bytes_total{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])) by (envoy_cluster_name)",
+          "legendFormat": "{{ envoy_cluster_name }} rx",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(envoy_cluster_upstream_cx_tx_bytes_total{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])) by (envoy_cluster_name)",
+          "legendFormat": "{{ envoy_cluster_name }} tx",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 49 },
+      "id": 600,
       "title": "Resources",
       "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Envoy proxy memory usage over time",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -906,8 +1016,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
-      "id": 22,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 50 },
+      "id": 23,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -929,6 +1039,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total and parent connections at the server level",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -947,8 +1058,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
-      "id": 23,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 50 },
+      "id": 24,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
@@ -967,12 +1078,194 @@
           "refId": "B"
         }
       ]
+    },
+    {
+      "collapsed": true,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 58 },
+      "id": 700,
+      "title": "Per-Route Details (CPU Intensive)",
+      "type": "row",
+      "panels": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Success rate (non-5xx) per backend cluster. Equivalent of per-ingress success rate in nginx.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "Success Rate",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "unit": "percentunit",
+              "max": 1,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 9, "w": 24, "x": 0, "y": 59 },
+          "id": 25,
+          "options": {
+            "legend": { "calcs": ["mean", "min", "max"], "displayMode": "table", "placement": "right" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Percentage of Success (non-5xx) - By Backend Cluster",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "1 - (sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_5xx{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])) / clamp_min(sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_total{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__rate_interval])),0.001))",
+              "legendFormat": "{{ envoy_cluster_name }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Upstream latency (p99, p95, p90) per backend cluster. Helps identify which services are slow.",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "Latency (ms)",
+                "drawStyle": "line",
+                "fillOpacity": 5,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 13, "w": 24, "x": 0, "y": 68 },
+          "id": 26,
+          "options": {
+            "legend": { "calcs": ["mean", "min", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Latency (per backend cluster)",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum by (le, envoy_cluster_name) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[5m])))",
+              "legendFormat": "p99 {{ envoy_cluster_name }}",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le, envoy_cluster_name) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[5m])))",
+              "legendFormat": "p95 {{ envoy_cluster_name }}",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.90, sum by (le, envoy_cluster_name) (rate(envoy_cluster_upstream_rq_time_bucket{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[5m])))",
+              "legendFormat": "p90 {{ envoy_cluster_name }}",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Upstream response status codes per backend cluster",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "Requests",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 81 },
+          "id": 27,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Upstream Status Codes by Cluster",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum by (envoy_cluster_name) (increase(envoy_cluster_upstream_rq_2xx{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__interval]))",
+              "legendFormat": "{{ envoy_cluster_name }} 2xx",
+              "interval": "2m",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (envoy_cluster_name) (increase(envoy_cluster_upstream_rq_4xx{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__interval]))",
+              "legendFormat": "{{ envoy_cluster_name }} 4xx",
+              "interval": "2m",
+              "refId": "B"
+            },
+            {
+              "expr": "sum by (envoy_cluster_name) (increase(envoy_cluster_upstream_rq_5xx{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}[$__interval]))",
+              "legendFormat": "{{ envoy_cluster_name }} 5xx",
+              "interval": "2m",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "description": "Active upstream connections per backend cluster",
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisLabel": "Connections",
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "showPoints": "never",
+                "stacking": { "group": "A", "mode": "none" }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 91 },
+          "id": 28,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Active Upstream Connections by Cluster",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(envoy_cluster_upstream_cx_active{envoy_cluster_name=~\"$cluster\", pod=~\"$pod\"}) by (envoy_cluster_name)",
+              "legendFormat": "{{ envoy_cluster_name }}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
     }
   ],
   "refresh": "1m",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["envoy", "gateway", "ingress", "kubernetes"],
+  "tags": ["envoy", "gateway", "ingress", "kubernetes", "networking", "services"],
   "templating": {
     "list": [
       {
@@ -1056,10 +1349,13 @@
     ]
   },
   "time": { "from": "now-3h", "to": "now" },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+  },
   "timezone": "browser",
   "title": "Kubernetes Envoy Gateway Ingress",
   "uid": "k8s-envoy-gateway-ingress",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
