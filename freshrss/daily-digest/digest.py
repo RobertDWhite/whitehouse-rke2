@@ -49,7 +49,7 @@ class FreshRSSClient:
         self.api_url = str(cfg["greader_api_url"]).rstrip("/")
         self.username = str(cfg["username"])
         self.api_password = str(cfg["api_password"])
-        self.timeout = int(cfg.get("timeout_seconds", 20))
+        self.timeout = int(cfg.get("timeout_seconds", 60))
         self.page_size = int(cfg.get("page_size", 200))
         self.max_items = int(cfg.get("max_items", 500))
         self.lookback_hours = int(cfg.get("lookback_hours", 24))
