@@ -3283,6 +3283,9 @@ data:
         except Exception:
             pass
 
+    # Time budget per index_directory call — prevents one mode from starving others
+    _INDEX_TIME_BUDGET_SEC = float(os.getenv("INDEX_TIME_BUDGET_SEC", "30"))
+
     def index_directory(mode: str, audio_dir: str, text_dir: str, ollama_budget: dict, hamdb_budget: dict | None = None):
         global _last_index_scan_ts
         db = SessionLocal()
@@ -3297,11 +3300,33 @@ data:
             if previous_scan <= 0:
                 scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
             else:
-                # Small overlap to avoid missing files around scan boundaries.
                 scan_since_ts = previous_scan - 2.0
             processed = 0
             _last_hb_ts = _time.time()
-            for wav_file in audio_path.glob("*.wav"):
+            _budget_deadline = _time.time() + _INDEX_TIME_BUDGET_SEC
+            # Fast filename-based prefilter: parse epoch from {freq}_{epoch}.wav
+            # to skip old files without NFS stat() calls.
+            try:
+                all_names = os.listdir(audio_dir)
+            except OSError:
+                return
+            wav_names = []
+            for fn in all_names:
+                if not fn.endswith(".wav"):
+                    continue
+                parts = fn[:-4].split("_")
+                if len(parts) >= 2:
+                    try:
+                        file_epoch = int(parts[-1])
+                        if file_epoch < scan_since_ts:
+                            continue
+                    except ValueError:
+                        pass
+                wav_names.append(fn)
+            # Sort newest first so fresh recordings are indexed before old backlog
+            wav_names.sort(key=lambda fn: fn.split("_")[-1] if "_" in fn else fn, reverse=True)
+            for fname in wav_names:
+                wav_file = Path(audio_dir) / fname
                 try:
                     file_mtime = wav_file.stat().st_mtime
                 except Exception:
@@ -3309,6 +3334,10 @@ data:
                 if file_mtime < scan_since_ts:
                     continue
                 processed += 1
+                # Time budget: yield to other indexers after deadline
+                if _time.time() > _budget_deadline:
+                    print(f"[{mode}] Time budget reached after {processed} files, yielding", flush=True)
+                    break
                 # Heartbeat every 60s so liveness probe stays happy during big batches
                 if _time.time() - _last_hb_ts > 60:
                     _touch_heartbeat()
@@ -4472,43 +4501,21 @@ data:
                     except Exception:
                         pass
 
-                await asyncio.to_thread(prune_missing_recordings)
-                _hb()
-
                 ollama_budget = {"remaining": max(0, settings.ollama_max_per_cycle)}
                 hamdb_budget = {"remaining": max(0, settings.hamdb_max_per_cycle)}
 
+                # ── FAST PATH — lightweight text/JSON indexers first ──
+                # These scan small directories and must never be starved by voice backlog.
                 await asyncio.to_thread(
-                    index_directory,
-                    mode="voice",
-                    audio_dir=os.path.join(settings.audio_base_path, "voice"),
-                    text_dir=os.path.join(settings.text_base_path, "voice"),
-                    ollama_budget=ollama_budget,
-                    hamdb_budget=hamdb_budget,
+                    index_ft8_directory,
+                    text_dir=os.path.join(settings.text_base_path, "ft8"),
                 )
                 _hb()
 
                 await asyncio.to_thread(
-                    index_directory,
-                    mode="cw",
-                    audio_dir=os.path.join(settings.audio_base_path, "cw"),
-                    text_dir=os.path.join(settings.text_base_path, "cw"),
-                    ollama_budget=ollama_budget,
-                    hamdb_budget=hamdb_budget,
+                    index_hfdl_directory,
+                    text_dir=os.path.join(settings.text_base_path, "hfdl"),
                 )
-                _hb()
-
-                # Index pager-routed audio (public safety 150-162 MHz)
-                _pager_audio_dir = os.path.join(settings.audio_base_path, "pager")
-                if os.path.isdir(_pager_audio_dir):
-                    await asyncio.to_thread(
-                        index_directory,
-                        mode="voice",
-                        audio_dir=_pager_audio_dir,
-                        text_dir=os.path.join(settings.text_base_path, "voice"),
-                        ollama_budget=ollama_budget,
-                        hamdb_budget=hamdb_budget,
-                    )
                 _hb()
 
                 await asyncio.to_thread(
@@ -4521,9 +4528,6 @@ data:
                     index_pager_directory,
                     text_dir=os.path.join(settings.text_base_path, "pager"),
                 )
-                _hb()
-
-                await asyncio.to_thread(_cleanup_pager_decode_failed_records, 5000)
                 _hb()
 
                 await asyncio.to_thread(
@@ -4545,32 +4549,59 @@ data:
                 _hb()
 
                 await asyncio.to_thread(
-                    index_hfdl_directory,
-                    text_dir=os.path.join(settings.text_base_path, "hfdl"),
-                )
-                _hb()
-
-                await asyncio.to_thread(
                     index_sstv_directory,
                     image_dir="/data/images/sstv",
                 )
                 _hb()
 
+                # ── SLOW PATH — large audio directories with time budget ──
+                # Each gets INDEX_TIME_BUDGET_SEC (default 30s) before yielding.
+                # Unfinished files are picked up next cycle (newest first).
                 await asyncio.to_thread(
-                    index_ft8_directory,
-                    text_dir=os.path.join(settings.text_base_path, "ft8"),
+                    index_directory,
+                    mode="voice",
+                    audio_dir=os.path.join(settings.audio_base_path, "voice"),
+                    text_dir=os.path.join(settings.text_base_path, "voice"),
+                    ollama_budget=ollama_budget,
+                    hamdb_budget=hamdb_budget,
                 )
                 _hb()
 
-                # Bulk backfill frequency labels for existing recordings missing them.
+                await asyncio.to_thread(
+                    index_directory,
+                    mode="cw",
+                    audio_dir=os.path.join(settings.audio_base_path, "cw"),
+                    text_dir=os.path.join(settings.text_base_path, "cw"),
+                    ollama_budget=ollama_budget,
+                    hamdb_budget=hamdb_budget,
+                )
+                _hb()
+
+                _pager_audio_dir = os.path.join(settings.audio_base_path, "pager")
+                if os.path.isdir(_pager_audio_dir):
+                    await asyncio.to_thread(
+                        index_directory,
+                        mode="voice",
+                        audio_dir=_pager_audio_dir,
+                        text_dir=os.path.join(settings.text_base_path, "voice"),
+                        ollama_budget=ollama_budget,
+                        hamdb_budget=hamdb_budget,
+                    )
+                _hb()
+
+                # ── MAINTENANCE — cleanup and backfill ──
+                await asyncio.to_thread(prune_missing_recordings)
+                _hb()
+
+                await asyncio.to_thread(_cleanup_pager_decode_failed_records, 5000)
+                _hb()
+
                 await asyncio.to_thread(_backfill_frequency_labels, 5000)
                 _hb()
 
-                # Backfill AI tags for recordings whose transcripts already exist.
                 await asyncio.to_thread(_backfill_ai_tags, 1000, ollama_budget, hamdb_budget)
                 _hb()
 
-                # Bulk cleanup: delete short voice recordings (<2s) already in DB
                 await asyncio.to_thread(_cleanup_short_recordings)
                 _hb()
 
