@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-config
+  namespace: ntfy
+data:
+  server.yml: |
+    base-url: https://ntfy.white.fm
+    listen-http: ":8080"
+    cache-file: /var/cache/ntfy/cache.db
+    cache-duration: "72h"
+    behind-proxy: true
+    keepalive-interval: "45s"
+    attachment-cache-dir: /var/cache/ntfy/attachments
+    attachment-total-size-limit: "1G"
+    attachment-file-size-limit: "50M"
+    attachment-expiry-duration: "72h"
