@@ -6050,9 +6050,9 @@ data:
     async def band_activity(response: Response, hours: int = 1, db: Session = Depends(get_db)):
         """Real-time band conditions based on FT8/WSPR spot activity."""
         response.headers["Cache-Control"] = "public, max-age=30"
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
 
         rows = db.execute(
             text("""
@@ -6679,7 +6679,7 @@ data:
             base += " AND UPPER(callsign) = UPPER(:callsign)"
             params["callsign"] = callsign
         if hours > 0:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            cutoff = datetime.utcnow() - timedelta(hours=hours)
             base += ' AND "timestamp" >= :cutoff'
             params["cutoff"] = cutoff
 
@@ -6724,7 +6724,7 @@ data:
             base += " AND band = :band"
             params["band"] = band
         if hours > 0:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            cutoff = datetime.utcnow() - timedelta(hours=hours)
             base += ' AND "timestamp" >= :cutoff'
             params["cutoff"] = cutoff
 

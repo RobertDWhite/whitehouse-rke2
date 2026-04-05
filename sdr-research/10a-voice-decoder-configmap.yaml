@@ -93,15 +93,30 @@ data:
         return any(lo <= freq_hz <= hi for (lo, hi) in APRS_BANDS_HZ)
 
 
+    # Only scan files from the last N seconds to avoid NFS stalls on 30k+ file dirs.
+    _SCAN_WINDOW_SEC = int(os.getenv("SCAN_WINDOW_SEC", "7200"))  # 2 hours
+
     def iter_wav_candidates():
         current_paths = set()
         candidates = []
+        now = time.time()
+        cutoff_ts = now - _SCAN_WINDOW_SEC
         for audio_dir in AUDIO_DIRS:
             try:
                 wav_names = [f for f in os.listdir(audio_dir) if f.endswith(".wav")]
             except FileNotFoundError:
                 continue
             for fname in wav_names:
+                # Use the embedded timestamp in the filename ({freq}_{epoch}.wav)
+                # to skip old files without stat() calls.
+                parts = fname.replace(".wav", "").split("_")
+                if len(parts) >= 2:
+                    try:
+                        file_epoch = int(parts[-1])
+                        if file_epoch < cutoff_ts:
+                            continue
+                    except ValueError:
+                        pass
                 wav_path = os.path.join(audio_dir, fname)
                 txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
                 current_paths.add(wav_path)
