@@ -161,7 +161,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
           "editorMode": "code",
-          "expr": "sum(increase(falcosidekick_inputs_total[1h])) or vector(0)",
+          "expr": "sum(increase(falcosecurity_falcosidekick_inputs_total[1h])) or vector(0)",
           "legendFormat": "Falco Events (1h)",
           "instant": true,
           "refId": "A"
@@ -681,7 +681,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
           "editorMode": "code",
-          "expr": "sum by (priority) (increase(falco_events[5m]))",
+          "expr": "sum by (priority) (increase(falcosecurity_falcosidekick_falco_events_total[5m]))",
           "legendFormat": "{{ priority }}",
           "range": true,
           "refId": "A"
@@ -731,7 +731,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
           "editorMode": "code",
-          "expr": "topk(10, sum by (rule) (increase(falco_events[1h])))",
+          "expr": "topk(10, sum by (rule) (increase(falcosecurity_falcosidekick_falco_events_total[1h])))",
           "legendFormat": "{{ rule }}",
           "instant": true,
           "refId": "A"
@@ -1053,7 +1053,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
           "editorMode": "code",
-          "expr": "sum by (output) (rate(falcosidekick_outputs_total[5m]))",
+          "expr": "sum by (output) (rate(falcosecurity_falcosidekick_outputs_total[5m]))",
           "legendFormat": "{{ output }}",
           "range": true,
           "refId": "A"
