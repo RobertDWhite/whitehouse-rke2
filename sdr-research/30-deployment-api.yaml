@@ -58,7 +58,8 @@ spec:
             - name: OLLAMA_MAX_PER_CYCLE
               value: "200"
             - name: INDEX_INITIAL_LOOKBACK_SECONDS
-              value: "31536000"
+              # Scan only last 24h on startup; older files already indexed
+              value: "86400"
             - name: HAMDB_ENABLED
               value: "true"
             - name: HAMDB_MAX_PER_CYCLE
