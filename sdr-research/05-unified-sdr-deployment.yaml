@@ -67,13 +67,14 @@ spec:
             - name: CLEAR_SLOTS_ON_RETUNE
               value: "false"
             - name: SQUELCH_OPEN_DB
-              value: "-45"
+              value: "-40"
             - name: SQUELCH_CLOSE_DB
-              value: "-50"
+              value: "-45"
             - name: RF_SQUELCH_DB
-              # -55 blocked everything at gain=14; -65 never closed (noise floor).
-              # -50 with gain=14 should pass real signals and close on silence.
-              value: "-50"
+              # Disable RF squelch — let the audio-level SquelchRecorder handle gating.
+              # pwr_squelch_cc at any threshold above noise floor blocks real signals
+              # because Airspy gain levels don't map predictably to dBFS.
+              value: "-200"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
