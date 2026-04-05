@@ -962,3 +962,20 @@ spec:
     - backendRefs:
         - name: yeti-frontend
           port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: falco-internal
+  namespace: falco
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - falco.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: falco-falcosidekick-ui
+          port: 2802
