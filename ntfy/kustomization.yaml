@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ntfy
+
+resources:
+  - 00-namespace.yaml
+  - 05-config.yaml
+  - 10-pvc.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 40-httproute.yaml
+
+images:
+  - name: binber/ntfy
+    newTag: "v2.11.0"
