@@ -108,6 +108,19 @@ spec:
         - name: homeassistant
           port: 8123
 ---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: homeassistant-websocket
+  namespace: external-services
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: homeassistant-public
+  httpUpgrade:
+    - type: websocket
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
