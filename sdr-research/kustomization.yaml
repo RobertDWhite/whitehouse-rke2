@@ -70,6 +70,9 @@ resources:
   - 57-sstv-hf-decoder-deployment.yaml     # HF: standalone fallback (replicas=0)
   # Combined HF decoder — time-shares RX888 between HFDL + SSTV
   - 59-hf-combined-deployment.yaml
+  # Stability watchdog — auto-restarts stalled decoders, alerts on hardware failures
+  - 95-watchdog-rbac.yaml
+  - 96-watchdog-deployment.yaml
 
 generators:
   - ksops.yaml
@@ -109,3 +112,5 @@ images:
     newTag: "1.0.0"
   - name: quay.io/prometheuscommunity/postgres-exporter
     newTag: "v0.19.1"
+  - name: registry.white.fm/sdr-watchdog
+    newTag: "1.0.0"
