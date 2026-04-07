@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-ntfy-config
+  namespace: observability
+data:
+  config.yml: |
+    # alertmanager-ntfy bridge: turns the raw AlertManager webhook JSON into
+    # properly formatted ntfy notifications (title, priority, tags, click URL).
+    # Runs as a sidecar in the alertmanager pod and is reached via 127.0.0.1.
+    http:
+      addr: 127.0.0.1:8000
+
+    ntfy:
+      baseurl: http://ntfy.ntfy.svc.cluster.local:8080
+      notification:
+        topic: cluster-alerts
+        # ntfy priorities: max | high | default | low | min
+        priority: |
+          labels.severity == "critical" ? "high" : (labels.severity == "warning" ? "default" : "low")
+        tags:
+          - tag: white_check_mark
+            condition: status == "resolved"
+          - tag: rotating_light
+            condition: status == "firing" && labels.severity == "critical"
+          - tag: warning
+            condition: status == "firing" && labels.severity == "warning"
+        templates:
+          title: |
+            {{ if eq .Status "resolved" }}[Resolved] {{ end }}{{ if index .Annotations "summary" }}{{ index .Annotations "summary" }}{{ else }}{{ index .Labels "alertname" }}{{ end }}
+          description: |
+            {{ if index .Annotations "description" }}{{ index .Annotations "description" }}
+            {{ end }}{{ if index .Labels "namespace" }}namespace: {{ index .Labels "namespace" }}
+            {{ end }}alert: {{ index .Labels "alertname" }}{{ if index .Labels "instance" }}
+            instance: {{ index .Labels "instance" }}{{ end }}
+          headers:
+            X-Click: |
+              {{ .GeneratorURL }}
+        async: false
