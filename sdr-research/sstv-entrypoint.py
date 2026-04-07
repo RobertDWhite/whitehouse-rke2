@@ -1,40 +1,99 @@
 #!/usr/bin/env python3
-"""VHF/UHF SSTV decoder — watches WAV files from unified-sdr and decodes SSTV images.
+"""SSTV decoder — watches WAV files from one or more capture pipelines and
+decodes SSTV transmissions to PNG images.
 
-WAV files are named {freq_hz}_{timestamp_ms}.wav in AUDIO_DIR.
-Matching files at SSTV frequencies are decoded by slowrx-cli → PNGs in OUTPUT_DIR.
+Sources:
+  - /data/audio/sstv  — written by ft8-wspr-decoder for HF SSTV captures.
+                        Files here are stable on first sight (atomic copy)
+                        and aren't touched by any other consumer.
+  - /data/audio/voice — written by unified-sdr for VHF/UHF dynamic-slot
+                        captures. The API indexer scans this directory and
+                        deletes WAVs aggressively (no-speech / short-record
+                        cleanup), so the SSTV decoder must snapshot any
+                        candidate file to its private workdir IMMEDIATELY,
+                        before the cleanup pipeline can race ahead.
 
-Monitors:
-  144.500 MHz — 2m SSTV calling frequency (worldwide)
-  145.800 MHz — ISS SSTV downlink (ARISS events)
-  432.100 MHz — 70cm SSTV calling frequency
+Frequencies are filtered by SSTV_RANGES + EXTRA_SSTV_RANGES so we don't
+hand FM voice traffic at adjacent frequencies to slowrx-cli.
+
+Output: PNGs in SSTV_OUTPUT_DIR, named sstv_{freq_hz}_{ts_ms}.png.
 """
 
+from __future__ import annotations
+
+import glob
 import os
 import re
-import glob
-import time
 import shutil
-import tempfile
 import subprocess
+import tempfile
+import time
+import wave
+from pathlib import Path
 
 from PIL import Image
 
-AUDIO_DIR   = os.getenv("AUDIO_DIR",       "/data/audio/voice")
-OUTPUT_DIR  = os.getenv("SSTV_OUTPUT_DIR", "/data/images/sstv")
-AUDIO_RATE  = int(os.getenv("AUDIO_RATE",   "48000"))  # unified-sdr AUDIO_RATE_FM
-MIN_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "15"))
-POLL_SEC    = int(os.getenv("POLL_INTERVAL_SEC", "10"))
 
-# (low_hz, high_hz, label) — generous ±25 kHz tolerance
-SSTV_RANGES = [
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# Comma-separated list of directories to watch. Defaults preserve the old
+# single-dir AUDIO_DIR if AUDIO_DIRS is not set.
+AUDIO_DIRS = [
+    d.strip()
+    for d in os.getenv(
+        "AUDIO_DIRS",
+        os.getenv("AUDIO_DIR", "/data/audio/sstv,/data/audio/voice"),
+    ).split(",")
+    if d.strip()
+]
+
+OUTPUT_DIR  = os.getenv("SSTV_OUTPUT_DIR", "/data/images/sstv")
+AUDIO_RATE  = int(os.getenv("AUDIO_RATE",   "48000"))
+POLL_SEC    = int(os.getenv("POLL_INTERVAL_SEC", "5"))
+
+# Per-directory minimum age. Voice files need a stability check because
+# unified-sdr writes them incrementally; sstv files are written by atomic
+# copy and are stable immediately.
+DEFAULT_MIN_AGE = int(os.getenv("MIN_FILE_AGE_SEC", "8"))
+DIR_MIN_AGE: dict[str, int] = {
+    "/data/audio/sstv": int(os.getenv("MIN_FILE_AGE_SEC_SSTV", "1")),
+    "/data/audio/voice": int(os.getenv("MIN_FILE_AGE_SEC_VOICE", str(DEFAULT_MIN_AGE))),
+}
+
+# (low_hz, high_hz, label) — generous ±25 kHz tolerance for VHF/UHF SSTV
+# calling frequencies. HF ranges are added at startup from EXTRA_SSTV_RANGES.
+SSTV_RANGES: list[tuple[int, int, str]] = [
     (144_475_000, 144_525_000, "2m"),
     (145_775_000, 145_825_000, "ISS"),
     (432_075_000, 432_125_000, "70cm"),
 ]
 
-_seen: set[str] = set()
+# Extra ranges from env: "lo:hi:label,lo:hi:label,..."
+_extra_raw = os.getenv("EXTRA_SSTV_RANGES", "").strip()
+if _extra_raw:
+    for entry in _extra_raw.split(","):
+        parts = entry.strip().split(":")
+        if len(parts) == 3:
+            try:
+                SSTV_RANGES.append((int(parts[0]), int(parts[1]), parts[2]))
+            except ValueError:
+                pass
 
+
+# Track files we've already processed (path → mtime, so a recompose with the
+# same name but a new mtime is processed again).
+_seen: dict[str, float] = {}
+
+# Snapshots dir — sstv-decoder copies candidate WAVs here before processing
+# so it can win the race against the voice cleanup pipeline.
+_SNAPSHOT_DIR = os.getenv("SSTV_SNAPSHOT_DIR", "/tmp/sstv-snapshots")
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def classify(freq_hz: int) -> str | None:
     for lo, hi, label in SSTV_RANGES:
@@ -44,81 +103,171 @@ def classify(freq_hz: int) -> str | None:
 
 
 def bmp_to_png(bmp_path: str, png_path: str) -> None:
-    """Convert BMP output from slowrx-cli to PNG."""
     img = Image.open(bmp_path)
     img.save(png_path, "PNG")
 
 
-def decode_wav(wav_path: str, freq_hz: int, label: str) -> None:
+def _wav_sample_rate(path: str) -> int:
+    try:
+        with wave.open(path, "rb") as wf:
+            return wf.getframerate()
+    except Exception:
+        return AUDIO_RATE
+
+
+def decode_wav(wav_path: str, freq_hz: int, label: str) -> bool:
+    """Run slowrx-cli on the file. Returns True if a PNG was produced."""
     ts_ms = int(time.time() * 1000)
+    sample_rate = _wav_sample_rate(wav_path)
     with tempfile.TemporaryDirectory() as tmp:
         bmp_path = os.path.join(tmp, "result.bmp")
-        result = subprocess.run(
-            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),
-             "-o", bmp_path, wav_path],
-            capture_output=True, text=True, timeout=300
-        )
+        try:
+            result = subprocess.run(
+                ["slowrx-cli", "-v", "-r", str(sample_rate),
+                 "-o", bmp_path, wav_path],
+                capture_output=True, text=True, timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"[SSTV] Timeout decoding {os.path.basename(wav_path)}", flush=True)
+            return False
+        except FileNotFoundError:
+            print("[SSTV] slowrx-cli not found in PATH", flush=True)
+            return False
 
         if not os.path.exists(bmp_path):
-            stderr_snip = result.stderr.strip()[:120] if result.stderr else ""
-            stdout_snip = result.stdout.strip()[:120] if result.stdout else ""
-            print(f"[SSTV] No image decoded from {os.path.basename(wav_path)} "
-                  f"({stderr_snip or stdout_snip})", flush=True)
-            return
+            stderr_snip = (result.stderr or "").strip()[:120]
+            stdout_snip = (result.stdout or "").strip()[:120]
+            print(
+                f"[SSTV] No image decoded from {os.path.basename(wav_path)} "
+                f"({stderr_snip or stdout_snip or 'no slowrx output'})",
+                flush=True,
+            )
+            return False
 
         dst = os.path.join(OUTPUT_DIR, f"sstv_{freq_hz}_{ts_ms}.png")
         try:
             bmp_to_png(bmp_path, dst)
-            print(f"[SSTV] Decoded {label} image → {os.path.basename(dst)}", flush=True)
-        except Exception as e:
-            print(f"[SSTV] BMP→PNG conversion failed: {e}", flush=True)
+        except Exception as exc:
+            print(f"[SSTV] BMP→PNG conversion failed: {exc}", flush=True)
+            return False
+        print(f"[SSTV] Decoded {label} image → {os.path.basename(dst)}", flush=True)
+        return True
 
 
-def process(wav_path: str) -> None:
-    if wav_path in _seen:
-        return
-
-    base = os.path.basename(wav_path)
-    m = re.match(r'^(\d+)_\d+\.wav$', base)
-    if not m:
-        return
-
-    freq_hz = int(m.group(1))
-    label = classify(freq_hz)
-    if label is None:
-        return
-
+def _is_stable(path: str, min_age: int) -> bool:
+    """Check the file is older than min_age and not currently growing."""
     try:
-        age = time.time() - os.path.getmtime(wav_path)
+        st1 = os.stat(path)
+    except OSError:
+        return False
+    if (time.time() - st1.st_mtime) < min_age:
+        return False
+    return True
+
+
+def _snapshot(path: str) -> str | None:
+    """Atomically copy the candidate WAV to our private workdir before
+    processing, so the upstream voice cleanup can delete the original
+    without breaking the decode."""
+    os.makedirs(_SNAPSHOT_DIR, exist_ok=True)
+    dst = os.path.join(_SNAPSHOT_DIR, os.path.basename(path))
+    try:
+        shutil.copy2(path, dst)
+    except (OSError, FileNotFoundError) as exc:
+        print(f"[SSTV] Snapshot failed for {os.path.basename(path)}: {exc}", flush=True)
+        return None
+    return dst
+
+
+def _scan_dir(directory: str) -> None:
+    if not os.path.isdir(directory):
+        return
+    min_age = DIR_MIN_AGE.get(directory, DEFAULT_MIN_AGE)
+    try:
+        entries = os.listdir(directory)
     except OSError:
         return
-    if age < MIN_AGE_SEC:
+    for fname in entries:
+        if not fname.endswith(".wav"):
+            continue
+        # Filename layout: {freq_hz}_{ts}.wav  (with optional suffixes)
+        m = re.match(r"^(\d+)_\d+", fname)
+        if not m:
+            continue
+        try:
+            freq_hz = int(m.group(1))
+        except ValueError:
+            continue
+        label = classify(freq_hz)
+        if label is None:
+            continue
+
+        path = os.path.join(directory, fname)
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            continue
+
+        # Skip if we've already processed this exact path+mtime.
+        if _seen.get(path) == mtime:
+            continue
+
+        if not _is_stable(path, min_age):
+            continue
+
+        # Snapshot first — wins the race against voice cleanup.
+        snapshot = _snapshot(path)
+        if snapshot is None:
+            # File vanished between stat and copy. Mark seen so we don't
+            # log the error every poll.
+            _seen[path] = mtime
+            continue
+
+        _seen[path] = mtime
+        print(
+            f"[SSTV] Processing {fname} ({label}, {freq_hz/1e6:.3f} MHz) "
+            f"from {directory}",
+            flush=True,
+        )
+        try:
+            decode_wav(snapshot, freq_hz, label)
+        except Exception as exc:
+            print(f"[SSTV] Error on {fname}: {exc}", flush=True)
+        finally:
+            try:
+                os.unlink(snapshot)
+            except OSError:
+                pass
+
+
+def _gc_seen() -> None:
+    """Drop stale _seen entries so the dict doesn't grow forever."""
+    if len(_seen) < 5000:
         return
+    cutoff = time.time() - 86400
+    for path in [p for p, t in _seen.items() if t < cutoff]:
+        _seen.pop(path, None)
 
-    _seen.add(wav_path)
-    print(f"[SSTV] Processing {base} ({label}, {freq_hz/1e6:.3f} MHz)", flush=True)
-    try:
-        decode_wav(wav_path, freq_hz, label)
-    except subprocess.TimeoutExpired:
-        print(f"[SSTV] Timeout on {base}", flush=True)
-        _seen.discard(wav_path)
-    except Exception as e:
-        print(f"[SSTV] Error on {base}: {e}", flush=True)
-        _seen.discard(wav_path)
 
+# ---------------------------------------------------------------------------
+# Main loop
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    ranges_str = ", ".join(f"{lo/1e6:.3f}–{hi/1e6:.3f} MHz ({lbl})"
-                           for lo, hi, lbl in SSTV_RANGES)
-    print(f"[SSTV] VHF/UHF decoder started", flush=True)
-    print(f"[SSTV] Watching: {AUDIO_DIR}", flush=True)
+    os.makedirs(_SNAPSHOT_DIR, exist_ok=True)
+    ranges_str = ", ".join(
+        f"{lo/1e6:.3f}–{hi/1e6:.3f} MHz ({lbl})" for lo, hi, lbl in SSTV_RANGES
+    )
+    print(f"[SSTV] decoder started", flush=True)
+    print(f"[SSTV] Watching: {AUDIO_DIRS}", flush=True)
     print(f"[SSTV] Ranges:   {ranges_str}", flush=True)
     print(f"[SSTV] Output:   {OUTPUT_DIR}", flush=True)
 
     while True:
-        for wav in glob.glob(os.path.join(AUDIO_DIR, "*.wav")):
-            process(wav)
+        for d in AUDIO_DIRS:
+            _scan_dir(d)
+        _gc_seen()
         time.sleep(POLL_SEC)
 
 
