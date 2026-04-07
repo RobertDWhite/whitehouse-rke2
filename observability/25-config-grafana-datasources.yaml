@@ -31,3 +31,15 @@ data:
           defaultBucket: misp
         secureJsonData:
           token: ${GF_MISP_INFLUX_TOKEN}
+      - name: influxdb-homeassistant
+        uid: ha-influx-1
+        type: influxdb
+        access: proxy
+        url: http://influxdb.observability.svc.cluster.local:8086
+        isDefault: false
+        jsonData:
+          version: Flux
+          organization: ${GF_MISP_INFLUX_ORG}
+          defaultBucket: homeassistant
+        secureJsonData:
+          token: ${GF_MISP_INFLUX_TOKEN}
