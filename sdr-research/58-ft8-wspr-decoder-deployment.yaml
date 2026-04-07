@@ -76,11 +76,21 @@ spec:
             # HF SSTV calling frequencies (Hz) — captured and saved for sstv-decoder
             - name: SSTV_FREQUENCIES
               value: "14230000 21340000 28680000 7171000"
-            # Capture SSTV every N FT8 cycles (interleaved with WSPR)
+            # Capture SSTV every N FT8 cycles. Must be coprime with
+            # WSPR_EVERY_N (=6) AND HFDL_EVERY_N — older code preempted
+            # SSTV when both were due, starving it forever. The independent-
+            # counter scheduler in the rebuilt image fixes that, but we keep
+            # the value coprime as defense in depth.
             - name: SSTV_EVERY_N
-              value: "12"
+              value: "7"
             - name: SSTV_DWELL_SEC
               value: "60"
+            # Where to write SSTV WAV captures. Must NOT be /data/audio/voice
+            # (the default) — the API indexer's no-speech / short-recording
+            # cleanup deletes voice WAVs within seconds, before sstv-decoder
+            # can read them. /data/audio/sstv is private to the SSTV pipeline.
+            - name: SSTV_OUTPUT_DIR
+              value: "/data/audio/sstv"
             # HFDL — run dumphfdl periodically (releases radio, runs subprocess)
             - name: HFDL_ENABLED
               value: "true"
@@ -91,8 +101,10 @@ spec:
               value: "10081 11384"
             - name: HFDL_DWELL_SEC
               value: "120"
+            # See SSTV_EVERY_N comment — must be coprime with WSPR_EVERY_N
+            # to avoid scheduler starvation. 11 is prime and well-spaced.
             - name: HFDL_EVERY_N
-              value: "18"
+              value: "11"
             - name: HFDL_SAMPLE_RATE
               value: "2000000"
             - name: HFDL_CENTERFREQ

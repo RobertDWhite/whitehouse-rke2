@@ -22,62 +22,28 @@ spec:
           image: registry.white.fm/sstv-decoder
           securityContext:
             allowPrivilegeEscalation: false
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              cp /sstv-entrypoint.py /tmp/sstv-entrypoint.py
-              python3 - <<'PY'
-              import os
-              from pathlib import Path
-              path = Path("/tmp/sstv-entrypoint.py")
-              text = path.read_text()
-              # Inject extra SSTV ranges from env var (format: "lo:hi:label,...")
-              extra = os.getenv("EXTRA_SSTV_RANGES", "").strip()
-              if extra:
-                  lines = []
-                  for entry in extra.split(","):
-                      parts = entry.strip().split(":")
-                      if len(parts) == 3:
-                          lines.append(f'    ({parts[0]}, {parts[1]}, "{parts[2]}"),')
-                  if lines:
-                      marker = '    (432_075_000, 432_125_000, "70cm"),'
-                      inject = marker + "\n" + "\n".join(lines)
-                      text = text.replace(marker, inject)
-
-              # Read WAV sample rate from file header instead of using fixed AUDIO_RATE.
-              # The decode_wav function body is indented 4 spaces; the subprocess.run
-              # call uses 8-space continuation indent.
-              text = text.replace(
-                  '        result = subprocess.run(\n'
-                  '            ["slowrx-cli", "-v", "-r", str(AUDIO_RATE),\n',
-                  '        import wave as _wave\n'
-                  '        try:\n'
-                  '            _wf = _wave.open(wav_path, "rb")\n'
-                  '            _sr = _wf.getframerate()\n'
-                  '            _wf.close()\n'
-                  '        except Exception:\n'
-                  '            _sr = AUDIO_RATE\n'
-                  '        result = subprocess.run(\n'
-                  '            ["slowrx-cli", "-v", "-r", str(_sr),\n',
-              )
-              path.write_text(text)
-              PY
-              exec python3 /tmp/sstv-entrypoint.py
+          # Entrypoint baked into the image since 1.0.3 — no runtime patching.
+          # AUDIO_DIRS, EXTRA_SSTV_RANGES, MIN_FILE_AGE_SEC_* are read directly
+          # from the env block below by /sstv-entrypoint.py.
+          command: ["python3", "/sstv-entrypoint.py"]
           env:
             - name: SDL_VIDEODRIVER
               value: "offscreen"
             - name: SDL_AUDIODRIVER
               value: "dummy"
-            - name: AUDIO_DIR
-              value: "/data/audio/voice"
+            # Primary: /data/audio/sstv (written by ft8-wspr-decoder, stable
+            # on first sight). Secondary: /data/audio/voice (written by
+            # unified-sdr; race-resistant snapshot in the entrypoint).
+            - name: AUDIO_DIRS
+              value: "/data/audio/sstv,/data/audio/voice"
             - name: SSTV_OUTPUT_DIR
               value: "/data/images/sstv"
-            - name: MIN_FILE_AGE_SEC
-              value: "15"
+            - name: MIN_FILE_AGE_SEC_SSTV
+              value: "1"
+            - name: MIN_FILE_AGE_SEC_VOICE
+              value: "8"
             - name: POLL_INTERVAL_SEC
-              value: "10"
+              value: "5"
             # Extra SSTV frequency ranges: "lo_hz:hi_hz:label,..."
             # HF SSTV calling frequencies ±25 kHz
             - name: EXTRA_SSTV_RANGES
