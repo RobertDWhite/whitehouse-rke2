@@ -3998,19 +3998,15 @@ data:
             if not ft8_path.exists():
                 return
             now_ts = _time.time()
-            if _ft8_ts[0] <= 0:
-                scan_since_ts = now_ts - _INITIAL_INDEX_LOOKBACK_SECONDS
-            else:
-                scan_since_ts = _ft8_ts[0] - 2.0
+            # Process every JSON file in the directory. Successful inserts are
+            # unlinked after commit, and the dedup-by-(mode,callsign,freq,ts)
+            # check guards against double-counting on retry, so a full scan is
+            # safe and ensures any files left behind by a previous crash or a
+            # missed cycle window get backfilled instead of accumulating
+            # forever. The directory is small (one decoder writing tiny files).
             processed = 0
             _pending_json_files = []
             for json_file in ft8_path.glob("*.json"):
-                try:
-                    file_mtime = json_file.stat().st_mtime
-                except Exception:
-                    continue
-                if file_mtime < scan_since_ts:
-                    continue
                 processed += 1
                 try:
                     with open(json_file) as f:
