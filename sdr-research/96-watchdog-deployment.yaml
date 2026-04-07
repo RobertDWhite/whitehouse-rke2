@@ -1,0 +1,79 @@
+# Initial empty state ConfigMap. The watchdog updates this in-place every
+# cycle. Do NOT edit by hand — it gets overwritten on the next tick.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sdr-watchdog-state
+  namespace: sdr-research
+  annotations:
+    sdr-watchdog/managed: "true"
+data:
+  state.json: "{}"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-watchdog
+  namespace: sdr-research
+  labels:
+    app: sdr-watchdog
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sdr-watchdog
+  template:
+    metadata:
+      labels:
+        app: sdr-watchdog
+    spec:
+      serviceAccountName: sdr-watchdog
+      # Image is amd64-only; node-10 is bare-metal arm64.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: watchdog
+          image: registry.white.fm/sdr-watchdog
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: WATCHDOG_NAMESPACE
+              value: "sdr-research"
+            - name: WATCHDOG_API_URL
+              value: "http://sdr-viewer-api.sdr-research.svc.cluster.local:8000/api/v1/admin/radio-status"
+            - name: WATCHDOG_CYCLE_SECONDS
+              value: "60"
+            - name: WATCHDOG_RESTART_GRACE_SECONDS
+              value: "600"
+            - name: ALERT_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: alert-webhook-url
+                  optional: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "test $(($(date +%s) - $(cat /tmp/watchdog_heartbeat 2>/dev/null || echo 0))) -lt 300"
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "test -f /tmp/watchdog_heartbeat"
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
