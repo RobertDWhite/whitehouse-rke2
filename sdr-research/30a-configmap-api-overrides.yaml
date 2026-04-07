@@ -5171,6 +5171,61 @@ data:
         return await get_sdr_health(band)
 
 
+    @router.get("/radio-status")
+    async def get_radio_status(db: Session = Depends(get_db)):
+        """Per-radio freshness for the watchdog.
+
+        Returns one row per known data source with the seconds since the last
+        ingest. The watchdog (sdr-watchdog deployment) polls this every minute
+        to decide whether to restart a stalled decoder. Sources with no data
+        ever are returned with last_seen_seconds=null."""
+        rows = db.execute(_sql_text("""
+            SELECT source_sdr, MAX("timestamp") AS last_seen
+            FROM recordings
+            WHERE source_sdr IS NOT NULL
+            GROUP BY source_sdr
+        """)).fetchall()
+        radios = []
+        now = datetime.utcnow()
+        for source, last_seen in rows:
+            secs = None
+            iso = None
+            if last_seen is not None:
+                secs = int((now - last_seen).total_seconds())
+                iso = last_seen.isoformat()
+            radios.append({
+                "source": source,
+                "kind": "recording",
+                "last_seen_seconds": secs,
+                "last_seen_at": iso,
+            })
+
+        # FT8/WSPR spots live in a separate table. Surface them as their own
+        # radio source so the watchdog can monitor the HF decoder.
+        try:
+            spot_row = db.execute(_sql_text("""
+                SELECT mode, MAX("timestamp") AS last_seen
+                FROM spots
+                GROUP BY mode
+            """)).fetchall()
+            for mode, last_seen in spot_row:
+                secs = None
+                iso = None
+                if last_seen is not None:
+                    secs = int((now - last_seen).total_seconds())
+                    iso = last_seen.isoformat()
+                radios.append({
+                    "source": f"spots-{mode}",
+                    "kind": "spot",
+                    "last_seen_seconds": secs,
+                    "last_seen_at": iso,
+                })
+        except Exception:
+            pass
+
+        return {"radios": radios, "now": now.isoformat()}
+
+
     @router.post("/bulk-retranscribe")
     async def bulk_retranscribe(
         clear_no_speech_only: bool = True,
