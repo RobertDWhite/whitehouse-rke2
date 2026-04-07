@@ -27,7 +27,10 @@ data:
             http_config:
               tls_config:
                 insecure_skip_verify: false
-          - url: "http://ntfy.ntfy.svc.cluster.local:8080/cluster-alerts"
+          # alertmanager-ntfy bridge sidecar (see 13a-deploy-alertmanager.yaml).
+          # Translates the AlertManager webhook payload into a properly
+          # formatted ntfy notification (title, priority, tags, click URL).
+          - url: "http://127.0.0.1:8000/hook"
             send_resolved: true
 
     inhibit_rules:

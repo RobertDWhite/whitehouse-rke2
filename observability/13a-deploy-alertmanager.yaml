@@ -58,12 +58,36 @@ spec:
               mountPath: /etc/alertmanager
             - name: data
               mountPath: /alertmanager
+        - name: alertmanager-ntfy
+          image: ghcr.io/alexbakker/alertmanager-ntfy
+          args:
+            - --config
+            - /etc/alertmanager-ntfy/config.yml
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: alertmanager-ntfy-config
+              mountPath: /etc/alertmanager-ntfy
+              readOnly: true
       volumes:
         - name: config
           configMap:
             name: alertmanager-config
         - name: data
           emptyDir: {}
+        - name: alertmanager-ntfy-config
+          configMap:
+            name: alertmanager-ntfy-config
 ---
 apiVersion: v1
 kind: Service
