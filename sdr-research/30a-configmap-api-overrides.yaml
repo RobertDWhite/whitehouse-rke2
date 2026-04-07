@@ -219,6 +219,7 @@ data:
 
     _FAILED_MARKERS = frozenset({
         "ACARS_DECODE_FAILED", "PAGER_DECODE_FAILED", "EAS_NO_ALERT", "VDL2_DECODE_FAILED",
+        "[no transcribable audio]",
     })
 
     def _transcript_status(r) -> str:
@@ -3328,10 +3329,18 @@ data:
             for fname in wav_names:
                 wav_file = Path(audio_dir) / fname
                 try:
-                    file_mtime = wav_file.stat().st_mtime
+                    _stat = wav_file.stat()
+                    file_mtime = _stat.st_mtime
+                    file_size = _stat.st_size
                 except Exception:
                     continue
                 if file_mtime < scan_since_ts:
+                    continue
+                # 0-byte WAVs are SDR squelch artifacts — there is nothing to
+                # decode and creating a Recording row would just leave the
+                # transcript pending forever. Drop the file and skip.
+                if file_size == 0:
+                    safe_unlink(str(wav_file))
                     continue
                 processed += 1
                 # Time budget: yield to other indexers after deadline
@@ -4269,6 +4278,11 @@ data:
 
 
     _CW_NODECODE_TIMEOUT = float(os.getenv("CW_NODECODE_TIMEOUT_SECONDS", "900"))
+    # Voice recordings whose .txt never appears (Whisper crashed, audio empty,
+    # etc.) are stamped after this many seconds so they leave the pending state.
+    _VOICE_NOTRANSCRIPT_TIMEOUT = float(
+        os.getenv("VOICE_NOTRANSCRIPT_TIMEOUT_SECONDS", "3600")
+    )
 
     def _sweep_pending_transcripts(ollama_budget, hamdb_budget):
         """
@@ -4329,6 +4343,31 @@ data:
                             wav_age = _CW_NODECODE_TIMEOUT + 1
                         if wav_age >= _CW_NODECODE_TIMEOUT:
                             rec.transcript = "[no decodable cw]"
+                            db.commit()
+                            updated += 1
+                    elif rec.mode == "voice":
+                        # Empty / missing WAVs can never be transcribed —
+                        # the SDR occasionally writes a 0-byte file when
+                        # squelch closes immediately. Drop the row + file
+                        # right away so it stops occupying the pending count.
+                        try:
+                            wav_size = os.path.getsize(rec.audio_path)
+                            wav_age = now - os.path.getmtime(rec.audio_path)
+                        except OSError:
+                            wav_size = 0
+                            wav_age = _VOICE_NOTRANSCRIPT_TIMEOUT + 1
+                        if wav_size <= 0:
+                            safe_unlink(rec.audio_path)
+                            if rec.text_path:
+                                safe_unlink(rec.text_path)
+                            db.delete(rec)
+                            db.commit()
+                            updated += 1
+                        elif wav_age >= _VOICE_NOTRANSCRIPT_TIMEOUT:
+                            # Whisper had its chance — stamp the row as failed
+                            # so it leaves pending. Audio is preserved in case
+                            # we want to retry later by hand.
+                            rec.transcript = "[no transcribable audio]"
                             db.commit()
                             updated += 1
                     continue
