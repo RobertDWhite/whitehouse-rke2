@@ -61,7 +61,11 @@ spec:
         - name: alertmanager-ntfy
           image: ghcr.io/alexbakker/alertmanager-ntfy
           args:
-            - --config
+            # Flag was renamed from --config to --configs (plural, takes a
+            # string list) in alertmanager-ntfy v1.2.x. The old --config flag
+            # is rejected with "unknown flag: --config" — that crashlooped
+            # this sidecar for 11+ hours and silenced every cluster alert.
+            - --configs
             - /etc/alertmanager-ntfy/config.yml
           resources:
             requests:
