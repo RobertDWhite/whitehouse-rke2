@@ -698,3 +698,70 @@ data:
               severity: critical
             annotations:
               summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in < 3 days"
+
+      # =================================================================
+      # Workload health — catches the failure modes we used to discover
+      # by accident. Added 2026-04-07 after a freshrss-bi-pipeline tag
+      # bump (1.1.1 → 1.1.2) silently broke the dashboard for ~6 weeks
+      # because the new image was never pushed and nothing alerted on
+      # the resulting ImagePullBackOff CronJob iterations.
+      # =================================================================
+      - name: cluster.workloads
+        interval: 2m
+        rules:
+          # A pod has been stuck waiting on an image pull for >10 minutes.
+          # Covers tag-bumped-but-never-pushed, registry outages, typos in
+          # image names, and busted credentials.
+          - alert: ImagePullBackOff
+            expr: |
+              kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} cannot pull its image ({{ $labels.reason }}) — check that the tag exists in the registry"
+
+          # A recently-started Job owned by a CronJob has failed pods.
+          # The 6-hour `start_time` filter is critical: kube-state-metrics
+          # exposes failed-pod counts for every Job retained in the API
+          # server (controlled by failedJobsHistoryLimit), so without
+          # scoping to recent jobs this alert would spam on stale historical
+          # failures. Fast (5m) so daily/weekly batch jobs page within
+          # minutes of a real failure instead of waiting for the 24h
+          # safety net below.
+          - alert: CronJobIterationFailed
+            expr: |
+              (kube_job_status_failed > 0)
+              * on(namespace, job_name) group_left(owner_kind)
+                  kube_job_owner{owner_kind="CronJob"}
+              * on(namespace, job_name) group_left()
+                  (kube_job_status_start_time > (time() - 21600))
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CronJob iteration {{ $labels.namespace }}/{{ $labels.job_name }} has failed pods (check `kubectl describe job` — usually ImagePullBackOff or runtime error)"
+
+          # The big one — catches CronJobs that have not had a successful
+          # run in the last 24 hours, INCLUDING jobs that have literally
+          # never succeeded (lastSuccessfulTime is null and the metric is
+          # absent entirely, which kube-state-metrics handles by simply
+          # not exporting the series). The `unless` clause inverts that:
+          # any non-suspended cronjob older than 2h that doesn't have a
+          # successful run within the last 86400s fires the alert.
+          #
+          # Validated against the live cluster: this query matches
+          # freshrss/freshrss-bi-pipeline (which has been silently failing
+          # for ~6 weeks since a tag bump that was never built/pushed) —
+          # the exact failure mode that motivated this rule.
+          - alert: CronJobNotSucceedingIn24h
+            expr: |
+              (time() - kube_cronjob_created) > 7200
+              and on(namespace, cronjob) kube_cronjob_spec_suspend == 0
+              unless on(namespace, cronjob)
+                (kube_cronjob_status_last_successful_time > (time() - 86400))
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has had no successful run in >24h (or ever) — pipeline is silently broken"
