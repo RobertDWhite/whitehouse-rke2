@@ -639,14 +639,26 @@ data:
       - name: cluster.pod-health
         interval: 2m
         rules:
+          # Flap-resistant restart counter:
+          #   - Use `increase()` over a 1h window (was rate over 15m × 15
+          #     minutes — same rough math but with a much smaller window
+          #     that hovered right at the threshold and flapped on every
+          #     evaluation tick).
+          #   - Threshold raised from 3 to 8: a pod that restarts <8 times
+          #     per hour is annoying but not actively melting. Genuinely
+          #     stuck pods restart far more.
+          #   - `for: 15m` (was 5m): the metric must stay above the
+          #     threshold for 15 minutes before notifying. Filters out
+          #     short-lived restart bursts (rolling deploys, image pulls,
+          #     etc.) and gives transient issues time to self-heal.
           - alert: PodCrashLooping
             expr: |
-              rate(kube_pod_container_status_restarts_total[15m]) * 60 * 15 > 3
-            for: 5m
+              increase(kube_pod_container_status_restarts_total[1h]) > 8
+            for: 15m
             labels:
               severity: warning
             annotations:
-              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value | humanize }} restarts in 15m)"
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value | humanize }} restarts in the last hour)"
 
           - alert: DeploymentReplicasMissing
             expr: |
