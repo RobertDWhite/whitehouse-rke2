@@ -85,6 +85,12 @@ spec:
               value: "false"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
               value: "true"
+            - name: GF_RENDERING_SERVER_URL
+              value: "http://localhost:8081/render"
+            - name: GF_RENDERING_CALLBACK_URL
+              value: "http://localhost:3000/"
+            - name: GF_LOG_FILTERS
+              value: "rendering:debug"
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
@@ -99,6 +105,21 @@ spec:
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
+        - name: grafana-image-renderer
+          image: grafana/grafana-image-renderer:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: ENABLE_METRICS
+              value: "true"
+            - name: HTTP_PORT
+              value: "8081"
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
       volumes:
         - name: data
           persistentVolumeClaim:
