@@ -349,6 +349,16 @@ data:
         scrape_interval: 120s
 
       # =========================
+      # Tautulli (Plex monitoring)
+      # =========================
+      - job_name: tautulli
+        static_configs:
+          - targets:
+              - tautulli-metrics.tautulli.svc.cluster.local:9487
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # =========================
       # Matrix Synapse metrics
       # =========================
       - job_name: synapse
