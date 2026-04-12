@@ -24,10 +24,11 @@ spec:
             - containerPort: 8000
               name: http
           env:
-            - name: BACKOFFICE_DATABASE_URL
-              value: postgresql+asyncpg://backoffice:backoffice@backoffice-postgres:5432/backoffice
             - name: BACKOFFICE_K8S_IN_CLUSTER
               value: "true"
+          envFrom:
+            - secretRef:
+                name: backoffice-postgres-credentials
           resources:
             requests:
               cpu: 50m

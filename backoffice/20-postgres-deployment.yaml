@@ -22,13 +22,9 @@ spec:
           image: postgres:16-alpine
           ports:
             - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              value: backoffice
-            - name: POSTGRES_USER
-              value: backoffice
-            - name: POSTGRES_PASSWORD
-              value: backoffice
+          envFrom:
+            - secretRef:
+                name: backoffice-postgres-credentials
           resources:
             requests:
               cpu: 50m
