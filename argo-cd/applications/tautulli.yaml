@@ -64,8 +64,8 @@ spec:
                   - /bin/sh
                   - -c
                   - |
-                    pip install --quiet prometheus_client==0.22.1 && \
-                    exec python3 /scripts/exporter.py
+                    pip install --quiet --target=/tmp/pylibs prometheus_client==0.22.1 && \
+                    PYTHONPATH=/tmp/pylibs exec python3 /scripts/exporter.py
                 env:
                   TAUTULLI_URL: "http://localhost:8181"
                   TAUTULLI_API_KEY:
