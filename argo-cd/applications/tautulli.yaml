@@ -27,6 +27,16 @@ spec:
                   runAsGroup: 1000
                   fsGroup: 1000
                   fsGroupChangePolicy: OnRootMismatch
+              initContainers:
+                install-deps:
+                  image:
+                    repository: python
+                    tag: "3.12-slim"
+                    pullPolicy: IfNotPresent
+                  command:
+                    - /bin/sh
+                    - -c
+                    - pip install --quiet --target=/pylibs prometheus_client==0.22.1
               containers:
                 app:
                   image:
@@ -65,10 +75,9 @@ spec:
                   command:
                     - /bin/sh
                     - -c
-                    - |
-                      pip install --quiet --target=/tmp/pylibs prometheus_client==0.22.1 && \
-                      PYTHONPATH=/tmp/pylibs exec python3 /scripts/exporter.py
+                    - exec python3 /scripts/exporter.py
                   env:
+                    PYTHONPATH: "/pylibs"
                     TAUTULLI_URL: "http://localhost:8181"
                     TAUTULLI_API_KEY:
                       valueFrom:
@@ -89,18 +98,6 @@ spec:
                       cpu: 100m
                       memory: 128Mi
                   probes:
-                    # pip install takes ~15s before the HTTP server starts.
-                    # Startup probe gives up to 120s before liveness kicks in.
-                    startup:
-                      enabled: true
-                      custom: true
-                      spec:
-                        httpGet:
-                          path: /
-                          port: 9487
-                        initialDelaySeconds: 15
-                        periodSeconds: 5
-                        failureThreshold: 24
                     liveness:
                       enabled: true
                       custom: true
@@ -108,7 +105,7 @@ spec:
                         httpGet:
                           path: /
                           port: 9487
-                        initialDelaySeconds: 0
+                        initialDelaySeconds: 10
                         periodSeconds: 30
                         failureThreshold: 3
                     readiness:
@@ -118,7 +115,7 @@ spec:
                         httpGet:
                           path: /
                           port: 9487
-                        initialDelaySeconds: 0
+                        initialDelaySeconds: 5
                         periodSeconds: 15
                         failureThreshold: 3
 
@@ -255,6 +252,15 @@ spec:
                 tautulli:
                   exporter:
                     - path: /scripts
+            pylibs:
+              enabled: true
+              type: emptyDir
+              advancedMounts:
+                tautulli:
+                  install-deps:
+                    - path: /pylibs
+                  exporter:
+                    - path: /pylibs
 
     # Source 2: SOPS-encrypted secret (API key) via kustomize + ksops
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
