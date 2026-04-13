@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backoffice-web
+  namespace: backoffice
+  labels:
+    app: backoffice-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backoffice-web
+  template:
+    metadata:
+      labels:
+        app: backoffice-web
+    spec:
+      containers:
+        - name: web
+          image: registry.white.fm/backoffice-web
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: BACKEND_URL
+              value: http://backoffice-api:8000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 30

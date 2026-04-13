@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backoffice-api
+  namespace: backoffice
+  labels:
+    app: backoffice-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backoffice-api
+  template:
+    metadata:
+      labels:
+        app: backoffice-api
+    spec:
+      serviceAccountName: backoffice-api
+      containers:
+        - name: api
+          image: registry.white.fm/backoffice-api
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: BACKOFFICE_K8S_IN_CLUSTER
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: backoffice-postgres-credentials
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 3
