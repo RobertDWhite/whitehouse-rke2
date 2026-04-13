@@ -1,6 +1,7 @@
+import yaml
 from fastapi import APIRouter
 
-from app.k8s.client import apps_v1, core_v1, networking_v1
+from app.k8s.client import apps_v1, core_v1, custom_objects, networking_v1
 
 router = APIRouter(prefix="/api", tags=["cluster"])
 
@@ -40,6 +41,26 @@ def _detect_authentik(ingress) -> bool:
 # ── Overview ──────────────────────────────────────────────────────────
 
 
+def _count_authentik_httproutes() -> int:
+    """Count HTTPRoutes whose backend is authentik-server."""
+    try:
+        routes = custom_objects().list_cluster_custom_object(
+            group="gateway.networking.k8s.io",
+            version="v1",
+            plural="httproutes",
+        )
+        count = 0
+        for r in routes.get("items", []):
+            for rule in r.get("spec", {}).get("rules", []):
+                for ref in rule.get("backendRefs", []):
+                    if ref.get("name") == "authentik-server":
+                        count += 1
+                        break
+        return count
+    except Exception:
+        return 0
+
+
 @router.get("/overview")
 def get_overview():
     namespaces = core_v1().list_namespace()
@@ -50,7 +71,9 @@ def get_overview():
     nodes = core_v1().list_node()
 
     user_ns = [n for n in namespaces.items if n.metadata.name not in SYSTEM_NAMESPACES]
-    authentik_count = sum(1 for i in ingresses.items if _detect_authentik(i))
+    ingress_authentik = sum(1 for i in ingresses.items if _detect_authentik(i))
+    httproute_authentik = _count_authentik_httproutes()
+    authentik_count = ingress_authentik + httproute_authentik
     running_pods = sum(1 for p in pods.items if p.status.phase == "Running")
 
     return {
@@ -304,4 +327,53 @@ def list_authentik_apps():
         })
 
     results.sort(key=lambda x: (x["namespace"], x["name"]))
+    return results
+
+
+# ── Cloudflared / External Resources ─────────────────────────────────
+
+
+ENVOY_PREFIX = "envoy-envoy-gateway-system-"
+
+
+@router.get("/external-resources")
+def list_external_resources():
+    """Parse the cloudflared ConfigMap to find non-cluster ingress entries."""
+    try:
+        cm = core_v1().read_namespaced_config_map("cloudflared-config", "cloudflared")
+    except Exception:
+        return []
+
+    config_yaml = cm.data.get("config.yaml", "")
+    try:
+        cfg = yaml.safe_load(config_yaml)
+    except Exception:
+        return []
+
+    ingress_rules = cfg.get("ingress", [])
+
+    results = []
+    for rule in ingress_rules:
+        hostname = rule.get("hostname", "")
+        service = rule.get("service", "")
+
+        # Skip catch-all, wildcard, and http_status rules
+        if not hostname or hostname.startswith("*") or service.startswith("http_status"):
+            continue
+
+        # Skip entries routing through envoy gateway (those are cluster apps)
+        if ENVOY_PREFIX in service:
+            continue
+
+        is_cluster = ".svc.cluster.local" in service
+        origin = rule.get("originRequest", {})
+
+        results.append({
+            "hostname": hostname,
+            "service": service,
+            "is_cluster_svc": is_cluster,
+            "http2": origin.get("http2Origin", False),
+        })
+
+    results.sort(key=lambda x: x["hostname"])
     return results
