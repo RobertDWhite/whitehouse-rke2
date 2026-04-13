@@ -93,28 +93,31 @@ spec:
                     # Startup probe gives up to 120s before liveness kicks in.
                     startup:
                       enabled: true
-                      type: HTTP
-                      port: metrics
-                      path: /
+                      custom: true
                       spec:
-                        initialDelaySeconds: 10
+                        httpGet:
+                          path: /
+                          port: 9487
+                        initialDelaySeconds: 15
                         periodSeconds: 5
                         failureThreshold: 24
                     liveness:
                       enabled: true
-                      type: HTTP
-                      port: metrics
-                      path: /
+                      custom: true
                       spec:
+                        httpGet:
+                          path: /
+                          port: 9487
                         initialDelaySeconds: 0
                         periodSeconds: 30
                         failureThreshold: 3
                     readiness:
                       enabled: true
-                      type: HTTP
-                      port: metrics
-                      path: /
+                      custom: true
                       spec:
+                        httpGet:
+                          path: /
+                          port: 9487
                         initialDelaySeconds: 0
                         periodSeconds: 15
                         failureThreshold: 3
