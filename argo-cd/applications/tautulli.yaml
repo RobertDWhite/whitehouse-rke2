@@ -5,15 +5,13 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  # Multi-source: Helm chart for the app + kustomize for SOPS secrets.
-  sources:
-    # Source 1: bjw-s app-template Helm chart (Tautulli + exporter sidecar)
-    - repoURL: https://bjw-s-labs.github.io/helm-charts/
-      chart: app-template
-      targetRevision: "3.5.1"
-      helm:
-        releaseName: tautulli
-        values: |
+  source:
+    repoURL: https://bjw-s-labs.github.io/helm-charts/
+    chart: app-template
+    targetRevision: "3.5.1"
+    helm:
+      releaseName: tautulli
+      values: |
           defaultPodOptions:
             labels:
               app: tautulli
@@ -262,11 +260,12 @@ spec:
                   exporter:
                     - path: /pylibs
 
-    # Source 2: SOPS-encrypted secret (API key) via kustomize + ksops
-    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-      targetRevision: main
-      path: tautulli
-
+  # NOTE: The tautulli-api Secret (API key) is managed directly in the
+  # cluster, not through this Helm chart. ArgoCD multi-source + ksops
+  # doesn't work (plugin path not found in the repo-server). The secret
+  # was created via: kubectl create secret generic tautulli-api \
+  #   --from-literal=TAUTULLI_API_KEY=<key> -n tautulli
+  # The SOPS-encrypted backup lives at tautulli/secret.sops.yaml.
   destination:
     server: https://kubernetes.default.svc
     namespace: tautulli
