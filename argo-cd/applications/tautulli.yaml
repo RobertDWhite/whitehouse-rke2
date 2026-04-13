@@ -281,21 +281,20 @@ spec:
                       if not TAUTULLI_DB or not INFLUXDB_URL: return
                       import sqlite3
                       try:
-                          db = sqlite3.connect(f"file:{TAUTULLI_DB}?mode=ro", uri=True)
+                          db = sqlite3.connect(f"file://{TAUTULLI_DB}?immutable=1", uri=True)
                           db.row_factory = sqlite3.Row
                       except Exception as e:
                           print(f"[influx] cannot open DB: {e}", flush=True); return
                       try:
                           rows = db.execute("""
-                              SELECT h.id, h.started, h.stopped, h.media_type, h.rating_key,
-                                     h.parent_rating_key, h.grandparent_rating_key,
-                                     h.full_title, h.year, h.user, h.user_id,
-                                     h.ip_address, h.player, h.platform,
-                                     h.transcode_decision, h.duration,
-                                     h.view_offset,
-                                     m.video_resolution, m.video_full_resolution
+                              SELECT h.id, h.started, h.stopped, h.media_type,
+                                     h.user, h.player, h.platform, h.ip_address,
+                                     h.quality_profile, h.view_offset,
+                                     meta.full_title, meta.year, meta.duration,
+                                     mi.transcode_decision, mi.video_full_resolution
                               FROM session_history h
-                              LEFT JOIN session_history_media_info m ON h.id = m.id
+                              LEFT JOIN session_history_metadata meta ON h.id = meta.id
+                              LEFT JOIN session_history_media_info mi ON h.id = mi.id
                               WHERE h.id > ?
                               ORDER BY h.id ASC
                           """, (_last_synced_id[0],)).fetchall()
@@ -304,13 +303,15 @@ spec:
                               db.close(); return
                           lines = []
                           for r in rows:
-                              tags = f"user={_escape(r['user'])},media_type={_escape(r['media_type'] or '?')},player={_escape(r['player'] or '?')},platform={_escape(r['platform'] or '?')},transcode={_escape(r['transcode_decision'] or 'direct play')},resolution={_escape(r['video_full_resolution'] or '?')}"
+                              tags = f"user={_escape(r['user'] or '?')},media_type={_escape(r['media_type'] or '?')},player={_escape(r['player'] or '?')},platform={_escape(r['platform'] or '?')},transcode={_escape(r['transcode_decision'] or 'direct play')},resolution={_escape(r['video_full_resolution'] or '?')}"
                               title = _escape(r['full_title'] or '?')
                               dur = int(r['duration'] or 0)
                               offset = int(r['view_offset'] or 0)
                               ts = int(r['started'] or 0)
+                              stopped = int(r['stopped'] or 0)
+                              watch_sec = max(0, stopped - ts) if stopped > ts else 0
                               if ts <= 0: continue
-                              lines.append(f'tautulli_play,{tags} title="{title}",duration={dur}i,view_offset={offset}i,year={int(r["year"] or 0)}i {ts}')
+                              lines.append(f'tautulli_play,{tags} title="{title}",duration={dur}i,view_offset={offset}i,watch_seconds={watch_sec}i,year={int(r["year"] or 0)}i {ts}')
                               if len(lines) >= 500:
                                   _influx_write(lines); lines.clear()
                           if lines: _influx_write(lines)
