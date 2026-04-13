@@ -26,3 +26,7 @@ def apps_v1() -> client.AppsV1Api:
 
 def networking_v1() -> client.NetworkingV1Api:
     return client.NetworkingV1Api(_get_api_client())
+
+
+def custom_objects() -> client.CustomObjectsApi:
+    return client.CustomObjectsApi(_get_api_client())
