@@ -455,14 +455,12 @@
         {
           "expr": "tautulli_user_info",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "legendFormat": ""
         }
       ],
       "title": "All Users",
       "transformations": [
-        {
-          "id": "labelsToFields"
-        },
         {
           "id": "organize",
           "options": {
@@ -470,7 +468,8 @@
               "Time": true,
               "__name__": true,
               "instance": true,
-              "job": true
+              "job": true,
+              "Value": false
             },
             "renameByName": {
               "user": "User",
@@ -479,7 +478,8 @@
               "platform": "Platform",
               "player": "Player",
               "ip_address": "IP",
-              "last_seen_human": "Last Seen"
+              "last_seen_human": "Last Seen",
+              "Value": "Watch Time (s)"
             }
           }
         }
@@ -643,16 +643,14 @@
       },
       "targets": [
         {
-          "expr": "tautulli_recently_added == 1",
+          "expr": "tautulli_recently_added",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "legendFormat": ""
         }
       ],
       "title": "Recently Added to Plex",
       "transformations": [
-        {
-          "id": "labelsToFields"
-        },
         {
           "id": "organize",
           "options": {
@@ -660,7 +658,8 @@
               "Time": true,
               "__name__": true,
               "instance": true,
-              "job": true
+              "job": true,
+              "Value": true
             },
             "renameByName": {
               "title": "Title",
@@ -695,82 +694,52 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short"
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 12,
         "w": 16,
         "x": 0,
         "y": 39
       },
       "id": 54,
       "options": {
-        "barWidth": 0.8,
-        "groupWidth": 0.7,
-        "stacking": "normal",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "xField": "Date",
-        "orientation": "vertical"
+        "showUnfilled": true
       },
       "targets": [
         {
-          "expr": "sort(tautulli_daily_plays{media_type=\"TV\"})",
-          "legendFormat": "TV",
-          "format": "table",
+          "expr": "sort_desc(tautulli_daily_plays{media_type=\"TV\"})",
+          "legendFormat": "{{date}} TV",
           "instant": true
         },
         {
-          "expr": "sort(tautulli_daily_plays{media_type=\"Movies\"})",
-          "legendFormat": "Movies",
-          "format": "table",
+          "expr": "sort_desc(tautulli_daily_plays{media_type=\"Movies\"})",
+          "legendFormat": "{{date}} Movies",
           "instant": true
         }
       ],
       "title": "Daily Plays (30 Days)",
-      "type": "barchart",
-      "transformations": [
-        {
-          "id": "seriesToColumns",
-          "options": {
-            "byField": "date"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "instance": true,
-              "instance 1": true,
-              "instance 2": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "media_type": true,
-              "media_type 1": true,
-              "media_type 2": true
-            },
-            "renameByName": {
-              "date": "Date",
-              "Value #A": "TV",
-              "Value #B": "Movies"
-            }
-          }
-        }
-      ]
+      "type": "bargauge",
+      "transformations": []
     },
     {
       "datasource": {
@@ -837,7 +806,15 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short"
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -849,70 +826,32 @@
       },
       "id": 65,
       "options": {
-        "barWidth": 0.8,
-        "groupWidth": 0.7,
-        "stacking": "normal",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "xField": "Hour",
-        "orientation": "vertical"
+        "showUnfilled": true
       },
       "targets": [
         {
-          "expr": "sort(tautulli_plays_by_hour{media_type=\"TV\"})",
-          "legendFormat": "TV",
-          "format": "table",
+          "expr": "sort_desc(tautulli_plays_by_hour{media_type=\"TV\"})",
+          "legendFormat": "TV {{hour}}h",
           "instant": true
         },
         {
-          "expr": "sort(tautulli_plays_by_hour{media_type=\"Movies\"})",
-          "legendFormat": "Movies",
-          "format": "table",
+          "expr": "sort_desc(tautulli_plays_by_hour{media_type=\"Movies\"})",
+          "legendFormat": "Movies {{hour}}h",
           "instant": true
         }
       ],
       "title": "Plays by Hour of Day",
-      "type": "barchart",
-      "transformations": [
-        {
-          "id": "seriesToColumns",
-          "options": {
-            "byField": "hour"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "instance": true,
-              "instance 1": true,
-              "instance 2": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "media_type": true,
-              "media_type 1": true,
-              "media_type 2": true
-            },
-            "renameByName": {
-              "hour": "Hour",
-              "Value #A": "TV",
-              "Value #B": "Movies"
-            }
-          }
-        }
-      ]
+      "type": "bargauge",
+      "transformations": []
     },
     {
       "datasource": {
@@ -924,7 +863,15 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "short"
+          "unit": "short",
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -936,70 +883,32 @@
       },
       "id": 66,
       "options": {
-        "barWidth": 0.8,
-        "groupWidth": 0.7,
-        "stacking": "normal",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi"
-        },
-        "xField": "Day",
-        "orientation": "vertical"
+        "showUnfilled": true
       },
       "targets": [
         {
-          "expr": "sort(tautulli_plays_by_dayofweek{media_type=\"TV\"})",
-          "legendFormat": "TV",
-          "format": "table",
+          "expr": "tautulli_plays_by_dayofweek{media_type=\"TV\"}",
+          "legendFormat": "TV {{day}}",
           "instant": true
         },
         {
-          "expr": "sort(tautulli_plays_by_dayofweek{media_type=\"Movies\"})",
-          "legendFormat": "Movies",
-          "format": "table",
+          "expr": "tautulli_plays_by_dayofweek{media_type=\"Movies\"}",
+          "legendFormat": "Movies {{day}}",
           "instant": true
         }
       ],
       "title": "Plays by Day of Week",
-      "type": "barchart",
-      "transformations": [
-        {
-          "id": "seriesToColumns",
-          "options": {
-            "byField": "day"
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "__name__": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "instance": true,
-              "instance 1": true,
-              "instance 2": true,
-              "job": true,
-              "job 1": true,
-              "job 2": true,
-              "media_type": true,
-              "media_type 1": true,
-              "media_type 2": true
-            },
-            "renameByName": {
-              "day": "Day",
-              "Value #A": "TV",
-              "Value #B": "Movies"
-            }
-          }
-        }
-      ]
+      "type": "bargauge",
+      "transformations": []
     },
     {
       "collapsed": false,
