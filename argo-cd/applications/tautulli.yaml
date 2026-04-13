@@ -84,6 +84,11 @@ spec:
                           key: TAUTULLI_API_KEY
                     EXPORTER_PORT: "9487"
                     POLL_INTERVAL: "15"
+                    INFLUXDB_URL: "http://influxdb.observability.svc.cluster.local:8086"
+                    INFLUXDB_TOKEN: "UJnGeZVqNQy7wYkNyslPPqDZ123AZZ"
+                    INFLUXDB_ORG: "whitehouse"
+                    INFLUXDB_BUCKET: "tautulli"
+                    TAUTULLI_DB: "/tautulli-config/tautulli.db"
                   ports:
                     - name: metrics
                       containerPort: 9487
@@ -255,11 +260,75 @@ spec:
                   def collect_history_count():
                       data = _api("get_history", length="1")
                       if data: HISTORY_TOTAL.set(int(data.get("recordsTotal", 0)))
+                  # ── InfluxDB historical sync ──
+                  INFLUXDB_URL = os.environ.get("INFLUXDB_URL", "")
+                  INFLUXDB_TOKEN = os.environ.get("INFLUXDB_TOKEN", "")
+                  INFLUXDB_ORG = os.environ.get("INFLUXDB_ORG", "")
+                  INFLUXDB_BUCKET = os.environ.get("INFLUXDB_BUCKET", "")
+                  TAUTULLI_DB = os.environ.get("TAUTULLI_DB", "")
+                  _last_synced_id = [0]
+                  def _influx_write(lines):
+                      if not INFLUXDB_URL or not lines: return
+                      body = "\n".join(lines).encode("utf-8")
+                      url = f"{INFLUXDB_URL}/api/v2/write?org={INFLUXDB_ORG}&bucket={INFLUXDB_BUCKET}&precision=s"
+                      req = urllib.request.Request(url, data=body, headers={"Authorization": f"Token {INFLUXDB_TOKEN}", "Content-Type": "text/plain"}, method="POST")
+                      try:
+                          urllib.request.urlopen(req, timeout=30)
+                      except Exception as e: print(f"[influx] write error: {e}", flush=True)
+                  def _escape(s):
+                      return str(s).replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=").replace('"', '\\"')
+                  def sync_history_to_influx():
+                      if not TAUTULLI_DB or not INFLUXDB_URL: return
+                      import sqlite3
+                      try:
+                          db = sqlite3.connect(f"file:{TAUTULLI_DB}?mode=ro", uri=True)
+                          db.row_factory = sqlite3.Row
+                      except Exception as e:
+                          print(f"[influx] cannot open DB: {e}", flush=True); return
+                      try:
+                          rows = db.execute("""
+                              SELECT h.id, h.started, h.stopped, h.media_type, h.rating_key,
+                                     h.parent_rating_key, h.grandparent_rating_key,
+                                     h.full_title, h.year, h.user, h.user_id,
+                                     h.ip_address, h.player, h.platform,
+                                     h.transcode_decision, h.duration,
+                                     h.view_offset,
+                                     m.video_resolution, m.video_full_resolution
+                              FROM session_history h
+                              LEFT JOIN session_history_media_info m ON h.id = m.id
+                              WHERE h.id > ?
+                              ORDER BY h.id ASC
+                          """, (_last_synced_id[0],)).fetchall()
+                          if not rows:
+                              if _last_synced_id[0] == 0: print("[influx] no history rows found", flush=True)
+                              db.close(); return
+                          lines = []
+                          for r in rows:
+                              tags = f"user={_escape(r['user'])},media_type={_escape(r['media_type'] or '?')},player={_escape(r['player'] or '?')},platform={_escape(r['platform'] or '?')},transcode={_escape(r['transcode_decision'] or 'direct play')},resolution={_escape(r['video_full_resolution'] or '?')}"
+                              title = _escape(r['full_title'] or '?')
+                              dur = int(r['duration'] or 0)
+                              offset = int(r['view_offset'] or 0)
+                              ts = int(r['started'] or 0)
+                              if ts <= 0: continue
+                              lines.append(f'tautulli_play,{tags} title="{title}",duration={dur}i,view_offset={offset}i,year={int(r["year"] or 0)}i {ts}')
+                              if len(lines) >= 500:
+                                  _influx_write(lines); lines.clear()
+                          if lines: _influx_write(lines)
+                          _last_synced_id[0] = rows[-1]['id']
+                          print(f"[influx] synced {len(rows)} play records (last_id={_last_synced_id[0]})", flush=True)
+                      except Exception as e:
+                          print(f"[influx] sync error: {e}", flush=True)
+                      finally:
+                          db.close()
                   _slow = [0]
                   def main():
                       print(f"[exporter] Tautulli exporter starting url={TAUTULLI_URL} port={LISTEN_PORT}", flush=True)
                       start_http_server(LISTEN_PORT)
                       collect_server_info()
+                      # Initial full backfill from SQLite → InfluxDB
+                      if TAUTULLI_DB and INFLUXDB_URL:
+                          print("[influx] starting initial backfill from SQLite...", flush=True)
+                          sync_history_to_influx()
                       while True:
                           try:
                               collect_activity(); collect_libraries()
@@ -270,6 +339,7 @@ spec:
                                   collect_recently_added(); collect_stream_types()
                                   collect_usage_patterns(); collect_history_count()
                                   collect_server_info()
+                                  sync_history_to_influx()
                           except Exception as e: print(f"[exporter] error: {e}", flush=True)
                           time.sleep(POLL_INTERVAL)
                   if __name__ == "__main__": main()
@@ -325,6 +395,9 @@ spec:
                 tautulli:
                   app:
                     - path: /config
+                  exporter:
+                    - path: /tautulli-config
+                      readOnly: true
             exporter-script:
               enabled: true
               type: configMap
