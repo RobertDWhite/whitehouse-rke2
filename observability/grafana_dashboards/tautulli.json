@@ -6,187 +6,189 @@
   "id": null,
   "links": [],
   "panels": [
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100, "title": "Now Playing", "type": "row"},
     {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
-      "id": 100,
-      "title": "Now Playing",
-      "type": "row"
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1}, "id": 1,
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "tautulli_active_streams", "legendFormat": "Active Streams"}],
+      "title": "Active Streams", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {
-        "defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 5}]}},
-        "overrides": []
-      },
-      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
-      "id": 1,
-      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
-      "targets": [{"expr": "tautulli_active_streams{job=\"tautulli\"}", "legendFormat": "Active Streams"}],
-      "title": "Active Streams",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "Kbits", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 20000}, {"color": "red", "value": 50000}]}}, "overrides": []},
-      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
-      "id": 2,
-      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
-      "targets": [{"expr": "tautulli_bandwidth_kbps{job=\"tautulli\",location=\"total\"}", "legendFormat": "Total Bandwidth"}],
-      "title": "Total Bandwidth",
-      "type": "stat"
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "Kbits", "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 20000}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1}, "id": 2,
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "tautulli_bandwidth_kbps{location=\"total\"}", "legendFormat": "Total"}],
+      "title": "Bandwidth", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}, "overrides": []},
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
-      "id": 3,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1}, "id": 3,
+      "options": {"colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
       "targets": [
-        {"expr": "tautulli_streams_direct_play{job=\"tautulli\"}", "legendFormat": "Direct Play"},
-        {"expr": "tautulli_streams_transcode{job=\"tautulli\"}", "legendFormat": "Transcode"},
-        {"expr": "tautulli_streams_direct_stream{job=\"tautulli\"}", "legendFormat": "Direct Stream"}
+        {"expr": "tautulli_streams_direct_play", "legendFormat": "Direct Play"},
+        {"expr": "tautulli_streams_transcode", "legendFormat": "Transcode"},
+        {"expr": "tautulli_streams_direct_stream", "legendFormat": "Direct Stream"}
       ],
-      "title": "Stream Type Breakdown",
-      "type": "stat"
+      "title": "Stream Types", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "unit": "Kbits", "thresholds": {"steps": [{"color": "blue", "value": null}]}}, "overrides": []},
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
-      "id": 4,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1}, "id": 4,
+      "options": {"colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
       "targets": [
-        {"expr": "tautulli_bandwidth_kbps{job=\"tautulli\",location=\"lan\"}", "legendFormat": "LAN"},
-        {"expr": "tautulli_bandwidth_kbps{job=\"tautulli\",location=\"wan\"}", "legendFormat": "WAN"}
+        {"expr": "tautulli_bandwidth_kbps{location=\"lan\"}", "legendFormat": "LAN"},
+        {"expr": "tautulli_bandwidth_kbps{location=\"wan\"}", "legendFormat": "WAN"}
       ],
-      "title": "Bandwidth (LAN / WAN)",
-      "type": "stat"
+      "title": "LAN / WAN", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}, "overrides": []},
-      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 1},
-      "id": 5,
-      "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
-      "targets": [{"expr": "tautulli_up{job=\"tautulli\"}", "legendFormat": "API Up"}],
-      "title": "Tautulli API",
-      "type": "stat"
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1}, "id": 50,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "tautulli_history_records_total", "legendFormat": "History Records"}],
+      "title": "Total History", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"custom": {"align": "auto", "displayMode": "auto", "inspect": false}}, "overrides": [
-        {"matcher": {"id": "byName", "options": "Value"}, "properties": [{"id": "custom.hidden", "value": true}]}
-      ]},
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 5},
-      "id": 6,
+      "fieldConfig": {"defaults": {"thresholds": {"steps": [{"color": "green", "value": null}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1}, "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [{"expr": "tautulli_up", "legendFormat": "API"}],
+      "title": "API Up", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"custom": {"align": "auto", "displayMode": "auto", "inspect": false}}, "overrides": [{"matcher": {"id": "byName", "options": "Value"}, "properties": [{"id": "custom.hidden", "value": true}]}]},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 5}, "id": 6,
       "options": {"showHeader": true, "sortBy": [{"desc": false, "displayName": "user"}]},
-      "targets": [{
-        "expr": "tautulli_stream_info{job=\"tautulli\"} == 1",
-        "format": "table",
-        "instant": true,
-        "legendFormat": ""
-      }],
+      "targets": [{"expr": "tautulli_stream_info == 1", "format": "table", "instant": true}],
       "title": "Active Streams Detail",
       "transformations": [
         {"id": "labelsToFields"},
-        {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true}, "indexByName": {}, "renameByName": {"library_name": "Library", "media_type": "Type", "player": "Player", "quality": "Quality", "state": "State", "title": "Title", "transcode_decision": "Transcode", "user": "User", "video_resolution": "Resolution"}}}
+        {"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "instance": true, "job": true}, "renameByName": {"library_name": "Library", "media_type": "Type", "player": "Player", "quality": "Quality", "state": "State", "title": "Title", "transcode_decision": "Transcode", "user": "User", "video_resolution": "Resolution"}}}
       ],
       "type": "table"
     },
+
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 11}, "id": 101, "title": "Play History (30 Days)", "type": "row"},
     {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
-      "id": 101,
-      "title": "Trends",
-      "type": "row"
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "blue", "value": null}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 12}, "id": 51,
+      "options": {"colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"expr": "tautulli_plays_total{period=\"7d\",media_type=\"TV\"}", "legendFormat": "TV"},
+        {"expr": "tautulli_plays_total{period=\"7d\",media_type=\"Movies\"}", "legendFormat": "Movies"}
+      ],
+      "title": "Plays (Last 7 Days)", "type": "stat"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisLabel": "Streams", "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "stacking": {"mode": "none"}}, "unit": "short"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
-      "id": 7,
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "purple", "value": null}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 12}, "id": 52,
+      "options": {"colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"expr": "tautulli_plays_total{period=\"30d\",media_type=\"TV\"}", "legendFormat": "TV"},
+        {"expr": "tautulli_plays_total{period=\"30d\",media_type=\"Movies\"}", "legendFormat": "Movies"}
+      ],
+      "title": "Plays (Last 30 Days)", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "orange", "value": null}]}}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 12}, "id": 53,
+      "options": {"colorMode": "background", "graphMode": "none", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {"expr": "tautulli_plays_total{period=\"365d\",media_type=\"TV\"}", "legendFormat": "TV"},
+        {"expr": "tautulli_plays_total{period=\"365d\",media_type=\"Movies\"}", "legendFormat": "Movies"},
+        {"expr": "tautulli_plays_total{period=\"365d\",media_type=\"Total\"}", "legendFormat": "Total"}
+      ],
+      "title": "Plays (Last Year)", "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "description": "Daily play counts over the last 30 days, reported as labeled gauges from the Tautulli API. Each bar represents one day.",
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 0, "showPoints": "never", "stacking": {"mode": "normal"}}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}, "id": 54,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi"}},
+      "targets": [
+        {"expr": "tautulli_daily_plays{media_type=\"TV\"}", "legendFormat": "TV — {{date}}"},
+        {"expr": "tautulli_daily_plays{media_type=\"Movies\"}", "legendFormat": "Movies — {{date}}"}
+      ],
+      "title": "Daily Plays (30 Days)", "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"drawStyle": "bars", "fillOpacity": 80, "lineWidth": 0, "showPoints": "never"}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}, "id": 55,
+      "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}, "showUnfilled": true},
+      "targets": [{"expr": "topk(10, tautulli_user_plays_total)", "legendFormat": "{{user}}"}],
+      "title": "Top Users (30 Days — Plays)", "type": "bargauge"
+    },
+
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24}, "id": 102, "title": "Trends", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisLabel": "Streams", "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "spanNulls": false, "stacking": {"mode": "none"}}, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25}, "id": 7,
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
       "targets": [
-        {"expr": "tautulli_active_streams{job=\"tautulli\"}", "legendFormat": "Total Streams"},
-        {"expr": "tautulli_streams_transcode{job=\"tautulli\"}", "legendFormat": "Transcoding"},
-        {"expr": "tautulli_streams_direct_play{job=\"tautulli\"}", "legendFormat": "Direct Play"}
+        {"expr": "tautulli_active_streams", "legendFormat": "Total Streams"},
+        {"expr": "tautulli_streams_transcode", "legendFormat": "Transcoding"},
+        {"expr": "tautulli_streams_direct_play", "legendFormat": "Direct Play"}
       ],
-      "title": "Stream Count Over Time",
-      "type": "timeseries"
+      "title": "Stream Count Over Time", "type": "timeseries"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisLabel": "kbps", "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "auto", "spanNulls": false, "stacking": {"mode": "normal"}}, "unit": "Kbits"}, "overrides": [
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisLabel": "kbps", "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "spanNulls": false, "stacking": {"mode": "normal"}}, "unit": "Kbits"}, "overrides": [
         {"matcher": {"id": "byName", "options": "LAN"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]},
         {"matcher": {"id": "byName", "options": "WAN"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}
       ]},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
-      "id": 8,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25}, "id": 8,
       "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
       "targets": [
-        {"expr": "tautulli_bandwidth_kbps{job=\"tautulli\",location=\"lan\"}", "legendFormat": "LAN"},
-        {"expr": "tautulli_bandwidth_kbps{job=\"tautulli\",location=\"wan\"}", "legendFormat": "WAN"}
+        {"expr": "tautulli_bandwidth_kbps{location=\"lan\"}", "legendFormat": "LAN"},
+        {"expr": "tautulli_bandwidth_kbps{location=\"wan\"}", "legendFormat": "WAN"}
       ],
-      "title": "Bandwidth Over Time (LAN / WAN)",
-      "type": "timeseries"
+      "title": "Bandwidth Over Time", "type": "timeseries"
     },
-    {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 22},
-      "id": 102,
-      "title": "Libraries",
-      "type": "row"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisLabel": "Items", "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 0, "showPoints": "never"}, "unit": "short"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
-      "id": 9,
-      "options": {"legend": {"displayMode": "list", "placement": "right"}, "tooltip": {"mode": "single"}},
-      "targets": [{
-        "expr": "tautulli_library_items{job=\"tautulli\"}",
-        "legendFormat": "{{library_name}} ({{section_type}})"
-      }],
-      "title": "Library Item Counts",
-      "type": "timeseries"
-    },
+
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 33}, "id": 103, "title": "Libraries", "type": "row"},
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}, "unit": "short"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
-      "id": 10,
-      "options": {"displayMode": "gradient", "minVizWidth": 75, "namePlacement": "auto", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showUnfilled": true, "valueMode": "color"},
-      "targets": [{
-        "expr": "tautulli_library_items{job=\"tautulli\"}",
-        "legendFormat": "{{library_name}}"
-      }],
-      "title": "Library Size Comparison",
-      "type": "bargauge"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
-      "id": 103,
-      "title": "Server Info",
-      "type": "row"
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 34}, "id": 10,
+      "options": {"displayMode": "gradient", "minVizWidth": 75, "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}, "showUnfilled": true},
+      "targets": [{"expr": "tautulli_library_items", "legendFormat": "{{library_name}}"}],
+      "title": "Library Sizes", "type": "bargauge"
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 34}, "id": 56,
+      "options": {"displayMode": "gradient", "orientation": "horizontal", "reduceOptions": {"calcs": ["lastNotNull"]}, "showUnfilled": true},
+      "targets": [{"expr": "topk(10, tautulli_user_duration_seconds)", "legendFormat": "{{user}}"}],
+      "title": "Top Users (30 Days — Watch Time)", "type": "bargauge"
+    },
+
+    {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 42}, "id": 104, "title": "Server", "type": "row"},
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"custom": {"align": "auto", "displayMode": "auto"}}, "overrides": []},
-      "gridPos": {"h": 4, "w": 24, "x": 0, "y": 32},
-      "id": 11,
+      "gridPos": {"h": 3, "w": 24, "x": 0, "y": 43}, "id": 11,
       "options": {"showHeader": true},
-      "targets": [{
-        "expr": "tautulli_server_info{job=\"tautulli\"}",
-        "format": "table",
-        "instant": true,
-        "legendFormat": ""
-      }],
+      "targets": [{"expr": "tautulli_server_info", "format": "table", "instant": true}],
       "title": "Server Info",
       "transformations": [
         {"id": "labelsToFields"},
-        {"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true}, "renameByName": {"plex_name": "Server Name", "plex_platform": "Platform", "plex_version": "Plex Version", "tautulli_version": "Tautulli Version"}}}
+        {"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true}, "renameByName": {"plex_name": "Server", "plex_platform": "Platform", "plex_version": "Plex Version", "tautulli_version": "Tautulli Version"}}}
       ],
       "type": "table"
     }
@@ -195,13 +197,7 @@
   "tags": ["tautulli", "plex", "media"],
   "templating": {
     "list": [
-      {
-        "current": {},
-        "hide": 2,
-        "name": "DS_PROMETHEUS",
-        "type": "datasource",
-        "query": "prometheus"
-      }
+      {"current": {}, "hide": 2, "name": "DS_PROMETHEUS", "type": "datasource", "query": "prometheus"}
     ]
   },
   "time": {"from": "now-6h", "to": "now"},
@@ -209,5 +205,5 @@
   "timezone": "",
   "title": "Tautulli - Plex Monitoring",
   "uid": "tautulli-plex",
-  "version": 1
+  "version": 2
 }

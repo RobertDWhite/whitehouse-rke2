@@ -140,6 +140,11 @@ spec:
                   STREAM_INFO = Gauge("tautulli_stream_info", "Active stream (gauge=1 per stream)", ["user", "title", "player", "quality", "transcode_decision", "media_type", "library_name", "video_resolution", "state"])
                   TOTAL_DURATION = Gauge("tautulli_total_duration_seconds", "Total watch duration", ["stat_type"])
                   SERVER_INFO = Info("tautulli_server", "Plex/Tautulli server metadata")
+                  PLAYS_PERIOD = Gauge("tautulli_plays_total", "Play count over period", ["period", "media_type"])
+                  USER_PLAYS = Gauge("tautulli_user_plays_total", "Total plays per user", ["user"])
+                  USER_DURATION = Gauge("tautulli_user_duration_seconds", "Watch duration per user", ["user"])
+                  HISTORY_TOTAL = Gauge("tautulli_history_records_total", "Total history records in Tautulli")
+                  DAILY_PLAYS = Gauge("tautulli_daily_plays", "Plays on a given date", ["date", "media_type"])
                   def _api(cmd, **p):
                       qs = "&".join(f"{k}={v}" for k, v in p.items())
                       url = f"{TAUTULLI_URL}/api/v2?apikey={TAUTULLI_API_KEY}&cmd={cmd}"
@@ -181,12 +186,53 @@ spec:
                       if si: info["plex_version"]=si.get("pms_version","?"); info["plex_platform"]=si.get("pms_platform","?"); info["plex_name"]=si.get("pms_name","?")
                       if ti: info["tautulli_version"]=ti.get("tautulli_version","?")
                       if info: SERVER_INFO.info(info)
+                  def collect_play_totals():
+                      """Play count aggregates by period and media type."""
+                      PLAYS_PERIOD._metrics.clear()
+                      for days, label in [(7,"7d"),(30,"30d"),(365,"365d")]:
+                          data = _api("get_plays_by_date", time_range=str(days))
+                          if data is None: continue
+                          for series in data.get("series", []):
+                              name = series.get("name", "?")
+                              total = sum(series.get("data", []))
+                              PLAYS_PERIOD.labels(period=label, media_type=name).set(total)
+                  def collect_daily_plays():
+                      """Per-day play counts for the last 30 days — powers time-series graphs."""
+                      DAILY_PLAYS._metrics.clear()
+                      data = _api("get_plays_by_date", time_range="30")
+                      if data is None: return
+                      dates = data.get("categories", [])
+                      for series in data.get("series", []):
+                          name = series.get("name", "?")
+                          for date, count in zip(dates, series.get("data", [])):
+                              if count > 0: DAILY_PLAYS.labels(date=date, media_type=name).set(count)
+                  def collect_user_stats():
+                      """Per-user total plays and watch duration."""
+                      USER_PLAYS._metrics.clear(); USER_DURATION._metrics.clear()
+                      data = _api("get_home_stats", stat_id="top_users", stats_count="25", time_range="30")
+                      if data is None: return
+                      for stat in (data if isinstance(data, list) else [data]):
+                          for row in stat.get("rows", []):
+                              user = row.get("friendly_name") or row.get("user", "?")
+                              USER_PLAYS.labels(user=user).set(int(row.get("total_plays", 0)))
+                              USER_DURATION.labels(user=user).set(int(row.get("total_duration", 0)))
+                  def collect_history_count():
+                      data = _api("get_history", length="1")
+                      if data: HISTORY_TOTAL.set(int(data.get("recordsTotal", 0)))
+                  _slow_counter = [0]
                   def main():
                       print(f"[exporter] Tautulli Prometheus Exporter starting url={TAUTULLI_URL} port={LISTEN_PORT} interval={POLL_INTERVAL}s", flush=True)
                       start_http_server(LISTEN_PORT)
                       collect_server_info()
                       while True:
-                          try: collect_activity(); collect_libraries(); collect_home_stats()
+                          try:
+                              collect_activity(); collect_libraries()
+                              # Historical/aggregate metrics every 5 minutes (not every 15s)
+                              _slow_counter[0] += 1
+                              if _slow_counter[0] % 20 == 1:
+                                  collect_home_stats(); collect_play_totals()
+                                  collect_daily_plays(); collect_user_stats()
+                                  collect_history_count(); collect_server_info()
                           except Exception as e: print(f"[exporter] error: {e}", flush=True)
                           time.sleep(POLL_INTERVAL)
                   if __name__ == "__main__": main()
