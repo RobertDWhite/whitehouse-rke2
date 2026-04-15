@@ -68,6 +68,10 @@ resources:
   - 121-svc-pihole-exporter-b.yaml
   - 122-svc-pihole-exporter-c.yaml
 
+  # App Store Connect Exporter
+  - appstore-connect/externalsecret.yaml
+  - appstore-connect/deployment.yaml
+
 generators:
   - ksops.yaml
 
@@ -97,6 +101,7 @@ configMapGenerator:
       - tautulli.json=grafana_dashboards/tautulli.json
       - sdr-pipeline-health.json=grafana_dashboards/sdr-pipeline-health.json
       - sdr-station-health.json=grafana_dashboards/sdr-station-health.json
+      - appstore-connect.json=grafana_dashboards/appstore-connect.json
   - name: observability-grafana-dashboards-imported
     files:
       - coredns-15762.json=grafana_dashboards/coredns-15762.json
@@ -114,6 +119,9 @@ configMapGenerator:
   - name: observability-grafana-dashboards-unifi-dpi
     files:
       - unifi-client-dpi-11310.json=grafana_dashboards/unifi-client-dpi-11310.json
+  - name: appstore-connect-exporter-scripts
+    files:
+      - exporter.py=appstore-connect/exporter.py
 
 generatorOptions:
   disableNameSuffixHash: true
