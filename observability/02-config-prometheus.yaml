@@ -358,6 +358,16 @@ data:
         metrics_path: /metrics
         scrape_interval: 30s
 
+      # ================================
+      # App Store Connect
+      # ================================
+      - job_name: appstore-connect
+        static_configs:
+          - targets:
+              - appstore-connect-exporter.observability.svc.cluster.local:9488
+        metrics_path: /metrics
+        scrape_interval: 300s
+
       # =========================
       # Matrix Synapse metrics
       # =========================
