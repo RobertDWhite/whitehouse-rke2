@@ -114,6 +114,11 @@ spec:
               value: "true"
             - name: HTTP_PORT
               value: "8081"
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: GF_RENDERING_AUTH_TOKEN
           resources:
             limits:
               memory: 512Mi
