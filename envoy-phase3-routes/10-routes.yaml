@@ -607,3 +607,20 @@ spec:
     - backendRefs:
         - name: authentik-server
           port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kavita-public
+  namespace: kavita
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - kavita.white.fm
+  rules:
+    - backendRefs:
+        - name: kavita
+          port: 80
