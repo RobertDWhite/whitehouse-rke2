@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kavita
+  namespace: kavita
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kavita
+  template:
+    metadata:
+      labels:
+        app: kavita
+    spec:
+      containers:
+        - name: kavita
+          image: jvmilazz0/kavita:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 5000
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - name: TZ
+              value: "America/New_York"
+          volumeMounts:
+            - name: config
+              mountPath: /kavita/config
+            - name: library
+              mountPath: /library
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: kavita-config
+        - name: library
+          persistentVolumeClaim:
+            claimName: kavita-library
