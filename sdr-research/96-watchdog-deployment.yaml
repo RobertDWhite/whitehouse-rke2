@@ -30,12 +30,13 @@ spec:
         app: sdr-watchdog
     spec:
       serviceAccountName: sdr-watchdog
-      # Image is amd64-only; node-10 is bare-metal arm64.
+      # Pin to the known-good amd64 image/node while the recorder stack is in
+      # emergency failover mode.
       nodeSelector:
-        kubernetes.io/arch: amd64
+        kubernetes.io/hostname: rke2-node-12
       containers:
         - name: watchdog
-          image: registry.white.fm/sdr-watchdog
+          image: registry.white.fm/sdr-watchdog:1.0.0
           imagePullPolicy: IfNotPresent
           env:
             - name: WATCHDOG_NAMESPACE
@@ -64,7 +65,7 @@ spec:
               command:
                 - sh
                 - -c
-                - "test $(($(date +%s) - $(cat /tmp/watchdog_heartbeat 2>/dev/null || echo 0))) -lt 300"
+                - "python3 -c 'import pathlib,sys,time; p=pathlib.Path(\"/tmp/watchdog_heartbeat\"); ts=float(p.read_text().strip()) if p.exists() else 0.0; sys.exit(0 if time.time()-ts < 300 else 1)'"
             initialDelaySeconds: 30
             periodSeconds: 60
             failureThreshold: 3
