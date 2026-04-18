@@ -2,7 +2,7 @@
 # with the ootk submodule initialized. See BUILD.md for instructions.
 # .dockerignore excludes .git so get-submodules.ts skips its git submodule update.
 # The plugins-pro submodule (SSH/private) is not required for the OSS build.
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY . .
