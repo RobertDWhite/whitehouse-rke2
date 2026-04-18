@@ -63,6 +63,18 @@ spec:
                   name: weather-secret
                   key: windy-key
                   optional: true
+            - name: OHGO_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: ohgo-key
+                  optional: true
+            - name: YOUTUBE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: youtube-key
+                  optional: true
           readinessProbe:
             httpGet:
               path: /health
