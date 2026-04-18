@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-api
+  namespace: weather
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-api
+  template:
+    metadata:
+      labels:
+        app: weather-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: weather-api
+          image: registry.white.fm/weather-api
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: OBSERVER_LAT
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: observer-lat
+            - name: OBSERVER_LON
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: observer-lon
+            - name: OBSERVER_LOCATION
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: observer-location
+            - name: OBSERVER_STATE
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: observer-state
+            - name: OPENWEATHERMAP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: openweathermap-key
+                  optional: true
+            - name: AIRNOW_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: airnow-key
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
