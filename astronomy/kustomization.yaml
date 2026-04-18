@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: astronomy
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment-api.yaml
+  - 11-deployment-ui.yaml
+  - 20-service-api.yaml
+  - 21-service-ui.yaml
+  - 22-configmap.yaml
+  - 52-httproute.yaml
+  - 60-networkpolicy.yaml
+
+images:
+  - name: registry.white.fm/astronomy-api
+    newTag: "1.0.0"
+  - name: registry.white.fm/astronomy-ui
+    newTag: "1.0.0"

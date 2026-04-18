@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: keeptrack
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 20-service.yaml
+  - 52-httproute.yaml
+  - 60-networkpolicy.yaml
+images:
+  - name: registry.white.fm/keeptrack
+    newTag: "12.1.3"
