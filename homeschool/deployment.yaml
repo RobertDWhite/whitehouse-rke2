@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homarr
+  namespace: homeschool
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homarr
+  template:
+    metadata:
+      labels:
+        app: homarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: homarr
+          image: ghcr.io/homarr-labs/homarr
+          ports:
+            - containerPort: 7575
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 7575
+            failureThreshold: 12
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 7575
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7575
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: TZ
+              value: "UTC"
+            - name: ENABLE_KUBERNETES
+              value: "false"
+            - name: ENABLE_DOCKER_INTEGRATION
+              value: "false"
+            - name: DATABASE_FILE
+              value: /appdata/db/db.sqlite
+            - name: NODE_ENV
+              value: "production"
+            - name: SECRET_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: SECRET_ENCRYPTION_KEY
+          volumeMounts:
+            - name: db-storage
+              mountPath: /appdata
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: homeschool-homarr-db
