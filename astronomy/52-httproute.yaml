@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: astronomy
+  namespace: astronomy
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - astronomy.white.fm
+  rules:
+    - backendRefs:
+        - name: astronomy-ui
+          port: 80
