@@ -57,6 +57,12 @@ spec:
                   name: weather-secret
                   key: airnow-key
                   optional: true
+            - name: WINDY_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: weather-secret
+                  key: windy-key
+                  optional: true
           readinessProbe:
             httpGet:
               path: /health
