@@ -1,17 +1,12 @@
+# Build context must be a local clone of https://github.com/thkruz/keeptrack.space
+# with the ootk submodule initialized. See BUILD.md for instructions.
+# .dockerignore excludes .git so get-submodules.ts skips its git submodule update.
+# The plugins-pro submodule (SSH/private) is not required for the OSS build.
 FROM node:20-alpine AS builder
 WORKDIR /app
-
-RUN apk add --no-cache git python3 make g++
-
-# Clone with submodules so the prebuild script can init src/engine/ootk
-RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
-    https://github.com/thkruz/keeptrack.space.git .
-
-# Install dependencies (skip lifecycle scripts; we run the build explicitly)
+RUN apk add --no-cache python3 make g++
+COPY . .
 RUN npm ci --ignore-scripts
-
-# prebuild: generate translations + submodule check (already done above)
-# build:    rspack via build-manager.ts → output to ./dist
 RUN npm run build
 
 FROM nginx:1.27-alpine
