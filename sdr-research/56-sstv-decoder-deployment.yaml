@@ -51,6 +51,10 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /data
+            - name: scripts
+              mountPath: /sstv-entrypoint.py
+              subPath: sstv-entrypoint.py
+              readOnly: true
           livenessProbe:
             exec:
               command:
@@ -80,3 +84,7 @@ spec:
         - name: artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: sstv-decoder-scripts
+            defaultMode: 0755
