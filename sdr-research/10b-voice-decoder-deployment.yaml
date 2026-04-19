@@ -78,9 +78,7 @@ spec:
       volumes:
         - name: artifacts
           persistentVolumeClaim:
-            # Emergency failover: colocate transcription with the recorder on
-            # node-10 while the RWX artifacts volume is stuck.
-            claimName: sdr-artifacts
+            claimName: sdr-artifacts-rwx
         - name: scripts
           configMap:
             name: voice-decoder-scripts
