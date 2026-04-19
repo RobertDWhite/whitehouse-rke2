@@ -217,12 +217,11 @@ spec:
             failureThreshold: 3
       volumes:
         - name: sdr-artifacts
-          # Emergency bypass while Longhorn RWX reattachment is wedged:
-          # reuse the existing node-local CSI global mount on rke2-node-13 so
-          # the API can come back without requesting a fresh RWX attachment.
-          hostPath:
-            path: /var/lib/kubelet/plugins/kubernetes.io/csi/driver.longhorn.io/3136728414e8aa3f3df3693ebb09b7eea35518f492515c221560bcd13245e946/globalmount
-            type: Directory
+          # Emergency degraded-mode fallback while Longhorn RWX reattachment is
+          # wedged. This restores the DB-backed API routes that drive the app's
+          # dashboard/radio status without waiting on a fresh shared-volume mount.
+          # File-serving endpoints remain degraded until the RWX path is repaired.
+          emptyDir: {}
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
