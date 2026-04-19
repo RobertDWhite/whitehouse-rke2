@@ -35,7 +35,7 @@ spec:
             # on first sight). Secondary: /data/audio/voice (written by
             # unified-sdr; race-resistant snapshot in the entrypoint).
             - name: AUDIO_DIRS
-              value: "/data/audio/sstv,/data/audio/voice"
+              value: "/data/audio/sstv,/data/audio/voice,/data/hf/audio/sstv"
             - name: SSTV_OUTPUT_DIR
               value: "/data/images/sstv"
             - name: MIN_FILE_AGE_SEC_SSTV
@@ -51,6 +51,9 @@ spec:
           volumeMounts:
             - name: artifacts
               mountPath: /data
+            - name: artifacts-hf
+              mountPath: /data/hf
+              readOnly: true
             - name: scripts
               mountPath: /sstv-entrypoint.py
               subPath: sstv-entrypoint.py
@@ -84,6 +87,9 @@ spec:
         - name: artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: artifacts-hf
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-hf
         - name: scripts
           configMap:
             name: sstv-decoder-scripts

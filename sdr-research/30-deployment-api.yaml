@@ -73,6 +73,8 @@ spec:
               value: /data/audio
             - name: TEXT_BASE_PATH
               value: /data/text
+            - name: HF_TEXT_BASE_PATH
+              value: /data/hf/text
             - name: CACHE_PATH
               value: /tmp/sdr-viewer-cache
             - name: REPEATERBOOK_ENABLED
@@ -122,6 +124,8 @@ spec:
           volumeMounts:
             - name: sdr-artifacts
               mountPath: /data
+            - name: sdr-artifacts-hf
+              mountPath: /data/hf
             - name: cache
               mountPath: /cache
             - name: api-overrides
@@ -222,6 +226,9 @@ spec:
         - name: sdr-artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx
+        - name: sdr-artifacts-hf
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-hf
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache

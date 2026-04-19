@@ -4606,15 +4606,17 @@ data:
 
                 # ── FAST PATH — lightweight text/JSON indexers first ──
                 # These scan small directories and must never be starved by voice backlog.
+                # HF_TEXT_BASE_PATH points to the separate sdr-artifacts-hf PVC mount.
+                _hf_text = os.environ.get("HF_TEXT_BASE_PATH", settings.text_base_path)
                 await asyncio.to_thread(
                     index_ft8_directory,
-                    text_dir=os.path.join(settings.text_base_path, "ft8"),
+                    text_dir=os.path.join(_hf_text, "ft8"),
                 )
                 _hb()
 
                 await asyncio.to_thread(
                     index_hfdl_directory,
-                    text_dir=os.path.join(settings.text_base_path, "hfdl"),
+                    text_dir=os.path.join(_hf_text, "hfdl"),
                 )
                 _hb()
 
