@@ -81,18 +81,15 @@ spec:
               fi
 
               echo "Starting rtl_tcp for 70cm UHF band (serial ${RTL_DEVICE_SERIAL})"
-              # Resolve serial to device index (rtl_tcp -d treats numeric
-              # strings as device indices, not serial lookups).
-              DEV_INDEX=""
-              for i in 0 1 2 3; do
-                INFO=$(rtl_eeprom -d $i 2>&1) || continue
-                if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
-                  DEV_INDEX=$i
-                  break
-                fi
-              done
+              # Resolve serial to device index via rtl_tcp enumeration.
+              # rtl_eeprom is unreliable on hot-plugged devices; rtl_tcp -d 99
+              # always prints the full device list before failing on the invalid index.
+              ENUM=$(rtl_tcp -d 99 2>&1 || true)
+              DEV_INDEX=$(echo "$ENUM" | grep "SN:.*${RTL_DEVICE_SERIAL}" | sed 's/^ *\([0-9]*\):.*/\1/')
               if [ -z "$DEV_INDEX" ]; then
-                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found, defaulting to device index 0"
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found via enumeration"
+                echo "$ENUM"
+                echo "Defaulting to device index 0"
                 DEV_INDEX=0
               fi
               echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
