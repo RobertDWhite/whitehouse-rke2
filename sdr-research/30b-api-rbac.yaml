@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sdr-viewer-api
+  namespace: sdr-research
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sdr-viewer-api
+  namespace: sdr-research
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sdr-viewer-api
+  namespace: sdr-research
+subjects:
+  - kind: ServiceAccount
+    name: sdr-viewer-api
+    namespace: sdr-research
+roleRef:
+  kind: Role
+  name: sdr-viewer-api
+  apiGroup: rbac.authorization.k8s.io
