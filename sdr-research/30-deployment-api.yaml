@@ -17,6 +17,7 @@ spec:
       annotations:
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
+      serviceAccountName: sdr-viewer-api
       terminationGracePeriodSeconds: 60
       nodeSelector:
         kubernetes.io/hostname: rke2-node-13
@@ -60,6 +61,8 @@ spec:
             - name: INDEX_INITIAL_LOOKBACK_SECONDS
               # Scan only last 24h on startup; older files already indexed
               value: "86400"
+            - name: SDR_POD_HEALTH_FALLBACK
+              value: "true"
             - name: HAMDB_ENABLED
               value: "true"
             - name: HAMDB_MAX_PER_CYCLE

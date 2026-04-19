@@ -5101,6 +5101,93 @@ data:
         return None
 
 
+    _SDR_POD_LABELS = {
+        "2m": "app=unified-sdr",
+        "70cm": "app=unified-sdr-70cm",
+    }
+
+
+    def _get_band_pod_health(band: str) -> dict | None:
+        """Best-effort fallback when shared storage is unavailable.
+
+        We prefer heartbeats/files because they represent actual ingest freshness.
+        When the API is running in degraded mode without /data, fall back to the
+        capture pod's Ready condition so the dashboard can still distinguish a
+        healthy 2m recorder from a genuinely broken 70cm path.
+        """
+        if os.environ.get("SDR_POD_HEALTH_FALLBACK", "").lower() not in {"1", "true", "yes", "on"}:
+            return None
+        label_selector = _SDR_POD_LABELS.get(band)
+        if not label_selector:
+            return None
+
+        token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        namespace = os.environ.get("WATCHDOG_NAMESPACE", "sdr-research")
+        host = os.environ.get("KUBERNETES_SERVICE_HOST")
+        port = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+        if not host:
+            return None
+
+        try:
+            import ssl as _ssl
+            import urllib.parse as _urlparse
+            import urllib.request as _urlrequest
+
+            with open(token_path, "r", encoding="utf-8") as f:
+                token = f.read().strip()
+
+            url = (
+                f"https://{host}:{port}/api/v1/namespaces/{namespace}/pods"
+                f"?labelSelector={_urlparse.quote(label_selector, safe='=,')}"
+            )
+            req = _urlrequest.Request(
+                url,
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            )
+            ctx = _ssl.create_default_context(cafile=ca_path)
+            with _urlrequest.urlopen(req, context=ctx, timeout=2) as resp:
+                payload = json.load(resp)
+        except Exception:
+            return None
+
+        items = payload.get("items") or []
+        if not items:
+            return {
+                "band": band,
+                "last_seen_seconds": None,
+                "last_seen_at": None,
+                "healthy": False,
+                "status": "pod_missing",
+            }
+
+        for item in items:
+            status = item.get("status") or {}
+            phase = status.get("phase")
+            conditions = status.get("conditions") or []
+            ready = any(
+                cond.get("type") == "Ready" and cond.get("status") == "True"
+                for cond in conditions
+            )
+            if phase == "Running" and ready:
+                return {
+                    "band": band,
+                    "last_seen_seconds": None,
+                    "last_seen_at": None,
+                    "healthy": True,
+                    "status": "pod_ready",
+                }
+
+        phase = (items[0].get("status") or {}).get("phase", "Unknown")
+        return {
+            "band": band,
+            "last_seen_seconds": None,
+            "last_seen_at": None,
+            "healthy": False,
+            "status": f"pod_{phase.lower()}",
+        }
+
+
     @router.get("/sdr-health")
     async def get_sdr_health(band: str | None = None):
         last_seen_seconds = None
@@ -5148,6 +5235,10 @@ data:
                 last_seen_at = datetime.fromtimestamp(newest_mtime).isoformat()
                 healthy = last_seen_seconds < 300
                 status = "ok" if healthy else "stale"
+            elif band in band_ranges:
+                pod_health = _get_band_pod_health(band)
+                if pod_health is not None:
+                    return pod_health
         except Exception as exc:
             status = f"error: {exc}"
         return {
