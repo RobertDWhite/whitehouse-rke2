@@ -35,17 +35,20 @@ spec:
               port: 7575
             failureThreshold: 12
             periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /
               port: 7575
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /
               port: 7575
             periodSeconds: 30
             failureThreshold: 5
+            timeoutSeconds: 5
           securityContext:
             allowPrivilegeEscalation: false
           env:
