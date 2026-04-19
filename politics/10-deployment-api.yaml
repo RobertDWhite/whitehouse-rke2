@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: politics-api
+  namespace: politics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: politics-api
+  template:
+    metadata:
+      labels:
+        app: politics-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: politics-api
+          image: registry.white.fm/politics-api
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: FRESHRSS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: politics-secret
+                  key: freshrss-username
+            - name: FRESHRSS_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: politics-secret
+                  key: freshrss-api-password
+            - name: X_POLITICS
+              valueFrom:
+                secretKeyRef:
+                  name: politics-secret
+                  key: x-politics
+            - name: X_GOVERNMENT
+              valueFrom:
+                secretKeyRef:
+                  name: politics-secret
+                  key: x-government
+            - name: FRESHRSS_NEWS_LABEL
+              value: "News"
+            - name: FRESHRSS_GOVERNMENT_LABEL
+              value: "Government"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
