@@ -133,9 +133,7 @@ spec:
       volumes:
         - name: artifacts
           persistentVolumeClaim:
-            # Emergency failover: keep 2m capture on node-10 until the
-            # Longhorn RWX share-manager path is healthy again.
-            claimName: sdr-artifacts
+            claimName: sdr-artifacts-rwx
         - name: scripts
           configMap:
             name: unified-sdr-scripts
