@@ -4342,7 +4342,12 @@ data:
                         except OSError:
                             wav_age = _CW_NODECODE_TIMEOUT + 1
                         if wav_age >= _CW_NODECODE_TIMEOUT:
-                            rec.transcript = "[no decodable cw]"
+                            # No decodable CW — delete the file and row
+                            # rather than keeping a useless stub.
+                            safe_unlink(rec.audio_path)
+                            if rec.text_path:
+                                safe_unlink(rec.text_path)
+                            db.delete(rec)
                             db.commit()
                             updated += 1
                     elif rec.mode == "voice":
@@ -4392,6 +4397,36 @@ data:
         finally:
             db.close()
         _last_pending_sweep_ts = _time.time()
+
+
+    def _purge_no_decodable_cw():
+        """Delete [no decodable cw] records that accumulated from CW false positives."""
+        db = SessionLocal()
+        try:
+            recs = (
+                db.query(Recording)
+                .filter(
+                    Recording.mode == "cw",
+                    Recording.transcript == "[no decodable cw]",
+                )
+                .all()
+            )
+            count = 0
+            for rec in recs:
+                if rec.audio_path:
+                    safe_unlink(rec.audio_path)
+                if rec.text_path:
+                    safe_unlink(rec.text_path)
+                db.delete(rec)
+                count += 1
+            if count:
+                db.commit()
+                print(f"[CW-PURGE] Deleted {count} [no decodable cw] records")
+        except Exception as e:
+            print(f"[CW-PURGE] error: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 
     def _backfill_frequency_labels(batch_size: int = 5000):
@@ -4510,6 +4545,12 @@ data:
             await asyncio.to_thread(_maybe_partition_recordings)
         except Exception as _part_err:
             print(f"[Partition] Migration error (non-fatal): {_part_err}")
+
+        # Purge any [no decodable cw] stubs left over from before auto-delete
+        try:
+            await asyncio.to_thread(_purge_no_decodable_cw)
+        except Exception as _cw_purge_err:
+            print(f"[CW-PURGE] Error (non-fatal): {_cw_purge_err}")
 
         # Launch APRS-IS client as a sibling background task (opt-in via env var)
         try:

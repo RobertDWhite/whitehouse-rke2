@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: politics-ui
+  namespace: politics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: politics-ui
+  template:
+    metadata:
+      labels:
+        app: politics-ui
+    spec:
+      containers:
+        - name: politics-ui
+          image: registry.white.fm/politics-ui
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
