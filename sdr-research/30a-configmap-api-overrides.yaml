@@ -2680,8 +2680,8 @@ data:
             on_runs_ms.append(run * hop_ms)
 
         cw_elements = [r for r in on_runs_ms if 30 <= r <= 700]
-        # Minimum 10 elements: even the shortest callsign CW ID (e.g. W1A) has ≥10
-        if len(cw_elements) < 10:
+        # Minimum 15 elements: callsign CW IDs have ≥15; raises the false-positive bar.
+        if len(cw_elements) < 15:
             return False
 
         # Rate check: real CW tops out at ~25 WPM = ~2.5 on-elements/s.
@@ -2689,12 +2689,19 @@ data:
         if duration_s > 0 and len(cw_elements) / duration_s > 3.0:
             return False
 
+        # Sparsity check: CW is mostly silence (inter-element, inter-char, word gaps).
+        # Total on-time should be under half the recording duration.
+        total_on_ms = sum(on_runs_ms)
+        if duration_s > 0 and (total_on_ms / 1000.0) / duration_s > 0.5:
+            return False
+
         cw_arr = np.array(cw_elements)
         median = float(np.median(cw_arr))
         short_els = cw_arr[cw_arr <= median]
         long_els = cw_arr[cw_arr > median]
 
-        if len(short_els) < 2 or len(long_els) < 2:
+        # Require meaningful clusters in both dit and dah groups.
+        if len(short_els) < 4 or len(long_els) < 4:
             return False
 
         short_mean = float(np.mean(short_els))
@@ -2703,8 +2710,14 @@ data:
         if short_mean == 0:
             return False
         ratio = long_mean / short_mean
-        # CW standard: dah = 3 × dit. Allow 2–5× to tolerate speed variation.
-        if not (2.0 <= ratio <= 5.0):
+        # CW standard: dah = 3 × dit. Allow 2–4.5× for speed variation.
+        if not (2.0 <= ratio <= 4.5):
+            return False
+
+        # Consistency check: dits should be fairly uniform (CV < 0.5).
+        # Voice bursts tend to have much higher length variation.
+        short_std = float(np.std(short_els))
+        if short_mean > 0 and short_std / short_mean > 0.5:
             return False
 
         return True
