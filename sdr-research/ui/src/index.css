@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Theme custom properties — major surfaces only.
+   Pages still use hardcoded Tailwind dark classes (bg-gray-900 etc.)
+   which are overridden below in light mode via specificity. */
+
+:root {
+  --bg-primary: #f9fafb;    /* gray-50 */
+  --bg-secondary: #ffffff;   /* white */
+  --bg-tertiary: #f3f4f6;   /* gray-100 */
+  --text-primary: #111827;   /* gray-900 */
+  --text-secondary: #374151; /* gray-700 */
+  --text-muted: #6b7280;    /* gray-500 */
+  --border-color: #d1d5db;  /* gray-300 */
+}
+
+.dark {
+  --bg-primary: #111827;    /* gray-900 */
+  --bg-secondary: #1f2937;  /* gray-800 */
+  --bg-tertiary: #374151;   /* gray-700 */
+  --text-primary: #f3f4f6;  /* gray-100 */
+  --text-secondary: #d1d5db;/* gray-300 */
+  --text-muted: #9ca3af;   /* gray-400 */
+  --border-color: #374151;  /* gray-700 */
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* ── Light-mode overrides ──
+   The existing pages use hardcoded dark Tailwind classes (bg-gray-900,
+   bg-gray-800, text-white, text-gray-300, border-gray-700, etc.).
+   Rather than editing every page, we remap those classes when .dark is
+   NOT present on <html>.  The selectors use html:not(.dark) so dark
+   mode keeps the original Tailwind values untouched. */
+
+html:not(.dark) .bg-gray-900 {
+  background-color: var(--bg-primary) !important;
+}
+html:not(.dark) .bg-gray-800 {
+  background-color: var(--bg-secondary) !important;
+}
+html:not(.dark) .bg-gray-700 {
+  background-color: var(--bg-tertiary) !important;
+}
+html:not(.dark) .bg-gray-800\/50 {
+  background-color: rgba(255, 255, 255, 0.5) !important;
+}
+html:not(.dark) .bg-gray-800\/80 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Text */
+html:not(.dark) .text-white {
+  color: var(--text-primary) !important;
+}
+html:not(.dark) .text-gray-100 {
+  color: var(--text-primary) !important;
+}
+html:not(.dark) .text-gray-200 {
+  color: #1f2937 !important; /* gray-800 */
+}
+html:not(.dark) .text-gray-300 {
+  color: var(--text-secondary) !important;
+}
+html:not(.dark) .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+html:not(.dark) .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+/* Borders */
+html:not(.dark) .border-gray-700 {
+  border-color: var(--border-color) !important;
+}
+html:not(.dark) .border-gray-600 {
+  border-color: #d1d5db !important; /* gray-300 */
+}
+html:not(.dark) .border-gray-800 {
+  border-color: #e5e7eb !important; /* gray-200 */
+}
+
+/* Divide */
+html:not(.dark) .divide-gray-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-color) !important;
+}
+
+/* Hover states */
+html:not(.dark) .hover\:bg-gray-700:hover {
+  background-color: #e5e7eb !important; /* gray-200 */
+}
+html:not(.dark) .hover\:bg-gray-600:hover {
+  background-color: #d1d5db !important; /* gray-300 */
+}
+html:not(.dark) .hover\:text-white:hover {
+  color: #111827 !important; /* gray-900 */
+}
+
+/* Ring / focus */
+html:not(.dark) .ring-gray-700 {
+  --tw-ring-color: #d1d5db !important;
+}
+html:not(.dark) .focus\:ring-gray-500:focus {
+  --tw-ring-color: #9ca3af !important;
+}
+
+/* Placeholder */
+html:not(.dark) .placeholder-gray-400::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Sticky table header */
+.sticky-table {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.sticky-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--bg-secondary);
+}
+
+/* Shadow for light mode cards */
+html:not(.dark) .bg-gray-800,
+html:not(.dark) .bg-gray-900 {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Prevent viewport-level horizontal scroll; tables use overflow-x-auto locally */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Touch scrolling on overflow containers */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure minimum tap target size on mobile — scoped to buttons only, not all <a> */
+@media (max-width: 768px) {
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Larger pagination buttons */
+  .pagination button {
+    padding: 0.75rem 1rem;
+  }
+  /* Touch-friendly prev/next nav on PlayerPage */
+  .player-nav-btn {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+  }
+  /* Prevent small badge/icon buttons inside tables from inflating rows */
+  table button, table [role="button"] {
+    min-height: unset;
+    min-width: unset;
+  }
+  /* Tighten sticky-table height on short screens */
+  .sticky-table {
+    max-height: 55vh;
+  }
+}
