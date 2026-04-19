@@ -2002,35 +2002,46 @@ data:
     )
     _SPEED_COURSE_RE = re.compile(r"(\d{3})/(\d{3})")
     _ALT_RE = re.compile(r"A=(\d{6})")
-    # APRS weather field pattern: cDDD sSS gGGG tTTT [rRRR] [pPPP] [hHH] [bBBBBB]
-    _WEATHER_RE = re.compile(
+    # APRS weather: cDDD/sSSS format (Peet Bros / some stations)
+    _WEATHER_RE_C = re.compile(
         r"c(\d{3}|\.\.\.)s(\d{3}|\.\.\.)g(\d{3}|\.\.\.)t(-?\d{3}|\.\.\.)(?:r(\d{3}|\.{3}))?(?:p(\d{3}|\.{3}))?(?:h(\d{2}|\.{2}))?(?:b(\d{5}|\.{5}))?"
+    )
+    # APRS weather: DDD/SSSgGGGtTTT format (used after _ symbol — most WX stations)
+    _WEATHER_RE_DDD = re.compile(
+        r"(\d{3})/(\d{3})g(\d{3}|\.\.\.)t(-?\d{3}|\.\.\.)(?:r(\d{3}|\.{3}))?(?:p(\d{3}|\.{3}))?(?:P(\d{3}|\.{3}))?(?:h(\d{2}|\.{2}))?(?:b(\d{5}|\.{5}))?"
     )
 
 
     def _parse_weather(payload: str):
-        m = _WEATHER_RE.search(payload)
-        if not m:
-            return None
         def _v(s):
             if s is None or "." in s:
                 return None
             return int(s)
-        wd = _v(m.group(1))
-        ws = _v(m.group(2))
-        wg = _v(m.group(3))
-        temp = _v(m.group(4))
+
+        m = _WEATHER_RE_C.search(payload)
+        if m:
+            wd, ws, wg, temp = _v(m.group(1)), _v(m.group(2)), _v(m.group(3)), _v(m.group(4))
+            if ws is None and temp is None:
+                m = None
+            else:
+                r1, r24, hum, baro = _v(m.group(5)), _v(m.group(6)), _v(m.group(7)), _v(m.group(8))
+                return {
+                    "wind_dir_deg": wd, "wind_speed_mph": ws, "wind_gust_mph": wg, "temp_f": temp,
+                    "rain_1h_in": round(r1 * 0.01, 2) if r1 is not None else None,
+                    "rain_24h_in": round(r24 * 0.01, 2) if r24 is not None else None,
+                    "humidity_pct": hum,
+                    "pressure_mbar": round(baro * 0.1, 1) if baro is not None else None,
+                }
+
+        m = _WEATHER_RE_DDD.search(payload)
+        if not m:
+            return None
+        wd, ws, wg, temp = _v(m.group(1)), _v(m.group(2)), _v(m.group(3)), _v(m.group(4))
         if ws is None and temp is None:
-            return None  # not a real weather packet
-        r1 = _v(m.group(5))
-        r24 = _v(m.group(6))
-        hum = _v(m.group(7))
-        baro = _v(m.group(8))
+            return None
+        r1, r24, hum, baro = _v(m.group(5)), _v(m.group(6)), _v(m.group(8)), _v(m.group(9))
         return {
-            "wind_dir_deg": wd,
-            "wind_speed_mph": ws,
-            "wind_gust_mph": wg,
-            "temp_f": temp,
+            "wind_dir_deg": wd, "wind_speed_mph": ws, "wind_gust_mph": wg, "temp_f": temp,
             "rain_1h_in": round(r1 * 0.01, 2) if r1 is not None else None,
             "rain_24h_in": round(r24 * 0.01, 2) if r24 is not None else None,
             "humidity_pct": hum,
