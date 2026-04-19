@@ -67,3 +67,18 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: uptime-kuma
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-politics
+  namespace: freshrss
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
