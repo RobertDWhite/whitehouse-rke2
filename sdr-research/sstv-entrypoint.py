@@ -29,9 +29,12 @@ import subprocess
 import tempfile
 import time
 import wave
+from math import gcd
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
+from scipy.signal import resample_poly
 
 
 # ---------------------------------------------------------------------------
