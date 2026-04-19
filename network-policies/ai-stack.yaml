@@ -57,7 +57,7 @@ spec:
               kubernetes.io/metadata.name: authentik
 
 ---
-# Ollama ← sdr-research, freshrss, openclaw
+# Ollama ← sdr-research, freshrss, openclaw, politics
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -79,6 +79,9 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: openclaw
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
       ports:
         - {protocol: TCP, port: 11434}
 
