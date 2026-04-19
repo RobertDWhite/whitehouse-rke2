@@ -118,16 +118,51 @@ def _wav_sample_rate(path: str) -> int:
         return AUDIO_RATE
 
 
+SLOWRX_RATE = 44100
+
+
+def _resample_to(src: str, dst: str, target_rate: int = SLOWRX_RATE) -> None:
+    """Resample src WAV to target_rate and write mono int16 WAV to dst."""
+    with wave.open(src, "rb") as wf:
+        n_ch = wf.getnchannels()
+        src_rate = wf.getframerate()
+        raw = wf.readframes(wf.getnframes())
+    data = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
+    if n_ch > 1:
+        data = data.reshape(-1, n_ch).mean(axis=1)
+    if src_rate != target_rate:
+        g = gcd(src_rate, target_rate)
+        data = resample_poly(data, target_rate // g, src_rate // g)
+    data = np.clip(data, -32768, 32767).astype(np.int16)
+    with wave.open(dst, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(target_rate)
+        wf.writeframes(data.tobytes())
+
+
 def decode_wav(wav_path: str, freq_hz: int, label: str) -> bool:
     """Run slowrx-cli on the file. Returns True if a PNG was produced."""
     ts_ms = int(time.time() * 1000)
-    sample_rate = _wav_sample_rate(wav_path)
     with tempfile.TemporaryDirectory() as tmp:
+        # slowrx-cli requires 44100 Hz mono; resample if needed.
+        src_rate = _wav_sample_rate(wav_path)
+        if src_rate != SLOWRX_RATE:
+            resampled = os.path.join(tmp, "resampled.wav")
+            try:
+                _resample_to(wav_path, resampled)
+            except Exception as exc:
+                print(f"[SSTV] Resample failed for {os.path.basename(wav_path)}: {exc}", flush=True)
+                return False
+            decode_input = resampled
+        else:
+            decode_input = wav_path
+
         bmp_path = os.path.join(tmp, "result.bmp")
         try:
             result = subprocess.run(
-                ["slowrx-cli", "-v", "-r", str(sample_rate),
-                 "-o", bmp_path, wav_path],
+                ["slowrx-cli", "-v", "-r", str(SLOWRX_RATE),
+                 "-o", bmp_path, decode_input],
                 capture_output=True, text=True, timeout=300,
             )
         except subprocess.TimeoutExpired:
