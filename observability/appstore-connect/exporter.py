@@ -109,10 +109,18 @@ def _get_token() -> str:
     if not ISSUER_ID or not KEY_ID or not PRIVATE_KEY:
         raise RuntimeError("Missing App Store Connect credentials (issuer_id, key_id, private_key)")
 
-    # Handle the private key — may be raw PEM or escaped newlines
+    # Handle the private key — may be raw PEM, escaped newlines, or space-flattened (1Password)
     key = PRIVATE_KEY
     if "\\n" in key and "\n" not in key:
         key = key.replace("\\n", "\n")
+    # 1Password collapses PEM newlines to spaces; reconstruct proper PEM
+    if "\n" not in key and "-----BEGIN" in key:
+        import re
+        m = re.match(r"(-----BEGIN [^-]+-----)\s+(.*?)\s+(-----END [^-]+-----)\s*$", key, re.DOTALL)
+        if m:
+            b64 = m.group(2).replace(" ", "")
+            lines = "\n".join(b64[i:i+64] for i in range(0, len(b64), 64))
+            key = f"{m.group(1)}\n{lines}\n{m.group(3)}"
     if not key.startswith("-----"):
         key = f"-----BEGIN PRIVATE KEY-----\n{key}\n-----END PRIVATE KEY-----"
 
