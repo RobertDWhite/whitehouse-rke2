@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monica
+  namespace: monica
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: monica
+  template:
+    metadata:
+      labels:
+        app: monica
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: postgres
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until pg_isready -h postgres.monica.svc.cluster.local -U monica; do sleep 2; done
+      containers:
+        - name: monica
+          image: monicahq/monica
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          env:
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: https://monica.white.fm
+            - name: DB_CONNECTION
+              value: pgsql
+            - name: DB_HOST
+              value: postgres.monica.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_DATABASE
+              value: monica
+            - name: DB_USERNAME
+              value: monica
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monica-secrets
+                  key: db-password
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: monica-secrets
+                  key: app-key
+            - name: MAIL_MAILER
+              value: log
+            - name: MAIL_FROM_ADDRESS
+              value: monica@white.fm
+            - name: MAIL_FROM_NAME
+              value: Monica
+            - name: CACHE_DRIVER
+              value: database
+            - name: SESSION_DRIVER
+              value: database
+            - name: QUEUE_CONNECTION
+              value: sync
+            - name: FILESYSTEM_DISK
+              value: local
+            - name: TRUSTED_PROXIES
+              value: "*"
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage/app
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /login
+              port: 80
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: monica-storage
