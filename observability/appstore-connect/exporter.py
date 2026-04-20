@@ -141,21 +141,17 @@ def _get_token() -> str:
 # API helpers
 # ---------------------------------------------------------------------------
 
-def _api_get(path: str, params: dict | None = None, raw: bool = False) -> Any:
+def _api_get(path: str, params: dict | None = None, raw: bool = False, accept: str | None = None) -> Any:
     url = f"{API_BASE}{path}"
     if params:
         qs = "&".join(f"{k}={v}" for k, v in params.items())
         url += f"?{qs}"
+    if accept is None:
+        accept = "application/a-gzip" if raw else "application/json"
     req = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {_get_token()}",
-        "Accept": "application/a]json" if not raw else "application/a]gzip",
+        "Accept": accept,
     })
-    # Fix the Accept header (no brackets)
-    if raw:
-        req.add_header("Accept", "application/a]gzip, application/json")
-    else:
-        req.remove_header("Accept")
-        req.add_header("Accept", "application/json")
     with urllib.request.urlopen(req, timeout=30) as resp:
         if raw:
             return resp.read()
@@ -176,10 +172,8 @@ def _api_get_sales_report(report_date: str) -> list[dict[str, str]]:
     full_url = f"{url}?{qs}"
     req = urllib.request.Request(full_url, headers={
         "Authorization": f"Bearer {_get_token()}",
-        "Accept": "application/a]gzip",
+        "Accept": "application/a-gzip",
     })
-    req.remove_header("Accept")
-    req.add_header("Accept", "application/a]gzip")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = resp.read()
@@ -292,9 +286,9 @@ def collect_perf_metrics() -> None:
     for app_id in APP_IDS:
         try:
             data = _api_get(f"/v1/apps/{app_id}/perfPowerMetrics", {
-                "filter[metricType]": "CRASH",
+                "filter[metricType]": "TERMINATION",
                 "filter[platform]": "IOS",
-            })
+            }, accept="application/vnd.apple.xcode-metrics+json")
             for item in data.get("data", []):
                 attrs = item.get("attributes", {})
                 for dataset in attrs.get("datasets", []):
