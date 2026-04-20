@@ -577,8 +577,14 @@ data:
                     # Do not mirror the fixed monitor channel into a dynamic slot.
                     if abs(peak_freq - self.tb.fixed_freq) <= 15000:
                         continue
+                    # Ignore band-edge noise outside 2m ham band (144–148 MHz)
+                    if not (144_000_000 <= peak_freq <= 148_000_000):
+                        continue
                     self.tb._assign_fm_slot(int(round(peak_freq)))
                 elif mode == "CW":
+                    # Ignore band-edge noise outside 2m ham band (144–148 MHz)
+                    if not (144_000_000 <= peak_freq <= 148_000_000):
+                        continue
                     self.tb._assign_cw_slot(int(round(peak_freq)))
 
             self.detections = detections
