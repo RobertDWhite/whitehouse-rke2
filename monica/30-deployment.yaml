@@ -22,7 +22,7 @@ spec:
           command:
             - sh
             - -c
-            - until mysqladmin ping -h mysql.monica.svc.cluster.local --silent; do sleep 2; done
+            - until mariadb-admin ping -h mysql.monica.svc.cluster.local --silent 2>/dev/null; do sleep 2; done
       containers:
         - name: monica
           image: monica
