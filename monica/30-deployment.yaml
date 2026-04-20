@@ -25,7 +25,7 @@ spec:
             - until bash -c 'echo > /dev/tcp/mysql.monica.svc.cluster.local/3306' 2>/dev/null; do sleep 2; done
       containers:
         - name: monica
-          image: monica
+          image: registry.white.fm:5000/monica
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -62,15 +62,13 @@ spec:
               value: monica@white.fm
             - name: MAIL_FROM_NAME
               value: Monica
-            - name: CACHE_DRIVER
+            - name: CACHE_STORE
               value: database
             - name: SESSION_DRIVER
               value: database
             - name: QUEUE_CONNECTION
               value: sync
-            - name: FILESYSTEM_DISK
-              value: local
-            - name: TRUSTED_PROXIES
+            - name: APP_TRUSTED_PROXIES
               value: "*"
             - name: TZ
               value: America/New_York
