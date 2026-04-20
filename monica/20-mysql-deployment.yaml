@@ -22,16 +22,16 @@ spec:
           ports:
             - containerPort: 3306
           env:
-            - name: MYSQL_DATABASE
+            - name: MARIADB_DATABASE
               value: monica
-            - name: MYSQL_USER
+            - name: MARIADB_USER
               value: monica
-            - name: MYSQL_PASSWORD
+            - name: MARIADB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: monica-secrets
                   key: db-password
-            - name: MYSQL_ROOT_PASSWORD
+            - name: MARIADB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: monica-secrets
