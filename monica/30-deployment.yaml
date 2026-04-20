@@ -77,6 +77,9 @@ spec:
           volumeMounts:
             - name: storage
               mountPath: /var/www/html/storage/app
+            - name: entrypoint
+              mountPath: /usr/local/bin/entrypoint.sh
+              subPath: entrypoint.sh
           resources:
             requests:
               cpu: 100m
@@ -107,3 +110,7 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: monica-storage
+        - name: entrypoint
+          configMap:
+            name: monica-entrypoint
+            defaultMode: 0755
