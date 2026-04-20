@@ -46,22 +46,11 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
-          startupProbe:
-            tcpSocket:
-              port: 3306
-            failureThreshold: 60
-            periodSeconds: 5
-          livenessProbe:
-            tcpSocket:
-              port: 3306
-            initialDelaySeconds: 0
-            periodSeconds: 10
-            failureThreshold: 5
           readinessProbe:
             tcpSocket:
               port: 3306
-            initialDelaySeconds: 0
-            periodSeconds: 5
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
         - name: data
           persistentVolumeClaim:
