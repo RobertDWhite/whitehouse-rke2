@@ -47,14 +47,14 @@ spec:
               cpu: 500m
               memory: 512Mi
           livenessProbe:
-            exec:
-              command: [healthcheck.sh, --su-mysql, --connect, --innodb_initialized]
+            tcpSocket:
+              port: 3306
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 5
           readinessProbe:
-            exec:
-              command: [healthcheck.sh, --su-mysql, --connect, --innodb_initialized]
+            tcpSocket:
+              port: 3306
             initialDelaySeconds: 10
             periodSeconds: 5
       volumes:
