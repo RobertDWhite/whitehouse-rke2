@@ -4,12 +4,11 @@ namespace: monica
 
 resources:
   - 00-namespace.yaml
-  - 10-pvc-postgres.yaml
+  - 10-pvc-mysql.yaml
   - 15-pvc-storage.yaml
-  - 20-postgres-deployment.yaml
-  - 21-postgres-service.yaml
+  - 20-mysql-deployment.yaml
+  - 21-mysql-service.yaml
   - 30-deployment.yaml
-  - 35-entrypoint-configmap.yaml
   - 40-service.yaml
   - 53-httproute-internal.yaml
 
@@ -19,5 +18,5 @@ generators:
 images:
   - name: monica
     newTag: "4.1.2-apache"
-  - name: postgres
-    newTag: "16"
+  - name: mariadb
+    newTag: "11"

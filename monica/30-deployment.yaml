@@ -17,12 +17,12 @@ spec:
     spec:
       initContainers:
         - name: wait-for-db
-          image: postgres
+          image: mariadb
           imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
-            - until pg_isready -h postgres.monica.svc.cluster.local -U monica; do sleep 2; done
+            - until mysqladmin ping -h mysql.monica.svc.cluster.local --silent; do sleep 2; done
       containers:
         - name: monica
           image: monica
@@ -37,11 +37,11 @@ spec:
             - name: APP_URL
               value: https://monica.white.fm
             - name: DB_CONNECTION
-              value: pgsql
+              value: mysql
             - name: DB_HOST
-              value: postgres.monica.svc.cluster.local
+              value: mysql.monica.svc.cluster.local
             - name: DB_PORT
-              value: "5432"
+              value: "3306"
             - name: DB_DATABASE
               value: monica
             - name: DB_USERNAME
@@ -77,9 +77,6 @@ spec:
           volumeMounts:
             - name: storage
               mountPath: /var/www/html/storage/app
-            - name: entrypoint
-              mountPath: /usr/local/bin/entrypoint.sh
-              subPath: entrypoint.sh
           resources:
             requests:
               cpu: 100m
@@ -110,7 +107,3 @@ spec:
         - name: storage
           persistentVolumeClaim:
             claimName: monica-storage
-        - name: entrypoint
-          configMap:
-            name: monica-entrypoint
-            defaultMode: 0755
