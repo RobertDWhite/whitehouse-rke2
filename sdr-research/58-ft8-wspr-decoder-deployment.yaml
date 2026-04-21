@@ -96,13 +96,17 @@ spec:
               value: "true"
             - name: HFDL_OUTPUT_DIR
               value: "/data/text/hfdl"
-            # dumphfdl expects kHz, not Hz
+            # dumphfdl expects kHz, not Hz. The 2 MHz SDDC sample window
+            # centered at 10732.5 kHz covers 9732.5 - 11732.5 kHz, which
+            # holds nine allocated HFDL channels. Previously only 10081 +
+            # 11384 were monitored -> vanishingly low frame count. Listing
+            # all channels in the window lets dumphfdl parallel-decode.
             - name: HFDL_FREQUENCIES
-              value: "10081 11384"
+              value: "10066 10081 10093 11184 11306 11318 11354 11384 11387"
             - name: HFDL_DWELL_SEC
-              value: "120"
-            # See SSTV_EVERY_N comment — must be coprime with WSPR_EVERY_N
-            # to avoid scheduler starvation. 11 is prime and well-spaced.
+              value: "180"
+            # Prime, coprime with WSPR_EVERY_N=6 and SSTV_EVERY_N=7, so
+            # none of the three modes systematically starves the others.
             - name: HFDL_EVERY_N
               value: "11"
             - name: HFDL_SAMPLE_RATE

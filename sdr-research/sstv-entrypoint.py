@@ -65,6 +65,12 @@ DIR_MIN_AGE: dict[str, int] = {
     "/data/audio/voice": int(os.getenv("MIN_FILE_AGE_SEC_VOICE", str(DEFAULT_MIN_AGE))),
 }
 
+# Skip files older than this at scan time. Without a cutoff, every restart
+# re-tries the full on-disk backlog (tens of thousands of voice WAVs), which
+# re-invokes slowrx-cli on files that already failed once and drives the pod
+# OOM. 0 disables the cutoff.
+MAX_FILE_AGE_SEC = int(os.getenv("MAX_FILE_AGE_SEC", "172800"))  # 48h
+
 # (low_hz, high_hz, label) — generous ±25 kHz tolerance for VHF/UHF SSTV
 # calling frequencies. HF ranges are added at startup from EXTRA_SSTV_RANGES.
 SSTV_RANGES: list[tuple[int, int, str]] = [
@@ -248,6 +254,10 @@ def _scan_dir(directory: str) -> None:
 
         # Skip if we've already processed this exact path+mtime.
         if _seen.get(path) == mtime:
+            continue
+
+        if MAX_FILE_AGE_SEC and (time.time() - mtime) > MAX_FILE_AGE_SEC:
+            _seen[path] = mtime  # remember so we don't re-stat endlessly
             continue
 
         if not _is_stable(path, min_age):
