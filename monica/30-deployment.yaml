@@ -57,7 +57,13 @@ spec:
                   name: monica-secrets
                   key: app-key
             - name: MAIL_MAILER
-              value: log
+              value: smtp
+            - name: MAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: MAIL_PORT
+              value: "25"
+            - name: MAIL_ENCRYPTION
+              value: "null"
             - name: MAIL_FROM_ADDRESS
               value: monica@white.fm
             - name: MAIL_FROM_NAME
