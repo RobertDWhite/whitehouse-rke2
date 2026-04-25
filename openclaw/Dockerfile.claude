@@ -1,0 +1,11 @@
+ARG OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.4.19-beta.2
+FROM ${OPENCLAW_IMAGE}
+
+USER root
+
+# Install the official Claude Code CLI so OpenClaw can route `claude-cli/*`
+# model refs through the supported local binary path.
+RUN npm install -g @anthropic-ai/claude-code \
+ && claude --version
+
+USER node
