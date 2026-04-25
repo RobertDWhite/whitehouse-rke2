@@ -91,6 +91,11 @@ spec:
               value: "http://localhost:8081/render"
             - name: GF_RENDERING_CALLBACK_URL
               value: "http://localhost:3000/"
+            - name: GF_RENDERING_RENDERER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: GF_RENDERING_AUTH_TOKEN
             - name: GF_LOG_FILTERS
               value: "rendering:debug"
           volumeMounts:
@@ -108,7 +113,7 @@ spec:
               mountPath: /var/lib/grafana/dashboards
               readOnly: true
         - name: grafana-image-renderer
-          image: grafana/grafana-image-renderer:latest
+          image: grafana/grafana-image-renderer
           ports:
             - containerPort: 8081
           env:
