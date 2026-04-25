@@ -1,32 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ollama
+  name: ollama-5090
   namespace: ai-stack
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: ollama
+      app: ollama-5090
   template:
     metadata:
       labels:
-        app: ollama
+        app: ollama-5090
     spec:
       priorityClassName: high-priority
       runtimeClassName: nvidia
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values:
-                      - rke2-node-10
-
-      tolerations: []
-
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
       containers:
         - name: ollama
           image: ollama/ollama
@@ -58,13 +57,12 @@ spec:
               memory: "4Gi"
             limits:
               cpu: "8"
-              memory: "16Gi"
+              memory: "32Gi"
               nvidia.com/gpu: 1
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
-
       volumes:
         - name: ollama-data
           persistentVolumeClaim:
-            claimName: ollama-pvc
+            claimName: ollama-5090-pvc
