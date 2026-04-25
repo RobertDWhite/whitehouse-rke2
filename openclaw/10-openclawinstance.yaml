@@ -23,18 +23,54 @@ spec:
         defaults:
           model:
             primary: "ollama/qwen3.5:latest"
+            fallbacks:
+              - "anthropic/claude-sonnet-4-6"
+              - "openai/gpt-4.1-mini"
+          models:
+            "ollama/qwen3.5:latest":
+              alias: "local"
+            "anthropic/claude-sonnet-4-6":
+              alias: "claude"
+            "anthropic/claude-opus-4-6":
+              alias: "claude-opus"
+            "openai/gpt-4.1-mini":
+              alias: "gpt-mini"
+            "openai/gpt-5.4":
+              alias: "gpt"
+            # ChatGPT/Codex OAuth is a separate auth flow from OPENAI_API_KEY.
+            "openai-codex/gpt-5.5":
+              alias: "chatgpt"
+              params:
+                transport: "auto"
       channels:
         telegram:
           enabled: true
           groupPolicy: "open"
       models:
         providers:
+          anthropic:
+            baseUrl: "https://api.anthropic.com/v1"
+            apiKey: "$ANTHROPIC_API_KEY"
+            models:
+              - name: "Claude Sonnet 4.6"
+                id: "claude-sonnet-4-6"
+              - name: "Claude Opus 4.6"
+                id: "claude-opus-4-6"
           openai:
             baseUrl: "https://api.openai.com/v1"
             apiKey: "$OPENAI_API_KEY"
             models:
               - name: "gpt-4.1-mini"
                 id: "gpt-4.1-mini"
+              - name: "gpt-5.4"
+                id: "gpt-5.4"
+          # This surfaces the ChatGPT/Codex route in OpenClaw, but it still
+          # needs a post-deploy OAuth/device login inside the running instance.
+          openai-codex:
+            models:
+              - name: "ChatGPT / Codex GPT-5.5"
+                id: "gpt-5.5"
+                contextTokens: 160000
           ollama:
             baseUrl: "http://ollama.ai-stack.svc.cluster.local:11434"
             models:
