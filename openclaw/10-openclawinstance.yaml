@@ -6,7 +6,7 @@ metadata:
 spec:
   image:
     repository: registry.white.fm/openclaw-claude
-    tag: "2026.4.19-beta.2"
+    tag: "2026.4.19-beta.2-claude.1"
   envFrom:
     - secretRef:
         name: openclaw-api-keys
@@ -72,6 +72,7 @@ spec:
           # This surfaces the ChatGPT/Codex route in OpenClaw, but it still
           # needs a post-deploy OAuth/device login inside the running instance.
           openai-codex:
+            baseUrl: "https://api.openai.com/v1"
             models:
               - name: "ChatGPT / Codex GPT-5.5"
                 id: "gpt-5.5"

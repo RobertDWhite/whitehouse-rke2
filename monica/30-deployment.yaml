@@ -94,12 +94,14 @@ spec:
               port: 80
             failureThreshold: 60
             periodSeconds: 5
+            timeoutSeconds: 10
           readinessProbe:
             httpGet:
               path: /login
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 10
           livenessProbe:
             httpGet:
               path: /login
@@ -107,6 +109,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 5
+            timeoutSeconds: 10
       volumes:
         - name: storage
           persistentVolumeClaim:
