@@ -43,13 +43,15 @@ spec:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 30
-            failureThreshold: 3
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /metrics
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 15
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 10m

@@ -24,7 +24,7 @@ data:
     import json
     import os
     import time
-    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     DETECTIONS_DIR = os.getenv("DETECTIONS_DIR", "/data/detections")
     LISTEN_PORT = int(os.getenv("LISTEN_PORT", "8080"))
@@ -126,5 +126,9 @@ data:
     if __name__ == "__main__":
         print(f"[spectrum-exporter] Listening on :{LISTEN_PORT}", flush=True)
         print(f"[spectrum-exporter] Watching {DETECTIONS_DIR}/detections_*.json", flush=True)
-        server = HTTPServer(("0.0.0.0", LISTEN_PORT), MetricsHandler)
+        # ThreadingHTTPServer lets the liveness probe succeed even when a
+        # Prometheus scrape is still in flight (prior HTTPServer serialized
+        # requests, so a slow/hung scrape starved the probe -> OOM/restart).
+        server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), MetricsHandler)
+        server.daemon_threads = True
         server.serve_forever()
