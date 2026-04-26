@@ -93,6 +93,15 @@ spec:
               - name: "qwen3.5:latest"
                 id: "qwen3.5:latest"
                 api: "ollama"
+  probes:
+    startup:
+      failureThreshold: 120
+      periodSeconds: 5
+    liveness:
+      initialDelaySeconds: 300
+      failureThreshold: 6
+      periodSeconds: 30
+      timeoutSeconds: 10
   availability:
     nodeSelector:
       kubernetes.io/arch: amd64
@@ -101,6 +110,8 @@ spec:
       enabled: true
       size: 10Gi
   security:
+    podSecurityContext:
+      fsGroupChangePolicy: OnRootMismatch
     networkPolicy:
       additionalEgress:
         - to:
