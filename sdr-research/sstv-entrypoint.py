@@ -147,9 +147,41 @@ def _resample_to(src: str, dst: str, target_rate: int = SLOWRX_RATE) -> None:
         wf.writeframes(data.tobytes())
 
 
+def _is_noise(wav_path: str, peak_to_rms_threshold: float = 5.0) -> bool:
+    """Return True if the audio looks like pure noise (no signal present).
+
+    A pure-noise file has a high peak-to-RMS ratio because the peak is set by
+    rare Gaussian excursions; a tone-present file has ratio near sqrt(2)≈1.4.
+    Threshold 5.0 cleanly separates noise (ratio 5-7) from SSB/SSTV (ratio 2-4).
+    """
+    try:
+        with wave.open(wav_path, "rb") as wf:
+            raw = wf.readframes(wf.getnframes())
+        data = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
+        if len(data) == 0:
+            return True
+        rms = float(np.sqrt(np.mean(data ** 2)))
+        peak = float(np.max(np.abs(data)))
+        if rms < 1.0:
+            return True
+        return (peak / rms) > peak_to_rms_threshold
+    except Exception:
+        return False
+
+
 def decode_wav(wav_path: str, freq_hz: int, label: str) -> bool:
     """Run slowrx-cli on the file. Returns True if a PNG was produced."""
     ts_ms = int(time.time() * 1000)
+
+    # Skip files that are pure noise — no point invoking slowrx.
+    if _is_noise(wav_path):
+        print(
+            f"[SSTV] Skipping {os.path.basename(wav_path)} — noise floor only "
+            f"(no signal at {freq_hz/1e6:.3f} MHz)",
+            flush=True,
+        )
+        return False
+
     with tempfile.TemporaryDirectory() as tmp:
         # slowrx-cli requires 44100 Hz mono; resample if needed.
         src_rate = _wav_sample_rate(wav_path)
