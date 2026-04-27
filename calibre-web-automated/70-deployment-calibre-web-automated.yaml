@@ -5,6 +5,8 @@ metadata:
   namespace: calibre
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: calibre-web-automated
@@ -13,9 +15,18 @@ spec:
       labels:
         app: calibre-web-automated
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
       containers:
         - name: calibre-web-automated
-          image: crocodilestick/calibre-web-automated:latest
+          image: crocodilestick/calibre-web-automated
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8083
