@@ -2883,18 +2883,22 @@ data:
             ensure_recordings_schema(db)
             # Scan only a bounded id window each cycle to keep memory predictable.
             rows = (
-                db.query(Recording.id, Recording.audio_path, Recording.text_path)
+                db.query(Recording.id, Recording.audio_path, Recording.text_path, Recording.transcript)
                 .filter(Recording.id > _prune_cursor_id)
                 .order_by(Recording.id.asc())
                 .limit(scan_batch_size)
             )
-            for rec_id, audio_path, text_path in rows:
+            for rec_id, audio_path, text_path, transcript in rows:
                 last_seen_id = rec_id
                 missing = False
                 if audio_path:
                     missing = not os.path.exists(audio_path)
+                elif text_path:
+                    missing = not os.path.exists(text_path)
                 else:
-                    missing = (not text_path) or (not os.path.exists(text_path))
+                    # DB-only recording (e.g. APRS-IS packets): transcript IS the data.
+                    # These have no files and must not be pruned.
+                    missing = transcript is None
                 if not missing:
                     continue
                 pending_delete_ids.append(rec_id)
@@ -4079,6 +4083,7 @@ data:
                         'LIMIT 1'
                     ), {"mode": mode, "call": callsign, "freq": dial_hz, "ts": ts}).first()
                     if dup:
+                        _pending_json_files.append(json_file)
                         continue
 
                 db.execute(sa_text(
