@@ -8,17 +8,17 @@ spec:
   source:
     chart: falco
     repoURL: https://falcosecurity.github.io/charts
-    targetRevision: 4.17.0
+    targetRevision: 8.0.1
     helm:
       values: |
         driver:
           kind: modern_ebpf
 
-        falco:
-          metrics:
-            enabled: true
-            interval: 5m
+        metrics:
+          enabled: true
+          interval: 5m
 
+        falco:
           webserver:
             prometheus_metrics_enabled: true
 
