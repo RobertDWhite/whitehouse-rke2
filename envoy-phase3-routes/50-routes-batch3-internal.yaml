@@ -1,6 +1,32 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: Backend
 metadata:
+  name: unifi-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: unifi.external-services.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: protect-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: protect.external-services.svc.cluster.local
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
   name: minio-console-tls
   namespace: external-services
 spec:
