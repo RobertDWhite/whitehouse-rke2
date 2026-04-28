@@ -1,0 +1,53 @@
+# One-shot migration job — NOT in kustomization.yaml
+# Run AFTER namespace/PVCs exist and BEFORE starting the Plex deployment.
+# Stop Plex on Synology first, then:
+#   kubectl apply -f plex/35-migration-job.yaml
+#   kubectl logs -n plex -f job/plex-migrate
+#   kubectl delete -f plex/35-migration-job.yaml  (cleanup when done)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: plex-migrate
+  namespace: plex
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache rsync
+              mkdir -p "/dest/Library/Application Support/Plex Media Server"
+              rsync -av --progress \
+                "/source/Library/Application Support/Plex Media Server/" \
+                "/dest/Library/Application Support/Plex Media Server/"
+              chown -R 1000:1000 /dest
+              echo "Migration complete."
+          volumeMounts:
+            - name: source
+              mountPath: /source
+            - name: dest
+              mountPath: /dest
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker/appdata/plex
+        - name: dest
+          persistentVolumeClaim:
+            claimName: plex-config

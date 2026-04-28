@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: plex
+  labels:
+    app: plex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plex
+  template:
+    metadata:
+      labels:
+        app: plex
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      containers:
+        - name: plex
+          image: lscr.io/linuxserver/plex
+          ports:
+            - containerPort: 32400
+              protocol: TCP
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "America/New_York"
+            - name: VERSION
+              value: "docker"
+          envFrom:
+            - secretRef:
+                name: plex-secrets
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /media
+              readOnly: true
+            - name: transcode
+              mountPath: /transcode
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "8"
+              memory: 8Gi
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: 32400
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: 32400
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: pvc-plex-media
+        - name: transcode
+          emptyDir:
+            sizeLimit: 20Gi
