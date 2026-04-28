@@ -1,0 +1,124 @@
+# Vanity redirect routes.
+# Each HTTPRoute below issues a 301 to a target URL.
+# No backend service needed — envoy handles the redirect at the edge.
+# DNS is managed automatically by external-dns via the HTTPRoute hostname.
+#
+# To add a new redirect:
+#   1. Add an HTTPRoute entry here with the desired hostname and target.
+#   2. Commit and push — ArgoCD deploys it, external-dns creates the CNAME.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-credly
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - credly.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: www.credly.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /users/robertdwhite
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-orcid
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - orcid.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: orcid.org
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /0009-0001-9651-0827
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-x
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - x.white.fm
+    - twitter.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: x.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /etihwdtrebor
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-facebook
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - facebook.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: www.facebook.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /RobertDylanWhite
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-instagram
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - instagram.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: www.instagram.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /etihwdtrebor
+            statusCode: 301
