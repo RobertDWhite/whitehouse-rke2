@@ -39,6 +39,7 @@ spec:
                 for key in wmem_max rmem_max wmem_default rmem_default; do
                   echo 44040192 > "/host/proc/sys/net/core/${key}"
                 done
+                echo 1024 > /host/proc/sys/fs/inotify/max_user_instances
                 sleep 300
               done
           securityContext:
@@ -51,7 +52,7 @@ spec:
               command:
                 - /bin/sh
                 - -lc
-                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ] && [ "$(cat /host/sys/module/usbcore/parameters/usbfs_memory_mb)" = "1024" ]'
+                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ] && [ "$(cat /host/sys/module/usbcore/parameters/usbfs_memory_mb)" = "1024" ] && [ "$(cat /host/proc/sys/fs/inotify/max_user_instances)" = "1024" ]'
             initialDelaySeconds: 5
             periodSeconds: 30
           resources:
