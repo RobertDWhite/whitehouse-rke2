@@ -3,7 +3,7 @@
     {
       "name": "DS_LOKI",
       "label": "Loki",
-      "description": "",
+      "description": "Loki datasource for Envoy Gateway logs",
       "type": "datasource",
       "pluginId": "loki",
       "pluginName": "Loki"
@@ -50,6 +50,12 @@
       "type": "panel",
       "id": "table",
       "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "logs",
+      "name": "Logs",
       "version": ""
     }
   ],
@@ -131,9 +137,9 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum by (authority) (\n  count_over_time(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    [$__auto]\n  )\n)",
+          "expr": "sum by (_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__auto]))",
           "hide": false,
-          "legendFormat": "{{authority}}",
+          "legendFormat": "{{_authority}}",
           "queryType": "range",
           "refId": "A"
         }
@@ -177,11 +183,12 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "topk(20,\n  sum by (authority) (\n    count_over_time(\n      {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n      | json\n      | __error__=\"\"\n      [$__range]\n    )\n  )\n)",
+          "expr": "topk(20, sum by (_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" [$__range])))",
           "hide": false,
-          "legendFormat": "{{authority}}",
+          "legendFormat": "{{_authority}}",
           "queryType": "range",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "Top hostnames by request count",
@@ -240,38 +247,42 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(\n  count_over_time(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    | response_code >= 200 | response_code < 300\n    [$__range]\n  )\n)",
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"2..\" [$__range]))",
           "hide": false,
           "legendFormat": "2xx",
           "queryType": "range",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         },
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(\n  count_over_time(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    | response_code >= 300 | response_code < 400\n    [$__range]\n  )\n)",
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"3..\" [$__range]))",
           "hide": false,
           "legendFormat": "3xx",
           "queryType": "range",
-          "refId": "B"
+          "refId": "B",
+          "instant": true
         },
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(\n  count_over_time(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    | response_code >= 400 | response_code < 500\n    [$__range]\n  )\n)",
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"4..\" [$__range]))",
           "hide": false,
           "legendFormat": "4xx",
           "queryType": "range",
-          "refId": "C"
+          "refId": "C",
+          "instant": true
         },
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(\n  count_over_time(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    | response_code >= 500\n    [$__range]\n  )\n)",
+          "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"5..\" [$__range]))",
           "hide": false,
           "legendFormat": "5xx",
           "queryType": "range",
-          "refId": "D"
+          "refId": "D",
+          "instant": true
         }
       ],
-      "title": "Status code breakdown ($hostname)",
+      "title": "Status code breakdown",
       "type": "piechart"
     },
     {
@@ -309,14 +320,14 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "sum(\n  rate(\n    {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    [1m]\n  )\n) * 60",
+          "expr": "sum(rate({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__rate_interval])) * 60",
           "hide": false,
           "legendFormat": "req/min",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Request rate ($hostname)",
+      "title": "Request rate",
       "type": "stat"
     },
     {
@@ -340,10 +351,10 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "client_ip" },
+            "matcher": { "id": "byName", "options": "x_forwarded_for" },
             "properties": [
               { "id": "displayName", "value": "Client IP" },
-              { "id": "custom.width", "value": 180 }
+              { "id": "custom.width", "value": 220 }
             ]
           },
           {
@@ -353,10 +364,7 @@
               { "id": "unit", "value": "short" },
               {
                 "id": "custom.cellOptions",
-                "value": {
-                  "mode": "gradient",
-                  "type": "gauge"
-                }
+                "value": { "mode": "gradient", "type": "gauge" }
               },
               { "id": "custom.width", "value": 200 }
             ]
@@ -374,14 +382,15 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "topk(25,\n  sum by (client_ip) (\n    count_over_time(\n      {namespace=\"envoy-gateway-system\", container=\"envoy\"}\n      | json\n      | __error__=\"\"\n      | authority=~\"$hostname\"\n      | label_format client_ip=`{{ regexReplaceAll \",.*\" .x_forwarded_for \"\" }}`\n      [$__range]\n    )\n  )\n)",
+          "expr": "topk(15, sum by (x_forwarded_for) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__range])))",
           "hide": false,
-          "legendFormat": "{{client_ip}}",
+          "legendFormat": "{{x_forwarded_for}}",
           "queryType": "range",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
-      "title": "Top client IPs ($hostname)",
+      "title": "Top source IPs",
       "transformations": [
         {
           "id": "reduce",
@@ -395,16 +404,13 @@
           "options": {
             "excludeByName": { "Time": true, "Field": true },
             "indexByName": {},
-            "renameByName": {
-              "client_ip": "Client IP",
-              "Last *": "Requests"
-            }
+            "renameByName": {}
           }
         },
         {
           "id": "sortBy",
           "options": {
-            "fields": [{ "desc": true, "displayName": "Requests" }]
+            "fields": [{ "desc": true, "displayName": "Value" }]
           }
         }
       ],
@@ -427,9 +433,9 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 500 },
+              { "color": "yellow", "value": 250 },
               { "color": "orange", "value": 1000 },
-              { "color": "red", "value": 3000 }
+              { "color": "red", "value": 5000 }
             ]
           },
           "unit": "ms"
@@ -454,11 +460,12 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "topk(20,\n  quantile_over_time(0.95,\n    {\n      namespace=\"envoy-gateway-system\",\n      container=\"envoy\"\n    }\n    | json\n    | __error__=\"\"\n    | authority=~\"$hostname\"\n    | unwrap duration\n    [$__range]\n  ) by (authority)\n)",
+          "expr": "topk(15, quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__range]) by (_authority))",
           "hide": false,
-          "legendFormat": "{{authority}}",
+          "legendFormat": "{{_authority}}",
           "queryType": "range",
-          "refId": "A"
+          "refId": "A",
+          "instant": true
         }
       ],
       "title": "P95 latency by hostname",
@@ -505,7 +512,7 @@
       "id": 7,
       "options": {
         "legend": {
-          "calcs": ["mean", "p95"],
+          "calcs": ["mean"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
@@ -515,17 +522,17 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "quantile_over_time(0.50,\n  {\n    namespace=\"envoy-gateway-system\",\n    container=\"envoy\"\n  }\n  | json\n  | __error__=\"\"\n  | authority=~\"$hostname\"\n  | unwrap duration\n  [$__auto]\n) by (authority)",
+          "expr": "quantile_over_time(0.50, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__auto]) by (_authority)",
           "hide": false,
-          "legendFormat": "p50 {{authority}}",
+          "legendFormat": "p50 {{_authority}}",
           "queryType": "range",
           "refId": "A"
         },
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "quantile_over_time(0.95,\n  {\n    namespace=\"envoy-gateway-system\",\n    container=\"envoy\"\n  }\n  | json\n  | __error__=\"\"\n  | authority=~\"$hostname\"\n  | unwrap duration\n  [$__auto]\n) by (authority)",
+          "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__auto]) by (_authority)",
           "hide": false,
-          "legendFormat": "p95 {{authority}}",
+          "legendFormat": "p95 {{_authority}}",
           "queryType": "range",
           "refId": "B"
         }
@@ -537,161 +544,55 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
       "id": 103,
-      "title": "Request Detail",
+      "title": "Recent Requests",
       "type": "row"
     },
     {
       "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "custom": {
-            "align": "auto",
-            "cellOptions": { "type": "auto" },
-            "filterable": true,
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "response_code" },
-            "properties": [
-              { "id": "displayName", "value": "Status" },
-              { "id": "custom.width", "value": 80 },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "green", "value": null },
-                    { "color": "yellow", "value": 400 },
-                    { "color": "red", "value": 500 }
-                  ]
-                }
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background" }
-              }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "duration" },
-            "properties": [
-              { "id": "displayName", "value": "Duration (ms)" },
-              { "id": "unit", "value": "ms" },
-              { "id": "custom.width", "value": 110 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "authority" },
-            "properties": [
-              { "id": "displayName", "value": "Host" },
-              { "id": "custom.width", "value": 160 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "method" },
-            "properties": [
-              { "id": "custom.width", "value": 70 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "x_envoy_origin_path" },
-            "properties": [
-              { "id": "displayName", "value": "Path" },
-              { "id": "custom.width", "value": 300 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "x_forwarded_for" },
-            "properties": [
-              { "id": "displayName", "value": "Client IP" },
-              { "id": "custom.width", "value": 140 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "bytes_sent" },
-            "properties": [
-              { "id": "displayName", "value": "Bytes" },
-              { "id": "unit", "value": "bytes" },
-              { "id": "custom.width", "value": 90 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "route_name" },
-            "properties": [
-              { "id": "displayName", "value": "Route" },
-              { "id": "custom.width", "value": 180 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Time" },
-            "properties": [
-              { "id": "custom.width", "value": 170 }
-            ]
-          }
-        ]
-      },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
       "id": 8,
       "options": {
-        "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
-        "frameIndex": 0,
-        "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "Time" }]
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
       },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-          "expr": "{namespace=\"envoy-gateway-system\", container=\"envoy\"}\n| json\n| __error__=\"\"\n| authority=~\"$hostname\"\n| line_format `{{.authority}} {{.method}} {{.x_envoy_origin_path}} {{.response_code}} {{.duration}}ms {{.x_forwarded_for}}`",
+          "expr": "{namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\"",
           "hide": false,
           "legendFormat": "",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Recent requests ($hostname)",
-      "type": "table",
-      "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "format": "json",
-            "keepTime": true,
-            "replace": false,
-            "source": "labels"
-          }
-        }
-      ]
+      "title": "Recent requests",
+      "type": "logs"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 38,
+  "schemaVersion": 39,
   "tags": ["envoy", "gateway", "traffic", "loki"],
   "templating": {
     "list": [
       {
         "current": {},
         "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
-        "definition": "label_values({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\", authority)",
+        "definition": "label_values({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\", _authority)",
         "hide": 0,
         "includeAll": true,
+        "allValue": ".*",
         "label": "Hostname",
         "multi": true,
         "name": "hostname",
         "options": [],
         "query": {
-          "label": "authority",
+          "label": "_authority",
           "refId": "LokiVariableQueryEditor-VariableQuery",
           "stream": "{namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\"",
           "type": 1
@@ -704,7 +605,10 @@
     ]
   },
   "time": { "from": "now-6h", "to": "now" },
-  "timepicker": {},
+  "timepicker": {
+    "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"],
+    "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+  },
   "timezone": "browser",
   "title": "Cluster Traffic by URL",
   "uid": "cluster-traffic-by-url",
