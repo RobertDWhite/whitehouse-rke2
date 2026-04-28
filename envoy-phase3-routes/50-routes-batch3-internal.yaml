@@ -1,6 +1,19 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: Backend
 metadata:
+  name: minio-console-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - fqdn:
+        hostname: minio-console.external-services.svc.cluster.local
+        port: 9005
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
   name: pihole-rke2-tls
   namespace: external-services
 spec:

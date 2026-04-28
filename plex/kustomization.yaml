@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: plex
+
+resources:
+  - 00-namespace.yaml
+  - 30-deployment.yaml
+  - 40-service.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: lscr.io/linuxserver/plex
+    newTag: "1.41.4.9463-630c9f557-ls275"
