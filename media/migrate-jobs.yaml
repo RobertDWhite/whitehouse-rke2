@@ -1,0 +1,189 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-radarr
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache rsync && \
+              rsync -av --delete /source/appdata/radarr/ /dest/ && \
+              chown -R 1026:100 /dest && \
+              echo "radarr migration complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker
+        - name: dest
+          persistentVolumeClaim:
+            claimName: radarr-config
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-sonarr
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache rsync && \
+              rsync -av --delete /source/appdata/sonarr/ /dest/ && \
+              chown -R 1026:100 /dest && \
+              echo "sonarr migration complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker
+        - name: dest
+          persistentVolumeClaim:
+            claimName: sonarr-config
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-bazarr
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache rsync && \
+              rsync -av --delete /source/appdata/bazarr/config/ /dest/ && \
+              chown -R 1026:100 /dest && \
+              echo "bazarr migration complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker
+        - name: dest
+          persistentVolumeClaim:
+            claimName: bazarr-config
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-prowlarr
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache rsync && \
+              rsync -av --delete /source/appdata/prowlarr/ /dest/ && \
+              chown -R 1026:100 /dest && \
+              echo "prowlarr migration complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker
+        - name: dest
+          persistentVolumeClaim:
+            claimName: prowlarr-config
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-readarr
+  namespace: media
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: migrate
+          image: alpine:3.21
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache rsync && \
+              rsync -av --delete /source/appdata/readarr/ /dest/ && \
+              chown -R 1026:100 /dest && \
+              echo "readarr migration complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: dest
+              mountPath: /dest
+      volumes:
+        - name: source
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/docker
+        - name: dest
+          persistentVolumeClaim:
+            claimName: readarr-config
