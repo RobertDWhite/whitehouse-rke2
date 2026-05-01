@@ -16,6 +16,7 @@ const navItems: NavEntry[] = [
   { path: "/", label: "Dashboard" },
   { path: "/browse", label: "Browse" },
   { path: "/map", label: "Map" },
+  { path: "/weather", label: "Weather" },
   {
     path: "/spectrum",
     label: "Signals",
