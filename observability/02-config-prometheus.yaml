@@ -479,6 +479,16 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_gateway_envoyproxy_io_owning_gateway_name]
             target_label: gateway
 
+      # =========================
+      # Ollama LLM exporter
+      # =========================
+      - job_name: ollama
+        static_configs:
+          - targets:
+              - ollama-exporter.ai-stack.svc.cluster.local:9401
+        metrics_path: /metrics
+        scrape_interval: 15s
+
   sdr-alerts.yml: |
     groups:
       - name: sdr-research.pvc
