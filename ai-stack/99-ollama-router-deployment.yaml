@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-router
+  namespace: ai-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-router
+  template:
+    metadata:
+      labels:
+        app: ollama-router
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 11434
+          readinessProbe:
+            tcpSocket:
+              port: 11434
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 11434
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      volumes:
+        - name: config
+          configMap:
+            name: ollama-router-config
