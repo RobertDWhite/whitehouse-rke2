@@ -548,7 +548,8 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__interval]))",
+          "expr": "sum by (client_ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__interval]))",
+          "queryType": "range",
           "legendFormat": "{{client_ip}}",
           "refId": "A"
         }
@@ -586,6 +587,7 @@
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__range]))",
           "legendFormat": "{{client_ip}}",
+          "queryType": "instant",
           "instant": true,
           "refId": "A"
         }
@@ -627,5 +629,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 3
+  "version": 4
 }
