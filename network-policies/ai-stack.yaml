@@ -140,3 +140,38 @@ spec:
               kubernetes.io/metadata.name: observability
       ports:
         - {protocol: TCP, port: 9401}
+
+---
+# ollama-router ← all Ollama consumers (with failover to Spark)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-router-consumers
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama-router
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sdr-research
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: freshrss
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: weather
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: worldmonitor
+      ports:
+        - {protocol: TCP, port: 11434}
