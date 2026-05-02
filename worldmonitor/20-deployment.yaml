@@ -12,64 +12,32 @@ spec:
       labels:
         app: worldmonitor
     spec:
-      initContainers:
-        - name: build-worldmonitor
-          image: node:22-alpine
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              apk add --no-cache git python3 make g++
-              git clone --depth 1 https://github.com/koala73/worldmonitor.git /src
-              cd /src
-              npm ci --no-audit --no-fund
-              npm run build:full
-              cp -a dist/. /workdir/
-          volumeMounts:
-            - name: site
-              mountPath: /workdir
-          resources:
-            requests:
-              cpu: 250m
-              memory: 1Gi
-            limits:
-              cpu: "2"
-              memory: 4Gi
       containers:
-        - name: nginx
-          image: nginx:1.27-alpine
-          securityContext:
-            allowPrivilegeEscalation: false
+        - name: worldmonitor
+          image: registry.white.fm:5000/worldmonitor
+          env:
+            - name: LLM_API_URL
+              value: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+            - name: LLM_MODEL
+              value: "llama3.1:8b"
           ports:
             - containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/health
               port: 8080
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/health
               port: 8080
-            initialDelaySeconds: 15
+            initialDelaySeconds: 20
             periodSeconds: 20
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              cpu: 300m
+              cpu: 100m
               memory: 256Mi
-          volumeMounts:
-            - name: site
-              mountPath: /usr/share/nginx/html
-            - name: nginx-conf
-              mountPath: /etc/nginx/conf.d
-      volumes:
-        - name: site
-          emptyDir: {}
-        - name: nginx-conf
-          configMap:
-            name: worldmonitor-nginx-conf
+            limits:
+              cpu: "1"
+              memory: 512Mi
