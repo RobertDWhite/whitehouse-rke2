@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama-exporter
+  namespace: ai-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama-exporter
+  template:
+    metadata:
+      labels:
+        app: ollama-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: python
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/app/exporter.py"]
+          ports:
+            - containerPort: 9401
+          env:
+            - name: POLL_INTERVAL
+              value: "15"
+            - name: LISTEN_PORT
+              value: "9401"
+            - name: OLLAMA_INSTANCES
+              value: "http://ollama.ai-stack.svc.cluster.local:11434,http://ollama-5090.ai-stack.svc.cluster.local:11434"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9401
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9401
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: script
+              mountPath: /app
+      volumes:
+        - name: script
+          configMap:
+            name: ollama-exporter-script
