@@ -487,6 +487,135 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "id": 200,
+      "title": "Live Request Feed",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 49 },
+      "id": 201,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "Live Inference Feed (POST requests to generate/chat/completions/embed)",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "{namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 50,
+            "barAlignment": 0,
+            "stacking": { "mode": "normal", "group": "A" }
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 61 },
+      "id": 202,
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "title": "Inference Requests by Source IP",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) \\| POST\" [$__interval]))",
+          "legendFormat": "{{client_ip}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "client_ip" },
+            "properties": [{ "id": "displayName", "value": "Source IP" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "Requests" },
+              { "id": "custom.width", "value": 100 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
+      "id": 203,
+      "options": {
+        "frameIndex": 0,
+        "showHeader": true,
+        "sortBy": [{ "desc": true, "displayName": "Requests" }]
+      },
+      "title": "Top Callers (selected time window)",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) \\| POST\" [$__range]))",
+          "legendFormat": "{{client_ip}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 69 },
+      "id": 204,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "Model Load Events",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "{namespace=\"ai-stack\", container=\"ollama\", stream=\"stderr\"} |~ \"(starting runner|model loaded|llm server|loading model)\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -498,5 +627,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 1
+  "version": 2
 }
