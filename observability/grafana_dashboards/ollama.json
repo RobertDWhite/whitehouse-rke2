@@ -348,82 +348,8 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
       "id": 103,
-      "title": "GPU Metrics (cadvisor)",
+      "title": "Container Metrics",
       "type": "row"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "percentunit",
-          "max": 1,
-          "custom": { "fillOpacity": 15, "lineWidth": 2 }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 31 },
-      "id": 30,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "title": "GPU Duty Cycle (container_accelerator_duty_cycle)",
-      "description": "GPU utilisation % as reported by cadvisor. Requires NVIDIA container toolkit on the node.",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_accelerator_duty_cycle{container=~\"ollama.*\"} / 100",
-          "legendFormat": "{{pod}} gpu{{make}}/{{model}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "bytes",
-          "custom": { "fillOpacity": 15, "lineWidth": 2 }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 31 },
-      "id": 31,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "title": "GPU Memory Used (container_accelerator_memory_used_bytes)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_accelerator_memory_used_bytes{container=~\"ollama.*\"}",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "bytes",
-          "custom": { "fillOpacity": 8, "lineWidth": 2 }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 38 },
-      "id": 32,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "title": "GPU Memory Total (container_accelerator_memory_total_bytes)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "container_accelerator_memory_total_bytes{container=~\"ollama.*\"}",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -435,7 +361,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 38 },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 31 },
       "id": 33,
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "title": "Container Memory RSS (Ollama pods)",
@@ -451,7 +377,7 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
       "id": 104,
       "title": "SDR Tagging Integration",
       "type": "row"
@@ -466,7 +392,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 46 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 40 },
       "id": 40,
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "title": "Ollama Tagging Call Rate (SDR API)",
@@ -503,7 +429,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 46 },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 40 },
       "id": 41,
       "options": {
         "reduceOptions": { "calcs": ["sum"] },
@@ -541,7 +467,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 46 },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 40 },
       "id": 42,
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
