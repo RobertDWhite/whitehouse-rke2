@@ -548,9 +548,9 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (client_ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__interval]))",
+          "expr": "sum by (ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern \"<ip> - - [<_>] <_>\" [$__rate_interval]))",
           "queryType": "range",
-          "legendFormat": "{{client_ip}}",
+          "legendFormat": "{{ip}}",
           "refId": "A"
         }
       ]
@@ -561,7 +561,7 @@
         "defaults": { "unit": "short" },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "client_ip" },
+            "matcher": { "id": "byName", "options": "ip" },
             "properties": [{ "id": "displayName", "value": "Source IP" }]
           },
           {
@@ -585,8 +585,8 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__range]))",
-          "legendFormat": "{{client_ip}}",
+          "expr": "sum by (ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern \"<ip> - - [<_>] <_>\" [$__range]))",
+          "legendFormat": "{{ip}}",
           "queryType": "instant",
           "instant": true,
           "refId": "A"
@@ -618,6 +618,32 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 77 },
+      "id": 205,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "Query Log (requires OLLAMA_DEBUG=1)",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "{namespace=\"ai-stack\", container=\"ollama\"} |~ \"(model|prompt|request|generate|chat|embed)\" !~ \"(GIN|starting runner|load_tensors|waiting for server|model layers)\"",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "refresh": "30s",
@@ -629,5 +655,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 4
+  "version": 5
 }
