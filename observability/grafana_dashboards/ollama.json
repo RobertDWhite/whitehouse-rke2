@@ -543,12 +543,12 @@
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
-      "title": "Inference Requests by Source IP",
+      "title": "Inference Requests by Source IP (via router)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) \\| POST\" [$__interval]))",
+          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__interval]))",
           "legendFormat": "{{client_ip}}",
           "refId": "A"
         }
@@ -584,7 +584,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) \\| POST\" [$__range]))",
+          "expr": "sum by (client_ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | regexp \"(?P<client_ip>\\d+\\.\\d+\\.\\d+\\.\\d+) - \" [$__range]))",
           "legendFormat": "{{client_ip}}",
           "instant": true,
           "refId": "A"
@@ -627,5 +627,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 2
+  "version": 3
 }
