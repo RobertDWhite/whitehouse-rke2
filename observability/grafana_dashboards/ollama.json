@@ -548,7 +548,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern \"<ip> - - [<_>] <_>\" [$__rate_interval]))",
+          "expr": "sum by (ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern \"<ip> - - [<_>] <_>\" [$__interval]))",
           "queryType": "range",
           "legendFormat": "{{ip}}",
           "refId": "A"
@@ -565,7 +565,7 @@
             "properties": [{ "id": "displayName", "value": "Source IP" }]
           },
           {
-            "matcher": { "id": "byName", "options": "Value" },
+            "matcher": { "id": "byName", "options": "Value #A" },
             "properties": [
               { "id": "displayName", "value": "Requests" },
               { "id": "custom.width", "value": 100 }
@@ -655,5 +655,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 5
+  "version": 6
 }
