@@ -530,6 +530,13 @@
       "type": "row"
     },
     {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "id": 209,
+      "title": "Live Feeds",
+      "type": "row"
+    },
+    {
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 66 },
@@ -688,7 +695,7 @@
     {
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 90 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 88 },
       "id": 204,
       "options": {
         "dedupStrategy": "none",
@@ -714,7 +721,7 @@
     {
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 85 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 76 },
       "id": 205,
       "options": {
         "dedupStrategy": "none",
@@ -726,12 +733,12 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "Query Log (requires OLLAMA_DEBUG=1)",
+      "title": "Request Content Feed (what pods are sending to Ollama)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "{namespace=\"ai-stack\", container=\"ollama\"} |~ \"(model|prompt|request|generate|chat|embed)\" !~ \"(GIN|starting runner|load_tensors|waiting for server|model layers)\"",
+          "expr": "{namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |= \"body=\" |= \"model\"",
           "legendFormat": "",
           "refId": "A"
         }
@@ -747,5 +754,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 11
+  "version": 12
 }

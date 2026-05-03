@@ -7,6 +7,8 @@ data:
   nginx.conf: |
     events {}
     http {
+      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time body=$request_body';
+
       # 5090 is primary (fast GDDR7), Spark is backup (always-on)
       upstream ollama_backends {
         server ollama-5090.ai-stack.svc.cluster.local:11434;
@@ -15,8 +17,12 @@ data:
 
       server {
         listen 11434;
+        client_body_buffer_size     4k;
+        client_body_in_single_buffer on;
+        client_max_body_size        100m;
 
         location / {
+          access_log /dev/stdout ollama;
           proxy_pass         http://ollama_backends;
           proxy_next_upstream error timeout http_502 http_503 http_504;
           proxy_next_upstream_tries 2;
