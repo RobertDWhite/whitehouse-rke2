@@ -111,6 +111,24 @@ data:
             regex: http-metrics
 
       # =========================
+      # Weather Dashboard API
+      # =========================
+      - job_name: weather-api
+        metrics_path: /metrics
+        scrape_interval: 30s
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: weather
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: weather-api
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
       # CoreDNS metrics scraping
       # =========================
 
