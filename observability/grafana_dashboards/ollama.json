@@ -733,12 +733,12 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "Inference Request Log (caller IP · endpoint · duration)",
+      "title": "Request Content Feed (model + prompt sent by each caller)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "{namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"generate|chat|completions|embed\"",
+          "expr": "{namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |= \"body=\" |= \"\\\"model\\\"\"",
           "legendFormat": "",
           "refId": "A"
         }
@@ -754,5 +754,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 14
+  "version": 15
 }
