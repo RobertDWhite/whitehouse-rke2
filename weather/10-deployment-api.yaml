@@ -5,6 +5,10 @@ metadata:
   namespace: weather
 spec:
   replicas: 1
+  # PVC is RWO; rolling-update would deadlock waiting for the new pod to
+  # mount a volume the old pod still holds. Recreate kills first then starts.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: weather-api
