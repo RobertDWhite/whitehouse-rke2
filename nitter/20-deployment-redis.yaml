@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nitter-redis
+  namespace: nitter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nitter-redis
+  template:
+    metadata:
+      labels:
+        app: nitter-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis
+          ports:
+            - containerPort: 6379
+          args: ["--save", "", "--appendonly", "no"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

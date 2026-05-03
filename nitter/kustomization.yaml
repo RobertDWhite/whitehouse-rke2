@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nitter
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 15-service.yaml
+  - 20-deployment-redis.yaml
+  - 25-service-redis.yaml
+  - 30-configmap.yaml
+  - 52-httproute.yaml
+  - 22-externalsecret.yaml
+
+images:
+  - name: ghcr.io/zedeus/nitter
+    newTag: "latest"
+  - name: redis
+    newTag: "7.2-alpine"
