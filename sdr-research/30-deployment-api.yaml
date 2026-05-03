@@ -135,9 +135,6 @@ spec:
               mountPath: /data/hf
             - name: cache
               mountPath: /cache
-            - name: api-overrides
-              mountPath: /app/app/services/indexer.py
-              subPath: indexer.py
           resources:
             requests:
               cpu: 500m
@@ -178,6 +175,3 @@ spec:
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
-        - name: api-overrides
-          configMap:
-            name: sdr-viewer-api-overrides
