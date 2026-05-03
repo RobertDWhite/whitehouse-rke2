@@ -84,11 +84,13 @@ spec:
                 secretKeyRef:
                   name: sdr-viewer-secrets
                   key: repeaterbook-email
-            - name: REPEATERBOOK_PASSWORD
+            - name: REPEATERBOOK_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: repeaterbook-token
-                  key: repeaterbook-password
+                  key: repeaterbook-api-key
+            - name: REPEATERBOOK_USER_AGENT
+              value: "sdr-research/1.0 (robert@w3rdw.radio)"
             - name: REPEATERBOOK_LATITUDE
               valueFrom:
                 secretKeyRef:
@@ -152,6 +154,10 @@ spec:
             - name: api-overrides
               mountPath: /app/app/services/known_freqs.py
               subPath: known_freqs.py
+              readOnly: true
+            - name: api-overrides
+              mountPath: /app/app/services/repeater.py
+              subPath: repeater.py
               readOnly: true
             - name: api-overrides
               mountPath: /app/app/routers/repeaters.py
