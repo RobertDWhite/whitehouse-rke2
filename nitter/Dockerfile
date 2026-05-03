@@ -1,6 +1,6 @@
 FROM nimlang/nim:2.0.8-alpine AS build
 
-RUN apk add --no-cache git libsass-dev openssl-dev pcre-dev
+RUN apk add --no-cache git libsass-dev sassc openssl-dev pcre-dev
 
 WORKDIR /src
 RUN git clone --depth 1 https://github.com/zedeus/nitter.git .
