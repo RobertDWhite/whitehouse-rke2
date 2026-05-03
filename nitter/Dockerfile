@@ -8,7 +8,7 @@ RUN git clone --depth 1 https://github.com/zedeus/nitter.git .
 RUN nimble build -y -d:release -d:nimPreviewHashRef && \
     strip nitter
 
-FROM alpine:3.21
+FROM alpine:3.23
 RUN apk add --no-cache libsass openssl pcre
 COPY --from=build /src/nitter /usr/local/bin/nitter
 COPY --from=build /src/public /public
