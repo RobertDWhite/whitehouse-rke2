@@ -88,10 +88,16 @@ images:
     newTag: "0.1.1"
   - name: postgres
     newTag: "15"
+  # Migrating to OSS images at ghcr.io/w3rdw/sdr-research-* (see commit history).
+  # Stage 1: remap to OSS image; configmap-override mounts still win at runtime.
+  # Stage 2: unmount overrides — image's baked code becomes authoritative.
+  # Stage 3: delete 30a-configmap-api-overrides.yaml entirely.
   - name: registry.white.fm/sdr-viewer-api
-    newTag: "1.7.12"
+    newName: ghcr.io/w3rdw/sdr-research-api
+    newTag: "0.1.2"
   - name: registry.white.fm/sdr-viewer-ui
-    newTag: "1.8.0"
+    newName: ghcr.io/w3rdw/sdr-research-ui
+    newTag: "0.1.2"
   - name: legacycode/rtlsdr
     newTag: "latest"
   - name: ghcr.io/jvde-github/ais-catcher

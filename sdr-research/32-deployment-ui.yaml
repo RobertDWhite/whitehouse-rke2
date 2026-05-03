@@ -24,6 +24,12 @@ spec:
             readOnlyRootFilesystem: false
           ports:
             - containerPort: 80
+          env:
+            # OSS UI image (v0.1.2+) renders nginx config from a template at
+            # startup. Default upstream is `http://api:8000` (compose-friendly);
+            # in-cluster the api Service is named `sdr-viewer-api`.
+            - name: API_UPSTREAM
+              value: "http://sdr-viewer-api:8000"
           resources:
             requests:
               cpu: 50m
