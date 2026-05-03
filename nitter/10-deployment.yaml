@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nitter
+  namespace: nitter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nitter
+  template:
+    metadata:
+      labels:
+        app: nitter
+    spec:
+      containers:
+        - name: nitter
+          image: ghcr.io/zedeus/nitter
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /Jack/rss
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /Jack/rss
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /src/nitter.conf
+              subPath: nitter.conf
+              readOnly: true
+            - name: accounts
+              mountPath: /accounts
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nitter-config
+        - name: accounts
+          secret:
+            secretName: nitter-accounts

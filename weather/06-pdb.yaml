@@ -1,0 +1,21 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: weather-api
+  namespace: weather
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: weather-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: weather-ui
+  namespace: weather
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: weather-ui
