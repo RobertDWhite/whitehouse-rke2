@@ -131,6 +131,7 @@ data:
   files.py: |
     import io
     import os
+    import re
     import zipfile
     from datetime import datetime, timedelta
     from typing import Optional, List
@@ -1090,6 +1091,7 @@ data:
   search.py: |
     import csv
     import io
+    import json
     from typing import Optional, List
 
     import requests
@@ -3742,6 +3744,7 @@ data:
                 try:
                     import asyncio as _asyncio
                     from ..routers.events import broadcast_recording as _broadcast
+                    from ..routers.files import _transcript_status
                     _cs_tags = extract_callsign_tags(recording.transcript)
                     _ai_tags = parse_ai_tags(recording.ai_tags)
                     _frequency_group = classify_frequency_group(
@@ -5786,6 +5789,7 @@ data:
     async def send_digest_now(db: Session = Depends(get_db)):
         """Manually trigger a daily digest webhook."""
         global _last_digest_sent
+        from ..services.indexer import _send_daily_digest
         _send_daily_digest()
         _last_digest_sent = datetime.utcnow()
         return {"status": "sent", "sent_at": _last_digest_sent.isoformat()}
