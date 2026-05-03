@@ -526,7 +526,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
       "id": 200,
-      "title": "Live Request Feed",
+      "title": "Request Analytics",
       "type": "row"
     },
     {
@@ -629,6 +629,8 @@
           "options": {
             "excludeByName": {
               "Value #B": true,
+              "Value": true,
+              "Value 1": true,
               "uid": true,
               "node": true,
               "host_ip": true,
@@ -648,6 +650,19 @@
               "Namespace": 2,
               "Requests": 3
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "config": { "id": "greaterOrEqual", "options": { "value": 1 } },
+                "fieldName": "Requests"
+              }
+            ],
+            "match": "any",
+            "type": "include"
           }
         }
       ],
