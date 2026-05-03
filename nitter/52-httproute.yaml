@@ -10,6 +10,10 @@ spec:
       sectionName: https-white-fm
   hostnames:
     - nitter.white.fm
+  rules:
+    - backendRefs:
+        - name: nitter
+          port: 8080
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -23,10 +27,6 @@ spec:
       sectionName: https-internal-white-fm
   hostnames:
     - nitter.internal.white.fm
-  rules:
-    - backendRefs:
-        - name: nitter
-          port: 8080
   rules:
     - backendRefs:
         - name: nitter
