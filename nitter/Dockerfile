@@ -6,6 +6,7 @@ WORKDIR /src
 RUN git clone --depth 1 https://github.com/zedeus/nitter.git .
 
 RUN nimble build -y -d:release -d:nimPreviewHashRef && \
+    nimble scss && \
     strip nitter
 
 FROM alpine:3.21
