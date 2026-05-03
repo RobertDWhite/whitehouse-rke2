@@ -590,33 +590,67 @@
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "fieldConfig": {
         "defaults": { "unit": "short" },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "ip" },
-            "properties": [{ "id": "displayName", "value": "Source IP" }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Value" },
+            "matcher": { "id": "byName", "options": "Value #A" },
             "properties": [
               { "id": "displayName", "value": "Requests" },
-              { "id": "custom.width", "value": 90 }
+              { "id": "custom.width", "value": 100 }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 69 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 69 },
       "id": 203,
       "options": {
         "frameIndex": 0,
         "showHeader": true,
         "sortBy": [{ "desc": true, "displayName": "Requests" }]
       },
-      "title": "Top Callers by Source IP",
+      "title": "Top Callers — Source IP & Pod",
       "type": "table",
-      "transformations": [],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "pod_ip": "ip" }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": { "byField": "ip", "mode": "left" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Value #B": true,
+              "uid": true,
+              "node": true,
+              "host_ip": true,
+              "created_by_kind": true,
+              "created_by_name": true,
+              "host_network": true
+            },
+            "renameByName": {
+              "ip": "Source IP",
+              "pod": "Pod",
+              "namespace": "Namespace",
+              "Value #A": "Requests"
+            },
+            "indexByName": {
+              "Source IP": 0,
+              "Pod": 1,
+              "Namespace": 2,
+              "Requests": 3
+            }
+          }
+        }
+      ],
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
@@ -625,46 +659,14 @@
           "instant": true,
           "legendFormat": "",
           "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-      "fieldConfig": {
-        "defaults": { "unit": "short" },
-        "overrides": []
-      },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 69 },
-      "id": 206,
-      "options": {
-        "frameIndex": 0,
-        "showHeader": true,
-        "sortBy": [{ "desc": false, "displayName": "Pod" }]
-      },
-      "title": "Pod IP Reference (live)",
-      "type": "table",
-      "transformations": [
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": { "Time": true, "Value": true, "__name__": true, "node": true, "host_ip": true, "created_by_kind": true, "created_by_name": true, "host_network": true, "uid": true },
-            "renameByName": {
-              "pod_ip": "IP",
-              "pod": "Pod",
-              "namespace": "Namespace"
-            },
-            "indexByName": { "IP": 0, "Pod": 1, "Namespace": 2 }
-          }
-        }
-      ],
-      "targets": [
+        },
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
           "expr": "max by (pod_ip, pod, namespace) (kube_pod_info{namespace!~\"kube-system|cattle-.*|fleet-.*\"})",
-          "legendFormat": "{{pod_ip}}",
+          "legendFormat": "",
           "instant": true,
           "format": "table",
-          "refId": "A"
+          "refId": "B"
         }
       ]
     },
@@ -730,5 +732,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 10
+  "version": 11
 }
