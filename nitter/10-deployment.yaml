@@ -48,6 +48,10 @@ spec:
               mountPath: /sessions.jsonl
               subPath: sessions.jsonl
               readOnly: true
+            - name: style-css
+              mountPath: /public/css/style.css
+              subPath: style.css
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -55,3 +59,6 @@ spec:
         - name: accounts
           secret:
             secretName: nitter-accounts
+        - name: style-css
+          configMap:
+            name: nitter-style-css
