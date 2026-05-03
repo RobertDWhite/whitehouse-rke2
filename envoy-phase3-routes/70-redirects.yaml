@@ -122,3 +122,49 @@ spec:
               type: ReplaceFullPath
               replaceFullPath: /etihwdtrebor
             statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-github-white-fm
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - github.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: github.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /RobertDWhite
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: redirect-github-w3rdw-radio
+  namespace: envoy-gateway-system
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-w3rdw-radio
+  hostnames:
+    - github.w3rdw.radio
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            hostname: github.com
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /W3RDW
+            statusCode: 301
