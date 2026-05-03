@@ -533,7 +533,7 @@
             "barAlignment": 0,
             "stacking": { "mode": "normal", "group": "A" }
           },
-          "unit": "short"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -543,35 +543,23 @@
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
-      "title": "Inference Requests by Source IP (via router)",
+      "title": "Inference Request Rate by Caller",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum by (ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern \"<ip> - - [<_>] <_>\" [$__interval]))",
+          "expr": "sum by (agent) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |~ \"POST /(api|v1)/\" | pattern `<ip> - - [<_>] \"<_>\" <status> <_> \"<_>\" \"<agent>\"` [$__interval]))",
           "queryType": "range",
-          "legendFormat": "{{ip}}",
+          "legendFormat": "{{agent}}",
           "refId": "A"
         }
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
       "fieldConfig": {
         "defaults": { "unit": "short" },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "ip" },
-            "properties": [{ "id": "displayName", "value": "Source IP" }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "Value #A" },
-            "properties": [
-              { "id": "displayName", "value": "Requests" },
-              { "id": "custom.width", "value": 100 }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 61 },
       "id": 203,
@@ -580,8 +568,38 @@
         "showHeader": true,
         "sortBy": [{ "desc": true, "displayName": "Requests" }]
       },
-      "title": "Top Callers (selected time window)",
+      "title": "Top Callers — Pod Name (selected time window)",
       "type": "table",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": { "pod_ip": "ip" }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": { "byField": "ip", "mode": "left" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Value #B": true, "Time": true, "uid": true, "node": true, "host_ip": true, "created_by_kind": true, "created_by_name": true, "host_network": true },
+            "renameByName": {
+              "Value #A": "Requests",
+              "pod": "Pod",
+              "namespace": "Namespace",
+              "ip": "Source IP"
+            },
+            "indexByName": {
+              "Pod": 0,
+              "Namespace": 1,
+              "Source IP": 2,
+              "Requests": 3
+            }
+          }
+        }
+      ],
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
@@ -590,6 +608,13 @@
           "queryType": "instant",
           "instant": true,
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max by (pod_ip, pod, namespace) (kube_pod_info)",
+          "legendFormat": "{{pod_ip}}",
+          "instant": true,
+          "refId": "B"
         }
       ]
     },
@@ -655,5 +680,5 @@
   "timezone": "browser",
   "title": "Ollama LLM",
   "uid": "ollama-llm",
-  "version": 6
+  "version": 7
 }
