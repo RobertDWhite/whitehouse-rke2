@@ -135,78 +135,6 @@ spec:
               mountPath: /data/hf
             - name: cache
               mountPath: /cache
-            - name: api-overrides
-              mountPath: /app/app/services/audio.py
-              subPath: audio.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/files.py
-              subPath: files.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/search.py
-              subPath: search.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/tagging.py
-              subPath: tagging.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/known_freqs.py
-              subPath: known_freqs.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/repeater.py
-              subPath: repeater.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/repeaters.py
-              subPath: repeaters.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/indexer.py
-              subPath: indexer.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/aprs.py
-              subPath: aprs.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/admin.py
-              subPath: admin.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/stats.py
-              subPath: stats.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/alerting.py
-              subPath: alerting.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/metrics.py
-              subPath: metrics.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/spots.py
-              subPath: spots.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/events.py
-              subPath: events.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/waveform.py
-              subPath: waveform.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/services/aprs_is.py
-              subPath: aprs_is.py
-              readOnly: true
-            - name: api-overrides
-              mountPath: /app/app/routers/weather.py
-              subPath: weather.py
-              readOnly: true
           resources:
             requests:
               cpu: 500m
@@ -247,7 +175,3 @@ spec:
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
-        - name: api-overrides
-          configMap:
-            name: sdr-viewer-api-overrides
-            defaultMode: 0444
