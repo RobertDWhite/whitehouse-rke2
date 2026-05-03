@@ -15,7 +15,7 @@ spec:
       labels:
         app: sdr-viewer-api
       annotations:
-        kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
+        kubectl.kubernetes.io/restartedAt: "2026-05-03T19:00:00Z"
     spec:
       serviceAccountName: sdr-viewer-api
       terminationGracePeriodSeconds: 60
@@ -135,6 +135,9 @@ spec:
               mountPath: /data/hf
             - name: cache
               mountPath: /cache
+            - name: api-overrides
+              mountPath: /app/app/services/indexer.py
+              subPath: indexer.py
           resources:
             requests:
               cpu: 500m
@@ -175,3 +178,6 @@ spec:
         - name: cache
           persistentVolumeClaim:
             claimName: sdr-viewer-cache
+        - name: api-overrides
+          configMap:
+            name: sdr-viewer-api-overrides
