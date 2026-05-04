@@ -36,11 +36,13 @@ spec:
       agents:
         defaults:
           model:
-            primary: "ollama/llama3.1:8b"
+            # qwen3:30b is a 30B MoE thinking model — strong reasoning,
+            # 3B active params at a time so inference stays fast on the 5090.
+            primary: "ollama/qwen3:30b"
             fallbacks:
               - "claude-cli/claude-sonnet-4-6"
           models:
-            "ollama/llama3.1:8b":
+            "ollama/qwen3:30b":
               alias: "local"
             "anthropic/claude-sonnet-4-6":
               alias: "claude"
@@ -86,8 +88,8 @@ spec:
           ollama:
             baseUrl: "http://ollama-router.ai-stack.svc.cluster.local:11434"
             models:
-              - name: "llama3.1:8b"
-                id: "llama3.1:8b"
+              - name: "qwen3:30b"
+                id: "qwen3:30b"
                 api: "ollama"
   probes:
     startup:
