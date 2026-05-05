@@ -54,5 +54,8 @@ data:
     permissions:
       - actor: white.fm
         services:
-          - service: webhooks
+          # "*" covers generic webhooks, feeds, github, etc. — the legacy
+          # "webhooks" string matches no ServiceCategory and silently denies
+          # provisioning via the widget API.
+          - service: "*"
             level: admin
