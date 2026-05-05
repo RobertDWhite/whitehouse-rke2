@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: politics-config
+  namespace: politics
+data:
+  config.yaml: |
+    title: "Politics & Government"
+
+    llm:
+      provider: openai_compatible
+      base_url: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+      model: llama3.1:8b
+      api_key_env: LLM_API_KEY
+      request_timeout: 180.0
+
+    feeds:
+      source: freshrss
+      lookback_hours: 96
+      max_per_category: 75
+
+      freshrss:
+        url: http://freshrss.freshrss.svc.cluster.local/api/greader.php
+        username: robert
+        password_env: FRESHRSS_API_PASSWORD
+
+      categories:
+        news:
+          label: News
+          freshrss_label: News
+        government:
+          label: Government
+          freshrss_label: "U.S. Government"
+
+    twitter:
+      enabled: true
+      nitter_url: http://nitter.nitter.svc.cluster.local:8080
+      handles_env_prefix: X
+      categories:
+        politics:
+          label: Politics
+          handles: []
+        government:
+          label: Government
+          handles: []
+
+    refresh:
+      articles_seconds: 900
+      digest_seconds: 3600
+      twitter_seconds: 10800
