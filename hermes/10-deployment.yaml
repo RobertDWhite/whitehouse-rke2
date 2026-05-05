@@ -48,7 +48,7 @@ spec:
         - name: gateway
           image: registry.white.fm:5000/hermes-agent
           imagePullPolicy: IfNotPresent
-          command: ["gateway", "run"]
+          args: ["gateway", "run"]
           env:
             - name: HERMES_HOME
               value: /opt/data
@@ -102,7 +102,7 @@ spec:
         - name: dashboard
           image: registry.white.fm:5000/hermes-agent
           imagePullPolicy: IfNotPresent
-          command: ["dashboard", "--host", "127.0.0.1", "--no-open"]
+          args: ["dashboard", "--host", "127.0.0.1", "--no-open"]
           env:
             - name: HERMES_HOME
               value: /opt/data
