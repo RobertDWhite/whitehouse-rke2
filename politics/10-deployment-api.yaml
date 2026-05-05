@@ -25,15 +25,10 @@ spec:
             - containerPort: 8000
               name: http
           env:
-            - name: OLLAMA_URL
-              value: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
-            - name: OLLAMA_MODEL
-              value: "llama3.1:8b"
-            - name: FRESHRSS_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: politics-secret
-                  key: freshrss-username
+            - name: CONFIG_PATH
+              value: /etc/politics/config.yaml
+            - name: LLM_API_KEY
+              value: ""
             - name: FRESHRSS_API_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -49,12 +44,10 @@ spec:
                 secretKeyRef:
                   name: politics-secret
                   key: x-government
-            - name: FRESHRSS_NEWS_LABEL
-              value: "News"
-            - name: FRESHRSS_GOVERNMENT_LABEL
-              value: "U.S. Government"
-            - name: FRESHRSS_LOOKBACK_HOURS
-              value: "96"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/politics
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -81,3 +74,7 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: politics-config
