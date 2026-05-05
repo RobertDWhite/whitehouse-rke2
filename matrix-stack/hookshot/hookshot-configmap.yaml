@@ -27,11 +27,23 @@ data:
       allowJsTransformationFunctions: true
       waitForComplete: false
 
+    widgets:
+      publicUrl: https://hookshot.white.fm/widgetapi/v1/static
+      branding:
+        widgetTitle: Hookshot
+      roomSetupWidget:
+        addOnInvite: false
+      disallowedIpRanges: []
+
     listeners:
       - port: 9000
         bindAddress: 0.0.0.0
         resources:
           - webhooks
+      - port: 5065
+        bindAddress: 0.0.0.0
+        resources:
+          - widgets
 
     cache:
       redisUri: redis://matrix-redis:6379

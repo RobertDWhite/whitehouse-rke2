@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: matrix-hookshot
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-05-04T00:00:00Z"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
@@ -50,6 +52,8 @@ spec:
               name: webhooks
             - containerPort: 9993
               name: appservice
+            - containerPort: 5065
+              name: widgets
           volumeMounts:
             - name: config
               mountPath: /data/config.yml

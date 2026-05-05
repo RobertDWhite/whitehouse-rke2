@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: hermes
+  labels:
+    app.kubernetes.io/name: hermes
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        # Container entrypoint must start as root to chown the data volume
+        # and drop to UID 10000 via gosu. fsGroup ensures the PVC is owned
+        # by the hermes group so secret-bootstrap (running as 10000) can write.
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: bootstrap-claude-creds
+          image: registry.white.fm:5000/hermes-agent:v2026.4.30
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              mkdir -p /opt/data/.claude
+              cp /tmp/secret/CLAUDE_CREDENTIALS_JSON /opt/data/.claude/.credentials.json
+              chown -R 10000:10000 /opt/data/.claude
+              chmod 700 /opt/data/.claude
+              chmod 600 /opt/data/.claude/.credentials.json
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: claude-creds
+              mountPath: /tmp/secret
+              readOnly: true
+      containers:
+        - name: gateway
+          image: registry.white.fm:5000/hermes-agent
+          imagePullPolicy: IfNotPresent
+          command: ["gateway", "run"]
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+            - name: MATRIX_HOMESERVER
+              value: https://matrix.white.fm
+            - name: MATRIX_USER_ID
+              value: "@hermes:white.fm"
+            - name: MATRIX_ENCRYPTION
+              value: "true"
+            - name: MATRIX_HOME_ROOM
+              value: "!AJjNfrvHsszhSMMsjY:white.fm"
+            - name: MATRIX_REQUIRE_MENTION
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: hermes-api-keys
+            - secretRef:
+                name: hermes-matrix-secrets
+          ports:
+            - name: dashboard
+              containerPort: 9119
+          startupProbe:
+            tcpSocket:
+              port: dashboard
+            failureThreshold: 60
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: dashboard
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            tcpSocket:
+              port: dashboard
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+        - name: dashboard
+          image: registry.white.fm:5000/hermes-agent
+          imagePullPolicy: IfNotPresent
+          command: ["dashboard", "--host", "127.0.0.1", "--no-open"]
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: claude-creds
+          secret:
+            secretName: hermes-matrix-secrets
+            items:
+              - key: CLAUDE_CREDENTIALS_JSON
+                path: CLAUDE_CREDENTIALS_JSON
+                mode: 0600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes
+  namespace: hermes
+spec:
+  selector:
+    app.kubernetes.io/name: hermes
+  ports:
+    - name: dashboard
+      port: 9119
+      targetPort: dashboard

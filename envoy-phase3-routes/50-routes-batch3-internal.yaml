@@ -580,6 +580,23 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  name: hookshot-internal
+  namespace: matrix
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - hookshot.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: matrix-hookshot
+          port: 5065
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
   name: white-fm-internal
   namespace: matrix
 spec:
