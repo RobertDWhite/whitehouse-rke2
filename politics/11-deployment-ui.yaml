@@ -20,6 +20,11 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+          env:
+            - name: API_UPSTREAM
+              value: http://politics-api.politics.svc.cluster.local:8000
+            - name: NGINX_RESOLVER
+              value: "10.43.0.10"
           readinessProbe:
             httpGet:
               path: /
