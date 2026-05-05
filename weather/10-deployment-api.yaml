@@ -16,6 +16,11 @@ spec:
     metadata:
       labels:
         app: weather-api
+      annotations:
+        # Force pod restart when the SOPS-encrypted config changes (kustomize
+        # rewrites this hash via configMapGenerator-equivalent on every apply).
+        # No-op until you wire it up, but the env var pattern below works without it.
+        weather.config/checksum: "v1"
     spec:
       securityContext:
         runAsNonRoot: true
@@ -23,75 +28,18 @@ spec:
         fsGroup: 1000
       containers:
         - name: weather-api
-          image: registry.white.fm/weather-api
+          image: ghcr.io/robertdwhite/weather-dashboard-api
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               name: http
           env:
-            - name: OBSERVER_LAT
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: observer-lat
-            - name: OBSERVER_LON
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: observer-lon
-            - name: OBSERVER_LOCATION
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: observer-location
-            - name: OBSERVER_STATE
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: observer-state
-            - name: OPENWEATHERMAP_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: openweathermap-key
-                  optional: true
-            - name: AIRNOW_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: airnow-key
-                  optional: true
-            - name: WINDY_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: windy-key
-                  optional: true
-            - name: OHGO_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: ohgo-key
-                  optional: true
-            - name: YOUTUBE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: youtube-key
-                  optional: true
-            - name: WEBHOOK_URL
-              valueFrom:
-                secretKeyRef:
-                  name: weather-secret
-                  key: webhook-url
-                  optional: true
-            - name: OLLAMA_URL
-              value: "http://ollama-router.ai-stack.svc.cluster.local:11434"
-            - name: OLLAMA_MODEL
-              value: "llama3.1:8b"
-            - name: TIMEMACHINE_DB_PATH
-              value: "/data/timemachine.db"
+            - name: WX_CONFIG
+              value: /etc/weather-dashboard/config.yaml
           volumeMounts:
+            - name: config
+              mountPath: /etc/weather-dashboard
+              readOnly: true
             - name: timemachine
               mountPath: /data
           readinessProbe:
@@ -121,6 +69,12 @@ spec:
               cpu: 2000m
               memory: 1Gi
       volumes:
+        - name: config
+          secret:
+            secretName: weather-secret
+            items:
+              - key: config.yaml
+                path: config.yaml
         - name: timemachine
           persistentVolumeClaim:
             claimName: weather-timemachine
