@@ -56,6 +56,9 @@ spec:
             - name: UPLOAD_LOCATION
               valueFrom:
                 configMapKeyRef: { name: immich-config, key: UPLOAD_LOCATION }
+
+            - name: IMMICH_WORKERS_INCLUDE
+              value: "api"
           volumeMounts:
             - name: upload
               mountPath: /usr/src/app/upload
