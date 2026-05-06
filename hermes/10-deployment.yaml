@@ -56,6 +56,8 @@ spec:
               value: "10000"
             - name: HERMES_GID
               value: "10000"
+            - name: HERMES_INFERENCE_PROVIDER
+              value: anthropic
             - name: MATRIX_HOMESERVER
               value: https://matrix.white.fm
             - name: MATRIX_USER_ID
@@ -71,25 +73,13 @@ spec:
                 name: hermes-api-keys
             - secretRef:
                 name: hermes-matrix-secrets
-          ports:
-            - name: dashboard
-              containerPort: 9119
-          startupProbe:
-            tcpSocket:
-              port: dashboard
-            failureThreshold: 60
-            periodSeconds: 5
           livenessProbe:
-            tcpSocket:
-              port: dashboard
-            initialDelaySeconds: 120
+            exec:
+              command: ["pgrep", "-f", "gateway run"]
+            initialDelaySeconds: 60
             periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 6
-          readinessProbe:
-            tcpSocket:
-              port: dashboard
-            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 200m
@@ -142,4 +132,4 @@ spec:
   ports:
     - name: dashboard
       port: 9119
-      targetPort: dashboard
+      targetPort: 9119
