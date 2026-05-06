@@ -12,6 +12,11 @@ spec:
         name: openclaw-api-keys
     - secretRef:
         name: openclaw-matrix-secrets
+    # codex-token last so its OPENAI_API_KEY (ChatGPT subscription access_token)
+    # overrides the platform key. Refreshed every 6 days by codex-refresh CronJob.
+    - secretRef:
+        name: codex-token
+        optional: true
   env:
     - name: OLLAMA_API_KEY
       value: "ollama-local"

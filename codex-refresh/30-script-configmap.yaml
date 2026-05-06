@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: codex-refresh-script
+  namespace: codex-refresh
+data:
+  refresh.sh: |
+    #!/bin/sh
+    # Refresh ChatGPT/codex OAuth tokens, propagate access_token to bot namespaces,
+    # and trigger rolling restarts so envFrom picks up the new value.
+    set -eu
+
+    MASTER_NS=codex-refresh
+    MASTER_SECRET=codex-credentials
+
+    AUTH=$(kubectl get secret "$MASTER_SECRET" -n "$MASTER_NS" -o jsonpath='{.data.auth\.json}' | base64 -d)
+    REFRESH=$(echo "$AUTH" | jq -r '.tokens.refresh_token')
+    CLIENT_ID=$(echo "$AUTH" | jq -r '.tokens.id_token' | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.aud[0]')
+
+    if [ -z "$REFRESH" ] || [ "$REFRESH" = "null" ]; then
+      echo "FATAL: refresh_token missing from $MASTER_SECRET" >&2
+      exit 1
+    fi
+    if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ]; then
+      echo "FATAL: client_id could not be decoded from id_token" >&2
+      exit 1
+    fi
+
+    echo "Refreshing tokens (client_id=$CLIENT_ID)..."
+    RESP=$(curl -sf -X POST https://auth.openai.com/oauth/token \
+      -H 'Content-Type: application/x-www-form-urlencoded' \
+      --data-urlencode "grant_type=refresh_token" \
+      --data-urlencode "refresh_token=$REFRESH" \
+      --data-urlencode "client_id=$CLIENT_ID" \
+      --data-urlencode "scope=openid profile email offline_access")
+
+    NEW_ACCESS=$(echo "$RESP" | jq -r '.access_token')
+    NEW_REFRESH=$(echo "$RESP" | jq -r '.refresh_token // empty')
+    NEW_ID=$(echo "$RESP" | jq -r '.id_token // empty')
+
+    if [ -z "$NEW_ACCESS" ] || [ "$NEW_ACCESS" = "null" ]; then
+      echo "FATAL: no access_token in refresh response: $RESP" >&2
+      exit 1
+    fi
+    echo "Got new access_token (len=${#NEW_ACCESS})"
+
+    NEW_AUTH=$(echo "$AUTH" | jq \
+      --arg a "$NEW_ACCESS" \
+      --arg r "$NEW_REFRESH" \
+      --arg i "$NEW_ID" \
+      --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      '.tokens.access_token=$a
+       | (if $r != "" then .tokens.refresh_token=$r else . end)
+       | (if $i != "" then .tokens.id_token=$i else . end)
+       | .last_refresh=$t')
+
+    # Persist updated master
+    kubectl create secret generic "$MASTER_SECRET" -n "$MASTER_NS" \
+      --from-literal=auth.json="$NEW_AUTH" \
+      --dry-run=client -o yaml | kubectl apply -f -
+
+    # Propagate access_token to bot namespaces
+    for NS in openclaw hermes; do
+      kubectl create secret generic codex-token -n "$NS" \
+        --from-literal=OPENAI_API_KEY="$NEW_ACCESS" \
+        --from-literal=OPENAI_TOKEN="$NEW_ACCESS" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    done
+
+    # Trigger rolling restart so envFrom picks up new tokens
+    kubectl -n hermes patch deployment hermes \
+      -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"codex-refresh/last-refresh\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
+    kubectl -n openclaw patch statefulset openclaw \
+      -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"codex-refresh/last-refresh\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
+
+    echo "OK: refreshed and propagated at $(date -u)"
