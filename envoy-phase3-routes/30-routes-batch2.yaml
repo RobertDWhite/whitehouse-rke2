@@ -171,6 +171,17 @@ spec:
   hostnames:
     - plex.white.fm
   rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /web/index.html
+            statusCode: 302
     - backendRefs:
         - name: plex
           port: 32400
