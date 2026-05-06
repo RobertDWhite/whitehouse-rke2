@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: gibt-es-gott
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 20-service.yaml
+  - 30-configmap-nginx.yaml
+  - 52-httproute-public.yaml
+  - 53-httproute-internal.yaml
+
+images:
+  - name: nginx
+    newTag: "1.27-alpine"
