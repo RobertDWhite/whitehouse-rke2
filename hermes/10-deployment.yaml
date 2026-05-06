@@ -73,6 +73,12 @@ spec:
                 name: hermes-api-keys
             - secretRef:
                 name: hermes-matrix-secrets
+            # codex-token last so its OPENAI_API_KEY (ChatGPT subscription
+            # access_token) overrides the platform key from hermes-api-keys.
+            # Refreshed every 6 days by the codex-refresh CronJob.
+            - secretRef:
+                name: codex-token
+                optional: true
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "gateway run"]
