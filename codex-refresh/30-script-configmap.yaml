@@ -13,9 +13,18 @@ data:
     MASTER_NS=codex-refresh
     MASTER_SECRET=codex-credentials
 
+    # Decode a base64url segment (JWT payloads). Pads to multiple-of-4 and
+    # translates URL-safe alphabet back to standard base64 before decoding.
+    b64url_decode() {
+      s=$(echo -n "$1" | tr '_-' '/+')
+      pad=$((4 - ${#s} % 4)); [ "$pad" -lt 4 ] && s="$s$(printf '=%.0s' $(seq 1 $pad))"
+      echo "$s" | base64 -d 2>/dev/null
+    }
+
     AUTH=$(kubectl get secret "$MASTER_SECRET" -n "$MASTER_NS" -o jsonpath='{.data.auth\.json}' | base64 -d)
     REFRESH=$(echo "$AUTH" | jq -r '.tokens.refresh_token')
-    CLIENT_ID=$(echo "$AUTH" | jq -r '.tokens.id_token' | cut -d. -f2 | base64 -d 2>/dev/null | jq -r '.aud[0]')
+    ID_PAYLOAD=$(echo "$AUTH" | jq -r '.tokens.id_token' | cut -d. -f2)
+    CLIENT_ID=$(b64url_decode "$ID_PAYLOAD" | jq -r '.aud[0]')
 
     if [ -z "$REFRESH" ] || [ "$REFRESH" = "null" ]; then
       echo "FATAL: refresh_token missing from $MASTER_SECRET" >&2
