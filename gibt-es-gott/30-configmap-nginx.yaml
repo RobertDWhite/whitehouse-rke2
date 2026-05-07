@@ -23,13 +23,28 @@ data:
       add_header X-Content-Type-Options nosniff always;
       add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-      location / {
-        try_files $uri $uri/ =404;
-      }
-
+      # Long-cache video so Cloudflare keeps it at the edge.
       location ~* \.mp4$ {
         mp4;
         mp4_buffer_size 1m;
         mp4_max_buffer_size 5m;
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      # Subtitles and other static text get the same edge caching treatment.
+      location ~* \.(vtt|srt|txt|css|json)$ {
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      # HTML changes when we redeploy; short cache so updates land quickly.
+      location ~* \.html$ {
+        add_header Cache-Control "public, max-age=300" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      location / {
+        try_files $uri $uri/ =404;
       }
     }
