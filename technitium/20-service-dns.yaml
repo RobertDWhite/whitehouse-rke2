@@ -4,7 +4,31 @@ metadata:
   name: technitium-dns
   namespace: technitium
   annotations:
-    metallb.universe.tf/loadBalancerIPs: 10.99.5.100,10.99.5.101
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.100
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: technitium
+  ports:
+    - name: dns-udp
+      port: 53
+      protocol: UDP
+      targetPort: 53
+    - name: dns-tcp
+      port: 53
+      protocol: TCP
+      targetPort: 53
+---
+# Secondary VIP — MetalLB requires one Service per IPv4 address.
+# Same selector, same pods; gives the router a separate "secondary DNS" target.
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-dns-secondary
+  namespace: technitium
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.101
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Cluster
