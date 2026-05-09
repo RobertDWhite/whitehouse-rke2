@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: technitium
+  namespace: technitium
+spec:
+  serviceName: technitium-headless
+  replicas: 4
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: technitium
+  template:
+    metadata:
+      labels:
+        app: technitium
+    spec:
+      terminationGracePeriodSeconds: 30
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: network
+                    operator: In
+                    values: ["10g"]
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: technitium
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: technitium
+      containers:
+        - name: technitium
+          image: technitium/dns-server
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DNS_SERVER_DOMAIN
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DNS_SERVER_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: DNS_SERVER_WEB_SERVICE_HTTP_PORT
+              value: "5380"
+            - name: DNS_SERVER_ENABLE_BLOCKING
+              value: "true"
+            - name: DNS_SERVER_PREFER_IPV6
+              value: "false"
+            - name: DNS_SERVER_LOG_USING_LOCAL_TIME
+              value: "true"
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: web
+              containerPort: 5380
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5380
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5380
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /etc/dns
+
+        - name: zone-importer
+          image: python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir requests urllib3 PyYAML
+              exec python /scripts/import.py
+          env:
+            - name: TECHNITIUM_USER
+              value: "admin"
+            - name: TECHNITIUM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: ZONES_DIR
+              value: "/zones"
+            - name: FORWARDERS
+              value: "https://dns.quad9.net/dns-query,https://cloudflare-dns.com/dns-query"
+            - name: BLOCK_LISTS
+              value: "https://big.oisd.nl/"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: import-script
+              mountPath: /scripts
+            - name: zones
+              mountPath: /zones
+
+      volumes:
+        - name: import-script
+          configMap:
+            name: technitium-import-script
+            defaultMode: 0555
+        - name: zones
+          secret:
+            secretName: technitium-zones
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 2Gi
