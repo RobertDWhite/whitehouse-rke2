@@ -152,10 +152,13 @@ data:
             print("rotating default admin password")
             change_password(token)
             token, _ = login()
-        try:
-            set_settings(token)
-        except Exception as e:
-            print(f"warn: set_settings failed: {e}", file=sys.stderr)
+            # First-boot defaults only. After this, forwarders/blocklists
+            # are owned by the Technitium UI and won't be overwritten on
+            # subsequent boots or reloads.
+            try:
+                set_settings(token)
+            except Exception as e:
+                print(f"warn: set_settings failed: {e}", file=sys.stderr)
 
         last = {}
         while True:
