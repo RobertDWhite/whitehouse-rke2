@@ -5,6 +5,13 @@ metadata:
   namespace: technitium
 spec:
   type: ClusterIP
+  # Technitium sessions are in-memory per pod — without affinity,
+  # round-robined requests bounce between pods and the session cookie
+  # is rejected (login redirect loop).
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
   selector:
     app: technitium
   ports:
