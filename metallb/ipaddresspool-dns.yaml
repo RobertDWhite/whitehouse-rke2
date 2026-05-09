@@ -1,0 +1,11 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: dns-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.99.5.50-10.99.5.51
+  # Reserved for explicit Service annotations only (Technitium primary +
+  # secondary VIPs). Never auto-assigned to other Services.
+  autoAssign: false
