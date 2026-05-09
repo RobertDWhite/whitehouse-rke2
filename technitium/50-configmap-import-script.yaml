@@ -1,0 +1,176 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-import-script
+  namespace: technitium
+data:
+  import.py: |
+    #!/usr/bin/env python3
+    """Sidecar: wait for Technitium API on localhost, bootstrap on first
+    boot, then upsert every record from /zones/*.yaml. Idempotent.
+    Idles forever once import is done — pod restart re-runs the import.
+    """
+    import glob
+    import os
+    import sys
+    import time
+
+    import urllib3
+    import requests
+    import yaml
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    API         = "http://localhost:5380"
+    USER        = os.environ.get("TECHNITIUM_USER", "admin")
+    PASS        = os.environ["TECHNITIUM_PASSWORD"]
+    ZONES_DIR   = os.environ.get("ZONES_DIR", "/zones")
+    FORWARDERS  = os.environ.get(
+        "FORWARDERS",
+        "https://dns.quad9.net/dns-query,https://cloudflare-dns.com/dns-query",
+    )
+    BLOCK_LISTS = os.environ.get("BLOCK_LISTS", "https://big.oisd.nl/")
+
+    S = requests.Session()
+
+    def wait_for_api():
+        deadline = time.time() + 600
+        while time.time() < deadline:
+            try:
+                r = S.get(f"{API}/", timeout=5)
+                if r.ok or r.status_code in (401, 403):
+                    return
+            except Exception:
+                pass
+            time.sleep(3)
+        raise RuntimeError("technitium API never came up")
+
+    def login():
+        for pwd in (PASS, "admin"):
+            try:
+                r = S.get(
+                    f"{API}/api/user/login",
+                    params={"user": USER, "pass": pwd, "includeInfo": "true"},
+                    timeout=15,
+                )
+                if r.ok and r.json().get("status") == "ok":
+                    return r.json()["token"], (pwd == "admin")
+            except Exception:
+                pass
+        raise RuntimeError("login failed")
+
+    def change_password(token):
+        r = S.get(
+            f"{API}/api/user/changePassword",
+            params={"token": token, "pass": PASS},
+            timeout=15,
+        )
+        r.raise_for_status()
+
+    def set_settings(token):
+        r = S.get(
+            f"{API}/api/settings/set",
+            params={
+                "token": token,
+                "forwarders": FORWARDERS,
+                "forwarderProtocol": "Https",
+                "dnssecValidation": "true",
+                "enableBlocking": "true",
+                "blockListUrls": BLOCK_LISTS,
+            },
+            timeout=30,
+        )
+        r.raise_for_status()
+
+    def list_zones(token):
+        r = S.get(f"{API}/api/zones/list", params={"token": token}, timeout=15)
+        r.raise_for_status()
+        return [z["name"] for z in r.json().get("response", {}).get("zones", [])]
+
+    def create_zone(token, name):
+        r = S.get(
+            f"{API}/api/zones/create",
+            params={"token": token, "zone": name, "type": "Primary"},
+            timeout=15,
+        )
+        return r.ok and r.json().get("status") == "ok"
+
+    def add_record(token, zone, name, rtype, value):
+        params = {
+            "token": token,
+            "domain": name,
+            "zone": zone,
+            "type": rtype,
+            "ttl": "300",
+            "overwrite": "true",
+        }
+        if rtype in ("A", "AAAA"):
+            params["ipAddress"] = value
+        elif rtype == "CNAME":
+            params["cname"] = value
+        elif rtype == "TXT":
+            params["text"] = value
+        elif rtype == "MX":
+            prio, host = value.split(None, 1)
+            params["preference"] = prio
+            params["exchange"] = host
+        else:
+            print(f"  ! unsupported type {rtype}", file=sys.stderr)
+            return False
+        r = S.get(f"{API}/api/zones/records/add", params=params, timeout=15)
+        return r.ok and r.json().get("status") == "ok"
+
+    def import_zone(token, path, existing):
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+        zone = data.get("zone")
+        if not zone:
+            print(f"  ! {path}: missing 'zone' key", file=sys.stderr)
+            return
+        if zone not in existing:
+            if create_zone(token, zone):
+                print(f"created zone {zone}")
+                existing.add(zone)
+        records = data.get("records") or []
+        ok = fail = 0
+        for r in records:
+            if add_record(token, zone, r["name"], r["type"].upper(), str(r["value"])):
+                ok += 1
+            else:
+                fail += 1
+                print(f"  ! failed {r['type']} {r['name']} -> {r['value']}", file=sys.stderr)
+        print(f"{zone}: {ok} ok, {fail} failed ({len(records)} declared)")
+
+    def snapshot():
+        return {p: os.path.getmtime(p) for p in sorted(glob.glob(f"{ZONES_DIR}/*.yaml"))}
+
+    def main():
+        print("waiting for technitium API…")
+        wait_for_api()
+        token, was_default = login()
+        if was_default:
+            print("rotating default admin password")
+            change_password(token)
+            token, _ = login()
+        try:
+            set_settings(token)
+        except Exception as e:
+            print(f"warn: set_settings failed: {e}", file=sys.stderr)
+
+        last = {}
+        while True:
+            current = snapshot()
+            if current != last:
+                if last:
+                    print("zones changed on disk, re-importing")
+                existing = set(list_zones(token))
+                for path in sorted(current.keys()):
+                    try:
+                        import_zone(token, path, existing)
+                    except Exception as e:
+                        print(f"!! {path}: {e}", file=sys.stderr)
+                last = current
+            time.sleep(60)
+
+    if __name__ == "__main__":
+        main()
