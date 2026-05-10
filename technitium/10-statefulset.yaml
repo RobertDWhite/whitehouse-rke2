@@ -107,6 +107,10 @@ spec:
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: TECHNITIUM_USER
               value: "admin"
             - name: TECHNITIUM_PASSWORD
@@ -116,6 +120,13 @@ spec:
                   key: admin-password
             - name: ZONES_DIR
               value: "/zones"
+            # Cluster topology — must match Services in 23-services-per-pod.yaml
+            - name: CLUSTER_DOMAIN
+              value: "dns-cluster.internal.white.fm"
+            - name: NODE_IP_PREFIX
+              value: "10.99.5."
+            - name: NODE_BASE_OCTET
+              value: "52"
             # Fresh-pod default: forward to the in-cluster dnscrypt-proxy
             # (which handles ODoH via relay+target). Use the pinned
             # ClusterIP from 62-service-dnscrypt-proxy.yaml — using the
@@ -140,10 +151,53 @@ spec:
             - name: zones
               mountPath: /zones
 
+        - name: metrics-exporter
+          image: python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir requests urllib3
+              exec python /scripts/exporter.py
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TECHNITIUM_USER
+              value: "admin"
+            - name: TECHNITIUM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: METRICS_PORT
+              value: "9180"
+            - name: STATS_WINDOW
+              value: "lastHour"
+          ports:
+            - name: metrics
+              containerPort: 9180
+              protocol: TCP
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 96Mi }
+          readinessProbe:
+            httpGet: { path: /metrics, port: 9180 }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: metrics-script
+              mountPath: /scripts
+              readOnly: true
+
       volumes:
         - name: import-script
           configMap:
             name: technitium-import-script
+            defaultMode: 0555
+        - name: metrics-script
+          configMap:
+            name: technitium-metrics-exporter
             defaultMode: 0555
         - name: zones
           secret:
