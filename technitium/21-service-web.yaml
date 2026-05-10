@@ -5,10 +5,6 @@ metadata:
   namespace: technitium
 spec:
   type: ClusterIP
-  # Technitium tokens are in-memory per pod and there's no shared session
-  # store. Any load balancer that distributes across replicas breaks the
-  # UI ("invalid-token" loop). Pin the UI Service to a single ordinal pod.
-  # DNS traffic still uses all 4 pods via technitium-dns Service.
   selector:
     app: technitium
     statefulset.kubernetes.io/pod-name: technitium-0

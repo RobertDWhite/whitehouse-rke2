@@ -8,12 +8,6 @@ metadata:
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Cluster
-  # Pinned to pod-0 (primary) because Technitium clustering replicates zone
-  # MEMBERSHIP via cluster-catalog but record-level data sync between primary
-  # and secondaries lags (configRefresh interval). Until secondary sync is
-  # reliable, all aggregate DNS traffic hits the primary which has the
-  # authoritative copy of all zones. Per-pod inspection still works via
-  # technitium-node-N (.52-.55) for direct dig of any specific node.
   selector:
     app: technitium
     statefulset.kubernetes.io/pod-name: technitium-0
@@ -28,7 +22,7 @@ spec:
       targetPort: 53
 ---
 # Secondary VIP — same selector for now (also pinned to primary).
-# When cluster sync stabilizes, change selector to drop the pod-name pin.
+
 apiVersion: v1
 kind: Service
 metadata:
