@@ -53,6 +53,12 @@ data:
     FORWARDER_PROTOCOL = os.environ.get("FORWARDER_PROTOCOL", "Udp")
     BLOCK_LISTS = os.environ.get("BLOCK_LISTS", "https://big.oisd.nl/")
 
+
+    PROXY_ADDRESS = os.environ.get("PROXY_ADDRESS", "vpn-proxy.media.svc.cluster.local")
+    PROXY_PORT    = os.environ.get("PROXY_PORT", "8888")
+    QUERY_LOGS_APP = "Query Logs (Sqlite)"
+    QUERY_LOGS_MAX_DAYS = int(os.environ.get("QUERY_LOGS_MAX_DAYS", "30"))
+
     # Cluster topology — must match the per-pod LB Services in
     # 23-services-per-pod.yaml (10.99.5.52 + ordinal).
     CLUSTER_DOMAIN = os.environ.get("CLUSTER_DOMAIN", "dns-cluster.internal.white.fm")
@@ -105,6 +111,91 @@ data:
             "enableBlocking": "true",
             "blockListUrls": BLOCK_LISTS,
         }, timeout=30).raise_for_status()
+
+    # ---- outbound HTTP proxy + Query Logs DNS app --------------------------
+
+    def ensure_outbound_proxy(token):
+        # Idempotent: re-setting the same proxy is a no-op for Technitium.
+        # Without this, /api/apps/listStoreApps + downloadAndInstall fail
+        # because the namespace netpol forbids direct internet egress.
+        try:
+            r = S.get(f"{API}/api/settings/set", params={
+                "token": token,
+                "proxyType": "Http",
+                "proxyAddress": PROXY_ADDRESS,
+                "proxyPort": PROXY_PORT,
+                "proxyBypass": "127.0.0.0/8\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16",
+            }, timeout=30)
+            if not (r.ok and r.json().get("status") == "ok"):
+                print(f"warn: proxy set failed: {r.text[:200]}", file=sys.stderr)
+        except Exception as e:
+            print(f"warn: proxy set error: {e}", file=sys.stderr)
+
+    def list_installed_apps(token):
+        r = S.get(f"{API}/api/apps/list", params={"token": token}, timeout=15)
+        if not r.ok:
+            return set()
+        return {a.get("name") for a in r.json().get("response", {}).get("apps", [])}
+
+    def find_store_app_url(token, name):
+        r = S.get(f"{API}/api/apps/listStoreApps", params={"token": token}, timeout=30)
+        if not (r.ok and r.json().get("status") == "ok"):
+            return None
+        for a in r.json().get("response", {}).get("storeApps", []):
+            if a.get("name") == name:
+                return a.get("url")
+        return None
+
+    def install_query_logs_app(token):
+        if QUERY_LOGS_APP in list_installed_apps(token):
+            return True
+        url = find_store_app_url(token, QUERY_LOGS_APP)
+        if not url:
+            print(f"warn: {QUERY_LOGS_APP} not found in app store (proxy reachable?)", file=sys.stderr)
+            return False
+        r = S.post(f"{API}/api/apps/downloadAndInstall",
+                   params={"token": token},
+                   data={"name": QUERY_LOGS_APP, "url": url},
+                   timeout=180)
+        ok = r.ok and r.json().get("status") == "ok"
+        if ok:
+            print(f"installed DNS app: {QUERY_LOGS_APP}")
+        else:
+            print(f"warn: install {QUERY_LOGS_APP} failed: {r.text[:300]}", file=sys.stderr)
+        return ok
+
+    def configure_query_logs_retention(token):
+        # Pull current config, patch maxLogDays, push back. Retention applies
+        # per-pod since each pod has its own SQLite log database.
+        import json
+        r = S.get(f"{API}/api/apps/config/get",
+                  params={"token": token, "name": QUERY_LOGS_APP}, timeout=15)
+        if not (r.ok and r.json().get("status") == "ok"):
+            return False
+        raw = r.json().get("response", {}).get("config") or "{}"
+        try:
+            cfg = json.loads(raw)
+        except Exception:
+            cfg = {}
+        if cfg.get("maxLogDays") == QUERY_LOGS_MAX_DAYS:
+            return True
+        cfg["maxLogDays"] = QUERY_LOGS_MAX_DAYS
+        cfg.setdefault("enableLogging", True)
+        r = S.post(f"{API}/api/apps/config/set",
+                   params={"token": token},
+                   data={"name": QUERY_LOGS_APP, "config": json.dumps(cfg)},
+                   timeout=30)
+        ok = r.ok and r.json().get("status") == "ok"
+        if ok:
+            print(f"set {QUERY_LOGS_APP} maxLogDays={QUERY_LOGS_MAX_DAYS}")
+        return ok
+
+    def ensure_query_logs(token):
+        try:
+            if install_query_logs_app(token):
+                configure_query_logs_retention(token)
+        except Exception as e:
+            print(f"warn: ensure_query_logs failed: {e}", file=sys.stderr)
 
     # ---- cluster ops --------------------------------------------------------
 
@@ -226,6 +317,10 @@ data:
                 set_settings(token)
             except Exception as e:
                 print(f"warn: set_settings failed: {e}", file=sys.stderr)
+
+        # Always-on: keep proxy + Query Logs app reconciled. Idempotent.
+        ensure_outbound_proxy(token)
+        ensure_query_logs(token)
 
         state = cluster_state(token)
         joined = state.get("clusterInitialized", False)
