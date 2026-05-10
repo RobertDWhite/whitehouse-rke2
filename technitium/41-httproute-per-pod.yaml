@@ -1,0 +1,45 @@
+# Per-pod admin UI routes. Each pod is reachable under TWO hostnames so you
+# can pick whichever feels natural:
+#   dns-N.internal.white.fm        (short, friendly)
+#   technitium-N.internal.white.fm (matches the pod name in kubectl)
+# Pod ordinals are 0-indexed to match StatefulSet conventions.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: technitium-node-0, namespace: technitium }
+spec:
+  parentRefs:
+    - { name: main, namespace: envoy-gateway-system, sectionName: https-internal-white-fm }
+  hostnames: [dns-0.internal.white.fm, technitium-0.internal.white.fm]
+  rules:
+    - backendRefs: [{ name: technitium-web-0, port: 5380 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: technitium-node-1, namespace: technitium }
+spec:
+  parentRefs:
+    - { name: main, namespace: envoy-gateway-system, sectionName: https-internal-white-fm }
+  hostnames: [dns-1.internal.white.fm, technitium-1.internal.white.fm]
+  rules:
+    - backendRefs: [{ name: technitium-web-1, port: 5380 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: technitium-node-2, namespace: technitium }
+spec:
+  parentRefs:
+    - { name: main, namespace: envoy-gateway-system, sectionName: https-internal-white-fm }
+  hostnames: [dns-2.internal.white.fm, technitium-2.internal.white.fm]
+  rules:
+    - backendRefs: [{ name: technitium-web-2, port: 5380 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: { name: technitium-node-3, namespace: technitium }
+spec:
+  parentRefs:
+    - { name: main, namespace: envoy-gateway-system, sectionName: https-internal-white-fm }
+  hostnames: [dns-3.internal.white.fm, technitium-3.internal.white.fm]
+  rules:
+    - backendRefs: [{ name: technitium-web-3, port: 5380 }]

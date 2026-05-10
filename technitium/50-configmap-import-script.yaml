@@ -6,12 +6,33 @@ metadata:
 data:
   import.py: |
     #!/usr/bin/env python3
-    """Sidecar: wait for Technitium API on localhost, bootstrap on first
-    boot, then upsert every record from /zones/*.yaml. Idempotent.
-    Idles forever once import is done — pod restart re-runs the import.
+    """Sidecar that wires Technitium's clustering on top of GitOps-managed
+    zones. Two roles based on POD_NAME:
+
+      primary (technitium-0):
+        - waits for API
+        - rotates default password if needed
+        - applies bootstrap settings (forwarders, blocklists) on first boot
+        - initializes Technitium cluster if not already done
+        - imports each zone from /zones/*.yaml as a Primary zone
+        - enrolls each managed zone in the cluster-catalog so secondaries
+          auto-replicate them
+        - watches /zones for changes, re-imports on edit
+        - idles between checks
+
+      secondary (technitium-1, -2, -3):
+        - waits for API
+        - rotates default password if needed
+        - if not already a cluster member, calls /api/admin/cluster/initJoin
+          pointing at the primary node's URL
+        - idles forever (cluster replication owns everything from here)
+
+    Zone source of truth stays git → sops Secret → /zones/*.yaml.
+    Cluster replication owns propagation to the secondaries.
     """
     import glob
     import os
+    import socket
     import sys
     import time
 
@@ -25,16 +46,27 @@ data:
     USER        = os.environ.get("TECHNITIUM_USER", "admin")
     PASS        = os.environ["TECHNITIUM_PASSWORD"]
     ZONES_DIR   = os.environ.get("ZONES_DIR", "/zones")
-    FORWARDERS  = os.environ.get(
-        "FORWARDERS",
-        # Pinned ClusterIP of dnscrypt-proxy Service — using the DNS name
-        # creates a chicken-and-egg loop with Technitium's own resolver.
-        "10.43.6.253",
-    )
+    POD_NAME    = os.environ.get("POD_NAME") or socket.gethostname()
+    POD_ORDINAL = int(POD_NAME.rsplit("-", 1)[-1])
+
+    FORWARDERS  = os.environ.get("FORWARDERS", "10.43.6.253")
     FORWARDER_PROTOCOL = os.environ.get("FORWARDER_PROTOCOL", "Udp")
     BLOCK_LISTS = os.environ.get("BLOCK_LISTS", "https://big.oisd.nl/")
 
+    # Cluster topology — must match the per-pod LB Services in
+    # 23-services-per-pod.yaml (10.99.5.52 + ordinal).
+    CLUSTER_DOMAIN = os.environ.get("CLUSTER_DOMAIN", "dns-cluster.internal.white.fm")
+    CLUSTER_CATALOG = f"cluster-catalog.{CLUSTER_DOMAIN}"
+    NODE_BASE_OCTET = int(os.environ.get("NODE_BASE_OCTET", "52"))   # .52 = pod-0
+    NODE_IP_PREFIX  = os.environ.get("NODE_IP_PREFIX", "10.99.5.")
+    PRIMARY_IP      = f"{NODE_IP_PREFIX}{NODE_BASE_OCTET}"
+    PRIMARY_URL     = f"https://{PRIMARY_IP}:53443/"
+    OWN_IP          = f"{NODE_IP_PREFIX}{NODE_BASE_OCTET + POD_ORDINAL}"
+    IS_PRIMARY      = (POD_ORDINAL == 0)
+
     S = requests.Session()
+
+    # ---- low-level helpers --------------------------------------------------
 
     def wait_for_api():
         deadline = time.time() + 600
@@ -51,11 +83,9 @@ data:
     def login():
         for pwd in (PASS, "admin"):
             try:
-                r = S.get(
-                    f"{API}/api/user/login",
-                    params={"user": USER, "pass": pwd, "includeInfo": "true"},
-                    timeout=15,
-                )
+                r = S.get(f"{API}/api/user/login",
+                          params={"user": USER, "pass": pwd, "includeInfo": "true"},
+                          timeout=15)
                 if r.ok and r.json().get("status") == "ok":
                     return r.json()["token"], (pwd == "admin")
             except Exception:
@@ -63,50 +93,74 @@ data:
         raise RuntimeError("login failed")
 
     def change_password(token):
-        r = S.get(
-            f"{API}/api/user/changePassword",
-            params={"token": token, "pass": PASS},
-            timeout=15,
-        )
-        r.raise_for_status()
+        S.get(f"{API}/api/user/changePassword",
+              params={"token": token, "pass": PASS}, timeout=15).raise_for_status()
 
     def set_settings(token):
-        r = S.get(
-            f"{API}/api/settings/set",
-            params={
-                "token": token,
-                "forwarders": FORWARDERS,
-                "forwarderProtocol": FORWARDER_PROTOCOL,
-                "dnssecValidation": "true",
-                "enableBlocking": "true",
-                "blockListUrls": BLOCK_LISTS,
-            },
-            timeout=30,
-        )
-        r.raise_for_status()
+        S.get(f"{API}/api/settings/set", params={
+            "token": token,
+            "forwarders": FORWARDERS,
+            "forwarderProtocol": FORWARDER_PROTOCOL,
+            "dnssecValidation": "true",
+            "enableBlocking": "true",
+            "blockListUrls": BLOCK_LISTS,
+        }, timeout=30).raise_for_status()
+
+    # ---- cluster ops --------------------------------------------------------
+
+    def cluster_state(token):
+        r = S.get(f"{API}/api/admin/cluster/state",
+                  params={"token": token}, timeout=15)
+        if not r.ok:
+            return {}
+        return r.json().get("response", {})
+
+    def cluster_init_primary(token):
+        print(f"[primary] initializing cluster {CLUSTER_DOMAIN} with IP {PRIMARY_IP}")
+        r = S.get(f"{API}/api/admin/cluster/init", params={
+            "token": token,
+            "clusterDomain": CLUSTER_DOMAIN,
+            "primaryNodeIpAddresses": PRIMARY_IP,
+        }, timeout=60)
+        body = r.json()
+        if body.get("status") != "ok":
+            raise RuntimeError(f"cluster init failed: {body.get('errorMessage')}")
+        print("[primary] cluster initialized")
+
+    def cluster_init_join(token):
+        print(f"[secondary] joining cluster via {PRIMARY_URL} as {OWN_IP}")
+        r = S.post(f"{API}/api/admin/cluster/initJoin", params={"token": token},
+                   data={
+                       "secondaryNodeIpAddresses": OWN_IP,
+                       "primaryNodeUrl": PRIMARY_URL,
+                       "primaryNodeIpAddress": PRIMARY_IP,
+                       "ignoreCertificateErrors": "true",
+                       "primaryNodeUsername": USER,
+                       "primaryNodePassword": PASS,
+                       "primaryNodeTotp": "",
+                   }, timeout=120)
+        body = r.json()
+        if body.get("status") != "ok":
+            raise RuntimeError(f"cluster join failed: {body.get('errorMessage')}")
+        print("[secondary] joined cluster")
+
+    # ---- zone ops (primary only) -------------------------------------------
 
     def list_zones(token):
-        r = S.get(f"{API}/api/zones/list", params={"token": token}, timeout=15)
+        r = S.get(f"{API}/api/zones/list",
+                  params={"token": token}, timeout=15)
         r.raise_for_status()
         return [z["name"] for z in r.json().get("response", {}).get("zones", [])]
 
     def create_zone(token, name):
-        r = S.get(
-            f"{API}/api/zones/create",
-            params={"token": token, "zone": name, "type": "Primary"},
-            timeout=15,
-        )
+        r = S.get(f"{API}/api/zones/create",
+                  params={"token": token, "zone": name, "type": "Primary"},
+                  timeout=15)
         return r.ok and r.json().get("status") == "ok"
 
     def add_record(token, zone, name, rtype, value):
-        params = {
-            "token": token,
-            "domain": name,
-            "zone": zone,
-            "type": rtype,
-            "ttl": "300",
-            "overwrite": "true",
-        }
+        params = {"token": token, "domain": name, "zone": zone,
+                  "type": rtype, "ttl": "300", "overwrite": "true"}
         if rtype in ("A", "AAAA"):
             params["ipAddress"] = value
         elif rtype == "CNAME":
@@ -123,17 +177,28 @@ data:
         r = S.get(f"{API}/api/zones/records/add", params=params, timeout=15)
         return r.ok and r.json().get("status") == "ok"
 
+    def enroll_in_catalog(token, zone):
+        # idempotent: re-running with the same catalog is a no-op
+        r = S.get(f"{API}/api/zones/options/set", params={
+            "token": token, "zone": zone, "catalog": CLUSTER_CATALOG,
+        }, timeout=15)
+        ok = r.ok and r.json().get("status") == "ok"
+        if not ok:
+            print(f"  ! enroll {zone} in catalog failed: {r.text[:200]}", file=sys.stderr)
+        return ok
+
     def import_zone(token, path, existing):
         with open(path) as f:
             data = yaml.safe_load(f) or {}
         zone = data.get("zone")
         if not zone:
-            print(f"  ! {path}: missing 'zone' key", file=sys.stderr)
             return
         if zone not in existing:
             if create_zone(token, zone):
                 print(f"created zone {zone}")
                 existing.add(zone)
+        # always (re)enroll in cluster-catalog so secondaries pull it
+        enroll_in_catalog(token, zone)
         records = data.get("records") or []
         ok = fail = 0
         for r in records:
@@ -147,36 +212,63 @@ data:
     def snapshot():
         return {p: os.path.getmtime(p) for p in sorted(glob.glob(f"{ZONES_DIR}/*.yaml"))}
 
+    # ---- main ---------------------------------------------------------------
+
     def main():
-        print("waiting for technitium API…")
+        print(f"=== {POD_NAME} (ordinal={POD_ORDINAL}, role={'primary' if IS_PRIMARY else 'secondary'}) ===")
         wait_for_api()
         token, was_default = login()
         if was_default:
             print("rotating default admin password")
             change_password(token)
             token, _ = login()
-            # First-boot defaults only. After this, forwarders/blocklists
-            # are owned by the Technitium UI and won't be overwritten on
-            # subsequent boots or reloads.
             try:
                 set_settings(token)
             except Exception as e:
                 print(f"warn: set_settings failed: {e}", file=sys.stderr)
 
-        last = {}
-        while True:
-            current = snapshot()
-            if current != last:
-                if last:
-                    print("zones changed on disk, re-importing")
-                existing = set(list_zones(token))
-                for path in sorted(current.keys()):
+        state = cluster_state(token)
+        joined = state.get("clusterInitialized", False)
+
+        if IS_PRIMARY:
+            if not joined:
+                cluster_init_primary(token)
+            else:
+                print(f"[primary] already initialized as {state.get('clusterDomain')}")
+
+            # primary owns zone import + cluster-catalog enrollment
+            last = {}
+            while True:
+                current = snapshot()
+                if current != last:
+                    if last:
+                        print("zones changed on disk, re-importing")
+                    existing = set(list_zones(token))
+                    for path in sorted(current.keys()):
+                        try:
+                            import_zone(token, path, existing)
+                        except Exception as e:
+                            print(f"!! {path}: {e}", file=sys.stderr)
+                    last = current
+                time.sleep(60)
+        else:
+            if not joined:
+                # primary may not be ready yet — retry a few times
+                for attempt in range(10):
                     try:
-                        import_zone(token, path, existing)
+                        cluster_init_join(token)
+                        break
                     except Exception as e:
-                        print(f"!! {path}: {e}", file=sys.stderr)
-                last = current
-            time.sleep(60)
+                        print(f"join attempt {attempt+1} failed: {e}", file=sys.stderr)
+                        time.sleep(30)
+                else:
+                    print("!! gave up on joining cluster after 10 attempts", file=sys.stderr)
+            else:
+                print(f"[secondary] already cluster member of {state.get('clusterDomain')}")
+
+            # secondaries idle — replication does the rest
+            while True:
+                time.sleep(3600)
 
     if __name__ == "__main__":
         main()

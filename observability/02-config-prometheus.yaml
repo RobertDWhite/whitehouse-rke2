@@ -508,6 +508,28 @@ data:
         scrape_interval: 15s
         honor_labels: true
 
+      # Technitium DNS — exporter sidecar in each pod, scraped per-pod via
+      # the headless Service so each time series gets a `pod` label
+      # (technitium-0/1/2/3) for per-node breakdown in Grafana.
+      - job_name: technitium
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [technitium]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: technitium
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+        metrics_path: /metrics
+        scrape_interval: 30s
+
   sdr-alerts.yml: |
     groups:
       - name: sdr-research.pvc
