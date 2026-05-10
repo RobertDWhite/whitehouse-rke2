@@ -8,8 +8,15 @@ metadata:
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Cluster
+  # Pinned to pod-0 (primary) because Technitium clustering replicates zone
+  # MEMBERSHIP via cluster-catalog but record-level data sync between primary
+  # and secondaries lags (configRefresh interval). Until secondary sync is
+  # reliable, all aggregate DNS traffic hits the primary which has the
+  # authoritative copy of all zones. Per-pod inspection still works via
+  # technitium-node-N (.52-.55) for direct dig of any specific node.
   selector:
     app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-0
   ports:
     - name: dns-udp
       port: 53
@@ -20,8 +27,8 @@ spec:
       protocol: TCP
       targetPort: 53
 ---
-# Secondary VIP — MetalLB requires one Service per IPv4 address.
-# Same selector, same pods; gives the router a separate "secondary DNS" target.
+# Secondary VIP — same selector for now (also pinned to primary).
+# When cluster sync stabilizes, change selector to drop the pod-name pin.
 apiVersion: v1
 kind: Service
 metadata:
@@ -34,6 +41,7 @@ spec:
   externalTrafficPolicy: Cluster
   selector:
     app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-0
   ports:
     - name: dns-udp
       port: 53
