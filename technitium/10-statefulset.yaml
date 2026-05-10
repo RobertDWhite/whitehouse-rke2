@@ -18,6 +18,14 @@ spec:
       terminationGracePeriodSeconds: 30
       affinity:
         nodeAffinity:
+          # HARD: do not schedule on node-50 (user request — keep DNS off
+          # the GPU/dev node so it stays free for other workloads).
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-50]
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               preference:

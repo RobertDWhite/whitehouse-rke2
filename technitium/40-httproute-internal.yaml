@@ -9,8 +9,11 @@ spec:
       namespace: envoy-gateway-system
       sectionName: https-internal-white-fm
   hostnames:
+    # NOTE: dns.internal.white.fm is intentionally NOT here.
+    # That hostname is reserved for the DNS server LB IP (10.99.5.50)
+    # so it can be used as a DNS server name in router configs.
+    # UI access uses technitium.internal.white.fm or dns-{0..3}.internal.white.fm
     - technitium.internal.white.fm
-    - dns.internal.white.fm
   rules:
     - backendRefs:
         - name: technitium-web
