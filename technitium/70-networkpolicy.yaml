@@ -1,0 +1,245 @@
+# =============================================================
+# technitium namespace — Authoritative + recursive DNS server
+# =============================================================
+# Goal: NO DNS query (or any other traffic) from this namespace
+# can leak to the public internet. Every recursive lookup must
+# traverse:  technitium → dnscrypt-proxy → vpn-proxy(SOCKS5) → ODoH
+#
+# Pods in this namespace:
+#   - StatefulSet "technitium" (4 replicas, label app=technitium)
+#       containers: technitium (DNS), zone-importer, metrics-exporter
+#   - Deployment "dnscrypt-proxy" (2 replicas, label app=dnscrypt-proxy)
+#
+# Deny-by-default + narrow allow rules below.
+# =============================================================
+
+# --- Default deny all ingress + egress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+# --- Allow all intra-namespace traffic (both directions) ---
+# StatefulSet replicas sync over TCP 53443; sidecars hit main on 5380;
+# main container resolves dnscrypt-proxy.technitium.svc on 53.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {}}]
+  egress:
+    - to: [{podSelector: {}}]
+
+---
+# --- Egress: CoreDNS (cluster service hostname resolution) ---
+# Needed to resolve auth.white.fm, vpn-proxy.media.svc, etc.
+# CoreDNS lives in kube-system at 10.43.0.10:53 (UDP+TCP).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-coredns
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+
+---
+# --- Egress: kube-apiserver ---
+# Sidecars (zone-importer, metrics-exporter) talk to kubernetes.default.svc
+# for service discovery / ConfigMap reads. VIP is 10.99.5.50:6443 and the
+# ClusterIP service 10.43.0.1:443 also resolves here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-kube-apiserver
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.99.5.50/32
+      ports:
+        - {protocol: TCP, port: 6443}
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - {protocol: TCP, port: 443}
+
+---
+# --- Egress: authentik (OIDC discovery + auth for Technitium UI SSO) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-authentik
+  namespace: technitium
+spec:
+  podSelector:
+    matchLabels:
+      app: technitium
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+          podSelector:
+            matchLabels:
+              app: authentik-server
+      ports:
+        - {protocol: TCP, port: 80}
+
+---
+# --- Egress: dnscrypt-proxy → vpn-proxy SOCKS5 (media namespace) ---
+# ONLY dnscrypt-proxy pods may reach the SOCKS5 tunnel that fronts ODoH.
+# Technitium itself MUST NOT have this allow — it forces all recursion
+# through dnscrypt-proxy first.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dnscrypt-to-vpn-proxy
+  namespace: technitium
+spec:
+  podSelector:
+    matchLabels:
+      app: dnscrypt-proxy
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchLabels:
+              app: vpn-proxy
+      ports:
+        - {protocol: TCP, port: 1080}
+
+---
+# --- Ingress: DNS clients (any pod in cluster, any LAN client) ---
+# Technitium serves DNS on 53 UDP+TCP and 853 (DoT) / 443 (DoH).
+# MetalLB external IPs preserve LAN source IPs (10.99.5.0/24); after SNAT
+# from cluster nodes the source becomes pod CIDR (10.42.0.0/16).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-dns
+  namespace: technitium
+spec:
+  podSelector:
+    matchLabels:
+      app: technitium
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Any pod in the cluster (intra-cluster DNS clients).
+        - namespaceSelector: {}
+        # LAN clients hitting MetalLB external IPs directly.
+        - ipBlock:
+            cidr: 10.99.5.0/24
+        # Node SNAT / pod CIDR fallback.
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: 853}
+
+---
+# --- Ingress: Envoy Gateway → Technitium web UI (5380) ---
+# HTTPRoutes in envoy-gateway-system terminate and forward to web pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-envoy
+  namespace: technitium
+spec:
+  podSelector:
+    matchLabels:
+      app: technitium
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - {protocol: TCP, port: 5380}
+
+---
+# --- Ingress: authentik proxy (legacy SSO path, if any HTTPRoute fronts here) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-authentik
+  namespace: technitium
+spec:
+  podSelector:
+    matchLabels:
+      app: technitium
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - {protocol: TCP, port: 5380}
+
+---
+# --- Ingress: Prometheus scrape → metrics-exporter sidecar (9180) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - {protocol: TCP, port: 9180}
+
+---
+# --- Ingress: uptime-kuma probes ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-uptime-kuma
+  namespace: technitium
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
