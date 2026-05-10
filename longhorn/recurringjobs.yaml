@@ -1,0 +1,40 @@
+# Longhorn RecurringJobs — backup all volumes nightly to the NFS backup
+# target (nfs://10.100.1.20:/volume1/longhorn-backups, configured separately
+# on BackupTarget "default"). This is the safety net for application data
+# (PostgreSQL, Authentik, Matrix, etc.) when Velero backups are unavailable.
+#
+# Volumes opt in by labelling the Volume CR with
+#   recurring-job-group.longhorn.io/default: enabled
+# The longhorn StorageClass below sets recurringJobSelector so future PVCs
+# auto-join. Existing volumes need to be labelled once (run the snippet in
+# the Operator-side recovery doc).
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: nightly-backup
+  namespace: longhorn-system
+spec:
+  cron: "0 4 * * *"        # 04:00 UTC daily
+  task: backup
+  groups:
+    - default
+  retain: 14               # 14 daily backups kept on NFS
+  concurrency: 2
+  labels:
+    type: nightly
+---
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: hourly-snapshot
+  namespace: longhorn-system
+spec:
+  cron: "0 * * * *"        # every hour, on the hour
+  task: snapshot
+  groups:
+    - default
+  retain: 6                # last 6 hours of in-volume snapshots (fast revert)
+  concurrency: 4
+  labels:
+    type: hourly

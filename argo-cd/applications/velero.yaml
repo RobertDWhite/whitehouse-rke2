@@ -37,9 +37,11 @@ spec:
                 bucket: velero-backup
                 default: true
                 config:
-                  s3Url: https://minio-bucket.white.fm:9000
+                  # Use cluster DNS + EndpointSlice in external-services namespace
+                  # so we don't depend on the public DNS record (which is now
+                  # Cloudflare-proxied and refuses port 9000).
+                  s3Url: http://minio-s3.external-services.svc.cluster.local:9000
                   s3ForcePathStyle: "true"
-                  insecureSkipTLSVerify: "true"
             volumeSnapshotLocation:
               - name: default
                 provider: velero.io/csi

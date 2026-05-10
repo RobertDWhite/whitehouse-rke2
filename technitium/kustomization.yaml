@@ -9,6 +9,8 @@ resources:
   - 22-service-headless.yaml
   - 40-httproute-internal.yaml
   - 50-configmap-import-script.yaml
+  - 61-deployment-dnscrypt-proxy.yaml
+  - 62-service-dnscrypt-proxy.yaml
   # Emergency-only Pi-hole runtime sync. Uncomment, push, then:
   #   kubectl -n technitium create job --from=cronjob/pihole-sync sync-now
   # Re-comment when done; ArgoCD prunes the CronJob + ConfigMap.
@@ -22,3 +24,5 @@ images:
     newTag: "15.2.0"
   - name: python
     newTag: "3.14-alpine"
+  - name: klutchell/dnscrypt-proxy
+    newTag: "2.1.15"
