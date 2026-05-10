@@ -4,11 +4,7 @@ metadata:
   name: dns-pool
   namespace: metallb-system
 spec:
+  # .50/.51 = Technitium DNS LB; .52-.55 = per-pod; .56-.59 spare
   addresses:
     - 10.99.5.50-10.99.5.59
-  # Reserved for explicit Service annotations only:
-  #   .50/.51 — Technitium DNS LB (round-robin across all 4 pods)
-  #   .52-.55 — Per-pod cluster sync + direct DNS access (one per pod)
-  #   .56-.59 — spare for future per-node services
-  # Never auto-assigned to other Services.
   autoAssign: false
