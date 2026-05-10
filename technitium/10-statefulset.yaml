@@ -18,8 +18,6 @@ spec:
       terminationGracePeriodSeconds: 30
       affinity:
         nodeAffinity:
-          # HARD: do not schedule on node-50 (user request — keep DNS off
-          # the GPU/dev node so it stays free for other workloads).
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
@@ -135,11 +133,6 @@ spec:
               value: "10.99.5."
             - name: NODE_BASE_OCTET
               value: "52"
-            # Fresh-pod default: forward to the in-cluster dnscrypt-proxy
-            # (which handles ODoH via relay+target). Use the pinned
-            # ClusterIP from 62-service-dnscrypt-proxy.yaml — using the
-            # DNS name would loop (Technitium would resolve it via its
-            # own forwarder, which is the very name being resolved).
             - name: FORWARDERS
               value: "10.43.6.253"
             - name: FORWARDER_PROTOCOL

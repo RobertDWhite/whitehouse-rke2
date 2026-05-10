@@ -1,12 +1,4 @@
-# Per-pod LoadBalancer Services. Each pod gets a stable IP in the dns-pool
-# range (10.99.5.52-55). Used for:
-#   - Cluster sync (port 53443/TCP, DANE-EE TLS) between primary and secondaries
-#   - Direct DNS query of a specific node (port 53/UDP+TCP) for inspection
-#     (e.g. "is pod-2 still resolving correctly?" → dig @10.99.5.54)
-#
-# Selector pins to one pod via the StatefulSet pod-name label.
-# The aggregate technitium-dns / technitium-dns-secondary Services on
-# .50/.51 still front all 4 pods for normal DNS traffic.
+
 ---
 apiVersion: v1
 kind: Service

@@ -25,8 +25,6 @@ spec:
 
 ---
 # --- Allow all intra-namespace traffic (both directions) ---
-# StatefulSet replicas sync over TCP 53443; sidecars hit main on 5380;
-# main container resolves dnscrypt-proxy.technitium.svc on 53.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -43,7 +41,6 @@ spec:
 ---
 # --- Egress: CoreDNS (cluster service hostname resolution) ---
 # Needed to resolve auth.white.fm, vpn-proxy.media.svc, etc.
-# CoreDNS lives in kube-system at 10.43.0.10:53 (UDP+TCP).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -63,9 +60,6 @@ spec:
 
 ---
 # --- Egress: kube-apiserver ---
-# Sidecars (zone-importer, metrics-exporter) talk to kubernetes.default.svc
-# for service discovery / ConfigMap reads. VIP is 10.99.5.50:6443 and the
-# ClusterIP service 10.43.0.1:443 also resolves here.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -104,10 +98,26 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: authentik
           podSelector:
+            # Authentik Helm chart uses app.kubernetes.io/* labels, not app=
             matchLabels:
-              app: authentik-server
+              app.kubernetes.io/name: authentik
+              app.kubernetes.io/component: server
       ports:
         - {protocol: TCP, port: 80}
+        - {protocol: TCP, port: 9443}
+
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: envoy
+      ports:
+        # envoy listens on these container ports; the LB Service maps
+        # 80→10080 and 443→10443.
+        - {protocol: TCP, port: 10080}
+        - {protocol: TCP, port: 10443}
 
 ---
 # --- Egress: dnscrypt-proxy → vpn-proxy SOCKS5 (media namespace) ---
