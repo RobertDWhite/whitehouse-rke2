@@ -116,8 +116,15 @@ spec:
                   key: admin-password
             - name: ZONES_DIR
               value: "/zones"
+            # Fresh-pod default: forward to the in-cluster dnscrypt-proxy
+            # (which handles ODoH via relay+target). Use the pinned
+            # ClusterIP from 62-service-dnscrypt-proxy.yaml — using the
+            # DNS name would loop (Technitium would resolve it via its
+            # own forwarder, which is the very name being resolved).
             - name: FORWARDERS
-              value: "https://dns.quad9.net/dns-query,https://cloudflare-dns.com/dns-query"
+              value: "10.43.6.253"
+            - name: FORWARDER_PROTOCOL
+              value: "Udp"
             - name: BLOCK_LISTS
               value: "https://big.oisd.nl/"
           resources:

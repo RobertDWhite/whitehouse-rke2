@@ -27,8 +27,11 @@ data:
     ZONES_DIR   = os.environ.get("ZONES_DIR", "/zones")
     FORWARDERS  = os.environ.get(
         "FORWARDERS",
-        "https://dns.quad9.net/dns-query,https://cloudflare-dns.com/dns-query",
+        # Pinned ClusterIP of dnscrypt-proxy Service — using the DNS name
+        # creates a chicken-and-egg loop with Technitium's own resolver.
+        "10.43.6.253",
     )
+    FORWARDER_PROTOCOL = os.environ.get("FORWARDER_PROTOCOL", "Udp")
     BLOCK_LISTS = os.environ.get("BLOCK_LISTS", "https://big.oisd.nl/")
 
     S = requests.Session()
@@ -73,7 +76,7 @@ data:
             params={
                 "token": token,
                 "forwarders": FORWARDERS,
-                "forwarderProtocol": "Https",
+                "forwarderProtocol": FORWARDER_PROTOCOL,
                 "dnssecValidation": "true",
                 "enableBlocking": "true",
                 "blockListUrls": BLOCK_LISTS,
