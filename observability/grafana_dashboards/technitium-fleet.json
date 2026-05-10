@@ -230,12 +230,198 @@
         } }
       ],
       "gridPos": { "h": 6, "w": 24, "x": 0, "y": 33 }
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 200,
+      "title": "Live query stream",
+      "type": "row"
+    },
+    {
+      "type": "logs",
+      "title": "Recent DNS queries (filter: client=$client, pod=$pod)",
+      "id": 201,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | line_format \"{{.client}}\\t{{.qtype}}\\t{{.domain}}\\t{{.type}}\\t{{.rcode}}\\t{{.rt_ms}}ms\\t({{.protocol}})\"",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" }
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 40 }
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "id": 202,
+      "title": "Distinct clients & per-client activity",
+      "type": "row"
+    },
+    {
+      "type": "table",
+      "title": "Top clients (in time range)",
+      "id": 210,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(200, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__range])))",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "client": "Client", "Value": "Queries" }
+        } },
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Queries", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Queries" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 53 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-client query rate (top 10)",
+      "id": 211,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (client) (rate({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__interval])))",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1 } } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "mean", "max"] } },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 53 }
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "id": 220,
+      "title": "Blocked traffic",
+      "type": "row"
+    },
+    {
+      "type": "table",
+      "title": "Top blocked domains (in time range)",
+      "id": 221,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | type=\"Blocked\" [$__range])))",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "domain": "Domain", "Value": "Blocks" }
+        } },
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Blocks", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Blocks" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 66 }
+    },
+    {
+      "type": "table",
+      "title": "Top domains overall (in time range)",
+      "id": 222,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__range])))",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "domain": "Domain", "Value": "Queries" }
+        } },
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Queries", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Queries" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 66 }
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": ["technitium", "dns", "homelab"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "Pod",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(technitium_exporter_up, pod)", "refId": "Prom-pod-VarQuery" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": { "selected": false, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "client",
+        "label": "Client filter (regex)",
+        "type": "textbox",
+        "current": { "selected": false, "text": ".*", "value": ".*" },
+        "query": ".*"
+      }
+    ]
+  },
   "time": { "from": "now-3h", "to": "now" },
   "timepicker": {},
   "timezone": "",
