@@ -17,9 +17,12 @@ data:
     so Grafana can show "queries in the last hour" trends per node.
     """
     import http.server
+    import json
     import os
+    import sys
     import threading
     import time
+    from urllib.parse import quote
 
     import requests
     import urllib3
@@ -31,6 +34,9 @@ data:
     PASS  = os.environ["TECHNITIUM_PASSWORD"]
     PORT  = int(os.environ.get("METRICS_PORT", "9180"))
     WINDOW = os.environ.get("STATS_WINDOW", "lastHour")
+    QUERY_LOGS_APP = os.environ.get("QUERY_LOGS_APP", "Query Logs (Sqlite)")
+    QUERY_STREAM_INTERVAL = float(os.environ.get("QUERY_STREAM_INTERVAL", "5"))
+    QUERY_STREAM_PAGE_SIZE = int(os.environ.get("QUERY_STREAM_PAGE_SIZE", "200"))
 
     SESSION = requests.Session()
     _lock = threading.Lock()
