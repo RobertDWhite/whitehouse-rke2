@@ -148,6 +148,92 @@ data:
                     _metrics = "# HELP technitium_exporter_up 1 if the last poll succeeded\n# TYPE technitium_exporter_up gauge\ntechnitium_exporter_up 0\n"
             time.sleep(30)
 
+    # ---- query log streamer ------------------------------------------------
+    # Polls the Query Logs (Sqlite) DNS app and prints one JSON line per new
+    # query to stdout. Promtail picks up the container log into Loki, where
+    # Grafana panels can tail/filter/aggregate. The pod log labels
+    # (namespace, pod, container) make it natural to slice by Technitium pod.
+
+    def _query_logs_endpoint():
+        return f"{API}/api/logs/queryLogs/{quote(QUERY_LOGS_APP)}"
+
+    def _fetch_recent_queries(token, page_size):
+        # descendingOrder=true so we always look at the newest page; we filter
+        # client-side by rowNumber.
+        r = SESSION.get(_query_logs_endpoint(), params={
+            "token": token,
+            "pageNumber": 1,
+            "entriesPerPage": page_size,
+            "descendingOrder": "true",
+        }, timeout=15)
+        if r.status_code == 404:
+            return None  # app not installed yet
+        body = r.json()
+        if body.get("status") == "invalid-token":
+            return "reauth"
+        if body.get("status") != "ok":
+            return None
+        return body.get("response", {}).get("entries", []) or []
+
+    def _emit(entry):
+        # Flatten to a small, queryable shape. One JSON object per line so
+        # Loki's `| json` parser produces clean labels.
+        out = {
+            "ts":       entry.get("timestamp"),
+            "client":   entry.get("clientIpAddress"),
+            "domain":   entry.get("qname"),
+            "qtype":    entry.get("qtype"),
+            "qclass":   entry.get("qclass"),
+            "rcode":    entry.get("rcode"),
+            "type":     entry.get("responseType"),
+            "rt_ms":    entry.get("responseRtt"),
+            "protocol": entry.get("protocol"),
+            "answer":   entry.get("answer"),
+            "row":      entry.get("rowNumber"),
+            "kind":     "query",
+        }
+        # `flush=True` so promtail sees it immediately.
+        sys.stdout.write(json.dumps(out, separators=(",", ":")) + "\n")
+        sys.stdout.flush()
+
+    def query_streamer():
+        global _token
+        last_row = -1
+        first_pass = True
+        while True:
+            try:
+                if not _token:
+                    _token = _login()
+                result = _fetch_recent_queries(_token, QUERY_STREAM_PAGE_SIZE)
+                if result == "reauth":
+                    _token = None
+                    time.sleep(2)
+                    continue
+                if result is None:
+                    # App not installed (yet) — back off.
+                    time.sleep(30)
+                    continue
+                entries = result
+                if entries:
+                    # API returns descending; play forward from oldest new row.
+                    new_entries = [e for e in entries
+                                   if (e.get("rowNumber") or -1) > last_row]
+                    new_entries.sort(key=lambda e: e.get("rowNumber") or 0)
+                    if first_pass:
+                        # On first poll just establish the watermark; don't
+                        # flood Loki with the back-catalog the app already has.
+                        if new_entries:
+                            last_row = new_entries[-1].get("rowNumber") or last_row
+                        first_pass = False
+                    else:
+                        for e in new_entries:
+                            _emit(e)
+                            last_row = max(last_row, e.get("rowNumber") or last_row)
+            except Exception as e:
+                print(f"query stream error: {e}", file=sys.stderr, flush=True)
+                time.sleep(5)
+            time.sleep(QUERY_STREAM_INTERVAL)
+
     class Handler(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path == "/metrics":
@@ -166,5 +252,6 @@ data:
 
     if __name__ == "__main__":
         threading.Thread(target=poller, daemon=True).start()
+        threading.Thread(target=query_streamer, daemon=True).start()
         print(f"exporter listening on :{PORT}/metrics", flush=True)
         http.server.HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
