@@ -89,7 +89,22 @@ spec:
     - to:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: media}}
           podSelector: {matchLabels: {app: vpn-proxy}}
-      ports: [{protocol: TCP, port: 1080}]
+      ports: [{protocol: TCP, port: 8888}]
+---
+# egress: technitium → vpn-proxy HTTP CONNECT (DNS app + blocklist downloads)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-technitium-to-vpn-proxy
+  namespace: technitium
+spec:
+  podSelector: {matchLabels: {app: technitium}}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: media}}
+          podSelector: {matchLabels: {app: vpn-proxy}}
+      ports: [{protocol: TCP, port: 8888}]
 ---
 # ingress to DNS (any cluster pod, LAN clients, post-SNAT pod CIDR)
 apiVersion: networking.k8s.io/v1
