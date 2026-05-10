@@ -111,6 +111,14 @@ spec:
               pip install --quiet --no-cache-dir requests urllib3 PyYAML
               exec python /scripts/import.py
           env:
+            # pip startup install + any outbound HTTP must go through the
+            # VPN proxy in the media namespace; netpol denies direct egress.
+            - name: HTTPS_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: HTTP_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: POD_NAME
@@ -162,6 +170,12 @@ spec:
               pip install --quiet --no-cache-dir requests urllib3
               exec python /scripts/exporter.py
           env:
+            - name: HTTPS_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: HTTP_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: TECHNITIUM_USER
