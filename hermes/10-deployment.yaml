@@ -58,8 +58,17 @@ spec:
               value: "10000"
             - name: HERMES_GID
               value: "10000"
+            # Route inference to in-cluster Ollama (RTX 5090 on rke2-node-50).
+            # Subscription OAuth paths (Claude / ChatGPT) all require paid
+            # extra-usage; ollama is the free local fallback.
             - name: HERMES_INFERENCE_PROVIDER
-              value: anthropic
+              value: custom
+            - name: HERMES_INFERENCE_MODEL
+              value: llama3.1:8b
+            - name: OPENAI_BASE_URL
+              value: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+            - name: OPENAI_API_KEY
+              value: dummy
             - name: MATRIX_HOMESERVER
               value: https://matrix.white.fm
             - name: MATRIX_USER_ID
@@ -75,12 +84,9 @@ spec:
                 name: hermes-api-keys
             - secretRef:
                 name: hermes-matrix-secrets
-            # codex-token last so its OPENAI_API_KEY (ChatGPT subscription
-            # access_token) overrides the platform key from hermes-api-keys.
-            # Refreshed every 6 days by the codex-refresh CronJob.
-            - secretRef:
-                name: codex-token
-                optional: true
+            # codex-token disabled — ChatGPT subscription token returns
+            # insufficient_quota at api.openai.com. Inference now goes through
+            # Ollama (OPENAI_BASE_URL above) with OPENAI_API_KEY=dummy.
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "gateway run"]
