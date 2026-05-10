@@ -43,13 +43,13 @@ spec:
           model:
             # qwen3:30b is a 30B MoE thinking model — strong reasoning,
             # 3B active params at a time so inference stays fast on the 5090.
-            # claude-cli/* uses the `claude` binary which natively handles
-            # subscription OAuth tokens (sk-ant-oat*) via Bearer auth.
-            # The anthropic/* provider with apiKey: $ANTHROPIC_TOKEN sends
-            # x-api-key and gets 401 on OAuth tokens.
-            primary: "claude-cli/claude-sonnet-4-6"
+            # Subscription OAuth (claude-cli) and Anthropic API key both
+            # require paid usage; reverted to local llama3.1:8b on rke2-node-50
+            # RTX 5090. claude-cli kept as a fallback for when extra-usage
+            # credits are added.
+            primary: "ollama/llama3.1:8b"
             fallbacks:
-              - "ollama/qwen3:30b"
+              - "claude-cli/claude-sonnet-4-6"
           models:
             "ollama/qwen3:30b":
               alias: "local"
