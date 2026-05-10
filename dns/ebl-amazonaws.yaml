@@ -18,6 +18,14 @@ spec:
           forward . 1.1.1.1 8.8.8.8
       }
 
+      white.fm:53 {
+          errors
+          cache 30
+          template IN A white.fm {
+              answer "{{ .Name }} 60 IN A 10.99.5.110"
+          }
+      }
+
       .:53 {
           errors
           health
