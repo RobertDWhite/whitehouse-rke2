@@ -17,6 +17,17 @@ spec:
     spec:
       serviceAccountName: headscale-authentik-bootstrap
       restartPolicy: OnFailure
+      # node-14 has a known flannel VTEP / DNS issue (see memory) — pods
+      # scheduled there can't resolve docker.io. Pin away from it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
       containers:
         - name: bootstrap
           image: alpine/k8s:1.30.2
