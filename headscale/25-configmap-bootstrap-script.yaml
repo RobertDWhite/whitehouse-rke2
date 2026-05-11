@@ -121,12 +121,12 @@ data:
     APP_PAYLOAD=$(jq -n \
       --arg name "${APP_NAME}" \
       --arg slug "${APP_SLUG}" \
-      --argjson provider "${PROVIDER_PK}" \
+      --arg provider "${PROVIDER_PK}" \
       --arg launch "${LAUNCH_URL}" \
       '{
         name: $name,
         slug: $slug,
-        provider: $provider,
+        provider: ($provider | tonumber? // $provider),
         meta_launch_url: $launch,
         open_in_new_tab: false,
         policy_engine_mode: "any"
