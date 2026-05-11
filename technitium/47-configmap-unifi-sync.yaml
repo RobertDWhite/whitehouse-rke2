@@ -1,0 +1,190 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-unifi-sync
+  namespace: technitium
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    """Pull UniFi clients (with hostnames) and reflect them as A + PTR
+    records in Technitium. Forward zone: lan.internal.white.fm. Reverse
+    zones: per /24 the script sees, auto-created if missing.
+    """
+    import os, re, sys, ipaddress, requests, urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    UNIFI_URL  = os.environ["UNIFI_URL"].rstrip("/")
+    UNIFI_USER = os.environ["UNIFI_USER"]
+    UNIFI_PASS = os.environ["UNIFI_PASS"]
+    UNIFI_SITE = os.environ.get("UNIFI_SITE", "default")
+
+    TECH_URL  = os.environ.get("TECH_URL", "http://technitium-headless.technitium.svc.cluster.local:5380")
+    TECH_USER = os.environ.get("TECH_USER", "admin")
+    TECH_PASS = os.environ["TECH_PASS"]
+
+    FWD_ZONE = os.environ.get("FORWARD_ZONE", "lan.internal.white.fm")
+    TTL      = os.environ.get("RECORD_TTL", "300")
+
+    VALID_HOST = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+
+    def sanitize(name):
+        if not name: return None
+        n = name.strip().lower().replace("_", "-").replace(" ", "-")
+        n = re.sub(r"[^a-z0-9-]", "", n)
+        n = n.strip("-")
+        if not n or not VALID_HOST.match(n): return None
+        return n
+
+    # ---- UniFi ----
+    def unifi_login():
+        s = requests.Session(); s.verify = False
+        for path in ("/api/auth/login", "/api/login"):
+            r = s.post(f"{UNIFI_URL}{path}", json={"username": UNIFI_USER, "password": UNIFI_PASS}, timeout=10)
+            if r.ok and r.cookies:
+                # UDM-style token: extract X-CSRF-Token if present
+                if "X-CSRF-Token" in r.headers:
+                    s.headers.update({"X-CSRF-Token": r.headers["X-CSRF-Token"]})
+                s._unifi_proxy = "/proxy/network" if path == "/api/auth/login" else ""
+                return s
+        raise RuntimeError("UniFi login failed")
+
+    def unifi_clients(s):
+        out = {}
+        for endpoint in ("stat/sta", "rest/user"):
+            r = s.get(f"{UNIFI_URL}{s._unifi_proxy}/api/s/{UNIFI_SITE}/{endpoint}", timeout=15)
+            if not r.ok: continue
+            for c in r.json().get("data", []):
+                ip = c.get("ip") or c.get("fixed_ip")
+                if not ip: continue
+                # prefer name override, then hostname, then mac vendor name
+                name = c.get("name") or c.get("hostname")
+                hn = sanitize(name)
+                if not hn: continue
+                out[hn] = ip
+        return out
+
+    # ---- Technitium ----
+    S = requests.Session()
+    def tech_token():
+        r = S.get(f"{TECH_URL}/api/user/login", params={"user": TECH_USER, "pass": TECH_PASS, "includeInfo": "true"}, timeout=10)
+        return r.json()["token"]
+
+    def tech_zones(token):
+        r = S.get(f"{TECH_URL}/api/zones/list", params={"token": token}, timeout=15)
+        return {z["name"] for z in r.json().get("response", {}).get("zones", [])}
+
+    def tech_create(token, zone):
+        r = S.get(f"{TECH_URL}/api/zones/create",
+                  params={"token": token, "zone": zone, "type": "Primary"}, timeout=15)
+        return r.ok and r.json().get("status") == "ok"
+
+    def tech_records(token, zone):
+        r = S.get(f"{TECH_URL}/api/zones/records/get",
+                  params={"token": token, "domain": zone, "zone": zone, "listZone": "true"}, timeout=20)
+        return r.json().get("response", {}).get("records", [])
+
+    def tech_add_a(token, zone, name, ip):
+        r = S.get(f"{TECH_URL}/api/zones/records/add", params={
+            "token": token, "domain": name, "zone": zone, "type": "A",
+            "ipAddress": ip, "ttl": TTL, "overwrite": "true",
+        }, timeout=10)
+        return r.ok and r.json().get("status") == "ok"
+
+    def tech_add_ptr(token, zone, ptr_name, target):
+        r = S.get(f"{TECH_URL}/api/zones/records/add", params={
+            "token": token, "domain": ptr_name, "zone": zone, "type": "PTR",
+            "ptrName": target, "ttl": TTL, "overwrite": "true",
+        }, timeout=10)
+        return r.ok and r.json().get("status") == "ok"
+
+    def tech_delete(token, zone, name, rtype, **rdata):
+        params = {"token": token, "domain": name, "zone": zone, "type": rtype}
+        params.update(rdata)
+        r = S.get(f"{TECH_URL}/api/zones/records/delete", params=params, timeout=10)
+        return r.ok and r.json().get("status") == "ok"
+
+    def reverse_zone_for(ip):
+        a, b, c, _ = ip.split(".")
+        return f"{c}.{b}.{a}.in-addr.arpa"
+
+    def reverse_name_for(ip):
+        a, b, c, d = ip.split(".")
+        return f"{d}.{c}.{b}.{a}.in-addr.arpa"
+
+    def main():
+        s = unifi_login()
+        clients = unifi_clients(s)
+        print(f"unifi: {len(clients)} clients with usable hostnames")
+
+        token = tech_token()
+        zones = tech_zones(token)
+
+        # ensure forward zone
+        if FWD_ZONE not in zones:
+            tech_create(token, FWD_ZONE); zones.add(FWD_ZONE)
+            print(f"created forward zone {FWD_ZONE}")
+
+        # ensure reverse zones for each /24 we'll touch
+        reverse_zones_needed = {reverse_zone_for(ip) for ip in clients.values()}
+        for rz in reverse_zones_needed:
+            if rz not in zones:
+                tech_create(token, rz); zones.add(rz)
+                print(f"created reverse zone {rz}")
+
+        # build desired record sets
+        desired_a = {f"{hn}.{FWD_ZONE}": ip for hn, ip in clients.items()}
+        desired_ptr = {reverse_name_for(ip): f"{hn}.{FWD_ZONE}" for hn, ip in clients.items()}
+
+        # current A records in forward zone (only ones we manage)
+        current_a = {}
+        for r in tech_records(token, FWD_ZONE):
+            if r.get("type") == "A":
+                ip = r.get("rData", {}).get("ipAddress")
+                if ip: current_a[r["name"].lower().rstrip(".")] = ip
+
+        # diff + apply forward
+        added = removed = updated = 0
+        for fqdn, ip in desired_a.items():
+            cur = current_a.get(fqdn)
+            if cur != ip:
+                tech_add_a(token, FWD_ZONE, fqdn, ip)
+                if cur is None: added += 1
+                else: updated += 1
+        for fqdn, ip in current_a.items():
+            if fqdn not in desired_a:
+                tech_delete(token, FWD_ZONE, fqdn, "A", ipAddress=ip)
+                removed += 1
+        print(f"forward {FWD_ZONE}: +{added} ~{updated} -{removed}")
+
+        # diff + apply reverse, per zone
+        for rz in reverse_zones_needed:
+            current_ptr = {}
+            for r in tech_records(token, rz):
+                if r.get("type") == "PTR":
+                    ptr = r.get("rData", {}).get("ptrName")
+                    if ptr: current_ptr[r["name"].lower().rstrip(".")] = ptr.lower().rstrip(".")
+            ad = rm = up = 0
+            for ptr_name, target in desired_ptr.items():
+                if reverse_zone_for_from_ptr_name(ptr_name) != rz: continue
+                cur = current_ptr.get(ptr_name)
+                if cur != target.lower():
+                    tech_add_ptr(token, rz, ptr_name, target)
+                    if cur is None: ad += 1
+                    else: up += 1
+            for ptr_name, target in current_ptr.items():
+                if reverse_zone_for_from_ptr_name(ptr_name) != rz: continue
+                if ptr_name not in desired_ptr:
+                    tech_delete(token, rz, ptr_name, "PTR", ptrName=target)
+                    rm += 1
+            print(f"reverse {rz}: +{ad} ~{up} -{rm}")
+
+    def reverse_zone_for_from_ptr_name(name):
+        # name is like "42.5.99.10.in-addr.arpa"; zone is "5.99.10.in-addr.arpa"
+        return ".".join(name.split(".")[1:])
+
+    if __name__ == "__main__":
+        try:
+            main()
+        except Exception as e:
+            print(f"FAIL: {e}", file=sys.stderr)
+            sys.exit(1)

@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: unifi-sync
+  namespace: technitium
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 1800
+      template:
+        metadata:
+          labels:
+            app: unifi-sync
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: python:3.13-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  pip install --quiet --no-cache-dir requests urllib3
+                  exec python /scripts/sync.py
+              env:
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+                - name: HTTPS_PROXY
+                  value: "http://vpn-proxy.media.svc.cluster.local:8888"
+                - name: HTTP_PROXY
+                  value: "http://vpn-proxy.media.svc.cluster.local:8888"
+                - name: NO_PROXY
+                  value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
+                - name: UNIFI_URL
+                  valueFrom: { secretKeyRef: { name: unifi-creds, key: url } }
+                - name: UNIFI_USER
+                  valueFrom: { secretKeyRef: { name: unifi-creds, key: username } }
+                - name: UNIFI_PASS
+                  valueFrom: { secretKeyRef: { name: unifi-creds, key: password } }
+                - name: TECH_PASS
+                  valueFrom: { secretKeyRef: { name: technitium-credentials, key: admin-password } }
+                - name: FORWARD_ZONE
+                  value: "lan.internal.white.fm"
+              resources:
+                requests: { cpu: 25m, memory: 64Mi }
+                limits:   { cpu: 250m, memory: 192Mi }
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: technitium-unifi-sync
+                defaultMode: 0555
