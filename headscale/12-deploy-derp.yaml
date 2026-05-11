@@ -21,6 +21,10 @@ spec:
         - name: derper
           image: ghcr.io/yangchuansheng/ip_derper
           imagePullPolicy: IfNotPresent
+          # The image's default CMD runs build_cert.sh first (which would
+          # overwrite our Let's Encrypt cert with self-signed). Override
+          # to invoke the derper binary directly with our cert.
+          command: ["/app/derper"]
           args:
             - "--hostname=derp.white.fm"
             - "--certmode=manual"
