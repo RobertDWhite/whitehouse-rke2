@@ -52,11 +52,12 @@ spec:
           serviceAccountName: vpn-proxy-watchdog
           containers:
             - name: watchdog
-              image: bitnami/kubectl:1.34
-              command: ["/bin/bash", "-c"]
+              image: alpine:3.20
+              command: ["/bin/sh", "-c"]
               args:
                 - |
                   set -u
+                  apk add --quiet curl >/dev/null 2>&1
                   PROXY="http://vpn-proxy.media.svc.cluster.local:8888"
                   ok=0; fail=0
                   for i in 1 2 3; do
@@ -69,12 +70,18 @@ spec:
                     [ "$i" -lt 3 ] && sleep 5
                   done
                   echo "watchdog: ok=$ok fail=$fail"
-                  if [ "$fail" -ge 2 ]; then
-                    echo "watchdog: 2+ probes failed — restarting vpn-proxy"
-                    kubectl -n media rollout restart deploy vpn-proxy
-                    exit 0
-                  fi
-                  exit 0
+                  [ "$fail" -lt 2 ] && exit 0
+
+                  echo "watchdog: 2+ probes failed — restarting vpn-proxy via k8s API"
+                  TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+                  CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                  curl --cacert "$CACERT" -sf -X PATCH \
+                    -H "Authorization: Bearer $TOKEN" \
+                    -H "Content-Type: application/strategic-merge-patch+json" \
+                    -d '{"spec":{"template":{"metadata":{"annotations":{"watchdog.media/restartedAt":"'$(date -Iseconds)'"}}}}}' \
+                    https://kubernetes.default.svc/apis/apps/v1/namespaces/media/deployments/vpn-proxy
+                  echo
+                  echo "rollout-restart triggered"
               resources:
                 requests: {cpu: 10m, memory: 32Mi}
                 limits:   {cpu: 100m, memory: 64Mi}
