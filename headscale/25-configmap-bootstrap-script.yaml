@@ -75,10 +75,10 @@ data:
 
     PROVIDER_PAYLOAD=$(jq -n \
       --arg name "${PROVIDER_NAME}" \
-      --argjson auth "${AUTH_FLOW}" \
-      --argjson authz "${AUTHZ_FLOW}" \
-      --argjson invalidation "${INVALIDATION_FLOW}" \
-      --argjson key "${SIGNING_KEY}" \
+      --arg auth "${AUTH_FLOW}" \
+      --arg authz "${AUTHZ_FLOW}" \
+      --arg invalidation "${INVALIDATION_FLOW}" \
+      --arg key "${SIGNING_KEY}" \
       --arg redirect "${REDIRECT_URI}" \
       --argjson scopes "${SCOPES}" \
       '{
