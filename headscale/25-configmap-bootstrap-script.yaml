@@ -138,8 +138,9 @@ data:
         "${AUTHENTIK_URL}/api/v3/core/applications/" >/dev/null
     else
       echo "    updating"
+      # Authentik applications are keyed by slug in URLs, not pk
       api -X PATCH -d "${APP_PAYLOAD}" \
-        "${AUTHENTIK_URL}/api/v3/core/applications/${APP_PK}/" >/dev/null
+        "${AUTHENTIK_URL}/api/v3/core/applications/${APP_SLUG}/" >/dev/null
     fi
 
     echo "==> Writing client_secret to Secret ${HEADSCALE_NAMESPACE}/${HEADSCALE_SECRET_NAME}"
