@@ -1,0 +1,51 @@
+hostName: fleet.white.fm
+replicas: 2
+
+imageRepository: fleetdm/fleet
+imageTag: v4.55.0
+imagePullPolicy: IfNotPresent
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
+
+fleet:
+  listenPort: 8080
+  secretName: fleet
+  loggingDebug: false
+  loggingJson: true
+  tls:
+    enabled: false
+  vulnerabilities:
+    databasePath: /tmp/vuln
+  mdm:
+    enabled: true
+
+database:
+  enabled: false
+  secretName: mysql
+  passwordKey: password
+  address: mysql.fleet.svc.cluster.local:3306
+  database: fleet
+  username: fleet
+
+cache:
+  enabled: false
+  secretName: redis
+  passwordKey: redis-password
+  address: valkey.fleet.svc.cluster.local:6379
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9100"
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app: fleet

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fleet
+
+generators:
+  - 25-ksops.yaml
+
+resources:
+  - 00-namespace.yaml
+  - 10-mysql-statefulset.yaml
+  - 11-mysql-service.yaml
+  - 12-mysql-pdb.yaml
+  - 20-valkey-statefulset.yaml
+  - 21-valkey-service.yaml
+  - 40-cronjob-mysqldump.yaml
+  - 50-httproute-public.yaml
+  - 51-httproute-internal.yaml
+  - 60-fleet-pdb.yaml
+  - 70-prometheusrule.yaml
+
+patches:
+  - path: 80-patch-fleet-env.yaml
+    target:
+      kind: Deployment
+      name: fleet
+  - path: 81-patch-fleet-migration-env.yaml
+    target:
+      kind: Job
+      name: fleet-migration
+
+images:
+  - name: mysql
+    newTag: "8.0.40"
+  - name: valkey/valkey
+    newTag: "8.1-alpine"
+  - name: prom/mysqld-exporter
+    newTag: "v0.15.1"
+  - name: busybox
+    newTag: "1.36"
+  - name: fleetdm/fleet
+    newTag: "v4.55.0"
+
+helmCharts:
+  - name: fleet
+    releaseName: fleet
+    version: 6.4.2
+    repo: https://fleetdm.github.io/fleet/charts
+    valuesFile: values.yaml
+    includeCRDs: true
+    namespace: fleet

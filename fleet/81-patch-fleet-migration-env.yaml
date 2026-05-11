@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleet-migration
+  namespace: fleet
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for mysql.fleet.svc.cluster.local:3306..."
+              until nc -z mysql.fleet.svc.cluster.local 3306; do
+                sleep 3
+              done
+              echo "MySQL reachable."
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+      containers:
+        - name: fleet-migration
+          env:
+            - name: FLEET_SERVER_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: server-private-key
+            - name: FLEET_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: redis-password

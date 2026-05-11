@@ -1,0 +1,83 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fleet
+  namespace: fleet
+spec:
+  groups:
+    - name: fleet.availability
+      rules:
+        - alert: FleetDown
+          expr: up{job="fleet"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Fleet server pod {{ $labels.pod }} is down"
+            description: "Fleet has been unreachable for 5m. Devices cannot enroll or check in."
+
+        - alert: FleetAllReplicasDown
+          expr: absent(up{job="fleet"} == 1)
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "All Fleet replicas are down"
+
+        - alert: FleetMySQLDown
+          expr: up{job="fleet-mysqld"} == 0
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Fleet MySQL is down — Fleet API will be unavailable"
+
+    - name: fleet.backups
+      rules:
+        # Custom complement to the cluster-wide CronJobNotSucceedingIn24h alert.
+        # mysqldump runs every 6h; warn if no successful iteration in 12h.
+        - alert: FleetMysqldumpStale
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time{namespace="fleet", cronjob="fleet-mysqldump"})
+            > 43200
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "fleet-mysqldump has not succeeded in >12h (schedule is every 6h)"
+            description: "Logical backups are the second restore tier. Check `kubectl -n fleet get jobs` and recent CronJob logs."
+
+    - name: fleet.capacity
+      rules:
+        - alert: FleetMySQLDiskHigh
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+            / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+            > 0.75
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "fleet-mysql PVC > 75% full"
+
+        - alert: FleetMySQLDiskCritical
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+            / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+            > 0.90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "fleet-mysql PVC > 90% full — expand the PVC NOW"
+
+        - alert: FleetMysqlDumpsDiskHigh
+          expr: |
+            kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+            / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+            > 0.80
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "fleet-mysql-dumps PVC > 80% full — check retention or expand"

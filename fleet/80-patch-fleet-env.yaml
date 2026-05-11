@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fleet
+  namespace: fleet
+spec:
+  template:
+    spec:
+      containers:
+        - name: fleet
+          env:
+            - name: FLEET_SERVER_PRIVATE_KEY
+              value: null
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: server-private-key
+            - name: FLEET_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis
+                  key: redis-password
