@@ -685,6 +685,27 @@ data:
 
   cluster-alerts.yml: |
     groups:
+      - name: vpn-proxy
+        interval: 1m
+        rules:
+          - alert: VpnProxyDown
+            expr: kube_pod_container_status_ready{namespace="media",container="gluetun"} == 0
+            for: 2m
+            labels: {severity: critical}
+            annotations:
+              summary: "vpn-proxy (gluetun) not ready for >2m — DNS chain breaks"
+              description: >
+                gluetun pod in media is failing readiness. Liveness should
+                auto-restart within 3 min; the watchdog CronJob restarts on its
+                next 3-min tick. If this fires for >10 min the auto-recovery is
+                broken — check `kubectl -n media logs deploy/vpn-proxy` and
+                `kubectl -n media get cronjob vpn-proxy-watchdog`.
+          - alert: VpnProxyRestartingFrequently
+            expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[1h]) > 3
+            for: 5m
+            labels: {severity: warning}
+            annotations:
+              summary: "vpn-proxy restarted >3× in last hour — flapping"
       - name: cluster.node-resources
         interval: 2m
         rules:

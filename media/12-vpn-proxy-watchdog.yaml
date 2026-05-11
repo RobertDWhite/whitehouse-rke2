@@ -1,0 +1,80 @@
+# Belt-and-suspenders: liveness probe should catch a wedged Tinyproxy in 3min,
+# but if the probe itself hangs or the pod can't restart cleanly, this CronJob
+# tests the proxy from outside the pod and forces a rollout-restart.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [vpn-proxy]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+subjects:
+  - kind: ServiceAccount
+    name: vpn-proxy-watchdog
+    namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vpn-proxy-watchdog
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+spec:
+  schedule: "*/3 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: vpn-proxy-watchdog
+          containers:
+            - name: watchdog
+              image: bitnami/kubectl:1.34
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -u
+                  PROXY="http://vpn-proxy.media.svc.cluster.local:8888"
+                  ok=0; fail=0
+                  for i in 1 2 3; do
+                    if curl -sk --max-time 8 -x "$PROXY" -o /dev/null \
+                       -w "%{http_code}" https://www.google.com/generate_204 2>/dev/null | grep -q "^204$"; then
+                      ok=$((ok+1))
+                    else
+                      fail=$((fail+1))
+                    fi
+                    [ "$i" -lt 3 ] && sleep 5
+                  done
+                  echo "watchdog: ok=$ok fail=$fail"
+                  if [ "$fail" -ge 2 ]; then
+                    echo "watchdog: 2+ probes failed — restarting vpn-proxy"
+                    kubectl -n media rollout restart deploy vpn-proxy
+                    exit 0
+                  fi
+                  exit 0
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits:   {cpu: 100m, memory: 64Mi}
