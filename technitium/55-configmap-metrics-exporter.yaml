@@ -35,6 +35,7 @@ data:
     PORT  = int(os.environ.get("METRICS_PORT", "9180"))
     WINDOW = os.environ.get("STATS_WINDOW", "lastHour")
     QUERY_LOGS_APP = os.environ.get("QUERY_LOGS_APP", "Query Logs (Sqlite)")
+    QUERY_LOGS_CLASS_PATH = os.environ.get("QUERY_LOGS_CLASS_PATH", "QueryLogsSqlite.App")
     QUERY_STREAM_INTERVAL = float(os.environ.get("QUERY_STREAM_INTERVAL", "5"))
     QUERY_STREAM_PAGE_SIZE = int(os.environ.get("QUERY_STREAM_PAGE_SIZE", "200"))
 
@@ -155,13 +156,17 @@ data:
     # (namespace, pod, container) make it natural to slice by Technitium pod.
 
     def _query_logs_endpoint():
-        return f"{API}/api/logs/queryLogs/{quote(QUERY_LOGS_APP)}"
+        # Technitium routes per-app query log lookups through /api/logs/query
+        # with the app and class identifiers in the querystring.
+        return f"{API}/api/logs/query"
 
     def _fetch_recent_queries(token, page_size):
         # descendingOrder=true so we always look at the newest page; we filter
         # client-side by rowNumber.
         r = SESSION.get(_query_logs_endpoint(), params={
             "token": token,
+            "name": QUERY_LOGS_APP,
+            "classPath": QUERY_LOGS_CLASS_PATH,
             "pageNumber": 1,
             "entriesPerPage": page_size,
             "descendingOrder": "true",
