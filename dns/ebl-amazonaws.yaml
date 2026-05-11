@@ -5,7 +5,9 @@ metadata:
   namespace: kube-system
 data:
   white-fm.conf: |
-
+    # *.white.fm wildcard answers locally — every public *.white.fm hostname
+    # this cluster runs lands on the envoy gateway VIP anyway, so cluster pods
+    # don't need to recurse out and back through the WAN.
     white.fm:53 {
         errors
         cache 30
@@ -16,7 +18,27 @@ data:
             rcode NOERROR
         }
     }
+  internal-white-fm.conf: |
+    # *.internal.white.fm is authoritative on the Technitium pod-0
+    # LoadBalancer IP. Cluster replication only puts the zone on pod-0
+    # reliably, so we hit it directly rather than the round-robin VIP.
+    internal.white.fm:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
+    internal.w3rdw.radio:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
+    internal.whitematter.tech:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
   amazonaws.conf: |
+    # Direct AWS lookups bypass the VPN chain — high volume, low privacy value.
     elb.amazonaws.com:53 {
         errors
         cache 30
@@ -36,7 +58,8 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    # Pull in the extra server blocks from the rke2-coredns-extra ConfigMap.
+    # Mount the extra server blocks from the rke2-coredns-extra ConfigMap and
+    # `import` them into the Corefile.
     extraConfig:
       import:
         parameters: /etc/coredns/extra/*.conf
@@ -50,11 +73,10 @@ spec:
         mountPath: /etc/coredns/extra
         readOnly: true
 
-    # Override the default `.:53` block so cluster pods get internal answers
-    # for *.internal.white.fm via a rewrite to the envoy gateway service, and
-    # forward everything else to Technitium pod-0 (which holds the
-    # authoritative zones) with public-DNS fallbacks for when the
-    # dnscrypt/VPN chain is degraded.
+    # Default zone: prefer the dnscrypt-proxy → VPN chain for privacy on
+    # external lookups, fall back to public DNS so the cluster keeps
+    # functioning when the VPN is degraded. health_check marks unhealthy
+    # upstreams so traffic skips dnscrypt while it's crashlooping.
     servers:
       - zones:
           - zone: .
@@ -77,7 +99,7 @@ spec:
           - name: prometheus
             parameters: 0.0.0.0:9153
           - name: forward
-            parameters: . 10.99.5.52 1.1.1.1 8.8.8.8
+            parameters: . 10.43.6.253 1.1.1.1 8.8.8.8
             configBlock: |-
               policy sequential
               health_check 5s

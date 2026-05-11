@@ -118,13 +118,15 @@ data:
         # Idempotent: re-setting the same proxy is a no-op for Technitium.
         # Without this, /api/apps/listStoreApps + downloadAndInstall fail
         # because the namespace netpol forbids direct internet egress.
+        # Technitium parses proxyBypass as comma-separated hosts/CIDRs; older
+        # newline-separated attempts return "Invalid proxy bypass value".
         try:
             r = S.get(f"{API}/api/settings/set", params={
                 "token": token,
                 "proxyType": "Http",
                 "proxyAddress": PROXY_ADDRESS,
                 "proxyPort": PROXY_PORT,
-                "proxyBypass": "127.0.0.0/8\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16",
+                "proxyBypass": "127.0.0.1,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
             }, timeout=30)
             if not (r.ok and r.json().get("status") == "ok"):
                 print(f"warn: proxy set failed: {r.text[:200]}", file=sys.stderr)
@@ -318,9 +320,17 @@ data:
             except Exception as e:
                 print(f"warn: set_settings failed: {e}", file=sys.stderr)
 
-        # Always-on: keep proxy + Query Logs app reconciled. Idempotent.
+        # Always-on: keep proxy reconciled. Idempotent.
         ensure_outbound_proxy(token)
-        ensure_query_logs(token)
+        # Only the primary installs DNS apps. In cluster mode the secondary's
+        # /api/apps/downloadAndInstall is delegated to the primary over the
+        # cluster channel (https://primary:53443) which fails cert validation
+        # against the self-signed cluster cert. Each pod's data PVC holds its
+        # own copy of the app, and Technitium's cluster catalog propagates the
+        # files to secondaries automatically — so we only need to install
+        # once, on the primary.
+        if IS_PRIMARY:
+            ensure_query_logs(token)
 
         state = cluster_state(token)
         joined = state.get("clusterInitialized", False)
