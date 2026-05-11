@@ -423,14 +423,13 @@
     },
     {
       "type": "table",
-      "title": "Top domains overall (last 1h)",
+      "title": "Top domains overall (in time range)",
       "id": 222,
-      "description": "Lookback is capped at 1h regardless of dashboard range — full *.white.fm chatter overruns Loki's max_query_series at longer windows.",
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [1h])))",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
