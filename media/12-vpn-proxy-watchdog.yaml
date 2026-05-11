@@ -61,35 +61,43 @@ spec:
           containers:
             - name: watchdog
               image: python:3.14-alpine
-              command: ["/bin/sh", "-c"]
+              command: ["/usr/local/bin/python", "-c"]
               args:
                 - |
-                  set -u
-                  apk add --quiet curl >/dev/null 2>&1
-                  PROXY="http://vpn-proxy.media.svc.cluster.local:8888"
-                  ok=0; fail=0
-                  for i in 1 2 3; do
-                    if curl -sk --max-time 8 -x "$PROXY" -o /dev/null \
-                       -w "%{http_code}" https://www.google.com/generate_204 2>/dev/null | grep -q "^204$"; then
-                      ok=$((ok+1))
-                    else
-                      fail=$((fail+1))
-                    fi
-                    [ "$i" -lt 3 ] && sleep 5
-                  done
-                  echo "watchdog: ok=$ok fail=$fail"
-                  [ "$fail" -lt 2 ] && exit 0
+                  import datetime, json, ssl, sys, time, urllib.request
+                  PROXY = "http://vpn-proxy.media.svc.cluster.local:8888"
 
-                  echo "watchdog: 2+ probes failed — restarting vpn-proxy via k8s API"
-                  TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-                  CACERT=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-                  curl --cacert "$CACERT" -sf -X PATCH \
-                    -H "Authorization: Bearer $TOKEN" \
-                    -H "Content-Type: application/strategic-merge-patch+json" \
-                    -d '{"spec":{"template":{"metadata":{"annotations":{"watchdog.media/restartedAt":"'$(date -Iseconds)'"}}}}}' \
-                    https://kubernetes.default.svc/apis/apps/v1/namespaces/media/deployments/vpn-proxy
-                  echo
-                  echo "rollout-restart triggered"
+                  def probe():
+                      try:
+                          op = urllib.request.build_opener(urllib.request.ProxyHandler({"https": PROXY}))
+                          r = op.open("https://www.google.com/generate_204", timeout=8)
+                          return r.status == 204
+                      except Exception:
+                          return False
+
+                  ok = fail = 0
+                  for i in range(3):
+                      if probe(): ok += 1
+                      else:       fail += 1
+                      if i < 2:   time.sleep(5)
+                  print(f"watchdog: ok={ok} fail={fail}", flush=True)
+                  if fail < 2: sys.exit(0)
+
+                  print("watchdog: 2+ probes failed — restarting vpn-proxy via k8s API", flush=True)
+                  token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read()
+                  ctx = ssl.create_default_context(cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+                  body = json.dumps({"spec":{"template":{"metadata":{"annotations":{
+                      "watchdog.media/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                  }}}}}).encode()
+                  req = urllib.request.Request(
+                      "https://kubernetes.default.svc/apis/apps/v1/namespaces/media/deployments/vpn-proxy",
+                      data=body, method="PATCH",
+                      headers={
+                          "Authorization": f"Bearer {token}",
+                          "Content-Type": "application/strategic-merge-patch+json",
+                      })
+                  with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+                      print(f"k8s API: HTTP {r.status} — rollout-restart triggered", flush=True)
               resources:
                 requests: {cpu: 10m, memory: 32Mi}
                 limits:   {cpu: 100m, memory: 64Mi}
