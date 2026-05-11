@@ -12,6 +12,10 @@ data:
 
     limits_config:
       allow_structured_metadata: true
+      # Default 500 is too low for high-cardinality parsed-label aggregations
+      # like "topk by (domain)" over the Technitium query stream — *.white.fm
+      # alone runs ~1k–3k distinct domains per hour.
+      max_query_series: 10000
       otlp_config:
         resource_attributes:
           attributes_config:
