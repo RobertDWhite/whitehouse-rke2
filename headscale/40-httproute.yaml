@@ -11,6 +11,15 @@ spec:
   hostnames:
     - headscale.white.fm
   rules:
+    # Admin UI (SPA) — matches /admin and everything under it
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+      backendRefs:
+        - name: headscale-admin
+          port: 80
+    # Everything else → headscale control plane
     - backendRefs:
         - name: headscale
           port: 8080
@@ -28,6 +37,13 @@ spec:
   hostnames:
     - headscale.internal.white.fm
   rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+      backendRefs:
+        - name: headscale-admin
+          port: 80
     - backendRefs:
         - name: headscale
           port: 8080
