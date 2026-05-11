@@ -42,6 +42,9 @@ spec:
             - name: oidc
               mountPath: /etc/headscale-oidc
               readOnly: true
+            - name: derp-map
+              mountPath: /etc/headscale-derp
+              readOnly: true
             - name: data
               mountPath: /var/lib/headscale
             - name: run
@@ -82,6 +85,9 @@ spec:
               - key: client-secret
                 path: client-secret
                 mode: 0440
+        - name: derp-map
+          configMap:
+            name: headscale-derp-map
         - name: data
           persistentVolumeClaim:
             claimName: headscale-data
