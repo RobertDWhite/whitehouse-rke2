@@ -241,6 +241,31 @@
     },
     {
       "type": "logs",
+      "title": "Pi-hole-style log — time / domain / action",
+      "id": 203,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | label_format action=`{{ if eq .type \"Blocked\" }}BLOCKED{{ else if eq .rcode \"NxDomain\" }}NXDOMAIN{{ else if eq .rcode \"ServerFailure\" }}SERVFAIL{{ else }}OK ({{.type}}){{ end }}` | line_format \"{{.domain}}\\t→\\t{{.action}}\"",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" }
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": false,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 40 }
+    },
+    {
+      "type": "logs",
       "title": "Recent DNS queries (filter: client=$client, pod=$pod)",
       "id": 201,
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
@@ -262,7 +287,7 @@
         "dedupStrategy": "none",
         "sortOrder": "Descending"
       },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 40 }
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 40 }
     },
 
     {
