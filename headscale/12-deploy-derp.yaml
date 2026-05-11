@@ -17,6 +17,8 @@ spec:
       labels:
         app: derp
     spec:
+      securityContext:
+        fsGroup: 1000
       containers:
         - name: derper
           image: ghcr.io/yangchuansheng/ip_derper
@@ -74,11 +76,11 @@ spec:
         - name: tls
           secret:
             secretName: derp-white-fm-tls
+            defaultMode: 0440
             items:
               - key: tls.crt
                 path: derp.white.fm.crt
               - key: tls.key
                 path: derp.white.fm.key
-                mode: 0440
         - name: state
           emptyDir: {}
