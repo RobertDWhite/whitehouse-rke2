@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-derp-map
+  namespace: headscale
+data:
+  derp-map.yaml: |
+    regions:
+      900:
+        regionid: 900
+        regioncode: home
+        regionname: Whitehouse Home
+        nodes:
+          - name: derp-home-1
+            regionid: 900
+            hostname: derp.white.fm
+            derpport: 8443
+            stunport: 3478
+            ipv4: ""
+            ipv6: ""
+            insecurefortests: false

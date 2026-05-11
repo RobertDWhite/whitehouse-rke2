@@ -24,11 +24,15 @@ kind: Kustomization
 resources:
   - 00-namespace.yaml
   - 01-configmap-headscale.yaml
+  - 02-configmap-derp-map.yaml
   - 10-deploy-headscale.yaml
+  - 12-deploy-derp.yaml
   - 20-service-headscale.yaml
+  - 21-service-derp.yaml
   - 25-configmap-bootstrap-script.yaml
   - 26-rbac-bootstrap.yaml
   - 27-job-bootstrap-authentik.yaml
+  - 30-cert-derp.yaml
   # - 11-deploy-tailscale-router.yaml   # uncomment in phase 2
 
 generators:
@@ -42,3 +46,5 @@ images:
     newTag: "v1.80.0"
   - name: alpine/k8s
     newTag: "1.30.2"
+  - name: ghcr.io/yangchuansheng/ip_derper
+    newTag: "v1.80.0"

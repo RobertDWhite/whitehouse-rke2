@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: derp
+  namespace: headscale
+  labels:
+    app: derp
+  annotations:
+    # Pin to a specific MetalLB IP if you want predictable port-forward
+    # routing. Otherwise MetalLB picks from its pool.
+    # metallb.universe.tf/loadBalancerIPs: "10.99.5.60"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: derp
+  ports:
+    - name: https
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: stun
+      port: 3478
+      targetPort: 3478
+      protocol: UDP

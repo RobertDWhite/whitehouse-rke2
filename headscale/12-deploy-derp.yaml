@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: derp
+  namespace: headscale
+  labels:
+    app: derp
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: derp
+  template:
+    metadata:
+      labels:
+        app: derp
+    spec:
+      containers:
+        - name: derper
+          image: ghcr.io/yangchuansheng/ip_derper
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--hostname=derp.white.fm"
+            - "--certmode=manual"
+            - "--certdir=/certs"
+            - "--a=:8443"
+            - "--http-port=-1"
+            - "--stun=true"
+            - "--stun-port=3478"
+            - "--verify-clients=false"
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - name: stun
+              containerPort: 3478
+              protocol: UDP
+          volumeMounts:
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: tls
+          secret:
+            secretName: derp-white-fm-tls
+            items:
+              - key: tls.crt
+                path: derp.white.fm.crt
+              - key: tls.key
+                path: derp.white.fm.key
+                mode: 0440

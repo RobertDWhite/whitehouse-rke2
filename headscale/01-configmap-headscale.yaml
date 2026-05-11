@@ -20,9 +20,13 @@ data:
       allocation: sequential
 
     derp:
-      urls:
-        - https://controlplane.tailscale.com/derpmap/default
-      auto_update_enabled: true
+      # Self-hosted DERP only — no fallback to Tailscale Inc.'s public
+      # relays. The DERP map is loaded from a file so we never call out
+      # to controlplane.tailscale.com.
+      urls: []
+      paths:
+        - /etc/headscale-derp/derp-map.yaml
+      auto_update_enabled: false
       update_frequency: 24h
 
     disable_check_updates: true
