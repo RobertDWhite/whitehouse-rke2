@@ -247,7 +247,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | line_format \"{{.client}}\\t{{.qtype}}\\t{{.domain}}\\t{{.type}}\\t{{.rcode}}\\t{{.rt_ms}}ms\\t({{.protocol}})\"",
+          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" | line_format \"{{.client}}\\t{{.qtype}}\\t{{.domain}}\\t{{.type}}\\t{{.rcode}}\\t{{.rt_ms}}ms\\t({{.protocol}})\"",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" }
         }
@@ -273,7 +273,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(25, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [$__interval])))",
+          "expr": "topk(25, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" [$__interval])))",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "legendFormat": "{{client}}"
@@ -319,7 +319,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(200, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__range])))",
+          "expr": "topk(200, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | domain=~\"$domain\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -338,6 +338,16 @@
           { "matcher": { "id": "byName", "options": "Queries" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] },
+          { "matcher": { "id": "byName", "options": "Client" },
+            "properties": [
+              { "id": "links", "value": [
+                {
+                  "title": "Filter dashboard to this client",
+                  "url": "/d/${__dashboard.uid}?${__url_time_range}&var-pod=${pod:queryparam}&var-domain=${domain:queryparam}&var-client=${__value.raw}",
+                  "targetBlank": false
+                }
+              ] }
             ] }
         ]
       },
@@ -351,7 +361,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (client) (rate({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__interval])))",
+          "expr": "topk(10, sum by (client) (rate({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" [$__interval])))",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "legendFormat": "{{client}}"
@@ -377,7 +387,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | type=\"Blocked\" [$__range])))",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | type=\"Blocked\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -396,6 +406,16 @@
           { "matcher": { "id": "byName", "options": "Blocks" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] },
+          { "matcher": { "id": "byName", "options": "Domain" },
+            "properties": [
+              { "id": "links", "value": [
+                {
+                  "title": "Filter dashboard to this domain",
+                  "url": "/d/${__dashboard.uid}?${__url_time_range}&var-pod=${pod:queryparam}&var-client=${client:queryparam}&var-domain=${__value.raw}",
+                  "targetBlank": false
+                }
+              ] }
             ] }
         ]
       },
@@ -409,7 +429,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json [$__range])))",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -428,6 +448,16 @@
           { "matcher": { "id": "byName", "options": "Queries" },
             "properties": [
               { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] },
+          { "matcher": { "id": "byName", "options": "Domain" },
+            "properties": [
+              { "id": "links", "value": [
+                {
+                  "title": "Filter dashboard to this domain",
+                  "url": "/d/${__dashboard.uid}?${__url_time_range}&var-pod=${pod:queryparam}&var-client=${client:queryparam}&var-domain=${__value.raw}",
+                  "targetBlank": false
+                }
+              ] }
             ] }
         ]
       },
@@ -454,7 +484,27 @@
       },
       {
         "name": "client",
-        "label": "Client filter (regex)",
+        "label": "Client",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+        "query": {
+          "label": "client",
+          "stream": "{namespace=\"technitium\",container=\"metrics-exporter\"} | json",
+          "type": 1,
+          "refId": "LokiVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values({namespace=\"technitium\",container=\"metrics-exporter\"} | json, client)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "allowCustomValue": true,
+        "current": { "selected": false, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "domain",
+        "label": "Domain (regex)",
         "type": "textbox",
         "current": { "selected": false, "text": ".*", "value": ".*" },
         "query": ".*"

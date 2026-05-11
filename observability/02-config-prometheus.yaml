@@ -877,3 +877,76 @@ data:
               severity: critical
             annotations:
               summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has had no successful run in >24h (or ever) — pipeline is silently broken"
+
+      - name: fleet.availability
+        rules:
+          - alert: FleetDown
+            expr: up{job="fleet"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fleet server pod {{ $labels.pod }} is down — devices cannot enroll or check in"
+
+          - alert: FleetAllReplicasDown
+            expr: absent(up{job="fleet"} == 1)
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "All Fleet replicas are down"
+
+          - alert: FleetMySQLDown
+            expr: up{job="fleet-mysqld"} == 0
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fleet MySQL is down — Fleet API will be unavailable"
+
+      - name: fleet.capacity
+        rules:
+          - alert: FleetMySQLDiskHigh
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              > 0.75
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysql PVC > 75% full"
+
+          - alert: FleetMySQLDiskCritical
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              > 0.90
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "fleet-mysql PVC > 90% full — expand the PVC NOW"
+
+          - alert: FleetMysqlDumpsDiskHigh
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+              > 0.80
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysql-dumps PVC > 80% full — check retention or expand"
+
+      - name: fleet.backups
+        rules:
+          - alert: FleetMysqldumpStale
+            expr: |
+              (time() - kube_cronjob_status_last_successful_time{namespace="fleet", cronjob="fleet-mysqldump"})
+              > 43200
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysqldump has not succeeded in >12h (schedule is every 6h)"
