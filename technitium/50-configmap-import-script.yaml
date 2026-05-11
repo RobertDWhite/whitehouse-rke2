@@ -199,6 +199,39 @@ data:
         except Exception as e:
             print(f"warn: ensure_query_logs failed: {e}", file=sys.stderr)
 
+    # ---- blocklists (primary only, on bootstrap) ---------------------------
+
+    BLOCKLISTS_FILE = os.environ.get("BLOCKLISTS_FILE", "/blocklists/blocklists.yaml")
+
+    def apply_blocklists(token):
+        if not os.path.exists(BLOCKLISTS_FILE):
+            print(f"no blocklists file at {BLOCKLISTS_FILE}, skipping")
+            return
+        with open(BLOCKLISTS_FILE) as f:
+            data = yaml.safe_load(f) or {}
+        urls = data.get("blockListUrls") or []
+        blocked = data.get("blocked") or []
+        allowed = data.get("allowed") or []
+        if urls:
+            params = [("token", token)] + [("blockListUrls", u) for u in urls]
+            r = S.get(f"{API}/api/settings/set", params=params, timeout=30)
+            if r.ok and r.json().get("status") == "ok":
+                print(f"blocklists: set {len(urls)} URLs")
+            else:
+                print(f"  ! blockListUrls set failed: {r.text[:200]}", file=sys.stderr)
+        ok = 0
+        for d in blocked:
+            r = S.get(f"{API}/api/blocked/add", params={"token": token, "domain": d}, timeout=10)
+            if r.ok and r.json().get("status") == "ok":
+                ok += 1
+        print(f"blocklists: {ok}/{len(blocked)} custom blocks applied")
+        ok = 0
+        for d in allowed:
+            r = S.get(f"{API}/api/allowed/add", params={"token": token, "domain": d}, timeout=10)
+            if r.ok and r.json().get("status") == "ok":
+                ok += 1
+        print(f"blocklists: {ok}/{len(allowed)} allowed entries applied")
+
     # ---- cluster ops --------------------------------------------------------
 
     def cluster_state(token):
@@ -331,6 +364,10 @@ data:
         # once, on the primary.
         if IS_PRIMARY:
             ensure_query_logs(token)
+            try:
+                apply_blocklists(token)
+            except Exception as e:
+                print(f"warn: apply_blocklists failed: {e}", file=sys.stderr)
 
         state = cluster_state(token)
         joined = state.get("clusterInitialized", False)

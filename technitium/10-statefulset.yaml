@@ -159,6 +159,9 @@ spec:
               mountPath: /scripts
             - name: zones
               mountPath: /zones
+            - name: blocklists
+              mountPath: /blocklists
+              readOnly: true
 
         - name: metrics-exporter
           image: python:3.13-alpine
@@ -217,6 +220,9 @@ spec:
         - name: zones
           secret:
             secretName: technitium-zones
+        - name: blocklists
+          secret:
+            secretName: technitium-blocklists
 
   volumeClaimTemplates:
     - metadata:
