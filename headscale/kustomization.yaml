@@ -47,5 +47,8 @@ images:
     newTag: "v1.80.0"
   - name: alpine/k8s
     newTag: "1.30.2"
+  # ip_derper community image only publishes :latest. Pin by digest
+  # (immutable; satisfies the no-:latest policy). Bump by replacing
+  # this digest after verifying with `crane manifest ghcr.io/yangchuansheng/ip_derper:latest`.
   - name: ghcr.io/yangchuansheng/ip_derper
-    newTag: "v1.80.0"
+    digest: sha256:59083a487ae6dbe414b0c20e2a3bb59049d1731274ce3aab46bb75ceb46b40b6
