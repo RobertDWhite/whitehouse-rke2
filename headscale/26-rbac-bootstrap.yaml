@@ -3,12 +3,16 @@ kind: ServiceAccount
 metadata:
   name: headscale-authentik-bootstrap
   namespace: headscale
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: headscale-authentik-bootstrap
   namespace: headscale
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -22,6 +26,8 @@ kind: RoleBinding
 metadata:
   name: headscale-authentik-bootstrap
   namespace: headscale
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
 subjects:
   - kind: ServiceAccount
     name: headscale-authentik-bootstrap
