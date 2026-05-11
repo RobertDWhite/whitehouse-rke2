@@ -25,7 +25,6 @@ spec:
             - -c
             - |
               set -eu
-              umask 077
               cat > /exporter-config/.my.cnf <<EOF
               [client]
               host=127.0.0.1
@@ -33,6 +32,7 @@ spec:
               user=root
               password=${MYSQL_ROOT_PASSWORD}
               EOF
+              chmod 0644 /exporter-config/.my.cnf
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
