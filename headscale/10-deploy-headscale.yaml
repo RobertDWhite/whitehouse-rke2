@@ -23,6 +23,17 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+      # node-14 has a known flannel VTEP / DNS issue — pods scheduled
+      # there can't resolve docker.io. Pin away.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
       containers:
         - name: headscale
           image: headscale/headscale
