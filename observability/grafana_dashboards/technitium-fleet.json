@@ -266,8 +266,47 @@
     },
 
     {
+      "type": "timeseries",
+      "title": "Query frequency by client (top 25, $__interval bins)",
+      "id": 204,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(25, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [$__interval])))",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "legendFormat": "{{client}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 8,
+            "pointSize": 3,
+            "showPoints": "never",
+            "spanNulls": true
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["last", "mean", "max", "sum"],
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 52 }
+    },
+
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 52 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
       "id": 202,
       "title": "Distinct clients & per-client activity",
       "type": "row"
@@ -302,7 +341,7 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 53 }
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 63 }
     },
     {
       "type": "timeseries",
@@ -320,12 +359,12 @@
       ],
       "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1 } } },
       "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "mean", "max"] } },
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 53 }
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 63 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 75 },
       "id": 220,
       "title": "Blocked traffic",
       "type": "row"
@@ -360,7 +399,7 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 66 }
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 76 }
     },
     {
       "type": "table",
@@ -392,7 +431,7 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 66 }
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 76 }
     }
   ],
   "refresh": "30s",

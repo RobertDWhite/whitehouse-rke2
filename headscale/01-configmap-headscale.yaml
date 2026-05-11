@@ -58,12 +58,26 @@ data:
     unix_socket: /var/run/headscale/headscale.sock
     unix_socket_permission: "0770"
 
-    # OIDC via Authentik — wire this up after initial bring-up.
-    # oidc:
-    #   only_start_if_oidc_is_available: true
-    #   issuer: https://authentik.white.fm/application/o/headscale/
-    #   client_id: headscale
-    #   client_secret_path: /etc/headscale/oidc-client-secret
-    #   scope: ["openid", "profile", "email"]
-    #   pkce:
-    #     enabled: true
+    oidc:
+      only_start_if_oidc_is_available: true
+      issuer: https://auth.white.fm/application/o/headscale/
+      client_id: headscale
+      client_secret_path: /etc/headscale-oidc/client-secret
+      scope:
+        - openid
+        - profile
+        - email
+        - groups
+      pkce:
+        enabled: true
+        method: S256
+      # Map Authentik users into Headscale users by email
+      strip_email_domain: false
+      # Restrict logins to specific Authentik groups (optional).
+      # Create a group in Authentik (e.g. "headscale-users") and bind it
+      # to the Headscale application, then set the matching groups here.
+      # allowed_groups:
+      #   - headscale-users
+      expiry:
+        # How long an OIDC-issued node key lasts before forcing re-auth.
+        node_expiry: 720h  # 30 days
