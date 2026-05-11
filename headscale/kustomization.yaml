@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Bring-up is two-phased — see deployment steps below.
+# Phase 1: deploy Headscale only; generate preauth key via CLI.
+# Phase 2: encrypt 22-secret-authkey.sops.yaml with the preauth key,
+#          then uncomment the tailscale-router resource + ksops generator.
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap-headscale.yaml
+  - 10-deploy-headscale.yaml
+  - 20-service-headscale.yaml
+  # - 11-deploy-tailscale-router.yaml   # uncomment in phase 2
+
+# generators:
+#   - ksops.yaml                        # uncomment in phase 2
+
+images:
+  - name: headscale/headscale
+    newTag: "0.23.0"
+  - name: tailscale/tailscale
+    newTag: "v1.80.0"
