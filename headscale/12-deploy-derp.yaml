@@ -19,6 +19,15 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
       containers:
         - name: derper
           image: ghcr.io/yangchuansheng/ip_derper
