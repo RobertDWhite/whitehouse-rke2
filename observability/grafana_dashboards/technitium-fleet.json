@@ -484,23 +484,10 @@
       },
       {
         "name": "client",
-        "label": "Client",
-        "type": "query",
-        "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-        "query": {
-          "label": "client",
-          "stream": "{namespace=\"technitium\",container=\"metrics-exporter\"} | json",
-          "type": 1,
-          "refId": "LokiVariableQueryEditor-VariableQuery"
-        },
-        "definition": "label_values({namespace=\"technitium\",container=\"metrics-exporter\"} | json, client)",
-        "refresh": 2,
-        "includeAll": true,
-        "multi": true,
-        "allValue": ".*",
-        "allowCustomValue": true,
-        "current": { "selected": false, "text": ["All"], "value": ["$__all"] },
-        "sort": 1
+        "label": "Client (regex)",
+        "type": "textbox",
+        "current": { "selected": false, "text": ".*", "value": ".*" },
+        "query": ".*"
       },
       {
         "name": "domain",
