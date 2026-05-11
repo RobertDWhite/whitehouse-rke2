@@ -39,6 +39,9 @@ spec:
             - name: config
               mountPath: /etc/headscale
               readOnly: true
+            - name: oidc
+              mountPath: /etc/headscale-oidc
+              readOnly: true
             - name: data
               mountPath: /var/lib/headscale
             - name: run
@@ -71,6 +74,14 @@ spec:
         - name: config
           configMap:
             name: headscale-config
+        - name: oidc
+          secret:
+            secretName: headscale-oidc
+            optional: true
+            items:
+              - key: client-secret
+                path: client-secret
+                mode: 0400
         - name: data
           persistentVolumeClaim:
             claimName: headscale-data
