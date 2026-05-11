@@ -26,6 +26,7 @@ spec:
           # to invoke the derper binary directly with our cert.
           command: ["/app/derper"]
           args:
+            - "--c=/var/lib/derper/derper.key"
             - "--hostname=derp.white.fm"
             - "--certmode=manual"
             - "--certdir=/certs"
@@ -45,6 +46,8 @@ spec:
             - name: tls
               mountPath: /certs
               readOnly: true
+            - name: state
+              mountPath: /var/lib/derper
           livenessProbe:
             tcpSocket:
               port: 8443
@@ -77,3 +80,5 @@ spec:
               - key: tls.key
                 path: derp.white.fm.key
                 mode: 0440
+        - name: state
+          emptyDir: {}
