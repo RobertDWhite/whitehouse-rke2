@@ -50,9 +50,17 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: vpn-proxy-watchdog
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: [rke2-node-50]
           containers:
             - name: watchdog
-              image: alpine:3.20
+              image: python:3.14-alpine
               command: ["/bin/sh", "-c"]
               args:
                 - |
