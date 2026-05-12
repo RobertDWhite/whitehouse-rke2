@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "Technitium DNS fleet — per-pod stats from the metrics-exporter sidecar in each StatefulSet pod.",
+  "description": "Technitium DNS fleet — per-pod stats from the metrics-exporter sidecar in each StatefulSet pod. Pi-hole-parity headline stats + Loki-backed per-client / per-domain views.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -27,7 +27,7 @@
     },
     {
       "type": "stat",
-      "title": "Queries (last hour, fleet)",
+      "title": "Queries (window, fleet)",
       "id": 1,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -35,11 +35,95 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 }
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 }
     },
     {
       "type": "stat",
-      "title": "Distinct clients (fleet)",
+      "title": "Block %",
+      "id": 7,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * sum(technitium_response_window{category=\"blocked\"}) / clamp_min(sum(technitium_queries_window), 1)", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 25 },
+            { "color": "orange", "value": 50 }
+          ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "Cache hit %",
+      "id": 8,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * sum(technitium_response_window{category=\"cached\"}) / clamp_min(sum(technitium_queries_window), 1)", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 30 },
+            { "color": "green", "value": 60 }
+          ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "NXDOMAIN %",
+      "id": 9,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * sum(technitium_response_window{category=\"nxdomain\"}) / clamp_min(sum(technitium_queries_window), 1)", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 5 },
+            { "color": "orange", "value": 15 }
+          ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "SERVFAIL (window)",
+      "id": 12,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(technitium_response_window{category=\"servfail\"})", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short", "decimals": 0,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 50 },
+            { "color": "red", "value": 500 }
+          ] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "Distinct clients",
       "id": 2,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -47,31 +131,7 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 }
-    },
-    {
-      "type": "stat",
-      "title": "Cache entries (fleet)",
-      "id": 3,
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        { "expr": "sum(technitium_cache_entries)", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 }
-    },
-    {
-      "type": "stat",
-      "title": "Block-list entries (any pod)",
-      "id": 4,
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [
-        { "expr": "max(technitium_block_list_zones)", "refId": "A" }
-      ],
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 }
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 }
     },
     {
       "type": "stat",
@@ -90,7 +150,31 @@
         }
       },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 }
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "Cache entries",
+      "id": 3,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(technitium_cache_entries)", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 }
+    },
+    {
+      "type": "stat",
+      "title": "Block-list entries (any pod)",
+      "id": 4,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max(technitium_block_list_zones)", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "gridPos": { "h": 3, "w": 6, "x": 0, "y": 5 }
     },
     {
       "type": "stat",
@@ -102,27 +186,83 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 }
+      "gridPos": { "h": 3, "w": 6, "x": 6, "y": 5 }
+    },
+    {
+      "type": "stat",
+      "title": "Allow-list zones",
+      "id": 13,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max(technitium_allow_list_zones)", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "gridPos": { "h": 3, "w": 6, "x": 12, "y": 5 }
+    },
+    {
+      "type": "stat",
+      "title": "Manually blocked zones",
+      "id": 14,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "max(technitium_blocked_zones)", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "gridPos": { "h": 3, "w": 6, "x": 18, "y": 5 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 105,
+      "title": "Block % and cache hit % over time",
+      "type": "row"
+    },
+    {
+      "type": "timeseries",
+      "title": "Block % over time (fleet)",
+      "id": 50,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * sum(technitium_response_window{category=\"blocked\"}) / clamp_min(sum(technitium_queries_window), 1)", "legendFormat": "Block %", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "gradientMode": "opacity" } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "mean", "max"] }, "tooltip": { "mode": "single" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hit % over time (fleet)",
+      "id": 51,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * sum(technitium_response_window{category=\"cached\"}) / clamp_min(sum(technitium_queries_window), 1)", "legendFormat": "Cache hit %", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "gradientMode": "opacity" } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["last", "mean", "max"] }, "tooltip": { "mode": "single" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 }
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
       "id": 101,
       "title": "Per-pod DNS load",
       "type": "row"
     },
     {
       "type": "timeseries",
-      "title": "Queries (lastHour, by pod)",
+      "title": "Queries (window, by pod)",
       "id": 10,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         { "expr": "technitium_queries_window", "legendFormat": "{{pod}} ({{node}})", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1, "pointSize": 4 } } },
-      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "mean", "max"] } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 }
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "mean", "max"] } },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 18 }
     },
     {
       "type": "timeseries",
@@ -134,19 +274,31 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 0, "lineWidth": 1 } } },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 }
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 18 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Per-pod load share % (LB fairness)",
+      "id": 15,
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "100 * technitium_queries_window / ignoring(pod, node, instance) group_left sum(technitium_queries_window)", "legendFormat": "{{pod}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 1, "stacking": { "mode": "normal" } } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "mean"] } },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 18 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 },
       "id": 102,
       "title": "Response category breakdown",
       "type": "row"
     },
     {
       "type": "timeseries",
-      "title": "Responses by category (fleet sum)",
+      "title": "Responses by category (fleet sum, stacked)",
       "id": 20,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
@@ -154,26 +306,24 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 50, "stacking": { "mode": "normal" } } } },
       "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "mean"] } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 }
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 }
     },
     {
       "type": "timeseries",
-      "title": "Blocked vs cached vs recursive (per pod)",
-      "id": 21,
+      "title": "Errors only (servfail / refused / dropped)",
+      "id": 22,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "technitium_response_window{category=\"blocked\"}", "legendFormat": "{{pod}} blocked", "refId": "A" },
-        { "expr": "technitium_response_window{category=\"cached\"}",  "legendFormat": "{{pod}} cached",  "refId": "B" },
-        { "expr": "technitium_response_window{category=\"recursive\"}", "legendFormat": "{{pod}} recursive", "refId": "C" }
+        { "expr": "sum by (category) (technitium_response_window{category=~\"servfail|refused|dropped\"})", "legendFormat": "{{category}}", "refId": "A" }
       ],
-      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 1 } } },
-      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last"] } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 }
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "pointSize": 4, "showPoints": "auto" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max", "sum"] } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 27 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
       "id": 103,
       "title": "Query type + protocol mix",
       "type": "row"
@@ -188,7 +338,7 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short" } },
       "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 }
     },
     {
       "type": "piechart",
@@ -200,12 +350,12 @@
       ],
       "fieldConfig": { "defaults": { "unit": "short" } },
       "options": { "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "" } },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 44 },
       "id": 104,
       "title": "Pod inventory",
       "type": "row"
@@ -226,28 +376,28 @@
         { "id": "joinByField", "options": { "byField": "pod", "mode": "outer" } },
         { "id": "organize", "options": {
             "excludeByName": { "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true, "__name__ 1": true, "__name__ 2": true, "__name__ 3": true, "__name__ 4": true, "__name__ 5": true, "job 1": true, "job 2": true, "job 3": true, "job 4": true, "job 5": true, "namespace 1": true, "namespace 2": true, "namespace 3": true, "namespace 4": true, "namespace 5": true, "instance 1": true, "instance 2": true, "instance 3": true, "instance 4": true, "instance 5": true, "category": true },
-            "renameByName": { "pod": "Pod", "node": "Node", "Value #A": "Queries (1h)", "Value #B": "Clients (1h)", "Value #C": "Cache", "Value #D": "Blocked (1h)", "Value #E": "Up" }
+            "renameByName": { "pod": "Pod", "node": "Node", "Value #A": "Queries (window)", "Value #B": "Clients (window)", "Value #C": "Cache", "Value #D": "Blocked (window)", "Value #E": "Up" }
         } }
       ],
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 33 }
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 45 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 51 },
       "id": 200,
       "title": "Live query stream",
       "type": "row"
     },
     {
       "type": "logs",
-      "title": "Recent DNS queries (filter: client=$client, pod=$pod)",
+      "title": "Recent DNS queries (filter: client=$client, pod=$pod, qtype=$qtype)",
       "id": 201,
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "targets": [
         {
           "refId": "A",
-          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" | line_format \"{{.client}}\\t{{.qtype}}\\t{{.domain}}\\t{{.type}}\\t{{.rcode}}\\t{{.rt_ms}}ms\\t({{.protocol}})\"",
+          "expr": "{namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" | qtype=~\"$qtype\" | line_format \"{{.client}}\\t{{.qtype}}\\t{{.domain}}\\t{{.type}}\\t{{.rcode}}\\t{{.rt_ms}}ms\\t({{.protocol}})\"",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" }
         }
@@ -262,9 +412,8 @@
         "dedupStrategy": "none",
         "sortOrder": "Descending"
       },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 40 }
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 52 }
     },
-
     {
       "type": "timeseries",
       "title": "Query frequency by client (top 25, $__interval bins)",
@@ -273,7 +422,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(25, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" [$__interval])))",
+          "expr": "topk(25, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" | qtype=~\"$qtype\" [$__interval])))",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "legendFormat": "{{client}}"
@@ -301,12 +450,12 @@
         },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 52 }
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 64 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 62 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 74 },
       "id": 202,
       "title": "Distinct clients & per-client activity",
       "type": "row"
@@ -319,7 +468,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(200, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | domain=~\"$domain\" [$__range])))",
+          "expr": "topk(200, sum by (client) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | domain=~\"$domain\" | qtype=~\"$qtype\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -351,7 +500,7 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 63 }
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 75 }
     },
     {
       "type": "timeseries",
@@ -361,7 +510,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(10, sum by (client) (rate({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" [$__interval])))",
+          "expr": "topk(10, sum by (client) (rate({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | domain=~\"$domain\" | qtype=~\"$qtype\" [$__interval])))",
           "queryType": "range",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "legendFormat": "{{client}}"
@@ -369,14 +518,14 @@
       ],
       "fieldConfig": { "defaults": { "unit": "qps", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 1 } } },
       "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "mean", "max"] } },
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 63 }
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 75 }
     },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 75 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 87 },
       "id": 220,
-      "title": "Blocked traffic",
+      "title": "Domain activity",
       "type": "row"
     },
     {
@@ -387,7 +536,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | type=\"Blocked\" [$__range])))",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | qtype=~\"$qtype\" | type=\"Blocked\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -419,17 +568,17 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 76 }
+      "gridPos": { "h": 12, "w": 8, "x": 0, "y": 88 }
     },
     {
       "type": "table",
-      "title": "Top domains overall (in time range)",
-      "id": 222,
+      "title": "Top permitted domains (non-blocked)",
+      "id": 223,
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "targets": [
         {
           "refId": "A",
-          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" [$__range])))",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | qtype=~\"$qtype\" | type!=\"Blocked\" [$__range])))",
           "queryType": "instant",
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "format": "table"
@@ -461,7 +610,91 @@
             ] }
         ]
       },
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 76 }
+      "gridPos": { "h": 12, "w": 8, "x": 8, "y": 88 }
+    },
+    {
+      "type": "table",
+      "title": "Top NXDOMAIN domains (likely misconfigured clients)",
+      "id": 224,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | qtype=~\"$qtype\" | rcode=\"NxDomain\" [$__range])))",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "domain": "Domain", "Value": "NXDOMAIN" }
+        } },
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "NXDOMAIN", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "NXDOMAIN" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] },
+          { "matcher": { "id": "byName", "options": "Domain" },
+            "properties": [
+              { "id": "links", "value": [
+                {
+                  "title": "Filter dashboard to this domain",
+                  "url": "/d/${__dashboard.uid}?${__url_time_range}&var-pod=${pod:queryparam}&var-client=${client:queryparam}&var-domain=${__value.raw}",
+                  "targetBlank": false
+                }
+              ] }
+            ] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 8, "x": 16, "y": 88 }
+    },
+    {
+      "type": "table",
+      "title": "Top domains overall (in time range)",
+      "id": 222,
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(100, sum by (domain) (count_over_time({namespace=\"technitium\", container=\"metrics-exporter\", pod=~\"$pod\"} |= \"\\\"kind\\\":\\\"query\\\"\" | json | client=~\"$client\" | qtype=~\"$qtype\" [$__range])))",
+          "queryType": "instant",
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": {
+            "excludeByName": { "Time": true },
+            "renameByName": { "domain": "Domain", "Value": "Queries" }
+        } },
+        { "id": "sortBy", "options": { "fields": {}, "sort": [{ "field": "Queries", "desc": true }] } }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Queries" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } }
+            ] },
+          { "matcher": { "id": "byName", "options": "Domain" },
+            "properties": [
+              { "id": "links", "value": [
+                {
+                  "title": "Filter dashboard to this domain",
+                  "url": "/d/${__dashboard.uid}?${__url_time_range}&var-pod=${pod:queryparam}&var-client=${client:queryparam}&var-domain=${__value.raw}",
+                  "targetBlank": false
+                }
+              ] }
+            ] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 100 }
     }
   ],
   "refresh": "30s",
@@ -479,6 +712,19 @@
         "includeAll": true,
         "multi": true,
         "allValue": ".*",
+        "current": { "selected": false, "text": ["All"], "value": ["$__all"] },
+        "sort": 1
+      },
+      {
+        "name": "qtype",
+        "label": "Query type",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(technitium_query_type_window, type)", "refId": "Prom-qtype-VarQuery" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".+",
         "current": { "selected": false, "text": ["All"], "value": ["$__all"] },
         "sort": 1
       },
@@ -503,6 +749,6 @@
   "timezone": "",
   "title": "Technitium DNS Fleet",
   "uid": "technitium-fleet",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
