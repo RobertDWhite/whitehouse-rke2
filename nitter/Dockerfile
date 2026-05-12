@@ -1,4 +1,4 @@
-FROM nimlang/nim:2.0.8-alpine AS build
+FROM nimlang/nim:2.2.4-alpine AS build
 
 RUN apk add --no-cache git libsass-dev sassc openssl-dev pcre-dev
 
