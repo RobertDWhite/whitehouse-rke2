@@ -282,7 +282,7 @@
       "id": 15,
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
-        { "expr": "100 * technitium_queries_window / ignoring(pod, node, instance) group_left sum(technitium_queries_window)", "legendFormat": "{{pod}}", "refId": "A" }
+        { "expr": "100 * technitium_queries_window / scalar(sum(technitium_queries_window))", "legendFormat": "{{pod}}", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1, "min": 0, "custom": { "drawStyle": "line", "fillOpacity": 5, "lineWidth": 1, "stacking": { "mode": "normal" } } } },
       "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["last", "mean"] } },
