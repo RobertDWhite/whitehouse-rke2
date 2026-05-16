@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homebridge
+  namespace: homebridge
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homebridge
+  template:
+    metadata:
+      labels:
+        app: homebridge
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: homebridge
+          image: homebridge/homebridge
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8581
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8581
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /homebridge
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: homebridge-data
