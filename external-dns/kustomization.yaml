@@ -10,6 +10,7 @@ resources:
   - deployment-pihole.yaml
   - deployment-pihole-b.yaml
   - deployment-pihole-c.yaml
+  - deployment-cloudflare-ddns.yaml
 
 generators:
   - ksops.yaml
@@ -17,3 +18,5 @@ generators:
 images:
   - name: registry.k8s.io/external-dns/external-dns
     newTag: v0.21.0
+  - name: favonia/cloudflare-ddns
+    newTag: "1.16.0"
