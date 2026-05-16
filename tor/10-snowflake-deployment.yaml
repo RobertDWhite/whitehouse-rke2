@@ -56,16 +56,6 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          # snowflake-proxy has no listening port and no /healthz, so probes
-          # check PID 1 is alive. The container restarts on binary exit anyway;
-          # this satisfies the "must have probes" convention.
-          livenessProbe:
-            exec:
-              command: ["sh", "-c", "kill -0 1"]
-            initialDelaySeconds: 30
-            periodSeconds: 60
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "kill -0 1"]
-            initialDelaySeconds: 10
-            periodSeconds: 30
+          # Image is distroless (no shell, no kill), and snowflake-proxy
+          # exposes neither a port nor an HTTP healthz. Kubelet restarts on
+          # process exit, which is the only failure mode for this binary.
