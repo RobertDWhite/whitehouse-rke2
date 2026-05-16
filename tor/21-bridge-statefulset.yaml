@@ -17,10 +17,12 @@ spec:
         app: obfs4-bridge
     spec:
       securityContext:
-        fsGroup: 100
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
       containers:
         - name: tor
-          image: thetorproject/obfs4-bridge:0.4.9.2
+          image: thetorproject/obfs4-bridge:0.24
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           # Render the final torrc by appending ContactInfo + AddressDisableIPv6
