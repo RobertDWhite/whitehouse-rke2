@@ -26,8 +26,9 @@ data:
     ServerTransportListenAddr obfs4 0.0.0.0:9443
     ExtORPort auto
 
-    # Prometheus metrics. Allow scraping from cluster pod/service CIDRs only.
-    MetricsPort 9035 prometheus
+    # Prometheus metrics. Bind 0.0.0.0 so the in-cluster prometheus can reach
+    # it; MetricsPortPolicy restricts which source IPs may scrape.
+    MetricsPort 0.0.0.0:9035 prometheus
     MetricsPortPolicy accept 10.0.0.0/8
     MetricsPortPolicy accept 127.0.0.1
     MetricsPortPolicy reject *
