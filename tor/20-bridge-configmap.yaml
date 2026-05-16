@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bridge-torrc
+  namespace: tor
+data:
+  torrc: |
+    # whitehouse-rke2 obfs4 bridge
+    # Non-exit, unpublished bridge — IP distributed via BridgeDB only.
+
+    Nickname whitehouseBridge
+    BridgeRelay 1
+    ExitRelay 0
+    PublishServerDescriptor bridge
+
+    # Identity / data — backed by the PVC mounted at /var/lib/tor.
+    DataDirectory /var/lib/tor
+
+    # ORPort: where other Tor nodes reach this bridge. Advertised IP
+    # is the LoadBalancer external IP; the listener binds inside the pod.
+    # AssumeReachable lets the bridge start before it self-confirms reachability.
+    ORPort 9001
+
+    # obfs4 pluggable transport — the actual entry point for censored users.
+    ServerTransportPlugin obfs4 exec /usr/bin/obfs4proxy
+    ServerTransportListenAddr obfs4 0.0.0.0:9443
+    ExtORPort auto
+
+    # Prometheus metrics. Allow scraping from cluster pod/service CIDRs only.
+    MetricsPort 9035 prometheus
+    MetricsPortPolicy accept 10.0.0.0/8
+    MetricsPortPolicy accept 127.0.0.1
+    MetricsPortPolicy reject *
+
+    # Bandwidth caps — tune to taste. These are conservative defaults.
+    RelayBandwidthRate 10 MBytes
+    RelayBandwidthBurst 20 MBytes
+
+    # Logging — stdout so kubectl logs works.
+    Log notice stdout
+
+    # ContactInfo is injected from the SOPS secret as an env var and
+    # appended via the entrypoint (see 21-bridge-statefulset.yaml).

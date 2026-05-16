@@ -259,6 +259,25 @@ data:
           - targets: ["10.100.1.20:9713"]
 
       # =========================
+      # Tor obfs4 bridge metrics
+      # =========================
+      - job_name: tor-bridge
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: tor
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: obfs4-bridge-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
       # CrowdSec LAPI metrics
       # =========================
       - job_name: crowdsec
