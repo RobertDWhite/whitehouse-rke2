@@ -17,10 +17,28 @@ spec:
         app: obfs4-bridge
     spec:
       securityContext:
-        fsGroup: 100
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      initContainers:
+        # fsGroup only chowns the group; tor checks owning user as well.
+        # Force uid:gid 101:101 on the PVC root so tor can write DataDirectory.
+        - name: chown-data
+          image: busybox:1.37
+          command: ["sh", "-c", "chown -R 101:101 /var/lib/tor"]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/tor
       containers:
         - name: tor
-          image: thetorproject/obfs4-bridge:0.4.9.2
+          image: thetorproject/obfs4-bridge:0.24
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           # Render the final torrc by appending ContactInfo + AddressDisableIPv6
