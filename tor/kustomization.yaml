@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tor
+
+generators:
+  - ksops.yaml
+
+resources:
+  - 00-namespace.yaml
+  - 10-snowflake-deployment.yaml
+  - 20-bridge-configmap.yaml
+  - 21-bridge-statefulset.yaml
+  - 22-bridge-service-metrics.yaml
+  - 23-bridge-service-lb.yaml
+  - 24-bridge-pdb.yaml
+
+images:
+  - name: thetorproject/snowflake-proxy
+    newTag: "v2.11.0"
+  - name: thetorproject/obfs4-bridge
+    newTag: "0.4.9.2"

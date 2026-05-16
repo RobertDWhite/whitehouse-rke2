@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflake-proxy
+  namespace: tor
+  labels:
+    app: snowflake-proxy
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: snowflake-proxy
+  template:
+    metadata:
+      labels:
+        app: snowflake-proxy
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: snowflake-proxy
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: snowflake-proxy
+          image: thetorproject/snowflake-proxy:v2.11.0
+          imagePullPolicy: IfNotPresent
+          args:
+            # cap simultaneous client connections per replica
+            - "-capacity=10"
+            # log a stats summary periodically
+            - "-summary-interval=1h"
+            # default broker; pinned explicitly so we notice if it ever changes
+            - "-broker=https://snowflake-broker.torproject.net/"
+            - "-relay=wss://snowflake.bamsoftware.com/"
+            - "-stun=stun:stun.l.google.com:19302"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # snowflake-proxy has no listening port and no /healthz, so probes
+          # check PID 1 is alive. The container restarts on binary exit anyway;
+          # this satisfies the "must have probes" convention.
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 60
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 30

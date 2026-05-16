@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: obfs4-bridge
+  namespace: tor
+  labels:
+    app: obfs4-bridge
+spec:
+  serviceName: obfs4-bridge-metrics
+  replicas: 1
+  selector:
+    matchLabels:
+      app: obfs4-bridge
+  template:
+    metadata:
+      labels:
+        app: obfs4-bridge
+    spec:
+      securityContext:
+        fsGroup: 100
+      containers:
+        - name: tor
+          image: thetorproject/obfs4-bridge:0.4.9.2
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          # Render the final torrc by appending ContactInfo + AddressDisableIPv6
+          # from the secret-mounted env, then exec tor.
+          args:
+            - |
+              set -eu
+              cp /etc/torrc.d/torrc /tmp/torrc
+              echo "ContactInfo ${CONTACT_INFO}" >> /tmp/torrc
+              # Advertise the LoadBalancer public IP to BridgeDB.
+              if [ -n "${ADDRESS:-}" ]; then
+                echo "Address ${ADDRESS}" >> /tmp/torrc
+              fi
+              exec tor -f /tmp/torrc
+          env:
+            - name: CONTACT_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: bridge-contact
+                  key: contact-info
+            - name: ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: bridge-contact
+                  key: address
+                  optional: true
+          ports:
+            - name: orport
+              containerPort: 9001
+              protocol: TCP
+            - name: obfs4
+              containerPort: 9443
+              protocol: TCP
+            - name: metrics
+              containerPort: 9035
+              protocol: TCP
+          volumeMounts:
+            - name: torrc
+              mountPath: /etc/torrc.d
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/tor
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "1000m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+          readinessProbe:
+            tcpSocket:
+              port: 9001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9001
+            initialDelaySeconds: 120
+            periodSeconds: 30
+      volumes:
+        - name: torrc
+          configMap:
+            name: bridge-torrc
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 1Gi
