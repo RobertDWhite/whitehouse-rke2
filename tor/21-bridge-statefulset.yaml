@@ -20,6 +20,15 @@ spec:
         runAsUser: 101
         runAsGroup: 101
         fsGroup: 101
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
       initContainers:
         # fsGroup only chowns the group; tor checks owning user as well.
         # Force uid:gid 101:101 on the PVC root so tor can write DataDirectory.
