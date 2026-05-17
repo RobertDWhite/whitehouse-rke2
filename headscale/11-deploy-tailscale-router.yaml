@@ -31,6 +31,18 @@ spec:
                     values:
                       - rke2-node-14
                       - rke2-node-50
+      # tailscaled in kernel mode (TS_USERSPACE=false) needs the pod's
+      # net namespace to forward IPv4/IPv6 — otherwise advertised
+      # subnet routes silently drop every packet.
+      initContainers:
+        - name: enable-ip-forward
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - "sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv6.conf.all.forwarding=1"
+          securityContext:
+            privileged: true
       containers:
         - name: tailscale
           image: tailscale/tailscale
