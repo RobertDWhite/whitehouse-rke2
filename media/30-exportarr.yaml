@@ -1,0 +1,420 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: radarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exportarr
+      app.kubernetes.io/instance: radarr
+  template:
+    metadata:
+      labels:
+        app: exportarr
+        app.kubernetes.io/instance: radarr
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["radarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://radarr.media.svc.cluster.local:7878
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: exportarr-apikeys
+                  key: radarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: radarr
+spec:
+  selector:
+    app: exportarr
+    app.kubernetes.io/instance: radarr
+  ports:
+    - name: metrics
+      port: 9707
+      targetPort: 9707
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: sonarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exportarr
+      app.kubernetes.io/instance: sonarr
+  template:
+    metadata:
+      labels:
+        app: exportarr
+        app.kubernetes.io/instance: sonarr
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["sonarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://sonarr.media.svc.cluster.local:8989
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: exportarr-apikeys
+                  key: sonarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: sonarr
+spec:
+  selector:
+    app: exportarr
+    app.kubernetes.io/instance: sonarr
+  ports:
+    - name: metrics
+      port: 9707
+      targetPort: 9707
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: prowlarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exportarr
+      app.kubernetes.io/instance: prowlarr
+  template:
+    metadata:
+      labels:
+        app: exportarr
+        app.kubernetes.io/instance: prowlarr
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["prowlarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://prowlarr.media.svc.cluster.local:9696
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: exportarr-apikeys
+                  key: prowlarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: prowlarr
+spec:
+  selector:
+    app: exportarr
+    app.kubernetes.io/instance: prowlarr
+  ports:
+    - name: metrics
+      port: 9707
+      targetPort: 9707
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: bazarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exportarr
+      app.kubernetes.io/instance: bazarr
+  template:
+    metadata:
+      labels:
+        app: exportarr
+        app.kubernetes.io/instance: bazarr
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["bazarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://bazarr.media.svc.cluster.local:6767
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: exportarr-apikeys
+                  key: bazarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: bazarr
+spec:
+  selector:
+    app: exportarr
+    app.kubernetes.io/instance: bazarr
+  ports:
+    - name: metrics
+      port: 9707
+      targetPort: 9707
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: readarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: readarr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exportarr
+      app.kubernetes.io/instance: readarr
+  template:
+    metadata:
+      labels:
+        app: exportarr
+        app.kubernetes.io/instance: readarr
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 300
+      containers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["readarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://readarr.media.svc.cluster.local:8787
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: exportarr-apikeys
+                  key: readarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+          livenessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /healthz, port: 9707}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: readarr-exporter
+  namespace: media
+  labels:
+    app: exportarr
+    app.kubernetes.io/instance: readarr
+spec:
+  selector:
+    app: exportarr
+    app.kubernetes.io/instance: readarr
+  ports:
+    - name: metrics
+      port: 9707
+      targetPort: 9707
