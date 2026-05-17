@@ -15,11 +15,15 @@ spec:
   selector:
     app: derp
   ports:
-    - name: https
-      port: 8443
+    # Expose on the same port numbers the derp-map advertises (18443 /
+    # 13478) so internal cluster pods that resolve derp.white.fm via
+    # Technitium hit the same logical port the external UniFi forward
+    # uses. derper itself listens on 8443/3478 inside the pod.
+    - name: derp
+      port: 18443
       targetPort: 8443
       protocol: TCP
     - name: stun
-      port: 3478
+      port: 13478
       targetPort: 3478
       protocol: UDP
