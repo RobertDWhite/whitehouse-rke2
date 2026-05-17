@@ -23,8 +23,8 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
-      # node-14 has a known flannel VTEP / DNS issue — pods scheduled
-      # there can't resolve docker.io. Pin away.
+      # node-14: known flannel VTEP / DNS issue (can't resolve docker.io).
+      # node-50: transient GPU host, GPU-only — keep stateful infra off it.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -34,6 +34,7 @@ spec:
                     operator: NotIn
                     values:
                       - rke2-node-14
+                      - rke2-node-50
       containers:
         - name: headscale
           image: headscale/headscale
