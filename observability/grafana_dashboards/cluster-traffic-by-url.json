@@ -87,7 +87,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -136,7 +136,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum by (_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__auto]))",
           "hide": false,
           "legendFormat": "{{_authority}}",
@@ -148,7 +148,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -182,7 +182,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "topk(20, sum by (_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" [$__range])))",
           "hide": false,
           "legendFormat": "{{_authority}}",
@@ -202,7 +202,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -246,7 +246,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"2..\" [$__range]))",
           "hide": false,
           "legendFormat": "2xx",
@@ -255,7 +255,7 @@
           "instant": true
         },
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"3..\" [$__range]))",
           "hide": false,
           "legendFormat": "3xx",
@@ -264,7 +264,7 @@
           "instant": true
         },
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"4..\" [$__range]))",
           "hide": false,
           "legendFormat": "4xx",
@@ -273,7 +273,7 @@
           "instant": true
         },
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum(count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" | response_code=~\"5..\" [$__range]))",
           "hide": false,
           "legendFormat": "5xx",
@@ -286,7 +286,7 @@
       "type": "piechart"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -319,7 +319,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "sum(rate({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__rate_interval])) * 60",
           "hide": false,
           "legendFormat": "req/min",
@@ -331,7 +331,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -381,7 +381,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "topk(15, sum by (x_forwarded_for) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__range])))",
           "hide": false,
           "legendFormat": "{{x_forwarded_for}}",
@@ -424,7 +424,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -459,7 +459,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "topk(15, quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__range]) by (_authority))",
           "hide": false,
           "legendFormat": "{{_authority}}",
@@ -472,7 +472,7 @@
       "type": "bargauge"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -521,7 +521,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "quantile_over_time(0.50, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__auto]) by (_authority)",
           "hide": false,
           "legendFormat": "p50 {{_authority}}",
@@ -529,7 +529,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "quantile_over_time(0.95, {namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | unwrap duration | __error__=\"\" | _authority=~\"$hostname\" [$__auto]) by (_authority)",
           "hide": false,
           "legendFormat": "p95 {{_authority}}",
@@ -548,7 +548,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
       "id": 8,
       "options": {
@@ -563,7 +563,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
           "expr": "{namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\"",
           "hide": false,
           "legendFormat": "",
@@ -582,7 +582,7 @@
     "list": [
       {
         "current": {},
-        "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+        "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
         "definition": "label_values({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\", _authority)",
         "hide": 0,
         "includeAll": true,
