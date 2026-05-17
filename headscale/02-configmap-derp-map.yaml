@@ -16,6 +16,10 @@ data:
             hostname: derp.white.fm
             derpport: 18443
             stunport: 13478
-            ipv4: ""
+            # Hardcode the public IP so clients never resolve via Technitium
+            # (which returns the internal LB IP 10.99.5.101 — unreachable
+            # from off-LAN clients, and the cluster LB doesn't listen on
+            # the external port 18443 anyway). Update if WAN IP changes.
+            ipv4: "131.241.71.23"
             ipv6: ""
             insecurefortests: false
