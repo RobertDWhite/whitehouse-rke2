@@ -18,6 +18,15 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-50
       priorityClassName: system-node-critical
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
       containers:
         - name: nvidia-device-plugin-ctr
           image: nvcr.io/nvidia/k8s-device-plugin

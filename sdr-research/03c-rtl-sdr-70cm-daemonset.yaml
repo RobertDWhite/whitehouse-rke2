@@ -94,12 +94,17 @@ spec:
               fi
               echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
               while true; do
+                # -n 500 = max queued linked-list buffers (rtl_tcp default).
+                # Was -n 32, which starved the gnuradio osmosdr consumer on any
+                # network/USB jitter -> "worker cond timeout" -> client SIGPIPE
+                # -> flowgraph "socket error" -> CrashLoopBackOff. 500 gives
+                # ~16x headroom at trivial RAM cost (~2 MB extra).
                 rtl_tcp \
                   -d ${DEV_INDEX} \
                   -a 0.0.0.0 \
                   -p 1235 \
                   -s ${RTL_SAMPLE_RATE} \
-                  -n 32
+                  -n 500
                 echo "rtl_tcp exited, restarting in 2s..."
                 sleep 2
               done

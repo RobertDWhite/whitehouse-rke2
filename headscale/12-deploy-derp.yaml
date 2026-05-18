@@ -19,6 +19,9 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+      # ip_derper image is amd64-only — must avoid node-10 (arm64).
+      nodeSelector:
+        kubernetes.io/arch: amd64
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -28,6 +31,7 @@ spec:
                     operator: NotIn
                     values:
                       - rke2-node-14
+                      - rke2-node-50
       containers:
         - name: derper
           image: ghcr.io/yangchuansheng/ip_derper
