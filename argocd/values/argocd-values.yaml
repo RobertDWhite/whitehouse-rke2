@@ -12,21 +12,9 @@ extraObjects:
     ingressClassName: nginx
     tls:
     - hosts:
-      - argo.white.fm
       - argo.internal.white.fm
       secretName: argo-white-fm-tls
     rules:
-    - host: argo.white.fm
-      http:
-        paths:
-        - path: /
-          pathType: Prefix
-          backend:
-            service:
-              name: argocd-server
-              port:
-                number: 443
-
     - host: argo.internal.white.fm
       http:
         paths:
