@@ -583,7 +583,7 @@
       {
         "current": {},
         "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-        "definition": "label_values({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\", _authority)",
+        "definition": "label_values(sum by(_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" [1h])), _authority)",
         "hide": 0,
         "includeAll": true,
         "allValue": ".*",
@@ -592,10 +592,9 @@
         "name": "hostname",
         "options": [],
         "query": {
-          "label": "_authority",
-          "refId": "LokiVariableQueryEditor-VariableQuery",
-          "stream": "{namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\"",
-          "type": 1
+          "qryType": 4,
+          "query": "label_values(sum by(_authority) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" [1h])), _authority)",
+          "refId": "LokiVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",

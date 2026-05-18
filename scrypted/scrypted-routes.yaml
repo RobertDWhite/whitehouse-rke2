@@ -29,23 +29,3 @@ spec:
         - group: gateway.envoyproxy.io
           kind: Backend
           name: scrypted-tls
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: scrypted-public
-  namespace: scrypted
-  annotations:
-    external-dns.alpha.kubernetes.io/exclude: "true"
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - scrypted.white.fm
-  rules:
-    - backendRefs:
-        - group: gateway.envoyproxy.io
-          kind: Backend
-          name: scrypted-tls

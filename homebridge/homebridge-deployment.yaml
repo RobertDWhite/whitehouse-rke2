@@ -19,6 +19,25 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       nodeSelector:
         kubernetes.io/hostname: rke2-node-14
+      initContainers:
+        - name: seed-config
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /homebridge/config.json ]; then
+                cp /seed/config.json /homebridge/config.json
+                echo "seeded /homebridge/config.json from secret"
+              else
+                echo "/homebridge/config.json already exists, leaving alone"
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /homebridge
+            - name: config-seed
+              mountPath: /seed
+              readOnly: true
       containers:
         - name: homebridge
           image: homebridge/homebridge
@@ -46,3 +65,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: homebridge-data
+        - name: config-seed
+          secret:
+            secretName: homebridge-config-seed

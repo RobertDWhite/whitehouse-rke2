@@ -16,6 +16,10 @@ data:
             hostname: derp.white.fm
             derpport: 18443
             stunport: 13478
+            # Empty so each client resolves via its own DNS:
+            #   - cluster pods → Technitium → 10.99.5.101 (LB) :18443/:13478
+            #   - off-LAN clients → public DNS → WAN IP :18443/:13478 → UniFi forward → LB
+            # Service exposes 18443/13478 directly so both paths match.
             ipv4: ""
             ipv6: ""
             insecurefortests: false

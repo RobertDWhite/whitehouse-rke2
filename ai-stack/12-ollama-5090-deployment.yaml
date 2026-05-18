@@ -26,6 +26,14 @@ spec:
           operator: Exists
           effect: NoExecute
           tolerationSeconds: 30
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
       containers:
         - name: ollama
           image: ollama/ollama

@@ -266,23 +266,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: homebridge-internal
-  namespace: external-services
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-internal-white-fm
-  hostnames:
-    - homebridge.internal.white.fm
-  rules:
-    - backendRefs:
-        - name: hbridge
-          port: 8581
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: homeassistant-internal
   namespace: external-services
 spec:
@@ -367,24 +350,6 @@ spec:
     - backendRefs:
         - name: qbit
           port: 8080
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: scrypted-internal
-  namespace: external-services
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-internal-white-fm
-  hostnames:
-    - scrypted.internal.white.fm
-  rules:
-    - backendRefs:
-        - group: gateway.envoyproxy.io
-          kind: Backend
-          name: scrypted-tls
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -683,7 +648,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: grafana-internal
-  namespace: observability
+  namespace: authentik
 spec:
   parentRefs:
     - name: main
@@ -693,8 +658,8 @@ spec:
     - grafana.internal.white.fm
   rules:
     - backendRefs:
-        - name: grafana
-          port: 3000
+        - name: authentik-server
+          port: 80
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
