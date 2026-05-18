@@ -32,23 +32,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: longhorn-public
-  namespace: longhorn-system
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - longhorn.white.fm
-  rules:
-    - backendRefs:
-        - name: longhorn-frontend
-          port: 80
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: matrix-public
   namespace: matrix
 spec:
@@ -157,23 +140,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: tautulli-public
-  namespace: tautulli
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - tautulli.white.fm
-  rules:
-    - backendRefs:
-        - name: tautulli
-          port: 8181
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: streaming-mastodon-public
   namespace: mastodon
 spec:
@@ -208,23 +174,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: homarr-public
-  namespace: homarr
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - homarr.white.fm
-  rules:
-    - backendRefs:
-        - name: homarr
-          port: 7575
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: photos-public
   namespace: immich
 spec:
@@ -238,74 +187,6 @@ spec:
     - backendRefs:
         - name: immich-server
           port: 2283
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: status-public
-  namespace: uptime-kuma
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - status.white.fm
-  rules:
-    - backendRefs:
-        - name: uptime-kuma
-          port: 80
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: ombi-public
-  namespace: ombi
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - ombi.white.fm
-  rules:
-    - backendRefs:
-        - name: ombi
-          port: 3579
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: portainer-public
-  namespace: portainer
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - portainer.white.fm
-  rules:
-    - backendRefs:
-        - name: portainer
-          port: 9000
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: registry-public
-  namespace: registry
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - registry.white.fm
-  rules:
-    - backendRefs:
-        - name: registry
-          port: 5000
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -325,40 +206,6 @@ spec:
     - backendRefs:
         - name: audiobookshelf
           port: 80
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: grafana-public
-  namespace: observability
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - grafana.white.fm
-  rules:
-    - backendRefs:
-        - name: grafana
-          port: 3000
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: influxdb-public
-  namespace: observability
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - influxdb.white.fm
-  rules:
-    - backendRefs:
-        - name: influxdb
-          port: 8086
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -461,52 +308,6 @@ spec:
     - backendRefs:
         - name: ground-station
           port: 7000
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: argo-public
-  namespace: argocd
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - argo.white.fm
-  rules:
-    - backendRefs:
-        - group: gateway.envoyproxy.io
-          kind: Backend
-          name: argocd-server-tls
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: intel-public
-  namespace: misp
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - intel.white.fm
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /raven-ws
-      backendRefs:
-        - name: misp-raven-bridge
-          port: 5678
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - name: misp-dashboard
-          port: 8001
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -634,23 +435,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: falco-public
-  namespace: authentik
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - falco.white.fm
-  rules:
-    - backendRefs:
-        - name: authentik-server
-          port: 80
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: kavita-public
   namespace: authentik
 spec:
@@ -660,6 +444,23 @@ spec:
       sectionName: https-white-fm
   hostnames:
     - kavita.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - grafana.white.fm
   rules:
     - backendRefs:
         - name: authentik-server

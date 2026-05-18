@@ -37,11 +37,11 @@ resources:
   - 30-cert-derp.yaml
   - 40-httproute.yaml
   - 41-backendtrafficpolicy.yaml
-  # - 11-deploy-tailscale-router.yaml   # uncomment in phase 2
+  - 11-deploy-tailscale-router.yaml
 
 generators:
   - ksops-oidc.yaml
-  # - ksops-router.yaml                 # uncomment in phase 2
+  - ksops-router.yaml
 
 images:
   - name: headscale/headscale
@@ -49,7 +49,7 @@ images:
   - name: tailscale/tailscale
     newTag: "v1.96.5"
   - name: alpine/k8s
-    newTag: "1.36.0"
+    newTag: "1.36.1"
   - name: goodieshq/headscale-admin
     newTag: "0.26.0"
   # ip_derper community image only publishes :latest. Pin by digest
