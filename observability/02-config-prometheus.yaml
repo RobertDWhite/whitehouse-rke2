@@ -239,8 +239,13 @@ data:
       # *arr exporters (exportarr) — in-cluster, namespace=media
       # Discovers radarr/sonarr/bazarr/prowlarr/readarr exporters by label.
       # `app.kubernetes.io/instance` is exposed as `arr` for dashboard grouping.
+      # scrape_interval bumped to 5m / timeout 2m because exportarr
+      # paginates through the full library on each scrape — sonarr with
+      # ~17k episodes takes 30-60s; the default 10s timeout fails.
       # =========================
       - job_name: exportarr
+        scrape_interval: 5m
+        scrape_timeout: 2m
         kubernetes_sd_configs:
           - role: endpoints
             namespaces:
