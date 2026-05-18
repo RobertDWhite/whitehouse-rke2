@@ -5,6 +5,8 @@ metadata:
   namespace: calibre
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: lazylibrarian
@@ -30,15 +32,16 @@ spec:
             httpGet:
               path: /
               port: 5299
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 15
+            failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /
               port: 5299
-            initialDelaySeconds: 40
+            initialDelaySeconds: 180
             periodSeconds: 30
-            failureThreshold: 3
+            failureThreshold: 5
           env:
             - name: PUID
               value: "1000"
