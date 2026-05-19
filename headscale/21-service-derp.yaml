@@ -15,27 +15,27 @@ spec:
   selector:
     app: derp
   ports:
-    # 18443/13478: what derp-map advertises; cluster pods resolving
-    #   derp.white.fm via Technitium hit these.
-    # 8443/3478: what the UniFi WAN-side port forward currently targets
-    #   (fwd_port=8443/3478). Kept as additional Service ports so external
-    #   clients work without on-LAN UniFi changes. Once the UniFi forward
-    #   is updated to fwd_port=18443/13478, the 8443/3478 entries can be
-    #   removed from this Service spec.
-    # derper itself listens on 8443/3478 inside the pod.
-    - name: derp
+    # Dual-port alignment. derper inside the pod listens on 8443/3478.
+    # - 18443/13478 (derp-via-dns / stun-via-dns): what derp-map advertises.
+    #   Cluster pods resolve derp.white.fm via Technitium to 10.99.5.101
+    #   and hit these ports directly on the LB IP.
+    # - 8443/3478 (derp-via-unifi / stun-via-unifi): what the UniFi WAN
+    #   forward DNATs to (WAN 18443 → 10.99.5.101:8443, WAN 13478 →
+    #   10.99.5.101:3478). External clients enter on the WAN port and
+    #   land here.
+    - name: derp-via-dns
       port: 18443
       targetPort: 8443
       protocol: TCP
-    - name: derp-unifi-legacy
+    - name: derp-via-unifi
       port: 8443
       targetPort: 8443
       protocol: TCP
-    - name: stun
+    - name: stun-via-dns
       port: 13478
       targetPort: 3478
       protocol: UDP
-    - name: stun-unifi-legacy
+    - name: stun-via-unifi
       port: 3478
       targetPort: 3478
       protocol: UDP
