@@ -17,8 +17,22 @@ spec:
         - name: cybether-backend
           # renovate: datasource=docker depName=registry.white.fm/cybether/backend
           image: registry.white.fm/cybether/backend:1.0.0
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -e
+              echo "Waiting for postgres at $DB_HOST..."
+              until PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$DB_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' 2>/dev/null; do
+                echo "postgres not ready; sleeping 3s"
+                sleep 3
+              done
+              echo "postgres ready; running init_db.py"
+              python init_db.py
+              echo "starting flask"
+              exec python -m flask run --host=0.0.0.0 --port=5000
           resources:
             requests:
               cpu: 50m
@@ -29,12 +43,12 @@ spec:
           readinessProbe:
             tcpSocket:
               port: 5000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 15
             periodSeconds: 15
           livenessProbe:
             tcpSocket:
               port: 5000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 30
             failureThreshold: 3
           securityContext:
@@ -44,24 +58,37 @@ spec:
               value: "cybether-postgres.cybether.svc.cluster.local"
             - name: DB_PORT
               value: "5432"
-
-            - name: DB_USER
+            - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: cybether-db-secret
                   key: POSTGRES_USER
-
-            - name: DB_PASS
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: cybether-db-secret
                   key: POSTGRES_PASSWORD
-
-            - name: DB_NAME
+            - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
                   name: cybether-db-secret
                   key: POSTGRES_DB
-
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: DATABASE_URL
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: SECRET_KEY
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cybether-db-secret
+                  key: JWT_SECRET_KEY
+            - name: FLASK_APP
+              value: "app.py"
             - name: FLASK_ENV
               value: "production"
