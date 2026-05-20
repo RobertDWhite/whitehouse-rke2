@@ -40,8 +40,9 @@ data:
     # Tor sizes MaxMemInQueues from detected *system* memory (the node, ~8GB)
     # not the cgroup limit, so without this it blows past the container
     # memory limit and the kernel OOM-kills it mid-bootstrap (exit 137).
-    # Keep this comfortably below the container memory limit.
-    MaxMemInQueues 768 MB
+    # Keep this comfortably below the container memory limit — lzma
+    # decompression of the directory consensus alone uses ~1.5GB.
+    MaxMemInQueues 1024 MB
 
     # Logging — stdout so kubectl logs works.
     Log notice stdout
