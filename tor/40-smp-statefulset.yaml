@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: smp-server
+  namespace: tor
+  labels:
+    app: smp-server
+spec:
+  serviceName: smp-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smp-server
+  template:
+    metadata:
+      labels:
+        app: smp-server
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      containers:
+        - name: smp-server
+          image: simplexchat/smp-server:v6.5.0
+          imagePullPolicy: IfNotPresent
+          env:
+            # Public IP or FQDN advertised to SimpleX clients. Required —
+            # without it the upstream entrypoint exits at startup.
+            - name: ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: smp-server
+                  key: addr
+            # Optional new-queue creation password. If empty, anyone can
+            # create queues on this server (the common "public relay" mode).
+            - name: PASS
+              valueFrom:
+                secretKeyRef:
+                  name: smp-server
+                  key: pass
+                  optional: true
+            # Skip the Caddy/LE web cert wiring; we expose SMP only on 5223.
+            - name: WEB_MANUAL
+              value: "1"
+          ports:
+            - name: smp
+              containerPort: 5223
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /etc/opt/simplex
+            - name: state
+              mountPath: /var/opt/simplex
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            tcpSocket:
+              port: 5223
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5223
+            initialDelaySeconds: 60
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: config
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: state
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 5Gi
