@@ -19,6 +19,14 @@ spec:
     spec:
       serviceAccountName: sdr-viewer-api
       terminationGracePeriodSeconds: 60
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14]
       containers:
         - name: api
           image: registry.white.fm/sdr-viewer-api:1.7.11
