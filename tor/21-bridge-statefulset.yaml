@@ -28,7 +28,12 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values:
+                      # Transient (RTX 5090 box)
                       - rke2-node-50
+                      # Kubelet/containerd stuck-name bug — see
+                      # 9fcdad68 sdr-research api/ui anti-affinity
+                      - rke2-node-13
+                      - rke2-node-14
       initContainers:
         # fsGroup only chowns the group; tor checks owning user as well.
         # Force uid:gid 101:101 on the PVC root so tor can write DataDirectory.
@@ -93,10 +98,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "256Mi"
+              memory: "512Mi"
             limits:
               cpu: "1000m"
-              memory: "1Gi"
+              memory: "2Gi"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
