@@ -37,6 +37,12 @@ data:
     RelayBandwidthRate 10 MBytes
     RelayBandwidthBurst 20 MBytes
 
+    # Tor sizes MaxMemInQueues from detected *system* memory (the node, ~8GB)
+    # not the cgroup limit, so without this it blows past the container
+    # memory limit and the kernel OOM-kills it mid-bootstrap (exit 137).
+    # Keep this comfortably below the container memory limit.
+    MaxMemInQueues 768 MB
+
     # Logging — stdout so kubectl logs works.
     Log notice stdout
 
