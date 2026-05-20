@@ -79,6 +79,8 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
   volumeClaimTemplates:
+    # Server identity keys live here — if this is lost, every client
+    # loses access to this server. Keep on Longhorn (multi-replica).
     - metadata:
         name: config
       spec:
@@ -87,11 +89,14 @@ spec:
         resources:
           requests:
             storage: 1Gi
+    # Queue store log — rebuildable on loss (clients just re-send any
+    # in-flight messages). Local-path keeps it off Longhorn, which is
+    # near capacity (see mastodon ES PVC for the same workaround).
     - metadata:
         name: state
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: longhorn
+        storageClassName: local-path
         resources:
           requests:
             storage: 5Gi
