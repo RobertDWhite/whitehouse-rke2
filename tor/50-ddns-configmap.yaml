@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smp-ddns-script
+  namespace: tor
+data:
+  update.sh: |
+    #!/bin/sh
+    set -eu
+
+    : "${RECORD:?missing RECORD}"
+    : "${ZONE:?missing ZONE}"
+    : "${CF_API_TOKEN:?missing CF_API_TOKEN}"
+
+    API='https://api.cloudflare.com/client/v4'
+    AUTH="Authorization: Bearer ${CF_API_TOKEN}"
+
+    PUBLIC_IP="$(curl -fsS https://api.ipify.org)"
+    case "$PUBLIC_IP" in
+      *.*.*.*) ;;
+      *) echo "bad public ip: '$PUBLIC_IP'"; exit 1 ;;
+    esac
+
+    ZONE_ID="$(curl -fsS -H "$AUTH" "$API/zones?name=$ZONE" | jq -r '.result[0].id // empty')"
+    [ -n "$ZONE_ID" ] || { echo "zone $ZONE not found"; exit 1; }
+
+    REC_JSON="$(curl -fsS -H "$AUTH" "$API/zones/$ZONE_ID/dns_records?type=A&name=$RECORD")"
+    REC_ID="$(echo "$REC_JSON" | jq -r '.result[0].id // empty')"
+    CUR_IP="$(echo "$REC_JSON" | jq -r '.result[0].content // empty')"
+
+    if [ -z "$REC_ID" ]; then
+      echo "create $RECORD -> $PUBLIC_IP"
+      curl -fsS -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+        "$API/zones/$ZONE_ID/dns_records" \
+        -d "{\"type\":\"A\",\"name\":\"$RECORD\",\"content\":\"$PUBLIC_IP\",\"ttl\":120,\"proxied\":false,\"comment\":\"managed by tor/smp-ddns\"}" \
+        | jq -r '.success'
+    elif [ "$CUR_IP" != "$PUBLIC_IP" ]; then
+      echo "update $RECORD $CUR_IP -> $PUBLIC_IP"
+      curl -fsS -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
+        "$API/zones/$ZONE_ID/dns_records/$REC_ID" \
+        -d "{\"content\":\"$PUBLIC_IP\"}" \
+        | jq -r '.success'
+    else
+      echo "$RECORD already $PUBLIC_IP"
+    fi
