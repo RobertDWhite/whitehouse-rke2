@@ -12,7 +12,7 @@
       }
     ]
   },
-  "description": "Tor obfs4 bridge + Snowflake proxy + SimpleX SMP relay: pod health, bridge throughput, load, DoS counters, and per-pod resource usage.",
+  "description": "Tor obfs4 bridge + Snowflake proxy: pod health, bridge throughput, load, DoS counters, and per-pod resource usage.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -44,7 +44,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
       "id": 101,
       "options": {
         "colorMode": "background",
@@ -73,48 +73,6 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
-          "mappings": [
-            { "type": "value", "options": { "0": { "text": "Down", "color": "red" }, "1": { "text": "Up", "color": "green" } } }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "id": 105,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "value_and_name",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "editorMode": "code",
-          "expr": "max(kube_pod_status_ready{namespace=\"tor\", pod=~\"smp-server-.*\", condition=\"true\"}) or vector(0)",
-          "legendFormat": "SMP relay",
-          "instant": true,
-          "refId": "A"
-        }
-      ],
-      "title": "SMP Relay",
-      "type": "stat"
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -126,7 +84,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
       "id": 102,
       "options": {
         "colorMode": "background",
@@ -166,7 +124,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 1 },
       "id": 103,
       "options": {
         "colorMode": "background",
@@ -193,14 +151,6 @@
           "legendFormat": "snowflake",
           "instant": true,
           "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "editorMode": "code",
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"tor\", pod=~\"smp-server-.*\"}[24h]))",
-          "legendFormat": "smp",
-          "instant": true,
-          "refId": "C"
         }
       ],
       "title": "Restarts (24h)",
@@ -221,7 +171,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 1 },
       "id": 104,
       "options": {
         "colorMode": "background",
@@ -726,7 +676,7 @@
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Tor — Bridge, Snowflake & SMP Relay",
+  "title": "Tor — Bridge & Snowflake",
   "uid": "tor-bridge-snowflake",
-  "version": 3
+  "version": 4
 }
