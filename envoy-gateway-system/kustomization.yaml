@@ -10,5 +10,11 @@ patches:
       name: envoy-gateway
       namespace: envoy-gateway-system
     patch: |-
-      - op: remove
-        path: /spec/template/spec/nodeSelector
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: envoy-gateway
+      spec:
+        template:
+          spec:
+            nodeSelector: null
