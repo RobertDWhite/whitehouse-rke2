@@ -13,15 +13,10 @@ spec:
   hostnames:
     - headscale.white.fm
   rules:
-    # Admin UI (SPA) — matches /admin and everything under it
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /admin
-      backendRefs:
-        - name: headscale-admin
-          port: 80
-    # Everything else → headscale control plane
+    # Public route serves the headscale control plane only (client registration,
+    # OIDC, node enrollment). The admin UI is intentionally NOT exposed here —
+    # it lives behind the internal route at headscale.internal.white.fm/admin,
+    # which requires being on the trusted network or VPN to reach.
     - backendRefs:
         - name: headscale
           port: 8080
