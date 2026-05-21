@@ -13,48 +13,56 @@ spec:
       labels:
         app: cybether-frontend
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
       containers:
-        - name: cybether-frontend
-          # renovate: depName=registry.white.fm/cybether/frontend
-          image: registry.white.fm:5000/cybether/frontend:1.0.1
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3000
-          resources:
-            requests:
-              cpu: 25m
-              memory: 64Mi
-            limits:
-              cpu: 250m
-              memory: 256Mi
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 3000
-            initialDelaySeconds: 10
-            periodSeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 3000
-            initialDelaySeconds: 20
-            periodSeconds: 30
-            failureThreshold: 3
-          securityContext:
-            allowPrivilegeEscalation: false
-          volumeMounts:
-            - name: nginx-conf
-              mountPath: /etc/nginx/conf.d/default.conf
-              subPath: default.conf
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: nginx-run
-              mountPath: /var/run
+      - image: registry.white.fm:5000/cybether/frontend:1.0.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: cybether-frontend
+        ports:
+        - containerPort: 3000
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        resources:
+          limits:
+            cpu: 250m
+            memory: 256Mi
+          requests:
+            cpu: 25m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /etc/nginx/conf.d/default.conf
+          name: nginx-conf
+          subPath: default.conf
+        - mountPath: /var/cache/nginx
+          name: nginx-cache
+        - mountPath: /var/run
+          name: nginx-run
       volumes:
-        - name: nginx-conf
-          configMap:
-            name: cybether-frontend-nginx
-        - name: nginx-cache
-          emptyDir: {}
-        - name: nginx-run
-          emptyDir: {}
+      - configMap:
+          name: cybether-frontend-nginx
+        name: nginx-conf
+      - emptyDir: {}
+        name: nginx-cache
+      - emptyDir: {}
+        name: nginx-run
