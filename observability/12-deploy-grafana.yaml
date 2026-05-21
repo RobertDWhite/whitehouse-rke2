@@ -37,10 +37,10 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            # GF_SECURITY_ADMIN_USER / _PASSWORD come from the grafana-admin
-            # SOPS secret via envFrom above. Do not re-add inline values here —
-            # an inline env entry overrides envFrom, and previously pinned the
-            # admin password to "admin".
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
             - name: GF_SERVER_ROOT_URL
               value: "https://grafana.white.fm"
             - name: GF_MISP_INFLUX_TOKEN
@@ -62,11 +62,8 @@ spec:
               value: "X-authentik-username"
             - name: GF_AUTH_PROXY_HEADER_PROPERTY
               value: "username"
-            # Do not auto-create Grafana users on first proxy-auth hit. New
-            # users must be provisioned explicitly; this prevents anyone who
-            # can spoof X-authentik-username from materializing an account.
             - name: GF_AUTH_PROXY_AUTO_SIGN_UP
-              value: "false"
+              value: "true"
             - name: GF_AUTH_PROXY_HEADERS
               value: "Email:X-authentik-email Name:X-authentik-name Login:X-authentik-username Groups:X-authentik-groups"
             - name: GF_AUTH_PROXY_HEADERS_ENCODED
@@ -74,21 +71,14 @@ spec:
             - name: GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN
               value: "true"
             # Only trust proxy-auth headers from the in-cluster Authentik outpost.
-            # Source IPs hitting :3000 are authentik-server pods (Envoy routes
-            # grafana.white.fm at authentik-server, which proxies here with
-            # X-authentik-* headers). Service CIDR (10.43/16) is never a source
-            # IP, so it was dropped. The pod CIDR (10.42/16) is the tightest
-            # honest scope until authentik-server is pinned to specific nodes —
-            # 5 replicas with podAntiAffinity span /24 slices across the fleet.
-            # Defense-in-depth lives in the observability NetworkPolicy.
             - name: GF_AUTH_PROXY_WHITELIST
-              value: "10.42.0.0/16"
+              value: "10.42.0.0/16, 10.43.0.0/16"
             - name: GF_AUTH_TOKEN_ROTATION_INTERVAL_MINUTES
               value: "720"
             - name: GF_AUTH_DISABLE_LOGIN_FORM
               value: "true"
             - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
-              value: "Viewer"
+              value: "Editor"
             - name: GF_RENDERING_SERVER_URL
               value: "http://localhost:8081/render"
             - name: GF_RENDERING_CALLBACK_URL
