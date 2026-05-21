@@ -10,11 +10,7 @@ patches:
       name: envoy-gateway
       namespace: envoy-gateway-system
     patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: envoy-gateway
-      spec:
-        template:
-          spec:
-            nodeSelector: null
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          kubernetes.io/os: linux
