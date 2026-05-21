@@ -15,6 +15,14 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14]
       containers:
         - name: politics-ui
           image: registry.white.fm/politics-ui
