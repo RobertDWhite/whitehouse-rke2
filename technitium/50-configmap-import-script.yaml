@@ -6,29 +6,29 @@ metadata:
 data:
   import.py: |
     #!/usr/bin/env python3
-    """Sidecar that wires Technitium's clustering on top of GitOps-managed
-    zones. Two roles based on POD_NAME:
+    """Sidecar that imports GitOps-managed zones into Technitium. Every pod
+    imports /zones/*.yaml as Primary zones independently — we do NOT use the
+    cluster catalog for zone replication. The cluster channel uses self-signed
+    certs (CN=technitium-N, no SANs) and .NET 9's strict TLS rejects every
+    secondary's catalog pull (RemoteCertificateNameMismatch), so zone
+    replication has been broken since the 15.x upgrade. Each pod owning its
+    own zone copy from the same SOPS Secret is simpler and survives any one
+    pod going down.
 
-      primary (technitium-0):
-        - waits for API
-        - rotates default password if needed
-        - applies bootstrap settings (forwarders, blocklists) on first boot
-        - initializes Technitium cluster if not already done
-        - imports each zone from /zones/*.yaml as a Primary zone
-        - enrolls each managed zone in the cluster-catalog so secondaries
-          auto-replicate them
-        - watches /zones for changes, re-imports on edit
-        - idles between checks
+    Every pod:
+      - waits for API, rotates default password, applies bootstrap settings
+      - watches /zones for changes, re-imports on edit (independent Primary)
 
-      secondary (technitium-1, -2, -3):
-        - waits for API
-        - rotates default password if needed
-        - if not already a cluster member, calls /api/admin/cluster/initJoin
-          pointing at the primary node's URL
-        - idles forever (cluster replication owns everything from here)
+    Only technitium-0 (POD_ORDINAL == 0):
+      - applies blocklists, installs the Query Logs Sqlite app
+      - initializes the Technitium cluster (per-pod hostname registration
+        under dns-cluster.internal.white.fm — useful for per-pod web UI)
+
+    Other pods still join the cluster (hostname registration only). The
+    SecondaryCatalog zone stays in syncFailed state — that's expected and
+    benign now that we don't depend on it.
 
     Zone source of truth stays git → sops Secret → /zones/*.yaml.
-    Cluster replication owns propagation to the secondaries.
     """
     import glob
     import os
@@ -323,8 +323,8 @@ data:
             if create_zone(token, zone):
                 print(f"created zone {zone}")
                 existing.add(zone)
-        # always (re)enroll in cluster-catalog so secondaries pull it
-        enroll_in_catalog(token, zone)
+        # No catalog enrollment: cluster catalog TLS is broken (see module
+        # docstring); every pod imports independently from /zones.
         records = data.get("records") or []
         ok = fail = 0
         for r in records:
@@ -372,30 +372,16 @@ data:
         state = cluster_state(token)
         joined = state.get("clusterInitialized", False)
 
+        # Cluster membership: primary initializes, others join. This is only
+        # used for per-pod hostname registration under dns-cluster.internal.*
+        # — zone replication is handled per-pod via the watch loop below.
         if IS_PRIMARY:
             if not joined:
                 cluster_init_primary(token)
             else:
                 print(f"[primary] already initialized as {state.get('clusterDomain')}")
-
-            # primary owns zone import + cluster-catalog enrollment
-            last = {}
-            while True:
-                current = snapshot()
-                if current != last:
-                    if last:
-                        print("zones changed on disk, re-importing")
-                    existing = set(list_zones(token))
-                    for path in sorted(current.keys()):
-                        try:
-                            import_zone(token, path, existing)
-                        except Exception as e:
-                            print(f"!! {path}: {e}", file=sys.stderr)
-                    last = current
-                time.sleep(60)
         else:
             if not joined:
-                # primary may not be ready yet — retry a few times
                 for attempt in range(10):
                     try:
                         cluster_init_join(token)
@@ -408,9 +394,23 @@ data:
             else:
                 print(f"[secondary] already cluster member of {state.get('clusterDomain')}")
 
-            # secondaries idle — replication does the rest
-            while True:
-                time.sleep(3600)
+        # Every pod runs the zone-import watch loop independently. Each pod's
+        # PVC keeps its own copy of every Primary zone; SOPS Secret on disk
+        # is the source of truth, hot-reloaded within ~60s of mtime change.
+        last = {}
+        while True:
+            current = snapshot()
+            if current != last:
+                if last:
+                    print("zones changed on disk, re-importing")
+                existing = set(list_zones(token))
+                for path in sorted(current.keys()):
+                    try:
+                        import_zone(token, path, existing)
+                    except Exception as e:
+                        print(f"!! {path}: {e}", file=sys.stderr)
+                last = current
+            time.sleep(60)
 
     if __name__ == "__main__":
         main()
