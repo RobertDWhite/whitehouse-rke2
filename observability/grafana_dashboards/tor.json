@@ -44,7 +44,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
       "id": 101,
       "options": {
         "colorMode": "background",
@@ -86,7 +86,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
       "id": 105,
       "options": {
         "colorMode": "background",
@@ -126,7 +126,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 10, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
       "id": 102,
       "options": {
         "colorMode": "background",
@@ -166,7 +166,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 14, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
       "id": 103,
       "options": {
         "colorMode": "background",
@@ -221,7 +221,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 1 },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
       "id": 104,
       "options": {
         "colorMode": "background",
@@ -243,6 +243,49 @@
         }
       ],
       "title": "Bridge Metrics Scrape",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "description": "Whether the bridge has been confirmed reachable from outside and accepted into the bridge consensus. If Unpublished for >30 min after pod start, the ORPort (9001) and obfs4 port (9443) are likely not reachable from the public internet — check router port-forwards.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Unpublished", "color": "red" }, "1": { "text": "Published", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 106,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "editorMode": "code",
+          "expr": "max(tor_relay_flag{job=\"tor-bridge\", type=\"Running\"}) or vector(0)",
+          "legendFormat": "bridge published",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Bridge Published",
       "type": "stat"
     },
 
@@ -685,5 +728,5 @@
   "timezone": "browser",
   "title": "Tor — Bridge, Snowflake & SMP Relay",
   "uid": "tor-bridge-snowflake",
-  "version": 2
+  "version": 3
 }
