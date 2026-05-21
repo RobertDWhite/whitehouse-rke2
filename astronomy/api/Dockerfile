@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS base
+FROM python:3.14-slim AS base
 WORKDIR /app
 RUN adduser --disabled-password --no-create-home appuser
 COPY requirements.txt .
