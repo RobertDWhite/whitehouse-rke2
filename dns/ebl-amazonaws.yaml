@@ -5,6 +5,19 @@ metadata:
   namespace: kube-system
 data:
   white-fm.conf: |
+    # derp.white.fm has its own MetalLB VIP (the DERP service on 10.99.5.101),
+    # NOT the envoy gateway. The wildcard template below would otherwise point
+    # the in-cluster tailscale-router at envoy, which doesn't speak the DERP
+    # protocol -> tailnet relay times out -> MagicDNS / *.internal.white.fm
+    # break for tailscale clients. Override before the wildcard catches it.
+    derp.white.fm:53 {
+        errors
+        cache 30
+        hosts {
+            10.99.5.101 derp.white.fm
+            fallthrough
+        }
+    }
     # *.white.fm wildcard answers locally — every public *.white.fm hostname
     # this cluster runs lands on the envoy gateway VIP anyway, so cluster pods
     # don't need to recurse out and back through the WAN.
