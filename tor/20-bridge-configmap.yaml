@@ -33,9 +33,11 @@ data:
     MetricsPortPolicy accept 127.0.0.1
     MetricsPortPolicy reject *
 
-    # Bandwidth caps — tune to taste. These are conservative defaults.
-    RelayBandwidthRate 10 MBytes
-    RelayBandwidthBurst 20 MBytes
+    # Bandwidth caps. The home WAN is 3 Gbps symmetric; 800 Mbps
+    # sustained / 1.6 Gbps burst is a meaningful donation while still
+    # leaving plenty of headroom for everything else on the network.
+    RelayBandwidthRate 100 MBytes
+    RelayBandwidthBurst 200 MBytes
 
     # Tor sizes MaxMemInQueues from detected *system* memory (the node, ~8GB)
     # not the cgroup limit, so without this it blows past the container
