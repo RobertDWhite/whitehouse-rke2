@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres-exporter
   labels:
     app: postgres-exporter
+  name: postgres-exporter
 spec:
   replicas: 1
   selector:
@@ -14,49 +14,58 @@ spec:
       labels:
         app: postgres-exporter
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
       containers:
-        - name: postgres-exporter
-          image: quay.io/prometheuscommunity/postgres-exporter
-          ports:
-            - name: metrics
-              containerPort: 9187
-          env:
-            - name: DATA_SOURCE_URI
-              value: "cybether-postgres:5432/cybether?sslmode=disable"
-            - name: DATA_SOURCE_USER
-              valueFrom:
-                secretKeyRef:
-                  name: cybether-db-secret
-                  key: POSTGRES_USER
-            - name: DATA_SOURCE_PASS
-              valueFrom:
-                secretKeyRef:
-                  name: cybether-db-secret
-                  key: POSTGRES_PASSWORD
-          resources:
-            requests:
-              cpu: 10m
-              memory: 32Mi
-            limits:
-              cpu: 100m
-              memory: 128Mi
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: metrics
-            initialDelaySeconds: 5
-            periodSeconds: 10
+      - env:
+        - name: DATA_SOURCE_URI
+          value: cybether-postgres:5432/cybether?sslmode=disable
+        - name: DATA_SOURCE_USER
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_USER
+              name: cybether-db-secret
+        - name: DATA_SOURCE_PASS
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: cybether-db-secret
+        image: quay.io/prometheuscommunity/postgres-exporter
+        name: postgres-exporter
+        ports:
+        - containerPort: 9187
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-exporter
   labels:
     app: postgres-exporter
+  name: postgres-exporter
 spec:
+  ports:
+  - name: metrics
+    port: 9187
+    targetPort: metrics
   selector:
     app: postgres-exporter
-  ports:
-    - name: metrics
-      port: 9187
-      targetPort: metrics
