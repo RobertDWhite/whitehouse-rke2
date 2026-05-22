@@ -63,7 +63,10 @@ data:
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
   lyrebird-wrapper: |
     #!/bin/sh
-    # lyrebird sends PROXY-ERROR when HTTPSProxy is set, even on server-side
-    # PTs that don't need outbound proxying. Intercept its stdout and replace
-    # PROXY-ERROR with PROXY DONE so Tor accepts the PT and keeps it running.
-    exec /usr/bin/lyrebird "$@" | sed -u 's/^PROXY-ERROR.*/PROXY DONE/'
+    # Tor waits for "PROXY DONE\n" from the PT when HTTPSProxy is set.
+    # TOR_PT_PROXY is not forwarded to server-side PTs, so lyrebird never
+    # sends it — Tor times out (~19s) and terminates the PT.
+    # Emit PROXY DONE first (PT spec 1.0 expected order: PROXY before VERSION),
+    # then exec lyrebird normally.
+    printf 'PROXY DONE\n'
+    exec /usr/bin/lyrebird "$@"
