@@ -61,13 +61,6 @@ spec:
             - |
               set -eu
               mkdir -p /var/log/tor
-              # Lyrebird (obfs4proxy) rejects TOR_PT_PROXY when running as a
-              # server-side PT because it doesn't support outbound proxying.
-              # Tor passes Socks5Proxy to all managed proxies via TOR_PT_PROXY;
-              # this wrapper strips it so lyrebird starts cleanly.
-              printf '#!/bin/sh\nunset TOR_PT_PROXY\nexec /usr/bin/lyrebird "$@"\n' \
-                > /tmp/lyrebird-wrapper
-              chmod +x /tmp/lyrebird-wrapper
               cp /etc/torrc.d/torrc /tmp/torrc
               echo "ContactInfo ${CONTACT_INFO}" >> /tmp/torrc
               # Advertise the LoadBalancer public IP to BridgeDB.
@@ -129,6 +122,7 @@ spec:
         - name: torrc
           configMap:
             name: bridge-torrc
+            defaultMode: 0555
   volumeClaimTemplates:
     - metadata:
         name: data

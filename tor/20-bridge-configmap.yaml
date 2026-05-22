@@ -23,7 +23,8 @@ data:
 
     # obfs4 pluggable transport — the actual entry point for censored users.
     # Binary was renamed obfs4proxy → lyrebird in image tag 0.24+.
-    ServerTransportPlugin obfs4 exec /tmp/lyrebird-wrapper
+    # The wrapper intercepts the PT 2.0 PROXY IPC line (see lyrebird-wrapper).
+    ServerTransportPlugin obfs4 exec /etc/torrc.d/lyrebird-wrapper
     ServerTransportListenAddr obfs4 0.0.0.0:9443
     ExtORPort auto
 
@@ -60,3 +61,23 @@ data:
 
     # ContactInfo is injected from the SOPS secret as an env var and
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
+  lyrebird-wrapper: |
+    #!/bin/sh
+    # Tor 0.4.8+ uses PT 2.0 IPC: it sends "PROXY url\n" on stdin when
+    # HTTPSProxy is configured. Lyrebird (server-side PT) doesn't support
+    # outbound proxying and sends PROXY-ERROR, causing Tor to terminate it.
+    # This wrapper intercepts the PROXY line, replies PROXY DONE to Tor,
+    # and doesn't forward it to lyrebird — which only needs to listen, not
+    # make outbound connections.
+    PIPE="/tmp/lyrebird-stdin-$$"
+    mkfifo "$PIPE"
+    /usr/bin/lyrebird "$@" < "$PIPE" &
+    exec 3>"$PIPE"
+    while IFS= read -r line; do
+      case "$line" in
+        PROXY\ *) printf 'PROXY DONE\n' ;;
+        *)        printf '%s\n' "$line" >&3 ;;
+      esac
+    done
+    exec 3>&-
+    wait
