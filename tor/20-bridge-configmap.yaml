@@ -63,25 +63,7 @@ data:
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
   lyrebird-wrapper: |
     #!/bin/sh
-    LOG=/tmp/lyrebird-wrapper.log
-    echo "=== wrapper env ===" >> "$LOG"
-    env | grep -E "^TOR_" >> "$LOG" 2>&1
-    echo "=== end env ===" >> "$LOG"
-    unset TOR_PT_PROXY
-    PIPE="/tmp/lyrebird-stdin-$$"
-    mkfifo "$PIPE"
-    # Capture lyrebird stdout so we can see what it sends
-    /usr/bin/lyrebird "$@" < "$PIPE" 2>>/tmp/lyrebird-stderr.log | tee /tmp/lyrebird-stdout.log &
-    LBIRD_PID=$!
-    exec 3>"$PIPE"
-    echo "wrapper: pipe open" >> "$LOG"
-    while IFS= read -r line; do
-      echo "from-tor: [$line]" >> "$LOG"
-      case "$line" in
-        PROXY\ *) printf 'PROXY DONE\n'; echo "sent: PROXY DONE" >> "$LOG" ;;
-        *)        printf '%s\n' "$line" >&3 ;;
-      esac
-    done
-    exec 3>&-
-    echo "wrapper: done" >> "$LOG"
-    wait
+    # lyrebird sends PROXY-ERROR when HTTPSProxy is set, even on server-side
+    # PTs that don't need outbound proxying. Intercept its stdout and replace
+    # PROXY-ERROR with PROXY DONE so Tor accepts the PT and keeps it running.
+    exec /usr/bin/lyrebird "$@" | sed -u 's/^PROXY-ERROR.*/PROXY DONE/'
