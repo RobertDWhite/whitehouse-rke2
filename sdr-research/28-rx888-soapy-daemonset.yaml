@@ -11,7 +11,7 @@
 #
 # Build and push the image before deploying:
 #   docker buildx build --platform linux/amd64 --push \
-#     -t registry.white.fm/soapy-rx888-server:1.0.5-amd64 \
+#     -t registry.internal.white.fm/soapy-rx888-server:1.0.5-amd64 \
 #     -f sdr-research/Dockerfile.soapy-rx888 sdr-research/
 apiVersion: apps/v1
 kind: DaemonSet
@@ -32,7 +32,7 @@ spec:
         sdr.white.fm/rx888-remote-enabled: "true"
       containers:
         - name: rx888-soapy
-          image: registry.white.fm/soapy-rx888-server:1.0.7-amd64
+          image: registry.internal.white.fm/soapy-rx888-server:1.0.7-amd64
           securityContext:
             privileged: true
           env:

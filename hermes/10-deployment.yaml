@@ -27,7 +27,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       initContainers:
         - name: bootstrap-claude-creds
-          image: registry.white.fm:5000/hermes-agent:v2026.4.30
+          image: registry.internal.white.fm/hermes-agent:v2026.4.30
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
@@ -46,7 +46,7 @@ spec:
               readOnly: true
       containers:
         - name: gateway
-          image: registry.white.fm:5000/hermes-agent
+          image: registry.internal.white.fm/hermes-agent
           imagePullPolicy: IfNotPresent
           args: ["gateway", "run"]
           env:
@@ -104,7 +104,7 @@ spec:
             - name: data
               mountPath: /opt/data
         - name: dashboard
-          image: registry.white.fm:5000/hermes-agent
+          image: registry.internal.white.fm/hermes-agent
           imagePullPolicy: IfNotPresent
           args: ["dashboard", "--host", "127.0.0.1", "--no-open"]
           env:
