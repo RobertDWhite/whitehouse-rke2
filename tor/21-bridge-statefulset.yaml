@@ -61,7 +61,9 @@ spec:
             - |
               set -eu
               mkdir -p /var/log/tor
-              cp /etc/torrc.d/torrc /tmp/torrc
+              # cat > instead of cp so /tmp/torrc gets default rw permissions;
+              # cp would preserve the ConfigMap's 0555 mode, blocking the append below.
+              cat /etc/torrc.d/torrc > /tmp/torrc
               echo "ContactInfo ${CONTACT_INFO}" >> /tmp/torrc
               # Advertise the LoadBalancer public IP to BridgeDB.
               if [ -n "${ADDRESS:-}" ]; then
