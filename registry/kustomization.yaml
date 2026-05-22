@@ -6,7 +6,9 @@ resources:
 #  - 10-pvc.yaml
   - 20-deployment.yaml
   - 30-svc.yaml
-  - 45-metallb-registry.yaml
+  # 45-metallb-registry.yaml removed: the :5000 HTTP LoadBalancer was the
+  # remaining unauthenticated, MITM-able registry surface. All consumers now
+  # use registry.internal.white.fm (HTTPS via Envoy → registry ClusterIP:5000).
   
 generators:
   - ksops.yaml
