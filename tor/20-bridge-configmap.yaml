@@ -63,12 +63,12 @@ data:
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
   lyrebird-wrapper: |
     #!/bin/sh
-    # Tor 0.4.8+ uses PT 2.0 IPC: it sends "PROXY url\n" on stdin when
-    # HTTPSProxy is configured. Lyrebird (server-side PT) doesn't support
-    # outbound proxying and sends PROXY-ERROR, causing Tor to terminate it.
-    # This wrapper intercepts the PROXY line, replies PROXY DONE to Tor,
-    # and doesn't forward it to lyrebird — which only needs to listen, not
-    # make outbound connections.
+    # Server-side lyrebird doesn't need outbound proxying but Tor sends
+    # proxy config in two ways when HTTPSProxy is set:
+    #   PT spec 1.0: TOR_PT_PROXY env var  — lyrebird sends PROXY-ERROR
+    #   PT spec 2.0: "PROXY url\n" on stdin — lyrebird sends PROXY-ERROR
+    # Both must be suppressed or Tor terminates the PT.
+    unset TOR_PT_PROXY
     PIPE="/tmp/lyrebird-stdin-$$"
     mkfifo "$PIPE"
     /usr/bin/lyrebird "$@" < "$PIPE" &
