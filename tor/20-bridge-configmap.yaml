@@ -22,9 +22,13 @@ data:
     ORPort 9001
 
     # obfs4 pluggable transport — the actual entry point for censored users.
-    ServerTransportPlugin obfs4 exec /usr/bin/obfs4proxy
+    # Binary was renamed obfs4proxy → lyrebird in image tag 0.24+.
+    ServerTransportPlugin obfs4 exec /usr/bin/lyrebird
     ServerTransportListenAddr obfs4 0.0.0.0:9443
     ExtORPort auto
+
+    # Log to file so the image's get-bridge-line helper can extract the cert.
+    Log notice file /var/log/tor/log
 
     # Prometheus metrics. Bind 0.0.0.0 so the in-cluster prometheus can reach
     # it; MetricsPortPolicy restricts which source IPs may scrape.
