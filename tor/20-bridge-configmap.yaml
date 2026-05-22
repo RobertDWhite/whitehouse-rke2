@@ -21,12 +21,11 @@ data:
     # AssumeReachable lets the bridge start before it self-confirms reachability.
     ORPort 9001
 
-    # obfs4 pluggable transport — the actual entry point for censored users.
-    # Binary was renamed obfs4proxy → lyrebird in image tag 0.24+.
-    # The wrapper intercepts the PT 2.0 PROXY IPC line (see lyrebird-wrapper).
-    ServerTransportPlugin obfs4 exec /etc/torrc.d/lyrebird-wrapper
-    ServerTransportListenAddr obfs4 0.0.0.0:9443
-    ExtORPort auto
+    # obfs4 pluggable transport — lyrebird runs standalone (not as a managed
+    # proxy) to avoid the PT proxy negotiation deadlock. See entrypoint in
+    # 21-bridge-statefulset.yaml. ExtORPort is fixed so lyrebird can connect
+    # without needing the auth cookie at startup.
+    ExtORPort 9100
 
     # Log to file so the image's get-bridge-line helper can extract the cert.
     Log notice file /var/log/tor/log
@@ -63,12 +62,18 @@ data:
 
     # ContactInfo is injected from the SOPS secret as an env var and
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
-  lyrebird-wrapper: |
+  lyrebird-start.sh: |
     #!/bin/sh
-    # Simple pass-through — Socks5Proxy sets TOR_PT_PROXY=socks5://127.0.0.1:19150
-    # which is a proxy type lyrebird accepts. Lyrebird validates and responds
-    # PROXY DONE naturally, no interception needed.
-    exec /usr/bin/lyrebird "$@"
+    # Start lyrebird standalone (not via Tor managed proxy) so it bypasses
+    # the PT proxy negotiation protocol entirely.
+    export TOR_PT_SERVER_TRANSPORTS=obfs4
+    export TOR_PT_SERVER_BINDADDR=obfs4-0.0.0.0:9443
+    export TOR_PT_STATE_LOCATION=/var/lib/tor/pt_state
+    export TOR_PT_MANAGED_TRANSPORT_VER=1
+    export TOR_PT_EXTENDED_SERVER_PORT=127.0.0.1:9100
+    export TOR_PT_AUTH_COOKIE_FILE=/var/lib/tor/extended_orport_auth_cookie
+    export TOR_PT_EXIT_ON_STDIN_CLOSE=0
+    exec /usr/bin/lyrebird
   socks5-proxy.pl: |
     #!/usr/bin/perl -w
     # Minimal SOCKS5 → HTTP CONNECT bridge.
