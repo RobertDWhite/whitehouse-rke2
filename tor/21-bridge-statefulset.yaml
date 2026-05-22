@@ -61,6 +61,12 @@ spec:
             - |
               set -eu
               mkdir -p /var/log/tor
+              # Start local SOCKS5→HTTP CONNECT bridge before Tor.
+              # Tor uses Socks5Proxy 127.0.0.1:19150; the bridge forwards to
+              # gluetun:8888. This also sets TOR_PT_PROXY=socks5://... which is
+              # a proxy type lyrebird accepts, so lyrebird sends PROXY DONE.
+              perl /etc/torrc.d/socks5-proxy.pl &
+              sleep 1
               # cat > instead of cp so /tmp/torrc gets default rw permissions;
               # cp would preserve the ConfigMap's 0555 mode, blocking the append below.
               cat /etc/torrc.d/torrc > /tmp/torrc

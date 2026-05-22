@@ -53,8 +53,10 @@ data:
 
     # Route Tor's outbound through the cluster VPN proxy to bypass the
     # router's threat-intel blocklist which blocks known Tor relay IPs.
-    # gluetun only exposes HTTP CONNECT on :8888 — SOCKS5 :1080 is not enabled.
-    HTTPSProxy vpn-proxy.media.svc.cluster.local:8888
+    # socks5-proxy.pl (started in entrypoint) bridges local SOCKS5→HTTP CONNECT.
+    # Using SOCKS5 (not HTTPSProxy) so TOR_PT_PROXY=socks5://... is set for
+    # lyrebird — socks5 is a proxy type lyrebird accepts, so it sends PROXY DONE.
+    Socks5Proxy 127.0.0.1:19150
 
     # Logging — stdout so kubectl logs works.
     Log notice stdout
@@ -63,10 +65,52 @@ data:
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
   lyrebird-wrapper: |
     #!/bin/sh
-    # Tor waits for "PROXY DONE\n" from the PT when HTTPSProxy is set.
-    # TOR_PT_PROXY is not forwarded to server-side PTs, so lyrebird never
-    # sends it — Tor times out (~19s) and terminates the PT.
-    # Emit PROXY DONE first (PT spec 1.0 expected order: PROXY before VERSION),
-    # then exec lyrebird normally.
-    printf 'PROXY DONE\n'
+    # Simple pass-through — Socks5Proxy sets TOR_PT_PROXY=socks5://127.0.0.1:19150
+    # which is a proxy type lyrebird accepts. Lyrebird validates and responds
+    # PROXY DONE naturally, no interception needed.
     exec /usr/bin/lyrebird "$@"
+  socks5-proxy.pl: |
+    #!/usr/bin/perl -w
+    # Minimal SOCKS5 → HTTP CONNECT bridge.
+    # Listens on 127.0.0.1:19150, proxies through gluetun HTTP CONNECT on :8888.
+    use strict;
+    use IO::Socket::INET;
+    use IO::Select;
+    use POSIX qw(WNOHANG);
+    my($LP,$UH,$UP)=(19150,'vpn-proxy.media.svc.cluster.local',8888);
+    $SIG{CHLD}=sub{while(waitpid(-1,WNOHANG)>0){}};
+    $SIG{PIPE}='IGNORE';
+    my $srv=IO::Socket::INET->new(LocalHost=>'127.0.0.1',LocalPort=>$LP,
+      Listen=>128,ReuseAddr=>1,Timeout=>0) or die "listen: $!";
+    while(1){
+      my $c=$srv->accept or next;
+      defined(my $p=fork) or next;
+      if($p){$c->close;next}
+      $srv->close;
+      # SOCKS5 greeting
+      read($c,my$b,2);my($v,$n)=unpack('CC',$b);
+      read($c,my$m,$n);
+      print $c pack('CC',5,0);      # no-auth
+      # SOCKS5 request
+      read($c,my$h,4);my($v2,$cmd,$r,$at)=unpack('CCCC',$h);
+      my $host;
+      if($at==1){read($c,my$i,4);$host=join('.',unpack('CCCC',$i))}
+      elsif($at==3){read($c,my$l,1);$l=unpack('C',$l);read($c,$host,$l)}
+      elsif($at==4){read($c,my$i,16);$host='['.join(':',unpack('(H4)8',$i)).']'}
+      read($c,my$pb,2);my$port=unpack('n',$pb);
+      my $u=IO::Socket::INET->new(PeerHost=>$UH,PeerPort=>$UP,Timeout=>15)
+        or do{print $c pack('CCCCNCC',5,5,0,1,0,0,0);exit};
+      print $u "CONNECT $host:$port HTTP/1.1\r\nHost: $host:$port\r\n\r\n";
+      my$rsp='';while(sysread($u,my$b,1)){$rsp.=$b;last if $rsp=~/\r\n\r\n/}
+      unless($rsp=~/2\d\d/){print $c pack('CCCCNCC',5,5,0,1,0,0,0);exit}
+      print $c pack('CCCCNCC',5,0,0,1,0,0,0);
+      my$sel=IO::Select->new($c,$u);
+      while(my@r=$sel->can_read(300)){
+        for my$fh(@r){
+          my$o=($fh==$c)?$u:$c;
+          my$n=sysread($fh,my$d,65536);
+          last unless $n;syswrite($o,$d);
+        }
+      }
+      exit;
+    }
