@@ -64,23 +64,24 @@ data:
   lyrebird-wrapper: |
     #!/bin/sh
     LOG=/tmp/lyrebird-wrapper.log
-    echo "wrapper start: TOR_PT_PROXY=${TOR_PT_PROXY:-<unset>}" >> "$LOG"
+    echo "=== wrapper env ===" >> "$LOG"
+    env | grep -E "^TOR_" >> "$LOG" 2>&1
+    echo "=== end env ===" >> "$LOG"
     unset TOR_PT_PROXY
-    echo "wrapper: unset TOR_PT_PROXY, starting lyrebird" >> "$LOG"
     PIPE="/tmp/lyrebird-stdin-$$"
     mkfifo "$PIPE"
-    /usr/bin/lyrebird "$@" < "$PIPE" 2>>/tmp/lyrebird-stderr.log &
+    # Capture lyrebird stdout so we can see what it sends
+    /usr/bin/lyrebird "$@" < "$PIPE" 2>>/tmp/lyrebird-stderr.log | tee /tmp/lyrebird-stdout.log &
     LBIRD_PID=$!
-    echo "wrapper: lyrebird PID=$LBIRD_PID" >> "$LOG"
     exec 3>"$PIPE"
-    echo "wrapper: pipe open, starting stdin loop" >> "$LOG"
+    echo "wrapper: pipe open" >> "$LOG"
     while IFS= read -r line; do
-      echo "wrapper: from-tor: $line" >> "$LOG"
+      echo "from-tor: [$line]" >> "$LOG"
       case "$line" in
-        PROXY\ *) printf 'PROXY DONE\n'; echo "wrapper: sent PROXY DONE" >> "$LOG" ;;
+        PROXY\ *) printf 'PROXY DONE\n'; echo "sent: PROXY DONE" >> "$LOG" ;;
         *)        printf '%s\n' "$line" >&3 ;;
       esac
     done
-    echo "wrapper: stdin loop done, waiting for lyrebird" >> "$LOG"
     exec 3>&-
+    echo "wrapper: done" >> "$LOG"
     wait
