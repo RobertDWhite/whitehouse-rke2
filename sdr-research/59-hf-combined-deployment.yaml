@@ -26,7 +26,7 @@ spec:
         kubernetes.io/hostname: rke2-node-12
       initContainers:
         - name: install-rx888-plugin
-          image: registry.white.fm/soapy-rx888-server:1.0.7-amd64
+          image: registry.internal.white.fm/soapy-rx888-server:1.0.7-amd64
           command:
             - /bin/sh
             - -c
@@ -39,7 +39,7 @@ spec:
               mountPath: /plugins
       containers:
         - name: hf-combined-decoder
-          image: registry.white.fm/hf-combined-decoder
+          image: registry.internal.white.fm/hf-combined-decoder
           securityContext:
             privileged: true
           command:
