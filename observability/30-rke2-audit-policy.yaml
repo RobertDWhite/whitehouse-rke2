@@ -1,0 +1,143 @@
+# RKE2 kube-apiserver audit policy.
+#
+# This file is NOT applied by Kubernetes — it is read by kube-apiserver
+# before the API is up. It must be placed on every RKE2 *server* node at
+# /etc/rancher/rke2/audit-policy.yaml (or any path you point
+# `audit-policy-file:` at in /etc/rancher/rke2/config.yaml). It lives in
+# this repo as the canonical source so it tracks alongside the Promtail
+# scrape + alert rules; ArgoCD does not deploy it.
+#
+# Required RKE2 server-node config (/etc/rancher/rke2/config.yaml):
+#
+#   kube-apiserver-arg:
+#     - "audit-policy-file=/etc/rancher/rke2/audit-policy.yaml"
+#     - "audit-log-path=/var/lib/rancher/rke2/server/logs/audit.log"
+#     - "audit-log-maxage=30"
+#     - "audit-log-maxbackup=10"
+#     - "audit-log-maxsize=100"
+#
+# After editing config.yaml on every server node:
+#   sudo systemctl restart rke2-server.service
+#
+# Verify with: sudo tail -f /var/lib/rancher/rke2/server/logs/audit.log
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Drop the request body for these "Get" responses on resources that contain
+# secret material — we still log who looked, but not the contents.
+omitStages:
+  - RequestReceived
+
+rules:
+  # ----------------------------------------------------------------------
+  # 1. NONE — high-volume, low-signal noise we explicitly drop.
+  # ----------------------------------------------------------------------
+
+  # Lease objects (kube-controller-manager / scheduler leader election) —
+  # thousands per minute, no security value.
+  - level: None
+    resources:
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+
+  # Events — kubelet status updates, scheduling events. Already in metrics.
+  - level: None
+    resources:
+      - group: ""
+        resources: ["events"]
+
+  # Endpoint and endpointslice churn from kube-proxy / service controllers.
+  - level: None
+    resources:
+      - group: ""
+        resources: ["endpoints"]
+      - group: "discovery.k8s.io"
+        resources: ["endpointslices"]
+
+  # kubelet readiness / health probes and node status patches.
+  - level: None
+    users: ["system:kube-proxy", "system:kube-scheduler", "system:kube-controller-manager"]
+    verbs: ["watch", "get", "list"]
+
+  # Service-account-token reads by the controller manager itself —
+  # legitimate bootstrap traffic.
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "watch", "list"]
+    resources:
+      - group: ""
+        resources: ["nodes", "nodes/status"]
+      - group: ""
+        resources: ["pods", "pods/status"]
+
+  # kube-system service-account read traffic — generally controller noise.
+  - level: None
+    users: ["system:serviceaccount:kube-system:*"]
+    verbs: ["get", "watch", "list"]
+
+  # Liveness / readiness / health probes hitting the API.
+  - level: None
+    nonResourceURLs:
+      - "/healthz*"
+      - "/livez*"
+      - "/readyz*"
+      - "/version"
+      - "/metrics"
+      - "/swagger*"
+      - "/openapi*"
+
+  # ----------------------------------------------------------------------
+  # 2. REQUESTRESPONSE — full body for the highest-signal events:
+  #    RBAC mutations and impersonation.
+  # ----------------------------------------------------------------------
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources:
+          - "clusterroles"
+          - "clusterrolebindings"
+          - "roles"
+          - "rolebindings"
+
+  # Impersonation — `kubectl --as=...` and similar. Always page-worthy.
+  - level: RequestResponse
+    verbs: ["impersonate"]
+
+  # ServiceAccount token creation (TokenRequest API).
+  - level: RequestResponse
+    verbs: ["create"]
+    resources:
+      - group: ""
+        resources: ["serviceaccounts/token"]
+
+  # ----------------------------------------------------------------------
+  # 3. REQUEST — log the request body (not the response) for sensitive
+  #    verbs on sensitive resources.
+  # ----------------------------------------------------------------------
+
+  # Secret + ConfigMap reads/writes anywhere.
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+
+  # Auth subject access reviews / token reviews — useful audit trail of
+  # "who is asking whether X can do Y".
+  - level: Request
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews", "localsubjectaccessreviews"]
+
+  # exec / attach / portforward into pods — interactive shells.
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # ----------------------------------------------------------------------
+  # 4. METADATA — everything else. Captures who/what/when without
+  #    blowing up log volume with full bodies.
+  # ----------------------------------------------------------------------
+  - level: Metadata
