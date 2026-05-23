@@ -37,6 +37,12 @@ spec:
             loki:
               hostport: "http://loki.observability.svc.cluster.local:3100"
               extralabels: "from:falcosidekick"
+            webhook:
+              # Posts to a Matrix room (!jwEzzWQBepIokbJtfX:white.fm) via hookshot.
+              # The state event in that room carries a transformationFunction
+              # that formats this JSON into readable text/HTML.
+              address: "https://webhooks.white.fm/webhook/f8cb8268-2ce1-4a57-8aac-617db41695d2"
+              minimumpriority: "error"
           webui:
             enabled: true
             replicaCount: 1
