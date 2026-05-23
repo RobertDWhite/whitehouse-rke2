@@ -104,3 +104,127 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # ---- Per-service listeners (06-per-service-certificates.yaml) ----
+    # Each pins one or two hostnames to a service-scoped Certificate so
+    # we no longer rely on the white.fm wildcard for these workloads.
+    # HTTPRoutes for these hosts attach via sectionName.
+
+    # auth.white.fm
+    - name: https-auth-public
+      protocol: HTTPS
+      port: 443
+      hostname: "auth.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: authentik-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # auth.internal.white.fm
+    - name: https-auth-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "auth.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: authentik-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # grafana.white.fm
+    - name: https-grafana-public
+      protocol: HTTPS
+      port: 443
+      hostname: "grafana.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: grafana-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # grafana.internal.white.fm
+    - name: https-grafana-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "grafana.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: grafana-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # headscale.white.fm
+    - name: https-headscale-public
+      protocol: HTTPS
+      port: 443
+      hostname: "headscale.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: headscale-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # headscale.internal.white.fm
+    - name: https-headscale-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "headscale.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: headscale-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # longhorn.internal.white.fm (covers both longhorn + longhornui hostnames
+    # via the same cert; longhornui still resolves via the wildcard listener)
+    - name: https-longhorn-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "longhorn.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: longhorn-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # longhornui.internal.white.fm
+    - name: https-longhornui-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "longhornui.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: longhorn-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # argo.internal.white.fm (argocd only has an internal hostname on the
+    # main Gateway; argo.white.fm is served by argocd's own ingress)
+    - name: https-argocd-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "argo.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: argocd-tls
+      allowedRoutes:
+        namespaces:
+          from: All
