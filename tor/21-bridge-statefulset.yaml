@@ -38,7 +38,7 @@ spec:
         # fsGroup only chowns the group; tor checks owning user as well.
         # Force uid:gid 101:101 on the PVC root so tor can write DataDirectory.
         - name: chown-data
-          image: busybox:1.37
+          image: busybox:1.37@sha256:0d3f1e630be52ade0c06107515937607be2cab11a2ad2122099fc79e19bcc18b
           command: ["sh", "-c", "chown -R 101:101 /var/lib/tor"]
           securityContext:
             runAsUser: 0

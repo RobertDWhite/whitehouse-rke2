@@ -21,7 +21,7 @@ spec:
         kubernetes.io/hostname: rke2-node-13
       initContainers:
         - name: wait-for-rtl-tcp
-          image: busybox:stable
+          image: busybox:stable@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command: ["/bin/sh", "-c",
             "until nc -z rtl-tcp-70cm.sdr-research.svc.cluster.local 1235; do echo 'waiting for rtl_tcp...'; sleep 3; done"]
           resources:
