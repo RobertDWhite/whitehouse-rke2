@@ -1,0 +1,63 @@
+# =============================================================
+# intelowl namespace — IntelOwl threat-intel platform
+# =============================================================
+# Internal: postgres, redis, rabbitmq, web (nginx + uwsgi), daphne, celery
+# Needs intra-namespace ingress so workers and web can talk to backends.
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: intelowl
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: intelowl
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: intelowl
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {}}]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress
+  namespace: intelowl
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
