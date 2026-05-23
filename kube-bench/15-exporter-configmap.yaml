@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-bench-exporter
+  namespace: kube-bench
+data:
+  exporter.py: |
+    """Parse the latest kube-bench JSON result and serve Prometheus metrics.
+
+    kube-bench JSON structure (abridged):
+      {
+        "Controls": [
+          {
+            "id": "1",
+            "text": "Master Node Security Configuration",
+            "tests": [
+              {
+                "section": "1.1",
+                "results": [
+                  {"test_number": "1.1.1", "status": "PASS", "scored": true, ...}
+                ]
+              }
+            ],
+            "total_pass": N, "total_fail": N, "total_warn": N, "total_info": N
+          }
+        ],
+        "totals": {"total_pass": N, "total_fail": N, ...}
+      }
+    """
+    import json
+    import os
+    import time
+    from glob import glob
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    RESULTS_DIR = "/results"
+    PORT = 9100
+
+    STATUS_VALUES = ("PASS", "FAIL", "WARN", "INFO")
+
+
+    def find_latest():
+        latest = os.path.join(RESULTS_DIR, "latest.json")
+        if os.path.exists(latest):
+            try:
+                return os.path.realpath(latest), os.path.getmtime(latest)
+            except OSError:
+                pass
+        files = sorted(glob(os.path.join(RESULTS_DIR, "kube-bench-*.json")))
+        if not files:
+            return None, 0
+        return files[-1], os.path.getmtime(files[-1])
+
+
+    def build_metrics():
+        path, mtime = find_latest()
+        lines = [
+            "# HELP kube_bench_last_run_timestamp_seconds Unix timestamp of the most recent kube-bench run.",
+            "# TYPE kube_bench_last_run_timestamp_seconds gauge",
+            f"kube_bench_last_run_timestamp_seconds {mtime}",
+        ]
+        if not path:
+            lines.append("# HELP kube_bench_results_available Whether any kube-bench JSON has been written yet.")
+            lines.append("# TYPE kube_bench_results_available gauge")
+            lines.append("kube_bench_results_available 0")
+            return "\n".join(lines) + "\n"
+
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as exc:
+            lines.append("# HELP kube_bench_parse_error Whether the latest result file failed to parse.")
+            lines.append("# TYPE kube_bench_parse_error gauge")
+            lines.append("kube_bench_parse_error 1")
+            lines.append(f"# Error: {exc}")
+            return "\n".join(lines) + "\n"
+
+        controls = data.get("Controls") or [data]
+        totals = {s: 0 for s in STATUS_VALUES}
+
+        lines.append("# HELP kube_bench_test_status One-hot status per CIS test (1 = current status).")
+        lines.append("# TYPE kube_bench_test_status gauge")
+
+        for ctrl in controls:
+            ctrl_id = str(ctrl.get("id", ""))
+            ctrl_type = str(ctrl.get("node_type", ""))
+            for test in ctrl.get("tests", []) or []:
+                section = str(test.get("section", ""))
+                for result in test.get("results", []) or []:
+                    tnum = str(result.get("test_number", ""))
+                    status = str(result.get("status", "")).upper()
+                    scored = "true" if result.get("scored") else "false"
+                    desc = str(result.get("test_desc", "")).replace("\\", "\\\\").replace('"', '\\"')
+                    if status in totals:
+                        totals[status] += 1
+                    for s in STATUS_VALUES:
+                        val = 1 if s == status else 0
+                        lines.append(
+                            f'kube_bench_test_status{{control="{ctrl_id}",section="{section}",'
+                            f'test_number="{tnum}",scored="{scored}",node_type="{ctrl_type}",'
+                            f'status="{s}",test_desc="{desc}"}} {val}'
+                        )
+
+        lines.append("# HELP kube_bench_total Total kube-bench tests by status in the latest run.")
+        lines.append("# TYPE kube_bench_total gauge")
+        for s in STATUS_VALUES:
+            lines.append(f'kube_bench_total{{status="{s}"}} {totals[s]}')
+
+        return "\n".join(lines) + "\n"
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path != "/metrics":
+                self.send_response(404)
+                self.end_headers()
+                return
+            body = build_metrics().encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):  # quieter logs
+            pass
+
+
+    if __name__ == "__main__":
+        server = HTTPServer(("0.0.0.0", PORT), Handler)
+        print(f"kube-bench exporter listening on :{PORT}/metrics", flush=True)
+        server.serve_forever()
