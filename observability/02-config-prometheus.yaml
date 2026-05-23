@@ -584,6 +584,15 @@ data:
         metrics_path: /metrics
         scrape_interval: 30s
 
+      # kube-bench CIS scan results — exporter reads the latest JSON written
+      # by the daily CronJob on a shared PVC and serves Prometheus metrics.
+      - job_name: kube-bench
+        static_configs:
+          - targets:
+              - kube-bench-exporter.kube-bench.svc.cluster.local:9100
+        metrics_path: /metrics
+        scrape_interval: 5m
+
   sdr-alerts.yml: |
     groups:
       - name: sdr-research.pvc
