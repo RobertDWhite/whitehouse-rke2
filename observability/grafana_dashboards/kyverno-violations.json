@@ -48,7 +48,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "expr": "count(count by (policy) (kyverno_policy_rule_info_total))",
+          "expr": "count(count by (policy_name) (kyverno_policy_rule_info_total))",
           "instant": true,
           "legendFormat": "policies",
           "refId": "A"
@@ -128,7 +128,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "expr": "sum(increase(kyverno_admission_requests_total{allowed=\"false\"}[24h]))",
+          "expr": "sum(increase(kyverno_admission_requests_total{request_allowed=\"false\"}[24h]))",
           "instant": true,
           "legendFormat": "denied",
           "refId": "A"
@@ -221,8 +221,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "expr": "sum by (policy) (rate(kyverno_policy_results_total{rule_result=\"fail\"}[5m]))",
-          "legendFormat": "{{policy}}",
+          "expr": "sum by (policy_name) (rate(kyverno_policy_results_total{rule_result=\"fail\"}[5m]))",
+          "legendFormat": "{{policy_name}}",
           "refId": "A"
         }
       ],
@@ -306,8 +306,8 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
-          "expr": "histogram_quantile(0.95, sum by (le, request_webhook_kind) (rate(kyverno_admission_review_duration_seconds_bucket[5m])))",
-          "legendFormat": "p95 {{request_webhook_kind}}",
+          "expr": "histogram_quantile(0.95, sum by (le, request_webhook) (rate(kyverno_admission_review_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{request_webhook}}",
           "refId": "A"
         }
       ],
