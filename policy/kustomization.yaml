@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Kyverno ClusterPolicies for whitehouse-rke2.
+#
+# All policies start with `validationFailureAction: Audit` so violations are
+# recorded as PolicyReports but admission is never blocked. Procedure to
+# flip a policy to Enforce is documented in policy/README.md.
+#
+# These resources require the ClusterPolicy CRD installed by the kyverno
+# helm release (argo-cd/applications/kyverno-app.yaml). The kyverno-policies
+# ArgoCD app uses sync-wave 10 so it lands after the install.
+
+resources:
+  - require-image-digest.yaml
+  - disallow-privileged-containers.yaml
+  - disallow-host-path.yaml
+  - restrict-image-registries.yaml

@@ -1,0 +1,63 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-image-digest
+  annotations:
+    policies.kyverno.io/title: Require Image Digest
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every container image must include a `@sha256:` digest. Tag-only refs
+      can silently change beneath us (mutable tags) and break the
+      reproducibility H6 just landed across the tree.
+spec:
+  # Audit only on day one — surface H6 holdouts as PolicyReports, do not
+  # block. Flip to Enforce after the audit window is clean.
+  validationFailureAction: Audit
+  background: true
+  # Webhook outage must NOT block kube-apiserver. Bump to Fail after rollout.
+  failurePolicy: Ignore
+  rules:
+    - name: image-must-have-digest
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # Platform namespaces and Kyverno's own components.
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - cert-manager
+                - longhorn-system
+                - metallb-system
+                - falco
+                - crowdsec
+                - trivy-system
+                - tigera-operator
+                - calico-system
+                - calico-apiserver
+          # Helm hooks / kustomize install jobs that run with chart-generated
+          # images we don't control digests for.
+          - resources:
+              selector:
+                matchLabels:
+                  helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+      validate:
+        message: >-
+          Every container image must include an `@sha256:...` digest.
+          See H6 for the rationale and the repo's pinning convention.
+        pattern:
+          spec:
+            =(initContainers):
+              - image: "*@sha256:*"
+            =(ephemeralContainers):
+              - image: "*@sha256:*"
+            containers:
+              - image: "*@sha256:*"
