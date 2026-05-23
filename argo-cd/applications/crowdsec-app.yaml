@@ -58,12 +58,25 @@ spec:
               - namespace: kube-system
                 podName: rke2-ingress-nginx-controller-*
                 program: nginx
+            # Hub items are reinstalled on every pod start by the chart entrypoint
+            # (docker_start.sh) based on these env vars; current snapshot of what's
+            # actually installed is vendored under crowdsec/hub/ for audit.
             env:
               - name: COLLECTIONS
                 value: "crowdsecurity/linux crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
+              # Agent's /etc/crowdsec is emptyDir, so listing parsers explicitly
+              # protects against the chart entrypoint omitting them on a restart.
+              - name: PARSERS
+                value: "crowdsecurity/cri-logs crowdsecurity/dateparse-enrich crowdsecurity/docker-logs crowdsecurity/geoip-enrich crowdsecurity/http-logs crowdsecurity/nginx-logs crowdsecurity/sshd-logs crowdsecurity/syslog-logs crowdsecurity/whitelists"
 
           lapi:
+            # LAPI hub state lives on the longhorn config PVC, so installs persist —
+            # but pinning here keeps git as the source of truth for a fresh PVC.
             env:
+              - name: COLLECTIONS
+                value: "crowdsecurity/linux crowdsecurity/sshd"
+              - name: POSTOVERFLOWS
+                value: "crowdsecurity/cdn-whitelist crowdsecurity/rdns crowdsecurity/seo-bots-whitelist"
               - name: ENROLL_KEY
                 valueFrom:
                   secretKeyRef:
