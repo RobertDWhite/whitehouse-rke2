@@ -10,7 +10,6 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: technitium
-    statefulset.kubernetes.io/pod-name: technitium-0
   ports:
     - name: dns-udp
       port: 53
@@ -21,7 +20,7 @@ spec:
       protocol: TCP
       targetPort: 53
 ---
-# Secondary VIP — same selector for now (also pinned to primary).
+# Secondary VIP — backs any healthy technitium pod.
 
 apiVersion: v1
 kind: Service
@@ -35,7 +34,6 @@ spec:
   externalTrafficPolicy: Local
   selector:
     app: technitium
-    statefulset.kubernetes.io/pod-name: technitium-0
   ports:
     - name: dns-udp
       port: 53
