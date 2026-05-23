@@ -1,0 +1,27 @@
+# =============================================================
+# headscale namespace — gRPC admin API lockdown
+# =============================================================
+# gRPC binds to 0.0.0.0:50443 inside the pod so the in-cluster
+# headscale CLI / sidecars can hit it. This policy restricts
+# external ingress to that port: only pods inside the headscale
+# namespace itself may dial 50443.
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-grpc
+  namespace: headscale
+spec:
+  podSelector:
+    matchLabels:
+      app: headscale
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: headscale
+      ports:
+        - protocol: TCP
+          port: 50443

@@ -12,7 +12,14 @@ spec:
       port: 80
       allowedRoutes:
         namespaces:
-          from: All
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - envoy-gateway-system
+                  - adsb
 
     # *.white.fm
     - name: https-white-fm

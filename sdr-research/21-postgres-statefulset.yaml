@@ -49,11 +49,8 @@ spec:
               value: "sdr_viewer"
             - name: POSTGRES_USER
               value: "sdr_viewer"
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: sdr-viewer-secrets
-                  key: db-password
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           ports:
@@ -82,6 +79,17 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-password
+          secret:
+            secretName: sdr-viewer-secrets
+            defaultMode: 0400
+            items:
+              - key: db-password
+                path: password
   volumeClaimTemplates:
     - metadata:
         name: data
