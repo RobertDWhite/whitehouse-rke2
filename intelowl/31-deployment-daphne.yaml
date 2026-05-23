@@ -14,6 +14,8 @@ spec:
       labels:
         app.kubernetes.io/name: intelowl-daphne
     spec:
+      securityContext:
+        fsGroup: 1000
       initContainers:
         - name: create-log-dirs
           image: busybox
@@ -34,7 +36,7 @@ spec:
                     /var/log/intel_owl/django/certego_saas_errors.log \
                     /var/log/intel_owl/django/authentication.log \
                     /var/log/intel_owl/django/authentication_errors.log
-              chmod -R 777 /var/log/intel_owl
+              chmod -R 750 /var/log/intel_owl
           volumeMounts:
             - name: logs
               mountPath: /var/log/intel_owl

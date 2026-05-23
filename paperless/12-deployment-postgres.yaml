@@ -47,16 +47,24 @@ spec:
                 secretKeyRef:
                   name: paperless-db
                   key: username
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: paperless-db
-                  key: password
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-password
+          secret:
+            secretName: paperless-db
+            defaultMode: 0400
+            items:
+              - key: password
+                path: password
   volumeClaimTemplates:
     - metadata:
         name: data

@@ -41,7 +41,7 @@ spec:
               rm -rf "${TMP}"
               if [ -d "${TARGET}" ]; then
                 echo "AI Assistant already present; keeping existing copy."
-              elif git clone https://github.com/cvlc/freshrss-ai-assistant "${TMP}" --depth 1; then
+              elif git clone https://github.com/cvlc/freshrss-ai-assistant "${TMP}" && git -C "${TMP}" checkout ab3acc69fe7d3380bce021b2b82ad0a8743ce6cb; then
                 if [ -d "${TMP}/freshrss-ai-assistant" ]; then
                   SRC="${TMP}/freshrss-ai-assistant"
                 else
@@ -78,7 +78,7 @@ spec:
               TMP="/tmp/xExtension-FeedDigest"
               mkdir -p "${EXT_DIR}"
               rm -rf "${TMP}"
-              if git clone https://github.com/fengchang/xExtension-FeedDigest "${TMP}" --depth 1; then
+              if git clone https://github.com/fengchang/xExtension-FeedDigest "${TMP}" && git -C "${TMP}" checkout 9454077765b5984f980d1eba90fe61d81453290a; then
                 if [ -d "${TMP}/xExtension-FeedDigest" ]; then
                   SRC="${TMP}/xExtension-FeedDigest"
                 else
@@ -119,7 +119,7 @@ spec:
               TMP="/tmp/freshrss-extensions"
               mkdir -p "${EXT_DIR}"
               rm -rf "${TMP}"
-              if git clone https://github.com/FreshRSS/Extensions.git "${TMP}" --depth 1; then
+              if git clone https://github.com/FreshRSS/Extensions.git "${TMP}" && git -C "${TMP}" checkout 3e5686139f2b708957543e6a6b159722af83d69b; then
                 SRC="${TMP}/xExtension-WordHighlighter"
                 rm -rf "${TARGET}.new"
                 mkdir -p "${TARGET}.new"

@@ -123,8 +123,9 @@ spec:
           livenessProbe:
             tcpSocket:
               port: 9001
-            initialDelaySeconds: 120
+            initialDelaySeconds: 60
             periodSeconds: 30
+            failureThreshold: 3
       volumes:
         - name: torrc
           configMap:
