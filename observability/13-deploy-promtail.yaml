@@ -46,6 +46,15 @@ spec:
               mountPath: /var/lib/docker/containers
               readOnly: true
 
+            # RKE2 kube-apiserver audit log. Server nodes only — on agent
+            # nodes the host path doesn't exist; HostPathType "" (default,
+            # no type-check) lets the kubelet create the mount as an
+            # empty dir if missing, so the DaemonSet still schedules. The
+            # tail target inside Promtail just stays empty on agents.
+            - name: rke2-audit
+              mountPath: /var/lib/rancher/rke2/server/logs
+              readOnly: true
+
       volumes:
         - name: config
           configMap:
@@ -58,3 +67,8 @@ spec:
         - name: containers
           hostPath:
             path: /var/lib/docker/containers
+
+        - name: rke2-audit
+          hostPath:
+            path: /var/lib/rancher/rke2/server/logs
+            type: DirectoryOrCreate

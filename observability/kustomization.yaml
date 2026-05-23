@@ -8,12 +8,19 @@ resources:
   # Configuration
   - 01-config-loki.yaml
   - 02-config-prometheus.yaml
+  - 02a-config-loki-rules.yaml
   - 03-config-promtail.yaml
   - 03a-config-alertmanager.yaml
   - 13b-config-alertmanager-ntfy.yaml
   - 04-config-unpoller.yaml
   - 24-config-grafana-dashboard-provider.yaml
   - 25-config-grafana-datasources.yaml
+
+  # NOTE: 30-rke2-audit-policy.yaml is intentionally NOT listed here.
+  # It is `kind: Policy` (audit.k8s.io/v1) — read by kube-apiserver
+  # before the API is even up — not a Kubernetes resource. The file
+  # lives in this directory as source-of-truth; copy it manually onto
+  # every RKE2 server node. See the file's header comments.
 
   # Persistent storage
   - 05-pvc-loki.yaml
@@ -107,6 +114,7 @@ configMapGenerator:
       - weather-dashboard.json=grafana_dashboards/weather-dashboard.json
       - technitium-fleet.json=grafana_dashboards/technitium-fleet.json
       - tor.json=grafana_dashboards/tor.json
+      - kube-audit.json=grafana_dashboards/kube-audit.json
   - name: observability-grafana-dashboards-imported
     files:
       - coredns-15762.json=grafana_dashboards/coredns-15762.json

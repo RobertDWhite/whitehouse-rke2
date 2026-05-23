@@ -65,5 +65,21 @@ data:
             store: inmemory
         final_sleep: 0s
 
+    # Loki built-in ruler: evaluates LogQL alert rules and ships them to
+    # the same alertmanager Prometheus uses, so audit-log alerts flow
+    # through the existing alertmanager-ntfy bridge.
+    ruler:
+      storage:
+        type: local
+        local:
+          directory: /etc/loki/rules
+      rule_path: /loki/rules-tmp
+      alertmanager_url: http://alertmanager.observability.svc.cluster.local:9093
+      enable_alertmanager_v2: true
+      ring:
+        kvstore:
+          store: inmemory
+      enable_api: true
+
     analytics:
       reporting_enabled: false
