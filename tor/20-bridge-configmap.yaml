@@ -27,7 +27,9 @@ data:
     # without needing the auth cookie at startup.
     ExtORPort 9100
 
-    # Log to file so the image's get-bridge-line helper can extract the cert.
+    # Log only to file so the image's get-bridge-line helper can extract the cert.
+    # Avoid stdout/stderr logging so bridge notices do not get duplicated into
+    # kubectl logs or any cluster log collectors.
     Log notice file /var/log/tor/log
 
     # Prometheus metrics. Bind 0.0.0.0 so the in-cluster prometheus can reach
@@ -56,9 +58,6 @@ data:
     # Using SOCKS5 (not HTTPSProxy) so TOR_PT_PROXY=socks5://... is set for
     # lyrebird — socks5 is a proxy type lyrebird accepts, so it sends PROXY DONE.
     Socks5Proxy 127.0.0.1:19150
-
-    # Logging — stdout so kubectl logs works.
-    Log notice stdout
 
     # ContactInfo is injected from the SOPS secret as an env var and
     # appended via the entrypoint (see 21-bridge-statefulset.yaml).
