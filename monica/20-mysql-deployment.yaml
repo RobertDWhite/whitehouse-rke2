@@ -28,19 +28,16 @@ spec:
               value: monica
             - name: MARIADB_USER
               value: monica
-            - name: MARIADB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monica-secrets
-                  key: db-password
-            - name: MARIADB_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monica-secrets
-                  key: db-password
+            - name: MARIADB_PASSWORD_FILE
+              value: /run/secrets/mariadb/password
+            - name: MARIADB_ROOT_PASSWORD_FILE
+              value: /run/secrets/mariadb/password
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+            - name: mariadb-password
+              mountPath: /run/secrets/mariadb
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -57,3 +54,10 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: monica-mysql-data
+        - name: mariadb-password
+          secret:
+            secretName: monica-secrets
+            defaultMode: 0400
+            items:
+              - key: db-password
+                path: password

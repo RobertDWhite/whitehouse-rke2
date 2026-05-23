@@ -26,16 +26,16 @@ spec:
               value: monica
             - name: POSTGRES_USER
               value: monica
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: monica-secrets
-                  key: db-password
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
           resources:
             requests:
               cpu: 100m
@@ -58,3 +58,10 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: monica-postgres-data
+        - name: postgres-password
+          secret:
+            secretName: monica-secrets
+            defaultMode: 0400
+            items:
+              - key: db-password
+                path: password
