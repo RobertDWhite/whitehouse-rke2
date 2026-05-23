@@ -29,6 +29,11 @@ spec:
               mountPath: /etc/loki
             - name: data
               mountPath: /loki
+            # Loki ruler reads rule files per-tenant at
+            # /etc/loki/rules/<tenant>/. With auth_enabled=false the
+            # implicit tenant is "fake".
+            - name: rules
+              mountPath: /etc/loki/rules/fake
       volumes:
         - name: config
           configMap:
@@ -36,3 +41,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: loki-data
+        - name: rules
+          configMap:
+            name: loki-rules

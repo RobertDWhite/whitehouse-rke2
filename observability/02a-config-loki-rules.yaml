@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-rules
+  namespace: observability
+data:
+  # Loki ruler discovers rule files at /etc/loki/rules/<tenant>/...
+  # With auth_enabled=false there's a single implicit tenant "fake".
+  # See https://grafana.com/docs/loki/latest/configuration/#ruler
+  fake-kube-audit.yml: |
+    groups:
+      - name: kube-audit
+        interval: 1m
+        rules:
+
+          # Page on any successful ClusterRoleBinding creation. There are
+          # legitimate reasons this happens (operator installs, ArgoCD
+          # initial sync) but it's rare enough to warrant a look every
+          # time. `responseCode` field comes from the audit JSON.
+          - alert: KubeAuditClusterRoleBindingCreate
+            expr: |
+              sum by (node, user, resource) (
+                count_over_time(
+                  {job="kube-audit", verb="create", resource="clusterrolebindings"}
+                  | json
+                  | responseCode =~ "2.."
+                  [5m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: warning
+              category: kube-audit
+            annotations:
+              summary: "ClusterRoleBinding created by {{ $labels.user }} on {{ $labels.node }}"
+              description: >
+                A ClusterRoleBinding was created via kube-apiserver. Verify
+                this was an intentional change (operator install, ArgoCD
+                sync, or human operator). Grafana → Explore → loki:
+                {job="kube-audit", verb="create", resource="clusterrolebindings"}
+
+          # Anonymous (unauthenticated) access succeeding against the API.
+          # In a normally-configured RKE2 this should NEVER happen — the
+          # only path is via the system:anonymous user when
+          # anonymous-auth=true. If this fires, something is open.
+          - alert: KubeAuditAnonymousAccess
+            expr: |
+              sum by (node, verb, resource) (
+                count_over_time(
+                  {job="kube-audit"}
+                  | json
+                  | user = "system:anonymous"
+                  | responseCode =~ "2.."
+                  [5m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: critical
+              category: kube-audit
+            annotations:
+              summary: "system:anonymous succeeded against kube-apiserver on {{ $labels.node }}"
+              description: >
+                The unauthenticated system:anonymous user successfully
+                performed {{ $labels.verb }} on {{ $labels.resource }}.
+                Check kube-apiserver --anonymous-auth flag and any
+                RoleBindings to system:anonymous / system:unauthenticated.
+
+          # Secret reads by a non-system principal. system:serviceaccount:*
+          # is legitimate controller traffic; anything else is a human or
+          # an external client. Threshold: any read in 5m.
+          - alert: KubeAuditSecretAccess
+            expr: |
+              sum by (node, user, namespace) (
+                count_over_time(
+                  {job="kube-audit", verb=~"get|list", resource="secrets"}
+                  | json
+                  | user !~ "system:serviceaccount:.+"
+                  | user !~ "system:.*"
+                  | responseCode =~ "2.."
+                  [5m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: warning
+              category: kube-audit
+            annotations:
+              summary: "Secret read by user {{ $labels.user }}"
+              description: >
+                User {{ $labels.user }} read secrets in
+                {{ $labels.namespace }}. Confirm this was an intentional
+                operator action; rotate the secrets if not.
+
+          # Baseline visibility on serviceaccount token creation
+          # (TokenRequest API). Likely noisy in steady-state — kept at
+          # warning + 15m for-duration so transient bursts don't page.
+          - alert: KubeAuditServiceAccountTokenCreate
+            expr: |
+              sum by (node, user) (
+                count_over_time(
+                  {job="kube-audit", verb="create", resource="serviceaccounts"}
+                  | json
+                  | line_format "{{.__line__}}"
+                  |~ "serviceaccounts/token"
+                  | responseCode =~ "2.."
+                  [5m]
+                )
+              ) > 50
+            for: 15m
+            labels:
+              severity: warning
+              category: kube-audit
+            annotations:
+              summary: "Elevated ServiceAccount token issuance rate ({{ $value | humanize }}/5m) by {{ $labels.user }}"
+              description: >
+                More than 50 ServiceAccount tokens were minted in 5
+                minutes by {{ $labels.user }} on {{ $labels.node }}.
+                Above the steady-state controller-manager baseline —
+                investigate the calling client.
