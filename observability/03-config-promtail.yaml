@@ -48,3 +48,70 @@ data:
             container:
         - labels:
             node: __host__
+
+    # =========================================================
+    # RKE2 kube-apiserver audit log.
+    #
+    # Server nodes only — agent nodes don't run kube-apiserver
+    # and the file won't exist. Promtail's file target tails by
+    # glob and just stays empty on agents (no error).
+    #
+    # Audit log volume is enormous (~5–50 MB/min on a busy
+    # cluster). Cardinality rule of thumb: every label
+    # multiplies series. Labels we promote:
+    #   - job=kube-audit    (constant)
+    #   - node              (one per server, ~3–5 values)
+    #   - verb              (low cardinality: get/list/watch/
+    #                        create/update/patch/delete/...)
+    #   - resource          (~50–100 distinct values cluster-wide)
+    # Labels we DO NOT promote (kept inside the log line for
+    # LogQL-time filtering instead):
+    #   - user.username     (high cardinality: every SA token,
+    #                        kubeconfig user, OIDC subject —
+    #                        could be 100s+ in a real attack
+    #                        surface; would blow up the index)
+    #   - namespace         (already exploded across the
+    #                        kubernetes-pods stream; not worth
+    #                        doubling)
+    # =========================================================
+    - job_name: kube-audit
+      static_configs:
+        - targets:
+            - localhost
+          labels:
+            job: kube-audit
+            __path__: /var/lib/rancher/rke2/server/logs/audit.log
+
+      pipeline_stages:
+        # Parse the JSON audit event.
+        - json:
+            expressions:
+              verb: verb
+              level: level
+              user: 'user.username'
+              resource: 'objectRef.resource'
+              namespace: 'objectRef.namespace'
+              stage: stage
+              responseCode: 'responseStatus.code'
+
+        # Only keep the final stage of each event (ResponseComplete /
+        # ResponseStarted / Panic). Drops the duplicate RequestReceived
+        # entry — halves log volume.
+        - match:
+            selector: '{job="kube-audit"}'
+            stages:
+              - drop:
+                  source: stage
+                  expression: '^RequestReceived$'
+
+        # Promote only low-cardinality fields to labels. `user` and
+        # `namespace` stay in the log body, queryable via `| json` in
+        # LogQL.
+        - labels:
+            verb:
+            resource:
+            level:
+
+        # Per-node label, matching the kubernetes-pods convention above.
+        - labels:
+            node: __host__
