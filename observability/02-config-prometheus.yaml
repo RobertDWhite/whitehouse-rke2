@@ -265,25 +265,6 @@ data:
             target_label: pod
 
       # =========================
-      # Tor obfs4 bridge metrics
-      # =========================
-      - job_name: tor-bridge
-        kubernetes_sd_configs:
-          - role: endpoints
-        relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
-            action: keep
-            regex: tor
-          - source_labels: [__meta_kubernetes_service_name]
-            action: keep
-            regex: obfs4-bridge-metrics
-          - source_labels: [__meta_kubernetes_endpoint_port_name]
-            action: keep
-            regex: metrics
-          - source_labels: [__meta_kubernetes_pod_name]
-            target_label: pod
-
-      # =========================
       # CrowdSec LAPI metrics
       # =========================
       - job_name: crowdsec
@@ -592,6 +573,33 @@ data:
               - kube-bench-exporter.kube-bench.svc.cluster.local:9100
         metrics_path: /metrics
         scrape_interval: 5m
+
+      # =========================
+      # Kyverno admission/background/cleanup/reports controllers
+      # All four expose /metrics on port 8000 via per-controller Services.
+      # Service names follow the chart helper: {fullname}-svc-metrics for
+      # the admission controller, {fullname}-<role>-metrics for the others.
+      # =========================
+      - job_name: kyverno
+        static_configs:
+          - targets:
+              - kyverno-svc-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: admission
+          - targets:
+              - kyverno-background-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: background
+          - targets:
+              - kyverno-cleanup-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: cleanup
+          - targets:
+              - kyverno-reports-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: reports
+        metrics_path: /metrics
+        scrape_interval: 30s
 
   sdr-alerts.yml: |
     groups:
