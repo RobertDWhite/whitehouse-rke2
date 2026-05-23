@@ -1,0 +1,140 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://kyverno.github.io/kyverno/
+    chart: kyverno
+    # Chart 3.8.1 ships Kyverno appVersion v1.18.1 (latest stable at install time).
+    # Bump deliberately — never use a moving tag on the chart itself.
+    targetRevision: 3.8.1
+    helm:
+      releaseName: kyverno
+      values: |
+        # ----------------------------------------------------------------
+        # Image pinning by digest
+        # ----------------------------------------------------------------
+        # The chart concatenates "<repository>:<tag>" — passing
+        # "v1.18.1@sha256:..." as the tag yields a fully-qualified
+        # digest-pinned reference (containerd accepts repo:tag@sha256:...).
+        # Digests resolved via `crane digest` against ghcr.io/kyverno/*:v1.18.1.
+        # ----------------------------------------------------------------
+        admissionController:
+          replicas: 2
+          initContainer:
+            image:
+              registry: ghcr.io
+              repository: kyverno/kyvernopre
+              tag: v1.18.1@sha256:e72b2309cde1d77de494c17e519dfe1dff9c1ee4d64327e80298a018bb612628
+          container:
+            image:
+              registry: ghcr.io
+              repository: kyverno/kyverno
+              tag: v1.18.1@sha256:dcd8cf6de2158cd8334fc728f9c4eb521e2c006320a59d69a9b91af87ac8f41c
+          # /metrics on port 8000 — Service is named
+          # kyverno-svc-metrics.kyverno.svc.cluster.local (chart helper:
+          # "{kyverno.fullname}-svc-metrics", release name is kyverno).
+          metricsService:
+            create: true
+            port: 8000
+            type: ClusterIP
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: amd64
+
+        backgroundController:
+          replicas: 1
+          image:
+            registry: ghcr.io
+            repository: kyverno/background-controller
+            tag: v1.18.1@sha256:33a19d2ae18ee0b8e650172f65985f35acd8909d6eeca4032465cca1ba022831
+          metricsService:
+            create: true
+            port: 8000
+            type: ClusterIP
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: amd64
+
+        cleanupController:
+          replicas: 1
+          image:
+            registry: ghcr.io
+            repository: kyverno/cleanup-controller
+            tag: v1.18.1@sha256:e9b3342264c82ae35f4fe3abd0e563e613bb54eae6ca493134f0fd4cbacfc0d1
+          metricsService:
+            create: true
+            port: 8000
+            type: ClusterIP
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: amd64
+
+        reportsController:
+          replicas: 1
+          image:
+            registry: ghcr.io
+            repository: kyverno/reports-controller
+            tag: v1.18.1@sha256:4972c80bccbafecc65406ec938abf029f0a428c56ea86f4e5cd11f63d951aad9
+          metricsService:
+            create: true
+            port: 8000
+            type: ClusterIP
+          nodeSelector:
+            kubernetes.io/os: linux
+            kubernetes.io/arch: amd64
+
+        # ----------------------------------------------------------------
+        # Webhook failure policy
+        # ----------------------------------------------------------------
+        # Kyverno's webhook failurePolicy is per-policy (spec.failurePolicy
+        # on each ClusterPolicy). Day-one rollout uses failurePolicy=Ignore
+        # on every policy so a Kyverno outage does NOT block the API server.
+        # Bump individual policies to Fail after their audit window is clean.
+        # ----------------------------------------------------------------
+        # Force all policies to Ignore globally for the audit period. Once
+        # we're confident the install is stable and policies are tuned,
+        # delete this flag and let per-policy spec.failurePolicy take over.
+        features:
+          forceFailurePolicyIgnore:
+            enabled: true
+
+        # Exclude system namespaces from Kyverno's own webhook objectSelector
+        # so admission requests from kube-system / kyverno itself / similar
+        # platform namespaces never hit policies. This is in addition to the
+        # per-policy `exclude` blocks (defense in depth).
+        config:
+          webhooks:
+            namespaceSelector:
+              matchExpressions:
+                - key: kubernetes.io/metadata.name
+                  operator: NotIn
+                  values:
+                    - kube-system
+                    - kyverno
+          resourceFiltersExcludeNamespaces: []
+
+        # ----------------------------------------------------------------
+        # Pod security
+        # ----------------------------------------------------------------
+        # The upstream chart already sets runAsNonRoot=true (uid 65534) for
+        # every controller. Documenting here as a guard against accidental
+        # override during future bumps.
+
+        # ----------------------------------------------------------------
+        # Per-controller nodeSelector set above. Kept off node-10 (arm64,
+        # transient) and off node-50 (transient RTX 5090).
+        # ----------------------------------------------------------------
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

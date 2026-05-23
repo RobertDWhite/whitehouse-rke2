@@ -1,0 +1,90 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-path
+  annotations:
+    policies.kyverno.io/title: Disallow hostPath Volumes
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods must not mount host filesystem paths. Workloads that
+      legitimately need hostPath (log tailers, CIS scanners, kernel
+      routing, hardware passthrough) are listed in the exclude block.
+spec:
+  # Audit only on day one. Many existing DaemonSets in the cluster mount
+  # hostPaths; we want a clean PolicyReport list before considering Enforce.
+  validationFailureAction: Audit
+  background: true
+  failurePolicy: Ignore
+  rules:
+    - name: hostpath-not-allowed
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # Same platform exception set as disallow-privileged-containers.
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - longhorn-system
+                - metallb-system
+                - falco
+                - crowdsec
+                - calico-system
+                - calico-apiserver
+                - tigera-operator
+                - nvidia-device-plugin
+                - kyverno
+          # promtail tails /var/log/pods + /var/lib/rancher/rke2/server/logs
+          # (added when the H12 audit log pipeline landed).
+          - resources:
+              namespaces:
+                - observability
+              names:
+                - promtail-*
+          # kube-bench reads /etc, /var/lib/kubelet, etc. to validate CIS.
+          - resources:
+              namespaces:
+                - kube-bench
+          # Hardware passthrough + sysctl writers from the privileged list.
+          - resources:
+              namespaces:
+                - sdr-research
+              names:
+                - soapy-sysctl-*
+                - rtl-sdr-*
+                - rx888-soapy-*
+                - airspy-soapy-*
+                - unified-sdr-*
+                - ft8-wspr-decoder-*
+                - hf-combined-*
+          - resources:
+              namespaces:
+                - headscale
+              names:
+                - tailscale-router-*
+          - resources:
+              namespaces:
+                - node-init
+          # Node exporter and other DaemonSets shipped with kube-state /
+          # observability that walk host /proc, /sys.
+          - resources:
+              namespaces:
+                - observability
+              names:
+                - node-exporter-*
+      validate:
+        message: >-
+          hostPath volumes are not allowed. If this workload needs host
+          filesystem access, add the namespace/name pattern to the policy
+          `exclude` block rather than weakening the rule.
+        pattern:
+          spec:
+            =(volumes):
+              - X(hostPath): "null"
