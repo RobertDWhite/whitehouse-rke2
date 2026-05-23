@@ -1,0 +1,76 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers must not run with `securityContext.privileged: true`.
+      Audited workloads that legitimately need privileged mode (sysctl
+      writes, kernel routing, block devices, eBPF) are listed in the
+      exclude block below.
+spec:
+  # Audit only on day one — flip to Enforce after the exception list is
+  # validated against the live cluster.
+  validationFailureAction: Audit
+  background: true
+  failurePolicy: Ignore
+  rules:
+    - name: privileged-not-allowed
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # Platform namespaces where privileged is unavoidable.
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - longhorn-system
+                - metallb-system
+                - falco
+                - crowdsec
+                - calico-system
+                - calico-apiserver
+                - tigera-operator
+                - nvidia-device-plugin
+                - kyverno
+          # Specific workloads that need privileged for hardware/kernel
+          # access — flagged in the C5 audit and accepted as required.
+          - resources:
+              namespaces:
+                - sdr-research
+              names:
+                - soapy-sysctl-*
+          - resources:
+              namespaces:
+                - headscale
+              names:
+                - tailscale-router-*
+          # node-init writes inotify sysctls on host bring-up.
+          - resources:
+              namespaces:
+                - node-init
+      validate:
+        message: >-
+          Privileged containers are not allowed. If this workload needs
+          kernel-level access, add it to the policy `exclude` block with
+          a justification rather than weakening the rule.
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            =(ephemeralContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"
