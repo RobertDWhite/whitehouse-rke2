@@ -7,6 +7,11 @@ metadata:
     renovatebot/update-container-image: "true"
 spec:
   replicas: 1
+  strategy:
+    # RWO Longhorn PVC: the new pod cannot attach the volume while the old pod
+    # still holds it, so RollingUpdate deadlocks on every image change. Recreate
+    # terminates the old pod first, freeing the volume for the new one.
+    type: Recreate
   selector:
     matchLabels:
       app: jetlog
