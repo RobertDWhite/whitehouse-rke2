@@ -57,6 +57,9 @@ resources:
   - 31-service-api.yaml
   - 32-deployment-ui.yaml
   - 33-service-ui.yaml
+  # MCP server — exposes the read-only API as MCP tools for Claude
+  - 60-mcp-deployment.yaml
+  - 61-mcp-service.yaml
   - 35-pdb.yaml
   - 36-network-policies.yaml
   - 41-authentik-service.yaml
@@ -81,6 +84,9 @@ generators:
   - ksops.yaml
 
 images:
+  - name: registry.internal.white.fm/sdr-mcp
+    newTag: "0.1.0"
+    digest: "sha256:1521b7dac4c27f9e52c77f915beac093814d87324ac070d33b5ea8f92491ba6c"
   - name: librespace/gnuradio
     newTag: "3.10.5.1"
     digest: "sha256:f6cd3861f8fa70ffaeb1972949c3703c3d7772d59966633cb6ccb6816a227565"
@@ -100,8 +106,8 @@ images:
     digest: "sha256:fc3f7485179bd02560c2649150c933e3871efe4acaa7ad44e1c4113d80e9654b"
   - name: registry.internal.white.fm/sdr-viewer-ui
     newName: ghcr.io/w3rdw/sdr-research-ui
-    newTag: "0.1.3"
-    digest: "sha256:5329ba4987aef578d6d8dcab2b86ec85723426c25bf5bb554f394b6a211f1b8a"
+    newTag: "0.1.4"
+    digest: "sha256:ea58ceaf103fb192d3123c08ebf696dbf57a63bd68c4241bb920a76e3a05ef16"
   - name: legacycode/rtlsdr
     newTag: "latest"
     digest: "sha256:a61f0d2ed74bc3d874eef64753bf0af87e6a1156731975de1ca54b70236ae3cd"
