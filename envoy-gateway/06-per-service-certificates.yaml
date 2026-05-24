@@ -80,3 +80,33 @@ spec:
   dnsNames:
     - auth.white.fm
     - auth.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sdr-mcp-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: sdr-mcp-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - sdr-mcp.white.fm
+    - sdr-mcp.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jetlog-mcp-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: jetlog-mcp-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - jetlog-mcp.white.fm
+    - jetlog-mcp.internal.white.fm

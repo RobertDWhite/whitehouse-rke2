@@ -235,3 +235,55 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # sdr-mcp.white.fm — MCP server for the SDR station (token-gated)
+    - name: https-sdr-mcp-public
+      protocol: HTTPS
+      port: 443
+      hostname: "sdr-mcp.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: sdr-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # sdr-mcp.internal.white.fm
+    - name: https-sdr-mcp-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "sdr-mcp.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: sdr-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # jetlog-mcp.white.fm — MCP server for the jetlog flight log (token-gated)
+    - name: https-jetlog-mcp-public
+      protocol: HTTPS
+      port: 443
+      hostname: "jetlog-mcp.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jetlog-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # jetlog-mcp.internal.white.fm
+    - name: https-jetlog-mcp-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "jetlog-mcp.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jetlog-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All

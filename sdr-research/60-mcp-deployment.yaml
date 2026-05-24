@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdr-mcp
+  namespace: sdr-research
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sdr-mcp
+  template:
+    metadata:
+      labels:
+        app: sdr-mcp
+    spec:
+      nodeSelector:
+        # Image is built for linux/amd64; keep it off the lone arm64 node (node-10).
+        kubernetes.io/arch: amd64
+      containers:
+        - name: mcp
+          image: registry.internal.white.fm/sdr-mcp
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SDR_API_BASE
+              value: "http://sdr-viewer-api:8000"
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: mcp-token
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 192Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
