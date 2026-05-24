@@ -1,0 +1,87 @@
+# =============================================================
+# Grafana REST API — direct path, bypassing the Authentik outpost
+# =============================================================
+# grafana.white.fm and grafana.internal.white.fm are normally fronted by
+# the Authentik proxy-provider (embedded outpost): the catch-all HTTPRoutes
+# `grafana-public` / `grafana-internal` (ns authentik) send every path to
+# authentik-server, which forward-auths the browser via SSO and injects
+# X-authentik-* headers (GF_AUTH_PROXY_ENABLED — see 12-deploy-grafana.yaml).
+#
+# That breaks non-browser API clients (e.g. the GrafLens iOS app) that
+# authenticate with a service-account token (Authorization: Bearer glsa_…):
+# the outpost has no Authentik session for them and returns its
+# "Receive header authentication" 401 page, so the token never reaches
+# Grafana.
+#
+# These routes attach to the same gateway listeners but match the `/api`
+# prefix and send it straight to the grafana Service. Gateway API path
+# precedence (longer prefix wins) means /api/* takes this direct path while
+# every other path still flows through the outpost — so the web UI stays
+# fully SSO-gated and only the token-authenticated REST API is exposed.
+# Grafana still enforces auth on /api (401 without a valid token/session).
+#
+# SECURITY — header stripping is mandatory: Grafana trusts X-authentik-*
+# proxy headers from any source in the pod CIDR 10.42.0.0/16
+# (GF_AUTH_PROXY_WHITELIST), and the Envoy gateway pods live in that range.
+# Without removing them, a client could spoof `X-authentik-username: admin`
+# and be trusted. The RequestHeaderModifier filter drops every header
+# Grafana's auth.proxy consumes, so on this route only the Bearer token can
+# authenticate.
+# =============================================================
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-api-public
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-grafana-public
+  hostnames:
+    - grafana.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-username
+              - X-authentik-email
+              - X-authentik-name
+              - X-authentik-groups
+      backendRefs:
+        - name: grafana
+          port: 3000
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-api-internal
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-grafana-internal
+  hostnames:
+    - grafana.internal.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-authentik-username
+              - X-authentik-email
+              - X-authentik-name
+              - X-authentik-groups
+      backendRefs:
+        - name: grafana
+          port: 3000
