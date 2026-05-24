@@ -1,10 +1,17 @@
 # =============================================================
-# headscale namespace — gRPC admin API lockdown
+# headscale namespace — ingress policy
 # =============================================================
-# gRPC binds to 0.0.0.0:50443 inside the pod so the in-cluster
-# headscale CLI / sidecars can hit it. This policy restricts
-# external ingress to that port: only pods inside the headscale
-# namespace itself may dial 50443.
+# Selecting the headscale pod for Ingress makes this policy the
+# allow-list for ALL inbound ports, so every port the pod serves
+# must be enumerated explicitly:
+#
+#   :8080  control plane (client registration, OIDC, node
+#          enrollment, ts2021 noise/control protocol) — fronted by
+#          the Envoy Gateway at headscale.white.fm and
+#          headscale.internal.white.fm, so it must accept ingress
+#          from the gateway namespace.
+#   :50443 gRPC admin API — kept private to the headscale namespace.
+#   :9090  Prometheus metrics — scraped from the observability ns.
 # =============================================================
 
 apiVersion: networking.k8s.io/v1
@@ -18,6 +25,19 @@ spec:
       app: headscale
   policyTypes: [Ingress]
   ingress:
+    # Control plane — Envoy Gateway (public + internal) and in-namespace
+    # callers (admin UI / CLI).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: headscale
+      ports:
+        - protocol: TCP
+          port: 8080
+    # gRPC admin API — only pods inside the headscale namespace.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -25,3 +45,11 @@ spec:
       ports:
         - protocol: TCP
           port: 50443
+    # Metrics — Prometheus in the observability namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 9090
