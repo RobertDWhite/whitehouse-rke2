@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-mcp
+  namespace: media-mcp
+spec:
+  selector:
+    app: media-mcp
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
