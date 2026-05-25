@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-mcp
+  namespace: media-mcp
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-mcp
+  template:
+    metadata:
+      labels:
+        app: media-mcp
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: media-mcp
+          image: registry.internal.white.fm/media-mcp
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: RADARR_URL
+              value: "http://radarr.media.svc.cluster.local:7878"
+            - name: SONARR_URL
+              value: "http://sonarr.media.svc.cluster.local:8989"
+            - name: PROWLARR_URL
+              value: "http://prowlarr.media.svc.cluster.local:9696"
+            - name: READARR_URL
+              value: "http://readarr.media.svc.cluster.local:8787"
+            - name: BAZARR_URL
+              value: "http://bazarr.media.svc.cluster.local:6767"
+            - name: TAUTULLI_URL
+              value: "http://tautulli.tautulli.svc.cluster.local:8181"
+            - name: MCP_TOKEN
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: MCP_TOKEN } }
+            - name: RADARR_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: RADARR_KEY } }
+            - name: SONARR_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: SONARR_KEY } }
+            - name: PROWLARR_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: PROWLARR_KEY } }
+            - name: READARR_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: READARR_KEY } }
+            - name: BAZARR_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: BAZARR_KEY } }
+            - name: TAUTULLI_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: TAUTULLI_KEY } }
+            - name: PLEX_URL
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: PLEX_URL } }
+            - name: PLEX_TOKEN
+              valueFrom: { secretKeyRef: { name: media-mcp-env, key: PLEX_TOKEN } }
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
