@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homarr-connector-seed
+  namespace: homarr
+data:
+  # Idempotent connector seeder run as an initContainer before Homarr starts.
+  # Homarr v1 has no declarative integration config — integrations live in the
+  # SQLite DB at /appdata/db/db.sqlite. This seeds any connectors declared in
+  # the homarr-connectors Secret that aren't already present (matched by
+  # name+kind), encrypting secrets exactly as Homarr does (aes-256-cbc,
+  # "ciphertextHex.ivHex" with SECRET_ENCRYPTION_KEY). Existing UI-managed
+  # integrations are never touched. Fail-open: always exits 0 so a seed error
+  # can never block the pod from starting.
+  seed.mjs: |
+    import crypto from "node:crypto";
+    import { DatabaseSync } from "node:sqlite";
+    import { readFileSync, existsSync } from "node:fs";
+
+    const DB_PATH = process.env.HOMARR_DB_PATH || "/appdata/db/db.sqlite";
+    const CONNECTORS_FILE = process.env.CONNECTORS_FILE || "/seed-secret/connectors.json";
+    const KEY_HEX = process.env.SECRET_ENCRYPTION_KEY;
+
+    function log(...a) { console.log("[connector-seed]", ...a); }
+
+    try {
+      if (!KEY_HEX) { log("SECRET_ENCRYPTION_KEY not set; skipping"); process.exit(0); }
+      const key = Buffer.from(KEY_HEX, "hex");
+
+      const encryptSecret = (text) => {
+        const iv = crypto.randomBytes(16);
+        const c = crypto.createCipheriv("aes-256-cbc", key, iv);
+        const enc = Buffer.concat([c.update(String(text), "utf8"), c.final()]);
+        return `${enc.toString("hex")}.${iv.toString("hex")}`;
+      };
+      const newId = () => crypto.randomBytes(16).toString("hex").slice(0, 24);
+
+      let connectors;
+      try {
+        connectors = JSON.parse(readFileSync(CONNECTORS_FILE, "utf8"));
+      } catch (e) {
+        log("no connectors file at", CONNECTORS_FILE, "-", e.message, "; nothing to do");
+        process.exit(0);
+      }
+      if (!Array.isArray(connectors)) { log("connectors file is not an array; skipping"); process.exit(0); }
+
+      // Don't create an empty DB on a fresh PVC — Homarr's main container owns
+      // schema creation/migration. If the DB doesn't exist yet we skip and seed
+      // on a later restart, once Homarr has built the schema.
+      if (!existsSync(DB_PATH)) { log("DB not present yet at", DB_PATH, "- skipping (will seed after Homarr initializes it)"); process.exit(0); }
+
+      const db = new DatabaseSync(DB_PATH);
+      db.exec("PRAGMA busy_timeout = 10000;");
+
+      const findInt = db.prepare("SELECT id FROM integration WHERE name = ? AND kind = ?");
+      const insInt = db.prepare("INSERT INTO integration (id, name, url, kind, app_id) VALUES (?, ?, ?, ?, NULL)");
+      const insSecret = db.prepare("INSERT INTO integrationSecret (kind, value, updated_at, integration_id) VALUES (?, ?, ?, ?)");
+      const now = Math.floor(Date.now() / 1000);
+
+      let added = 0, skipped = 0;
+      for (const c of connectors) {
+        if (!c || !c.name || !c.kind || !c.url) { log("invalid connector entry, skipping:", JSON.stringify(c)); continue; }
+        const existing = findInt.get(c.name, c.kind);
+        if (existing) { skipped++; log("exists, skip:", c.kind, c.name); continue; }
+        const id = newId();
+        insInt.run(id, c.name, c.url, c.kind);
+        for (const s of (c.secrets || [])) {
+          if (!s || !s.kind || s.value == null) continue;
+          insSecret.run(s.kind, encryptSecret(s.value), now, id);
+        }
+        added++;
+        log("added:", c.kind, c.name, "->", c.url);
+      }
+      log(`done. added=${added} skipped=${skipped}`);
+      process.exit(0);
+    } catch (e) {
+      log("ERROR (continuing so pod still starts):", e && e.stack ? e.stack : e);
+      process.exit(0);
+    }
