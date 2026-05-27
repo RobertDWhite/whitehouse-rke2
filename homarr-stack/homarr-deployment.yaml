@@ -19,6 +19,43 @@ spec:
       serviceAccountName: homarr
       securityContext:
         fsGroup: 1000
+      initContainers:
+        # Seeds API connectors declared in the homarr-connectors Secret into the
+        # SQLite DB before Homarr starts (Homarr v1 has no declarative
+        # integration config). Idempotent — skips any integration that already
+        # exists (matched by name+kind), so UI-managed integrations are never
+        # touched. Uses the same image (node:sqlite + crypto) so it shares the
+        # exact runtime. See homarr-seed-configmap.yaml for the script.
+        - name: connector-seed
+          image: ghcr.io/homarr-labs/homarr
+          command: ["node", "/seed/seed.mjs"]
+          env:
+            - name: HOMARR_DB_PATH
+              value: /appdata/db/db.sqlite
+            - name: CONNECTORS_FILE
+              value: /seed-secret/connectors.json
+            - name: SECRET_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: SECRET_ENCRYPTION_KEY
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: db-storage
+              mountPath: /appdata
+            - name: connector-seed-script
+              mountPath: /seed
+            - name: connectors
+              mountPath: /seed-secret
+              readOnly: true
       containers:
         - name: homarr
           image: ghcr.io/homarr-labs/homarr
@@ -73,3 +110,9 @@ spec:
         - name: db-storage
           persistentVolumeClaim:
             claimName: homarr-database-longhorn
+        - name: connector-seed-script
+          configMap:
+            name: homarr-connector-seed
+        - name: connectors
+          secret:
+            secretName: homarr-connectors
