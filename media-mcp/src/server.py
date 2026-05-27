@@ -50,6 +50,8 @@ TAUTULLI_URL = os.environ.get("TAUTULLI_URL", "").rstrip("/")
 TAUTULLI_KEY = os.environ.get("TAUTULLI_KEY", "")
 BAZARR_URL = os.environ.get("BAZARR_URL", "").rstrip("/")
 BAZARR_KEY = os.environ.get("BAZARR_KEY", "")
+LAZYLIBRARIAN_URL = os.environ.get("LAZYLIBRARIAN_URL", "").rstrip("/")
+LAZYLIBRARIAN_KEY = os.environ.get("LAZYLIBRARIAN_KEY", "")
 
 mcp = FastMCP(
     "media",
@@ -88,6 +90,24 @@ async def _bazarr(method: str, path: str, **kw) -> Any:
     )
     r.raise_for_status()
     return r.json() if r.content else None
+
+
+async def _lazylibrarian(cmd: str, **params) -> Any:
+    """Call the LazyLibrarian API: GET /api?apikey=&cmd=. DB-read commands return
+    CamelCase keys; source-search commands return lowercase keys."""
+    if not LAZYLIBRARIAN_URL or not LAZYLIBRARIAN_KEY:
+        raise RuntimeError("lazylibrarian is not configured (set LAZYLIBRARIAN_URL/LAZYLIBRARIAN_KEY)")
+    r = await _client.get(
+        f"{LAZYLIBRARIAN_URL}/api",
+        params={"apikey": LAZYLIBRARIAN_KEY, "cmd": cmd, **params},
+    )
+    r.raise_for_status()
+    if not r.content:
+        return None
+    try:
+        return r.json()
+    except ValueError:
+        return r.text.strip()
 
 
 async def _plex(path: str, params: Optional[dict] = None, method: str = "GET") -> Any:
@@ -428,6 +448,88 @@ async def bazarr_providers() -> Any:
 
 
 # ---------------------------------------------------------------------------
+# LazyLibrarian (books / ebooks / audiobooks)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def lazylibrarian_authors() -> Any:
+    """List authors tracked in LazyLibrarian."""
+    res = await _lazylibrarian("getIndex")
+    return [
+        {"id": a.get("AuthorID"), "name": a.get("AuthorName"),
+         "status": a.get("Status"), "haveBooks": a.get("HaveBooks"),
+         "totalBooks": a.get("TotalBooks")}
+        for a in (res or [])
+    ]
+
+
+@mcp.tool()
+async def lazylibrarian_search_book(term: str) -> Any:
+    """Search configured book sources (GoodReads/GoogleBooks) for a book by title
+    or author. Returns candidates with a bookid to pass to lazylibrarian_add_book."""
+    res = await _lazylibrarian("findBook", name=term)
+    items = res if isinstance(res, list) else (res or {}).get("book", [])
+    return [
+        {"bookid": b.get("bookid"), "title": b.get("bookname"),
+         "author": b.get("authorname"), "date": b.get("bookdate"),
+         "source": b.get("source")}
+        for b in (items or [])[:15]
+    ]
+
+
+@mcp.tool()
+async def lazylibrarian_add_book(book_id: str, search: bool = True) -> Any:
+    """Add a book to LazyLibrarian by bookid and (by default) trigger a search."""
+    await _lazylibrarian("addBook", id=book_id)
+    if search:
+        await _lazylibrarian("searchBook", id=book_id)
+    return {"added": book_id, "searched": search}
+
+
+@mcp.tool()
+async def lazylibrarian_search_author(term: str) -> Any:
+    """Search configured sources for an author by name. Returns candidates with an
+    authorid to pass to lazylibrarian_add_author."""
+    res = await _lazylibrarian("findAuthor", name=term)
+    items = res if isinstance(res, list) else (res or {}).get("authors", [])
+    return [
+        {"authorid": a.get("authorid"), "name": a.get("authorname"),
+         "source": a.get("source")}
+        for a in (items or [])[:15]
+    ]
+
+
+@mcp.tool()
+async def lazylibrarian_add_author(name: str) -> Any:
+    """Add an author to LazyLibrarian by name — monitors and pulls their books."""
+    return await _lazylibrarian("addAuthor", name=name)
+
+
+@mcp.tool()
+async def lazylibrarian_wanted() -> Any:
+    """Books marked Wanted (missing) in LazyLibrarian."""
+    res = await _lazylibrarian("getWanted")
+    items = res if isinstance(res, list) else (res or {}).get("books", [])
+    return [
+        {"bookid": b.get("BookID"), "title": b.get("BookName"),
+         "author": b.get("AuthorName"), "status": b.get("Status")}
+        for b in (items or [])
+    ]
+
+
+@mcp.tool()
+async def lazylibrarian_force_search(book_id: str) -> Any:
+    """Force a search for a specific book already tracked in LazyLibrarian (bookid)."""
+    return await _lazylibrarian("searchBook", id=book_id)
+
+
+@mcp.tool()
+async def lazylibrarian_history() -> Any:
+    """Recent LazyLibrarian snatched/grabbed history."""
+    return await _lazylibrarian("getSnatched")
+
+
+# ---------------------------------------------------------------------------
 # Plex
 # ---------------------------------------------------------------------------
 
@@ -547,8 +649,13 @@ async def media_overview() -> Any:
         q = await _arr(app, "GET", "/queue", params={"pageSize": "1"})
         return {"version": status.get("version"), "queue": q.get("totalRecords", 0)}
 
+    async def _ll_health():
+        idx = await _lazylibrarian("getIndex")
+        return {"authors": len(idx) if isinstance(idx, list) else None}
+
     for app in _SERVARR:
         await safe(app, _arr_health(app))
+    await safe("lazylibrarian", _ll_health())
     await safe("plex_now_playing", plex_sessions())
     await safe("tautulli_streams", _tautulli("get_activity"))
     return out

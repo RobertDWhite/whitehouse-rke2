@@ -43,6 +43,8 @@ spec:
               value: "http://bazarr.media.svc.cluster.local:6767"
             - name: TAUTULLI_URL
               value: "http://tautulli.tautulli.svc.cluster.local:8181"
+            - name: LAZYLIBRARIAN_URL
+              value: "http://lazylibrarian.calibre.svc.cluster.local:80"
             - name: MCP_TOKEN
               valueFrom: { secretKeyRef: { name: media-mcp-env, key: MCP_TOKEN } }
             - name: RADARR_KEY
@@ -57,6 +59,8 @@ spec:
               valueFrom: { secretKeyRef: { name: media-mcp-env, key: BAZARR_KEY } }
             - name: TAUTULLI_KEY
               valueFrom: { secretKeyRef: { name: media-mcp-env, key: TAUTULLI_KEY } }
+            - name: LAZYLIBRARIAN_KEY
+              valueFrom: { secretKeyRef: { name: media-mcp-lazylibrarian, key: LAZYLIBRARIAN_KEY } }
             - name: PLEX_URL
               valueFrom: { secretKeyRef: { name: media-mcp-env, key: PLEX_URL } }
             - name: PLEX_TOKEN
