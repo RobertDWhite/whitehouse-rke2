@@ -24,7 +24,7 @@ spec:
         - name: misp
           command: 
             - /kubernetes/entrypoint_fpm.sh
-          image: "ghcr.io/misp/misp-docker/misp-core:v2.5.32@sha256:b8719155b297ae5f96115e26c6365d07a84c1b57cb9da6738bd1d1ec3cabd3e8"
+          image: "ghcr.io/misp/misp-docker/misp-core:v2.5.32"
           imagePullPolicy: IfNotPresent
           readinessProbe:
             tcpSocket:
@@ -81,7 +81,7 @@ spec:
             requests:
               memory: 128Mi
               cpu: 20m
-          image: "ghcr.io/misp/misp-docker/misp-modules:v3.0.6@sha256:667551835886dd14d3130b883ba53995b6320d3149ad7a7ff169db7262aafe65"
+          image: "ghcr.io/misp/misp-docker/misp-modules:v3.0.6"
           imagePullPolicy: IfNotPresent
           readinessProbe:
             tcpSocket:
@@ -96,7 +96,7 @@ spec:
               containerPort: 6666
               protocol: TCP
         - name: misp-zmq-to-influx
-          image: docker.io/python:3.12-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+          image: docker.io/python:3.12-slim
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
