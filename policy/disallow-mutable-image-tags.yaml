@@ -1,0 +1,75 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-mutable-image-tags
+  annotations:
+    policies.kyverno.io/title: Disallow Mutable Image Tags
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Container images must not use mutable tags like `:latest`, `:stable`,
+      or `:stable-slim` — those silently change beneath us and break
+      reproducibility. Versioned tags (e.g. `:v1.6.2`, `:3.12-slim`) are
+      fine. DB-engine images carry an additional `@sha256:` digest pin so
+      a major version cannot land via tag drift; this policy does not
+      require digests on non-DB images.
+spec:
+  validationFailureAction: Audit
+  background: true
+  failurePolicy: Ignore
+  rules:
+    - name: image-tag-must-not-be-mutable
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - cert-manager
+                - longhorn-system
+                - metallb-system
+                - falco
+                - crowdsec
+                - trivy-system
+                - tigera-operator
+                - calico-system
+                - calico-apiserver
+          - resources:
+              selector:
+                matchLabels:
+                  helm.sh/hook: pre-install,pre-upgrade,post-install,post-upgrade
+      validate:
+        message: >-
+          Container images must not use the mutable tags `:latest`,
+          `:stable`, or `:stable-slim`. Pin to a versioned tag (and add a
+          `@sha256:` digest if it is a DB engine like postgres, mysql,
+          mariadb, redis, or elasticsearch).
+        deny:
+          conditions:
+            any:
+              - key: "{{ images.containers.*.tag || `[]` }}"
+                operator: AnyIn
+                value:
+                  - latest
+                  - stable
+                  - stable-slim
+              - key: "{{ images.initContainers.*.tag || `[]` }}"
+                operator: AnyIn
+                value:
+                  - latest
+                  - stable
+                  - stable-slim
+              - key: "{{ images.ephemeralContainers.*.tag || `[]` }}"
+                operator: AnyIn
+                value:
+                  - latest
+                  - stable
+                  - stable-slim

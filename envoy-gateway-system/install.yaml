@@ -50862,7 +50862,7 @@ data:
       kubernetes:
         rateLimitDeployment:
           container:
-            image: docker.io/envoyproxy/ratelimit:99d85510@sha256:f9b6e5e9d027334129aa5b0193ca2c4139d1e8f027a465575cbb3303f531e2c7
+            image: docker.io/envoyproxy/ratelimit:99d85510
           patch:
             type: StrategicMerge
             value:
@@ -50873,7 +50873,7 @@ data:
                     - imagePullPolicy: IfNotPresent
                       name: envoy-ratelimit
         shutdownManager:
-          image: envoyproxy/gateway:v1.6.2@sha256:cf6f7a364eae06b29511cb1260b484a1f984a37a0b26e858ca6a34d3b77fe392
+          image: envoyproxy/gateway:v1.6.2
       type: Kubernetes
 ---
 # Source: gateway-helm/templates/envoy-gateway-rbac.yaml
@@ -51246,7 +51246,7 @@ spec:
               fieldPath: metadata.namespace
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: cluster.local
-        image: envoyproxy/gateway:v1.6.2@sha256:cf6f7a364eae06b29511cb1260b484a1f984a37a0b26e858ca6a34d3b77fe392
+        image: envoyproxy/gateway:v1.6.2
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -51464,7 +51464,7 @@ spec:
               fieldPath: metadata.namespace
         - name: KUBERNETES_CLUSTER_DOMAIN
           value: cluster.local
-        image: envoyproxy/gateway:v1.6.2@sha256:cf6f7a364eae06b29511cb1260b484a1f984a37a0b26e858ca6a34d3b77fe392
+        image: envoyproxy/gateway:v1.6.2
         imagePullPolicy: IfNotPresent
         name: envoy-gateway-certgen
         securityContext:
