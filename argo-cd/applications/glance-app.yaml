@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: glance
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: glance
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: glance
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
