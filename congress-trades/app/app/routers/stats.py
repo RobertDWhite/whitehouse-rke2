@@ -26,9 +26,25 @@ def stats(db: Session = Depends(get_db)):
     )
 
     top_traders = [
-        {"member_id": mid, "member": name, "party": party, "count": c}
-        for mid, name, party, c in db.execute(
-            select(Member.id, Member.full_name, Member.party, func.count(Trade.id))
+        {
+            "member_id": mid,
+            "member": name,
+            "party": party,
+            "state": state,
+            "district": district,
+            "chamber": chamber,
+            "count": c,
+        }
+        for mid, name, party, state, district, chamber, c in db.execute(
+            select(
+                Member.id,
+                Member.full_name,
+                Member.party,
+                Member.state,
+                Member.district,
+                Member.chamber,
+                func.count(Trade.id),
+            )
             .join(Trade, Trade.member_id == Member.id)
             .group_by(Member.id)
             .order_by(func.count(Trade.id).desc())
