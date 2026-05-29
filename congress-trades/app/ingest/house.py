@@ -21,8 +21,11 @@ from . import normalize as nz
 
 _DATE = re.compile(r"\b(\d{1,2}/\d{1,2}/\d{4})\b")
 _TICKER = re.compile(r"\(([A-Z][A-Z0-9.\-]{0,5})\)(?:\s*\[([A-Z]{1,3})\])?")
+_BRACKET = re.compile(r"\[([A-Z]{1,3})\]")
 _AMOUNT = re.compile(r"\$[\d,]+(?:\s*[-–]\s*\$?[\d,]+)?\+?|Over\s+\$[\d,]+", re.IGNORECASE)
-_TYPE = re.compile(r"(?<![A-Za-z])(P|S \(partial\)|S|E)(?![A-Za-z])")
+# A transaction-type code (P/S/E) that immediately precedes a date is the real
+# transaction type; this avoids matching stray letters in the asset description.
+_TYPE_BEFORE_DATE = re.compile(r"(?<![A-Za-z])(P|S \(partial\)|S|E)\s+\d{1,2}/\d{1,2}/\d{4}")
 _OWNER = re.compile(r"^(SP|DC|JT)\b")
 
 
@@ -55,49 +58,94 @@ def ocr_text(pdf_bytes, dpi=200):
 
 
 def parse_transactions(text):
-    """Heuristic line parser for House PTR text. A line is treated as a transaction when it
-    carries an amount range, at least one date, and (usually) a ticker. raw_text is also
-    persisted on the filing so parsing can be refined against real samples later."""
-    rows = []
-    for line in text.splitlines():
-        amt_m = _AMOUNT.search(line)
-        if not amt_m:
-            continue
-        dates = _DATE.findall(line)
-        if not dates:
-            continue
-        tk = _TICKER.search(line)
-        ticker = tk.group(1) if tk else None
-        asset_type = tk.group(2) if (tk and tk.lastindex and tk.group(2)) else None
+    """Parse House PTR text (pdftotext -layout output).
 
-        asset_name = (line[: tk.start()] if tk else line).strip()
+    Records are multi-line: a PRIMARY line carries [owner] asset-part, the P/S/E type,
+    the transaction date, the notification date, and the (possibly partial) amount; one or
+    more CONTINUATION lines wrap the asset name + ticker ``(SYM) [TYPE]`` and the amount's
+    upper bound. Lines containing ``:`` are filing-status/owner/description metadata and end
+    the record. Validated against real filings. raw_text is persisted for future refinement."""
+    lines = text.splitlines()
+    n = len(lines)
+    rows = []
+    i = 0
+    while i < n:
+        line = lines[i]
+        date_ms = list(_DATE.finditer(line))
+        tmatch = None
+        for m in _TYPE_BEFORE_DATE.finditer(line):
+            tmatch = m  # last P/S/E that immediately precedes a date
+        # a transaction's primary line needs two dates (transaction + notification) and a type
+        if not (len(date_ms) >= 2 and tmatch):
+            i += 1
+            continue
+        tx_dm, notif_dm = date_ms[-2], date_ms[-1]
+        ttype = tmatch.group(1)
+
+        # the amount column begins at/after the notification date
+        amt_after = [m for m in _AMOUNT.finditer(line) if m.start() >= notif_dm.start()]
+        if not amt_after:
+            i += 1
+            continue
+        amt_m = amt_after[0]
+        amt_raw = amt_m.group(0)
+        tail_after = line[amt_m.end():].strip()
+
+        # gather wrapped asset/amount continuation lines (stop at blank / dated / metadata)
+        cont = []
+        j = i + 1
+        while j < n:
+            l = lines[j]
+            if not l.strip() or _DATE.search(l) or ":" in l:
+                break
+            cont.append(l.strip())
+            j += 1
+            if j - i > 4:
+                break
+        conttext = " ".join(cont)
+
+        lo, hi, raw = nz.parse_amount(amt_raw)
+        has_range = bool(re.search(r"[-–]\s*\$?\s*[\d,]+", amt_raw))
+        if not has_range and tail_after.startswith("-"):
+            # range upper bound wrapped to a continuation line
+            more = [m.group(0) for m in _AMOUNT.finditer(conttext)]
+            if more:
+                hi2 = nz.parse_amount(more[0])[0]
+                if hi2 and hi2 >= (lo or 0):
+                    hi = hi2
+                    raw = f"{amt_raw.strip().rstrip('-').strip()} - ${hi2:,}"
+
+        head = line[:tmatch.start()].strip()
+        om = _OWNER.match(head)
         owner = None
-        om = _OWNER.match(asset_name)
         if om:
             owner = om.group(1)
-            asset_name = asset_name[om.end():].strip()
+            head = head[om.end():].strip()
 
-        ttype = None
-        tail = line[tk.end():] if tk else line
-        tm = _TYPE.search(tail)
-        if tm:
-            ttype = tm.group(1)
+        asset_src = (head + " " + conttext).strip()
+        tk = _TICKER.search(asset_src)
+        ticker = tk.group(1) if tk else None
+        bt = _BRACKET.search(asset_src)
+        asset_type = (tk.group(2) if (tk and tk.group(2)) else (bt.group(1) if bt else None))
+        asset_name = _AMOUNT.sub("", _BRACKET.sub("", _TICKER.sub("", asset_src)))
+        asset_name = re.sub(r"\s+", " ", asset_name).strip(" .;,-")
 
-        lo, hi, raw = nz.parse_amount(amt_m.group(0))
-        rows.append(
-            {
-                "owner": owner,
-                "ticker": ticker,
-                "asset_name": asset_name or None,
-                "asset_type": asset_type,
-                "transaction_type": nz.norm_tx_type(ttype),
-                "transaction_date": nz.parse_date(dates[0]),
-                "disclosure_date": nz.parse_date(dates[1]) if len(dates) > 1 else None,
-                "amount_min": lo,
-                "amount_max": hi,
-                "amount_range_raw": raw,
-            }
-        )
+        if lo is not None:
+            rows.append(
+                {
+                    "owner": owner,
+                    "ticker": ticker,
+                    "asset_name": asset_name or None,
+                    "asset_type": asset_type,
+                    "transaction_type": nz.norm_tx_type(ttype),
+                    "transaction_date": nz.parse_date(tx_dm.group(1)),
+                    "disclosure_date": nz.parse_date(notif_dm.group(1)),
+                    "amount_min": lo,
+                    "amount_max": hi,
+                    "amount_range_raw": raw,
+                }
+            )
+        i = j  # skip consumed continuation lines
     return rows
 
 
