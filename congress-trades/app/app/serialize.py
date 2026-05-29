@@ -31,6 +31,9 @@ def member_dict(m, trade_count=None):
         "party": m.party,
         "state": m.state,
         "district": m.district,
+        "net_worth_min": float(m.net_worth_min) if m.net_worth_min is not None else None,
+        "net_worth_max": float(m.net_worth_max) if m.net_worth_max is not None else None,
+        "net_worth_year": m.net_worth_year,
     }
     if trade_count is not None:
         d["trade_count"] = trade_count

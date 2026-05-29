@@ -30,6 +30,11 @@ class Member(Base):
     party: Mapped[str | None] = mapped_column(String(32))
     state: Mapped[str | None] = mapped_column(String(8))
     district: Mapped[str | None] = mapped_column(String(8))
+    # Estimated net worth from the latest annual Financial Disclosure (asset-range
+    # midpoints minus liabilities). Range because disclosures are reported as $ brackets.
+    net_worth_min: Mapped[int | None] = mapped_column(Numeric)
+    net_worth_max: Mapped[int | None] = mapped_column(Numeric)
+    net_worth_year: Mapped[int | None] = mapped_column(Integer)
 
 
 class Filing(Base):
