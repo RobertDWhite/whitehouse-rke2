@@ -50,7 +50,12 @@ postgresql:
 # ---------------------------
 server:
   enabled: true
-  replicas: 5
+  # 4, not 5: hard pod-anti-affinity spreads one server pod per node, but only
+  # 4 nodes can reliably host it (node-11 carries an untolerated control-plane
+  # taint, node-14 is cordoned, node-50 is transient and frequently can't pull).
+  # At 5 the rollout deadlocks — the 5th pod is perpetually Pending/ImagePullBackOff,
+  # so the old ReplicaSet never drains and mixed-version login assets 404.
+  replicas: 4
 
   affinity:
     podAntiAffinity:
