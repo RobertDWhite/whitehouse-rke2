@@ -62,13 +62,31 @@ def parse_date(s):
     return None
 
 
-def dedup_key(chamber, name_norm, tx_date, ticker, amount_raw, tx_type):
+_TICKER_OK = re.compile(r"^[A-Z][A-Z0-9.\-]{0,5}$")
+
+
+def clean_ticker(ticker):
+    """Normalize and validate a ticker; return None for OCR junk / non-symbols."""
+    if not ticker:
+        return None
+    t = ticker.strip().upper()
+    if not _TICKER_OK.match(t):
+        return None
+    return t
+
+
+def dedup_key(chamber, name_norm, tx_date, ticker, amount_min, amount_max, tx_type):
+    # Key on the PARSED amount bucket, not the raw string — the same trade arrives from
+    # House/Senate/Lambda with differently-formatted amount text (en-dash vs hyphen, $,
+    # spacing), and keying on raw text would let duplicates survive and defeat source
+    # precedence. Parsed (min,max) is source-independent.
     parts = [
         chamber or "",
         name_norm or "",
         str(tx_date or ""),
         (ticker or "").upper(),
-        (amount_raw or "").strip(),
+        str(amount_min if amount_min is not None else ""),
+        str(amount_max if amount_max is not None else ""),
         tx_type or "",
     ]
     return hashlib.sha1("|".join(parts).encode()).hexdigest()

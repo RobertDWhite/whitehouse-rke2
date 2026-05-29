@@ -3,8 +3,9 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..enrich import enrich_rows
 from ..models import Member, Trade
-from ..serialize import member_dict, trade_dict
+from ..serialize import member_dict
 
 router = APIRouter()
 
@@ -92,5 +93,5 @@ def get_member(member_id: int, db: Session = Depends(get_db)):
         "member": {**member_dict(m, len(trades)), "est_volume": est_volume},
         "by_transaction_type": by_type,
         "top_tickers": top_tickers,
-        "trades": [trade_dict(t, m) for t in trades],
+        "trades": enrich_rows(db, [(t, m) for t in trades]),
     }

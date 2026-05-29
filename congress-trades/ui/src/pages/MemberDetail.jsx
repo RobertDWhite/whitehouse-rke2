@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api, compactMoney } from '../api.js'
+import AiInsights from '../components/AiInsights.jsx'
 import PartyBadge from '../components/PartyBadge.jsx'
 import TradeTable from '../components/TradeTable.jsx'
 
@@ -41,6 +42,8 @@ export default function MemberDetail() {
           <div className="card" key={k}><div className="label">{k}</div><div className="big">{v}</div></div>
         ))}
       </div>
+
+      <AiInsights memberId={m.id} defaultWindow={30} />
 
       {data.top_tickers?.length > 0 && (
         <>

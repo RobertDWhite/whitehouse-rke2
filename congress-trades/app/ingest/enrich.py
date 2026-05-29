@@ -52,6 +52,7 @@ def build_lookup(sess, url, table):
                 "state": last_term.get("state"),
                 "district": str(last_term["district"]) if last_term.get("district") is not None else None,
                 "chamber": {"rep": "house", "sen": "senate"}.get(last_term.get("type")),
+                "bioguide": (leg.get("id") or {}).get("bioguide"),
             }
 
 
@@ -80,6 +81,8 @@ def run():
                 m.district = info["district"]
             if info["chamber"] and not m.chamber:
                 m.chamber = info["chamber"]
+            if info.get("bioguide") and not m.bioguide:
+                m.bioguide = info["bioguide"]
             matched += 1
         db.commit()
         total = db.scalar(select(func.count(Member.id)))

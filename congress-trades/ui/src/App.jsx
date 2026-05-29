@@ -5,6 +5,7 @@ import Members from './pages/Members.jsx'
 import MemberDetail from './pages/MemberDetail.jsx'
 import Tickers from './pages/Tickers.jsx'
 import TickerDetail from './pages/TickerDetail.jsx'
+import Signals from './pages/Signals.jsx'
 import Sources from './pages/Sources.jsx'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
         <nav>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/feed">Feed</NavLink>
+          <NavLink to="/signals">Signals</NavLink>
           <NavLink to="/members">Members</NavLink>
           <NavLink to="/tickers">Tickers</NavLink>
           <NavLink to="/sources">Sources</NavLink>
@@ -28,6 +30,7 @@ export default function App() {
           <Route path="/members/:id" element={<MemberDetail />} />
           <Route path="/tickers" element={<Tickers />} />
           <Route path="/tickers/:symbol" element={<TickerDetail />} />
+          <Route path="/signals" element={<Signals />} />
           <Route path="/sources" element={<Sources />} />
         </Routes>
       </main>

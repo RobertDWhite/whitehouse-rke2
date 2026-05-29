@@ -4,7 +4,7 @@ metadata:
   name: congress-ingest-senate
   namespace: congress-trades
 spec:
-  schedule: "30 7 * * *"       # daily — Senate eFD TOS-cookie scrape + HTML parsing
+  schedule: "*/20 * * * *"     # every 20m — incremental (stop-on-known); polite 2s throttle
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

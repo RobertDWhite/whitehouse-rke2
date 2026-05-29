@@ -3,8 +3,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..enrich import enrich_rows
 from ..models import Member, Trade
-from ..serialize import trade_dict
 
 router = APIRouter()
 
@@ -42,5 +42,5 @@ def ticker_detail(symbol: str, db: Session = Depends(get_db), limit: int = Query
         "ticker": sym,
         "count": len(rows),
         "by_transaction_type": by_type,
-        "items": [trade_dict(t, m) for t, m in rows],
+        "items": enrich_rows(db, rows),
     }

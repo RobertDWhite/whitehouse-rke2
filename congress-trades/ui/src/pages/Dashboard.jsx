@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../api.js'
+import AiInsights from '../components/AiInsights.jsx'
 import PartyBadge from '../components/PartyBadge.jsx'
 import TradeTable from '../components/TradeTable.jsx'
 
@@ -19,6 +20,7 @@ export default function Dashboard() {
   return (
     <>
       <h1>Dashboard</h1>
+      <AiInsights defaultWindow={7} />
       <div className="cards">
         <div className="card"><div className="label">Total Trades</div><div className="big">{stats.total_trades?.toLocaleString()}</div></div>
         <div className="card"><div className="label">House</div><div className="big chamber-house">{(stats.by_chamber?.house || 0).toLocaleString()}</div></div>

@@ -25,6 +25,9 @@ data:
       start_date: "01/01/2023 00:00:00"        # MM/DD/YYYY HH:MM:SS
       page_size: 100
       throttle_seconds: 2
+      # incremental: results are newest-first; stop after this many consecutive
+      # already-parsed filings (0 = full backfill). Keeps frequent polls cheap.
+      stop_after_known: 40
 
     ocr:
       enabled: true
@@ -34,3 +37,30 @@ data:
       # Annual FD reports with the Schedule A asset table. Sitting members' most recent
       # annual report is usually 1-2 years back; scan a few years (newest wins per member).
       years: [2024, 2025, 2026]
+
+    signals:
+      window_days: 14            # window for cluster/streak detection (by disclosure_date)
+      large_usd: 100000          # amount_min >= this => "large" signal (tiers at 250k/1M)
+      cluster_min_members: 2     # >= N distinct members same ticker+direction in window
+      baseline_multiple: 5       # trade >= Nx a member's median => anomaly
+      lag_outlier_days: 40       # disclosure_lag >= this => late-disclosure signal
+
+    alerts:
+      enabled: true
+      ntfy_url: "http://ntfy.ntfy.svc.cluster.local:8080"
+      ntfy_topic: "congress-trades"
+      min_score: 3               # only push trades whose summed signal score >= this
+      max_per_run: 25            # safety cap on notifications per ingest
+
+    prices:
+      # Stooq light-quote CSV (free, no key): one OHLCV row per symbol.
+      quote_url: "https://stooq.com/q/l/?s={symbol}.us&f=sd2t2ohlcv&e=csv"
+
+    ai:
+      base_url: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
+      model: "qwen2.5:14b"       # batch job; falls back to llama3.1:8b then llama3.2:3b
+      fallback_models: ["llama3.1:8b", "llama3.2:3b"]
+      temperature: 0.2
+      request_timeout: 600.0
+      windows: [7, 30]           # global summaries to generate
+      member_window_days: 30     # per-member summaries (only members active in window)
