@@ -1,17 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: tor
+  name: glacier
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    # Manifests live in a separate private repo; ArgoCD authenticates with a
+    # read-only deploy key (see argocd/secret-git-repo-glacier.sops.yaml).
+    repoURL: git@github.com:RobertDWhite/whitehouse-glacier.git
     targetRevision: main
-    path: tor
+    path: .
   destination:
     server: https://kubernetes.default.svc
-    namespace: tor
+    namespace: glacier
   syncPolicy:
     automated:
       prune: true
