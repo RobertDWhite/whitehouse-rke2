@@ -4,7 +4,7 @@ metadata:
   name: congress-ingest-house
   namespace: congress-trades
 spec:
-  schedule: "30 6 * * *"       # daily — House Clerk bulk ZIP + PTR PDF parsing
+  schedule: "*/15 * * * *"     # every 15m — conditional-GET ZIP; 304/no-op when unchanged
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

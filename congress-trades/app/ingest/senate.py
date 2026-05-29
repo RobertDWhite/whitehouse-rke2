@@ -107,11 +107,17 @@ def run():
     sess = common.make_session(cfg)
     token = agree(sess, base)
 
+    # incremental: results are ordered newest-first; once we've seen this many consecutive
+    # already-parsed filings we can stop (0 disables = full backfill scan).
+    stop_after_known = int(sc.get("stop_after_known", 0))
+    consecutive_known = 0
+
     db = SessionLocal()
     processed = 0
+    stop = False
     try:
         start = 0
-        while True:
+        while not stop:
             payload = {
                 "start": str(start),
                 "length": str(page_size),
@@ -124,6 +130,9 @@ def run():
                 "office_id": "",
                 "first_name": "",
                 "last_name": "",
+                # order by "date received" (col 4) descending → newest first
+                "order[0][column]": "4",
+                "order[0][dir]": "desc",
                 "csrfmiddlewaretoken": token,
             }
             r = sess.post(
@@ -156,7 +165,13 @@ def run():
 
                 existing = common.get_filing(db, "senate", doc_id)
                 if existing and existing.parse_status in ("parsed", "ocr", "paper"):
+                    consecutive_known += 1
+                    if stop_after_known and consecutive_known >= stop_after_known:
+                        print(f"senate: {consecutive_known} consecutive known filings — stopping (incremental)")
+                        stop = True
+                        break
                     continue
+                consecutive_known = 0
 
                 full = f"{first} {last}".strip()
                 state = parse_office_state(office)
@@ -219,7 +234,11 @@ def run():
             time.sleep(throttle)
 
         db.commit()
+        common.record_run(db, "senate", rows_upserted=processed, success=True)
         print(f"senate: done, {processed} filings processed")
+    except Exception as e:  # noqa: BLE001
+        common.record_run(db, "senate", success=False, note=str(e))
+        print(f"senate: FAILED {e}")
     finally:
         db.close()
 

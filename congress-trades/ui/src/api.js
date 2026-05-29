@@ -20,6 +20,20 @@ export const api = {
   tickers: (p) => get('/tickers', p),
   ticker: (sym) => get(`/tickers/${encodeURIComponent(sym)}`),
   filings: () => get('/filings'),
+  signals: (p) => get('/signals', p),
+  aiSummary: (window = 7) => get('/ai/summary', { window }),
+  aiMemberSummary: (id, window = 30) => get(`/ai/summary/member/${id}`, { window }),
+}
+
+const SIGNAL_LABELS = {
+  cluster_buy: 'cluster buy',
+  large: 'large',
+  options: 'options',
+  late_disclosure: 'late',
+  anomaly: 'anomaly',
+}
+export function signalLabel(t) {
+  return SIGNAL_LABELS[t] || t
 }
 
 export function money(n) {

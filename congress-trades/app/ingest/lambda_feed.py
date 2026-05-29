@@ -82,6 +82,7 @@ def run():
             )
             n += 1
         db.commit()
+        common.record_run(db, "lambda", rows_upserted=n, success=True)
         print(f"lambda: upserted {n} trades")
     finally:
         db.close()
