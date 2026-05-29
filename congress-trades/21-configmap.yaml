@@ -10,8 +10,8 @@ data:
 
     lambda:
       url: "https://www.lambdafin.com/api/congressional/recent"
-      days: 365          # server caps the window at ~730
-      limit: 1000
+      days: 365          # 730 returns 422 — 365 is the working max window
+      limit: 500         # 500 is the API's max page size (750+ returns 422)
 
     house:
       zip_url_template: "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}FD.zip"
