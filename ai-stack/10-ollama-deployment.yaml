@@ -57,9 +57,15 @@ spec:
             - name: OLLAMA_KEEP_ALIVE
               value: "2h"
             - name: OLLAMA_NUM_PARALLEL
-              value: "1"
+              value: "4"
             - name: OLLAMA_MAX_LOADED_MODELS
               value: "1"
+            # GB10 is a unified-memory iGPU, so KV cache counts against the
+            # container cgroup limit. ollama 0.24 defaults to a 256K VRAM-based
+            # context which, x4 parallel, OOMs the pod. Cap context so we keep
+            # parallelism (politics fires ~25 concurrent summary calls) without OOM.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "16384"
           resources:
             requests:
               cpu: "1"

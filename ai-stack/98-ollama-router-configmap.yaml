@@ -10,9 +10,13 @@ data:
       log_format ollama '$remote_addr [$time_local] "$request" $status $request_time body=$request_body';
 
       # 5090 is primary (fast GDDR7), Spark is backup (always-on)
+      # max_fails=0 on the backup: never eject it. Otherwise a cold-model load
+      # (briefly not accepting connections) trips the default max_fails=1 and,
+      # with the primary down, every queued request gets an instant
+      # "no live upstreams" 502 for the fail_timeout window.
       upstream ollama_backends {
-        server ollama-5090.ai-stack.svc.cluster.local:11434;
-        server ollama.ai-stack.svc.cluster.local:11434 backup;
+        server ollama-5090.ai-stack.svc.cluster.local:11434 max_fails=0;
+        server ollama.ai-stack.svc.cluster.local:11434 backup max_fails=0;
       }
 
       server {
