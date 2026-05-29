@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: congress-trades
+
+resources:
+  - 00-namespace.yaml
+  - 10-postgres.yaml
+  - 21-configmap.yaml
+  - 30-deployment-api.yaml
+  - 31-service-api.yaml
+  - 40-deployment-ui.yaml
+  - 41-service-ui.yaml
+  - 50-cronjob-lambda.yaml
+  - 51-cronjob-house.yaml
+  - 52-cronjob-senate.yaml
+  - 60-httproute-public.yaml
+  - 61-httproute-internal.yaml
+  - 70-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/congress-app
+    newName: registry.internal.white.fm/congress-app
+    newTag: "0.1.0"
+  - name: registry.internal.white.fm/congress-ui
+    newName: registry.internal.white.fm/congress-ui
+    newTag: "0.1.0"

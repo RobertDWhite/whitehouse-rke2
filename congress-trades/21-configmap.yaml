@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: congress-config
+  namespace: congress-trades
+data:
+  config.yaml: |
+    # User-Agent is required — the House Clerk WAF returns 403 for empty UAs.
+    user_agent: "Mozilla/5.0 (compatible; whitehouse-congress/1.0; +https://congress.white.fm)"
+
+    lambda:
+      url: "https://www.lambdafin.com/api/congressional/recent"
+      days: 365          # server caps the window at ~730
+      limit: 1000
+
+    house:
+      zip_url_template: "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}FD.zip"
+      ptr_pdf_template: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf"
+      # Empty -> ingester scans current year and the previous year automatically.
+      years: []
+
+    senate:
+      base: "https://efdsearch.senate.gov"
+      report_types: [11]                       # 11 = Periodic Transaction Report
+      start_date: "01/01/2023 00:00:00"        # MM/DD/YYYY HH:MM:SS
+      page_size: 100
+      throttle_seconds: 2
+
+    ocr:
+      enabled: true
+      dpi: 200
