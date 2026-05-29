@@ -95,7 +95,9 @@ def run():
     init_db()
     sess = common.make_session(cfg)
     hc = cfg["house"]
-    years = hc.get("years") or [dt.date.today().year - 1, dt.date.today().year]
+    nwc = cfg.get("networth", {})
+    y = dt.date.today().year
+    years = nwc.get("years") or [y - 2, y - 1, y]
     ocr_enabled = bool(cfg.get("ocr", {}).get("enabled"))
     ocr_dpi = int(cfg.get("ocr", {}).get("dpi", 200))
 
