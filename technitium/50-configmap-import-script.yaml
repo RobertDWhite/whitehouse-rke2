@@ -403,6 +403,10 @@ data:
             if current != last:
                 if last:
                     print("zones changed on disk, re-importing")
+                # Technitium session tokens expire; the startup token goes stale and every
+                # later re-import fails wholesale ("0 ok, N failed"). Refresh before each
+                # import so newly-added zone records actually get applied.
+                token, _ = login()
                 existing = set(list_zones(token))
                 for path in sorted(current.keys()):
                     try:
