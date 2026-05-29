@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../api.js'
+import PartyBadge from '../components/PartyBadge.jsx'
 import TradeTable from '../components/TradeTable.jsx'
 
 export default function Dashboard() {
@@ -55,12 +56,14 @@ export default function Dashboard() {
       <h2>Most active traders</h2>
       <div className="panel" style={{ padding: 0 }}>
         <table>
-          <thead><tr><th>Member</th><th>Party</th><th className="right">Trades</th></tr></thead>
+          <thead><tr><th>Member</th><th>Party</th><th>Chamber</th><th>District</th><th className="right">Trades</th></tr></thead>
           <tbody>
             {(stats.top_traders || []).map((m) => (
               <tr key={m.member_id}>
-                <td><Link to={`/members/${m.member_id}`}>{m.member}</Link></td>
+                <td className="nowrap"><Link to={`/members/${m.member_id}`}>{m.member}</Link> <PartyBadge party={m.party} /></td>
                 <td className="muted">{m.party || '—'}</td>
+                <td className={`chamber-${m.chamber}`}>{m.chamber || '—'}</td>
+                <td className="muted">{m.state ? `${m.state}${m.district ? `-${m.district}` : ''}` : '—'}</td>
                 <td className="right">{m.count.toLocaleString()}</td>
               </tr>
             ))}
