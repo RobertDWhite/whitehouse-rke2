@@ -17,6 +17,17 @@ spec:
       # the arm64 node-10 and crashloop with "exec format error".
       nodeSelector:
         kubernetes.io/arch: amd64
+      # Exclude node-15: its host-level cross-node networking (VXLAN/UDP 8472)
+      # is broken — pods there are unreachable from the gateway (503). Remove
+      # this once node-15's networking is fixed.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-15]
       containers:
         - name: nitter
           image: registry.internal.white.fm/nitter
