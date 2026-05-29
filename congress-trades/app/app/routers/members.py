@@ -8,6 +8,10 @@ from ..serialize import member_dict, trade_dict
 
 router = APIRouter()
 
+# Disclosed trading volume proxy: sum of per-trade amount-range midpoints.
+# (Amounts are disclosed only as ranges; amount_max is null for open-ended "over $X".)
+_MIDPOINT = (func.coalesce(Trade.amount_min, 0) + func.coalesce(Trade.amount_max, Trade.amount_min, 0)) / 2.0
+
 
 @router.get("/members")
 def list_members(
@@ -19,8 +23,9 @@ def list_members(
     limit: int = Query(500, le=1000),
 ):
     count_col = func.count(Trade.id)
+    vol_col = func.coalesce(func.sum(_MIDPOINT), 0)
     stmt = (
-        select(Member, count_col)
+        select(Member, count_col, vol_col)
         .join(Trade, Trade.member_id == Member.id, isouter=True)
         .group_by(Member.id)
     )
@@ -38,7 +43,11 @@ def list_members(
     stmt = stmt.order_by(count_col.desc()).limit(limit)
 
     rows = db.execute(stmt).all()
-    return {"items": [member_dict(m, tc) for m, tc in rows]}
+    return {
+        "items": [
+            {**member_dict(m, tc), "est_volume": float(vol or 0)} for m, tc, vol in rows
+        ]
+    }
 
 
 @router.get("/members/{member_id}")
@@ -72,8 +81,15 @@ def get_member(member_id: int, db: Session = Depends(get_db)):
         ).all()
     ]
 
+    est_volume = float(
+        db.scalar(
+            select(func.coalesce(func.sum(_MIDPOINT), 0)).where(Trade.member_id == member_id)
+        )
+        or 0
+    )
+
     return {
-        "member": member_dict(m, len(trades)),
+        "member": {**member_dict(m, len(trades)), "est_volume": est_volume},
         "by_transaction_type": by_type,
         "top_tickers": top_tickers,
         "trades": [trade_dict(t, m) for t in trades],
