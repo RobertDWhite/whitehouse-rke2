@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { api } from '../api.js'
+import { api, compactMoney } from '../api.js'
+import PartyBadge from '../components/PartyBadge.jsx'
 import TradeTable from '../components/TradeTable.jsx'
 
 export default function MemberDetail() {
@@ -14,7 +15,7 @@ export default function MemberDetail() {
 
   return (
     <>
-      <h1>{m.full_name}</h1>
+      <h1>{m.full_name} <PartyBadge party={m.party} /></h1>
       <p className="muted">
         <span className={`chamber-${m.chamber}`}>{m.chamber}</span>
         {m.party ? ` · ${m.party}` : ''}{m.state ? ` · ${m.state}${m.district ? `-${m.district}` : ''}` : ''}
@@ -22,6 +23,11 @@ export default function MemberDetail() {
       </p>
 
       <div className="cards">
+        <div className="card">
+          <div className="label">Disclosed volume</div>
+          <div className="big">{compactMoney(m.est_volume)}</div>
+          <div className="note" style={{ marginTop: 4 }}>activity proxy, not net worth</div>
+        </div>
         {Object.entries(data.by_transaction_type || {}).map(([k, v]) => (
           <div className="card" key={k}><div className="label">{k}</div><div className="big">{v}</div></div>
         ))}
