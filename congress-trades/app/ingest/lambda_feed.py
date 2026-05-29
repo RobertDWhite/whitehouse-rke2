@@ -4,6 +4,8 @@ This is a freshness convenience layer only — the House/Senate primary parsers 
 source of truth and supersede these rows (see SOURCE_PRIORITY in common.py)."""
 import time
 
+import requests
+
 from app.config import load_config
 from app.db import SessionLocal, init_db
 
@@ -16,12 +18,21 @@ def run():
     init_db()
     sess = common.make_session(cfg)
     lc = cfg["lambda"]
-    params = {"days": min(int(lc.get("days", 365)), 730), "limit": lc.get("limit", 1000)}
+    # API limits: days<=365 and limit<=500 (larger values return HTTP 422).
+    params = {"days": min(int(lc.get("days", 365)), 365), "limit": min(int(lc.get("limit", 500)), 500)}
 
     trades = []
-    for attempt in range(4):
-        r = sess.get(lc["url"], params=params, timeout=60)
-        r.raise_for_status()
+    for attempt in range(5):
+        try:
+            r = sess.get(lc["url"], params=params, timeout=60)
+        except requests.RequestException as e:
+            print(f"lambda: request error (attempt {attempt + 1}): {e}")
+            time.sleep(3)
+            continue
+        if r.status_code != 200:
+            print(f"lambda: HTTP {r.status_code} (attempt {attempt + 1}), retrying")
+            time.sleep(3)
+            continue
         j = r.json()
         trades = j.get("trades") or j.get("data") or []
         if trades:
