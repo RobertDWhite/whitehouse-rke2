@@ -18,12 +18,19 @@ import zipfile
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
+from app.models import Member
+from sqlalchemy import select
 
 from . import common
 from . import normalize as nz
 
 _AMT = re.compile(r"\$\s*([\d,]+)(?:\s*[-–]\s*\$?\s*([\d,]+))?")
 ASSET_FILING_TYPES = {"O", "C", "A", "D"}  # reports that carry a Schedule A asset table
+# Largest FD value bracket is "$25,000,001-$50,000,000" / "over $50,000,000"; any single
+# value above this is a parse error (e.g. mashed digits) — clamp it.
+_BRACKET_CAP = 50_000_000
+# Total net worth above this is treated as a parse error and discarded.
+_TOTAL_SANITY = 3_000_000_000
 
 
 def extract_text(pdf_bytes):
@@ -71,6 +78,9 @@ def estimate_net_worth(text):
                 hi = int(m2.group(1).replace(",", ""))
         if hi is None:
             hi = lo
+        # clamp misparsed/over-cap values to the largest real FD bracket
+        lo = min(lo, _BRACKET_CAP)
+        hi = min(hi, _BRACKET_CAP)
         if mode == "asset":
             a_lo += lo
             a_hi += hi
@@ -92,6 +102,12 @@ def run():
     db = SessionLocal()
     updated = 0
     try:
+        # only enrich members we already track (from trades) — never create from FD filings,
+        # which would pull in non-member candidates
+        by_key = {}
+        for mem in db.scalars(select(Member)).all():
+            if mem.name_norm:
+                by_key[mem.name_norm] = mem
         # process oldest->newest so the most recent year's report wins per member
         for year in sorted(years):
             z = sess.get(hc["zip_url_template"].format(year=year), timeout=180)
@@ -112,9 +128,9 @@ def run():
                 first = (mem.findtext("First") or "").strip()
                 last = (mem.findtext("Last") or "").strip()
                 full = " ".join(p for p in (first, last, (mem.findtext("Suffix") or "").strip()) if p)
-                member = common.get_or_create_member(db, full, chamber="house")
+                member = by_key.get(nz.norm_name(full))
                 if not member:
-                    continue
+                    continue  # not a tracked member — skip (don't create candidates)
                 url = f"https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}/{doc}.pdf"
                 try:
                     pr = sess.get(url, timeout=120)
@@ -131,6 +147,9 @@ def run():
                     continue
                 a_lo, a_hi, l_lo, l_hi = est
                 if a_lo == 0 and a_hi == 0:
+                    continue
+                if a_hi > _TOTAL_SANITY:
+                    print(f"networth: discard {full} {year} — assets ${a_hi:,} exceed sanity cap")
                     continue
                 # newest year wins (we iterate years ascending)
                 member.net_worth_min = a_lo - l_hi
