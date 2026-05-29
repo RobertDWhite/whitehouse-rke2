@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { amountRange, typeClass } from '../api.js'
+import PartyBadge from './PartyBadge.jsx'
 
 export default function TradeTable({ items, showMember = true }) {
   if (!items || items.length === 0) return <p className="muted">No trades.</p>
@@ -31,11 +32,19 @@ export default function TradeTable({ items, showMember = true }) {
                   ) : (
                     t.member || '—'
                   )}
-                  {t.party ? <span className="muted"> ({t.party?.[0]}{t.state ? `-${t.state}` : ''})</span> : null}
+                  {' '}
+                  <PartyBadge party={t.party} />
+                  {t.state ? <span className="muted"> {t.state}{t.district ? `-${t.district}` : ''}</span> : null}
                 </td>
               )}
               <td className="nowrap">
-                {t.ticker ? <Link to={`/tickers/${t.ticker}`}>{t.ticker}</Link> : '—'}
+                {t.ticker ? (
+                  <Link to={`/tickers/${t.ticker}`}>{t.ticker}</Link>
+                ) : t.asset_type ? (
+                  <span className="muted" title="No ticker (non-equity)">{t.asset_type}</span>
+                ) : (
+                  '—'
+                )}
               </td>
               <td>{t.asset_name || '—'}</td>
               <td><span className={`tag ${typeClass(t.transaction_type)}`}>{t.transaction_type}</span></td>

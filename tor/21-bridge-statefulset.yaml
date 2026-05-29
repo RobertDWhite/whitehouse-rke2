@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: obfs4-bridge
+  namespace: tor
+  labels:
+    app: obfs4-bridge
+spec:
+  serviceName: obfs4-bridge-metrics
+  replicas: 1
+  selector:
+    matchLabels:
+      app: obfs4-bridge
+  template:
+    metadata:
+      labels:
+        app: obfs4-bridge
+    spec:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      # Transient (RTX 5090 box)
+                      - rke2-node-50
+                      # Kubelet/containerd stuck-name bug — see
+                      # 9fcdad68 sdr-research api/ui anti-affinity
+                      - rke2-node-13
+                      - rke2-node-14
+      initContainers:
+        # fsGroup only chowns the group; tor checks owning user as well.
+        # Force uid:gid 101:101 on the PVC root so tor can write DataDirectory.
+        - name: chown-data
+          image: busybox:1.37@sha256:0d3f1e630be52ade0c06107515937607be2cab11a2ad2122099fc79e19bcc18b
+          command: ["sh", "-c", "chown -R 101:101 /var/lib/tor"]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/tor
+      containers:
+        - name: tor
+          image: thetorproject/obfs4-bridge:0.24
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          # Render the final torrc by appending ContactInfo + AddressDisableIPv6
+          # from the secret-mounted env, then exec tor.
+          args:
+            - |
+              set -eu
+              umask 077
+              mkdir -p /var/log/tor
+              chmod 700 /var/log/tor
+              # Start local SOCKS5→HTTP CONNECT proxy (for Tor's OR connections).
+              perl /etc/torrc.d/socks5-proxy.pl >/dev/null 2>&1 &
+              # Start lyrebird standalone — no Tor managed-proxy protocol,
+              # no proxy negotiation. Connects to ExtORPort 9100 on demand.
+              /etc/torrc.d/lyrebird-start.sh >/dev/null 2>&1 &
+              sleep 1
+              # cat > instead of cp so /tmp/torrc gets default rw permissions.
+              cat /etc/torrc.d/torrc > /tmp/torrc
+              echo "ContactInfo ${CONTACT_INFO}" >> /tmp/torrc
+              # Advertise the LoadBalancer public IP to BridgeDB.
+              if [ -n "${ADDRESS:-}" ]; then
+                echo "Address ${ADDRESS}" >> /tmp/torrc
+              fi
+              exec tor -f /tmp/torrc >/dev/null 2>&1
+          env:
+            - name: CONTACT_INFO
+              valueFrom:
+                secretKeyRef:
+                  name: bridge-contact
+                  key: contact-info
+            - name: ADDRESS
+              valueFrom:
+                secretKeyRef:
+                  name: bridge-contact
+                  key: address
+                  optional: true
+          ports:
+            - name: orport
+              containerPort: 9001
+              protocol: TCP
+            - name: obfs4
+              containerPort: 9443
+              protocol: TCP
+            - name: metrics
+              containerPort: 9035
+              protocol: TCP
+          volumeMounts:
+            - name: torrc
+              mountPath: /etc/torrc.d
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/tor
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+          readinessProbe:
+            tcpSocket:
+              port: 9001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 9001
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+      volumes:
+        - name: torrc
+          configMap:
+            name: bridge-torrc
+            defaultMode: 0555
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 1Gi
