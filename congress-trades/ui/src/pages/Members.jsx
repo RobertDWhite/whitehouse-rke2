@@ -15,11 +15,15 @@ export default function Members() {
 
   const set = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }))
 
+  const netWorthMid = (m) =>
+    m.net_worth_min != null && m.net_worth_max != null ? (m.net_worth_min + m.net_worth_max) / 2 : null
+
   const sorted = useMemo(() => {
     if (!items) return null
     const s = [...items]
     if (sort === 'volume') s.sort((a, b) => (b.est_volume || 0) - (a.est_volume || 0))
     else if (sort === 'trades') s.sort((a, b) => (b.trade_count || 0) - (a.trade_count || 0))
+    else if (sort === 'networth') s.sort((a, b) => (netWorthMid(b) ?? -1) - (netWorthMid(a) ?? -1))
     else s.sort((a, b) => a.full_name.localeCompare(b.full_name))
     return s
   }, [items, sort])
@@ -47,6 +51,7 @@ export default function Members() {
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="volume">Sort: Disclosed volume</option>
+          <option value="networth">Sort: Net worth (est.)</option>
           <option value="trades">Sort: Trade count</option>
           <option value="name">Sort: Name</option>
         </select>
@@ -68,6 +73,7 @@ export default function Members() {
                 <th>Name</th>
                 <th>Chamber</th>
                 <th>State</th>
+                <th className="right">Net worth (est.)</th>
                 <th className="right">Trades</th>
                 <th>Disclosed volume</th>
               </tr>
@@ -80,6 +86,9 @@ export default function Members() {
                   </td>
                   <td className={`chamber-${m.chamber}`}>{m.chamber || '—'}</td>
                   <td className="muted">{m.state || '—'}{m.district ? `-${m.district}` : ''}</td>
+                  <td className="right nowrap" title={m.net_worth_year ? `from ${m.net_worth_year} annual disclosure` : ''}>
+                    {netWorthMid(m) != null ? compactMoney(netWorthMid(m)) : <span className="muted">—</span>}
+                  </td>
                   <td className="right">{(m.trade_count || 0).toLocaleString()}</td>
                   <td>
                     <div className="volbar-wrap">

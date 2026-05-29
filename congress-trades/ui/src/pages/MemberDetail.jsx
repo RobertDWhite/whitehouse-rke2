@@ -23,6 +23,15 @@ export default function MemberDetail() {
       </p>
 
       <div className="cards">
+        {m.net_worth_min != null && (
+          <div className="card">
+            <div className="label">Net worth (est.)</div>
+            <div className="big">{compactMoney((m.net_worth_min + m.net_worth_max) / 2)}</div>
+            <div className="note" style={{ marginTop: 4 }}>
+              {compactMoney(m.net_worth_min)}–{compactMoney(m.net_worth_max)} · {m.net_worth_year} FD filing
+            </div>
+          </div>
+        )}
         <div className="card">
           <div className="label">Disclosed volume</div>
           <div className="big">{compactMoney(m.est_volume)}</div>
