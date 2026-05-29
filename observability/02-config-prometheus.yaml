@@ -265,6 +265,22 @@ data:
             target_label: pod
 
       # =========================
+      # glacier namespace metrics
+      # =========================
+      - job_name: glacier
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: glacier
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
       # CrowdSec LAPI metrics
       # =========================
       - job_name: crowdsec
