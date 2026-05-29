@@ -13,6 +13,10 @@ spec:
       labels:
         app: nitter
     spec:
+      # nitter image is amd64-only; without this the rollout pod can land on
+      # the arm64 node-10 and crashloop with "exec format error".
+      nodeSelector:
+        kubernetes.io/arch: amd64
       containers:
         - name: nitter
           image: registry.internal.white.fm/nitter
