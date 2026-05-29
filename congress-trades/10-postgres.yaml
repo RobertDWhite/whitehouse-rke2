@@ -95,10 +95,12 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        # Single-replica: this DB is a cache fully reconstructable from the public
-        # primary sources, so 3-replica durability is unnecessary (and the cluster is
-        # tight on longhorn capacity — 3 replicas can't schedule).
-        storageClassName: longhorn-single
+        # local-path (node-local): this DB is a cache fully reconstructable from the
+        # public primary sources, so it needs no replication/backup. Longhorn is
+        # currently scheduling-exhausted (can't place even a single 10Gi replica),
+        # so local-path avoids that dependency. If longhorn capacity is freed later
+        # and replication is desired, switch back to a longhorn storageClass.
+        storageClassName: local-path
         resources:
           requests:
             storage: 10Gi
