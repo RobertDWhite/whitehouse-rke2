@@ -95,7 +95,10 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: longhorn
+        # Single-replica: this DB is a cache fully reconstructable from the public
+        # primary sources, so 3-replica durability is unnecessary (and the cluster is
+        # tight on longhorn capacity — 3 replicas can't schedule).
+        storageClassName: longhorn-single
         resources:
           requests:
             storage: 10Gi
