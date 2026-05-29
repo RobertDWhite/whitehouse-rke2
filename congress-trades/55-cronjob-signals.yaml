@@ -1,12 +1,12 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: congress-ingest-house
+  name: congress-signals
   namespace: congress-trades
 spec:
-  schedule: "*/15 * * * *"     # every 15m — conditional-GET ZIP; 304/no-op when unchanged
+  schedule: "*/20 * * * *"        # signals scoring + ntfy alerts
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
@@ -36,7 +36,7 @@ spec:
             - name: ingest
               image: registry.internal.white.fm/congress-app
               imagePullPolicy: IfNotPresent
-              command: ["python", "-m", "ingest.house"]
+              command: ["python", "-m", "ingest.signals"]
               env:
                 - name: CONFIG_PATH
                   value: /etc/congress/config.yaml
@@ -54,8 +54,8 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: "2"
-                  memory: 2Gi
+                  cpu: "1"
+                  memory: 512Mi
           volumes:
             - name: config
               configMap:

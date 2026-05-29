@@ -5,12 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import make_asgi_app
 
 from .db import init_db
-from .routers import filings, members, stats, tickers, trades
+from .metrics import register as register_metrics
+from .routers import ai, filings, members, signals_api, stats, tickers, trades
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    register_metrics()
     yield
 
 
@@ -36,3 +38,5 @@ app.include_router(members.router, prefix="/api")
 app.include_router(tickers.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(filings.router, prefix="/api")
+app.include_router(signals_api.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")

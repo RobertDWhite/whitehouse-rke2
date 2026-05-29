@@ -4,11 +4,33 @@ import requests
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from app.models import Filing, Member, Trade
+from app.models import Filing, IngestState, Member, Trade
 
 from . import normalize as nz
 
 SOURCE_PRIORITY = {"lambda": 1, "house_primary": 2, "senate_primary": 2}
+
+
+def get_ingest_state(session, source):
+    st = session.get(IngestState, source)
+    if not st:
+        st = IngestState(source=source)
+        session.add(st)
+        session.flush()
+    return st
+
+
+def record_run(session, source, rows_upserted=0, success=True, note=None):
+    """Track per-source run outcome so the API can expose a freshness/watchdog metric."""
+    st = get_ingest_state(session, source)
+    now = dt.datetime.now(dt.timezone.utc)
+    st.last_run = now
+    if success:
+        st.last_success = now
+        st.rows_upserted = rows_upserted
+    if note is not None:
+        st.note = note[:500]
+    session.commit()
 
 _TRADE_COLS = [
     "filing_id",
@@ -92,11 +114,11 @@ def upsert_trade(
     filing_id=None,
 ):
     name_norm = member.name_norm if member else ""
-    key = nz.dedup_key(chamber, name_norm, transaction_date, ticker, amount_range_raw, transaction_type)
+    ticker = nz.clean_ticker(ticker)
+    key = nz.dedup_key(
+        chamber, name_norm, transaction_date, ticker, amount_min, amount_max, transaction_type
+    )
     prio = SOURCE_PRIORITY.get(source, 1)
-    ticker = (ticker or None)
-    if ticker:
-        ticker = ticker.upper()[:32]
 
     stmt = pg_insert(Trade).values(
         filing_id=filing_id,

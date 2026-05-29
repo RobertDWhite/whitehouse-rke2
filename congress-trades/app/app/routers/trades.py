@@ -3,8 +3,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Member, Trade
-from ..serialize import trade_dict
+from ..enrich import enrich_rows
+from ..models import Member, Trade, TradeSignal
 
 router = APIRouter()
 
@@ -22,6 +22,8 @@ def list_trades(
     start_date: str | None = None,
     end_date: str | None = None,
     min_amount: int | None = None,
+    max_lag: int | None = None,
+    signal: str | None = None,
     q: str | None = None,
     sort: str = "transaction_date",
     order: str = "desc",
@@ -49,7 +51,14 @@ def list_trades(
     if end_date:
         conds.append(Trade.transaction_date <= end_date)
     if min_amount:
-        conds.append(Trade.amount_max >= min_amount)
+        # use the upper bound, falling back to the lower bound for open-ended "over $X"
+        conds.append(func.coalesce(Trade.amount_max, Trade.amount_min) >= min_amount)
+    if max_lag is not None:
+        conds.append((Trade.disclosure_date - Trade.transaction_date) >= max_lag)
+    if signal:
+        conds.append(
+            Trade.id.in_(select(TradeSignal.trade_id).where(TradeSignal.signal_type == signal))
+        )
     if q:
         like = f"%{q}%"
         conds.append(
@@ -81,5 +90,5 @@ def list_trades(
         "total": total,
         "limit": limit,
         "offset": offset,
-        "items": [trade_dict(t, m) for t, m in rows],
+        "items": enrich_rows(db, rows),
     }

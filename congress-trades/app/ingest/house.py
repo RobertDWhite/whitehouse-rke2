@@ -151,10 +151,30 @@ def parse_transactions(text):
 
 def ingest_year(db, sess, hc, year, cfg):
     url = hc["zip_url_template"].format(year=year)
-    r = sess.get(url, timeout=180)
+    st = common.get_ingest_state(db, f"house:{year}")
+
+    # Conditional GET: the Clerk rebuilds the ZIP continuously; skip re-parse if unchanged.
+    headers = {}
+    if st.etag:
+        headers["If-None-Match"] = st.etag
+    if st.last_modified:
+        headers["If-Modified-Since"] = st.last_modified
+    r = sess.get(url, headers=headers, timeout=180)
+    if r.status_code == 304:
+        print(f"house {year}: 304 not modified")
+        return 0
     if r.status_code != 200:
         print(f"house {year}: zip HTTP {r.status_code}")
-        return
+        return 0
+    # fallback change-detection when the server omits validators: compare content-length
+    clen = len(r.content)
+    if not headers and st.content_length == clen and st.last_success:
+        print(f"house {year}: unchanged (content-length {clen})")
+        return 0
+    st.etag = r.headers.get("ETag")
+    st.last_modified = r.headers.get("Last-Modified")
+    st.content_length = clen
+    db.flush()
 
     zf = zipfile.ZipFile(io.BytesIO(r.content))
     xml_name = next((n for n in zf.namelist() if n.lower().endswith(".xml")), None)
@@ -252,7 +272,9 @@ def ingest_year(db, sess, hc, year, cfg):
             print(f"house {year}: processed {processed}")
 
     db.commit()
+    common.record_run(db, f"house:{year}", rows_upserted=processed, success=True)
     print(f"house {year}: done, {processed} new/updated filings")
+    return processed
 
 
 def run():
@@ -262,9 +284,15 @@ def run():
     hc = cfg["house"]
     years = hc.get("years") or default_years()
     db = SessionLocal()
+    total = 0
     try:
         for year in years:
-            ingest_year(db, sess, hc, year, cfg)
+            try:
+                total += ingest_year(db, sess, hc, year, cfg) or 0
+            except Exception as e:  # noqa: BLE001
+                common.record_run(db, f"house:{year}", success=False, note=str(e))
+                print(f"house {year}: FAILED {e}")
+        common.record_run(db, "house", rows_upserted=total, success=True)
     finally:
         db.close()
 

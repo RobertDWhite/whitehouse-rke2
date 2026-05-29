@@ -1,10 +1,12 @@
 import datetime as dt
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -26,6 +28,7 @@ class Member(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     full_name: Mapped[str] = mapped_column(String(256))
     name_norm: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    bioguide: Mapped[str | None] = mapped_column(String(16), index=True)  # join key to congress.gov
     chamber: Mapped[str | None] = mapped_column(String(16))
     party: Mapped[str | None] = mapped_column(String(32))
     state: Mapped[str | None] = mapped_column(String(8))
@@ -79,3 +82,78 @@ class Trade(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     dedup_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (
+        # dominant access patterns: member detail and ticker detail, newest-first
+        Index("ix_trades_member_txdate", "member_id", "transaction_date"),
+        Index("ix_trades_ticker_txdate", "ticker", "transaction_date"),
+        Index("ix_trades_disclosure_date", "disclosure_date"),
+    )
+
+
+class IngestState(Base):
+    """Per-source incremental-fetch state (conditional GET / change detection)."""
+
+    __tablename__ = "ingest_state"
+
+    source: Mapped[str] = mapped_column(String(64), primary_key=True)  # e.g. house:2026
+    etag: Mapped[str | None] = mapped_column(String(256))
+    last_modified: Mapped[str | None] = mapped_column(String(128))
+    content_length: Mapped[int | None] = mapped_column(Integer)
+    last_success: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    last_run: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    rows_upserted: Mapped[int | None] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(Text)
+
+
+class TradeSignal(Base):
+    """A scored 'interesting' attribute of a trade (cluster buy, large, options, lag, …)."""
+
+    __tablename__ = "trade_signals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    trade_id: Mapped[int] = mapped_column(ForeignKey("trades.id", ondelete="CASCADE"), index=True)
+    signal_type: Mapped[str] = mapped_column(String(32), index=True)
+    score: Mapped[int] = mapped_column(Integer, default=1)
+    detail: Mapped[dict | None] = mapped_column(JSON)
+    alerted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (UniqueConstraint("trade_id", "signal_type", name="uq_signal_trade_type"),)
+
+
+class Watchlist(Base):
+    __tablename__ = "watchlist"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # member | ticker
+    value: Mapped[str] = mapped_column(String(64))  # member_id (str) or ticker
+    min_score: Mapped[int] = mapped_column(Integer, default=1)
+
+    __table_args__ = (UniqueConstraint("kind", "value", name="uq_watch_kind_value"),)
+
+
+class TickerPrice(Base):
+    """Latest daily close per ticker (Stooq), for return-since-disclosure / share counts."""
+
+    __tablename__ = "ticker_prices"
+
+    ticker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    close: Mapped[float | None] = mapped_column(Numeric)
+    as_of: Mapped[dt.date | None] = mapped_column(Date)
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AiSummary(Base):
+    __tablename__ = "ai_summaries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scope: Mapped[str] = mapped_column(String(32), index=True)  # global | member
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), index=True)
+    window_days: Mapped[int] = mapped_column(Integer)
+    summary_md: Mapped[str | None] = mapped_column(Text)
+    observations: Mapped[list | None] = mapped_column(JSON)
+    model: Mapped[str | None] = mapped_column(String(64))
+    data_hash: Mapped[str | None] = mapped_column(String(64))
+    trade_count: Mapped[int | None] = mapped_column(Integer)
+    generated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)

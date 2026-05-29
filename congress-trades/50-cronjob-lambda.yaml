@@ -4,7 +4,7 @@ metadata:
   name: congress-ingest-lambda
   namespace: congress-trades
 spec:
-  schedule: "0 * * * *"        # hourly — near-live third-party top-up
+  schedule: "0 */12 * * *"     # twice daily — safety-net/cross-check (primaries poll every ~15-20m)
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
