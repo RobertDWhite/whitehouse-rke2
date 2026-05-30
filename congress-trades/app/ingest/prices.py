@@ -1,12 +1,10 @@
-"""Enrich tickers with daily price history from Stooq (free, no key).
+"""Daily price history from the free Yahoo Finance chart API (no key).
 
-Stores full daily closes in `ticker_bars` (incremental per ticker) — this powers
-return-since-disclosure, performance leaderboards, and SPY-benchmarked backtests — plus the
-latest close in `ticker_prices` for quick share-count math. Benchmarks (SPY, QQQ) are fetched
-as ordinary tickers. The multi-symbol batch quote is malformed, so we fetch per symbol."""
-import csv
+Stooq blocks bulk-history downloads from datacenter IPs; Yahoo's chart endpoint works and
+returns full daily history as JSON. Stores closes in `ticker_bars` (incremental per ticker —
+powers return-since-disclosure, performance leaderboards, SPY-benchmarked analytics) plus the
+latest close in `ticker_prices`. Benchmarks (SPY, QQQ) are fetched as ordinary tickers."""
 import datetime as dt
-import io
 import time
 
 from sqlalchemy import distinct, func, select
@@ -18,60 +16,54 @@ from app.models import TickerBar, TickerPrice, Trade
 
 from . import common
 
-# daily history (has a header row: Date,Open,High,Low,Close,Volume)
-DEFAULT_HISTORY_URL = "https://stooq.com/q/d/l/?s={symbol}.us&d1={d1}&i=d"
+CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range={range}&interval=1d"
 BENCHMARKS = ["SPY", "QQQ"]
-DEFAULT_START = "20230101"
+BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
 
 def run():
     cfg = load_config()
     init_db()
-    pc = cfg.get("prices", {})
-    history_url = pc.get("history_url", DEFAULT_HISTORY_URL)
-    start = pc.get("history_start", DEFAULT_START)
     sess = common.make_session(cfg)
+    sess.headers.update({"User-Agent": BROWSER_UA})
     db = SessionLocal()
     updated = 0
     bars_added = 0
     try:
         tickers = [t for (t,) in db.execute(select(distinct(Trade.ticker)).where(Trade.ticker.isnot(None))).all()]
-        symbols = list(dict.fromkeys(BENCHMARKS + tickers))  # benchmarks first, dedup
-
-        # last stored bar per ticker (for incremental fetch)
+        symbols = list(dict.fromkeys(BENCHMARKS + tickers))
         last_bar = {
             tk: d
             for tk, d in db.execute(select(TickerBar.ticker, func.max(TickerBar.bar_date)).group_by(TickerBar.ticker)).all()
         }
+        today = dt.date.today()
 
         for sym in symbols:
-            d1 = start
-            if sym in last_bar and last_bar[sym]:
-                d1 = last_bar[sym].strftime("%Y%m%d")
+            # incremental: short range if we already have recent bars, else full backfill
+            lb = last_bar.get(sym)
+            rng = "1mo" if (lb and (today - lb).days < 25) else "2y"
             try:
-                r = sess.get(history_url.format(symbol=sym.lower(), d1=d1), timeout=30)
+                r = sess.get(CHART_URL.format(symbol=sym, range=rng), timeout=30)
                 if r.status_code != 200:
                     continue
-                rows = list(csv.DictReader(io.StringIO(r.text)))
+                res = (r.json().get("chart", {}).get("result") or [None])[0]
+                if not res:
+                    continue
+                tstamps = res.get("timestamp") or []
+                closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close") or []
                 latest = None
-                for row in rows:
-                    date = row.get("Date")
-                    close = row.get("Close")
-                    if not date or close in (None, "", "N/D"):
+                for ts, cl in zip(tstamps, closes):
+                    if cl is None:
                         continue
-                    try:
-                        bd = dt.datetime.strptime(date, "%Y-%m-%d").date()
-                        cl = float(close)
-                    except ValueError:
-                        continue
+                    bd = dt.datetime.utcfromtimestamp(ts).date()
                     db.execute(
                         pg_insert(TickerBar)
-                        .values(ticker=sym, bar_date=bd, close=cl)
-                        .on_conflict_do_update(index_elements=["ticker", "bar_date"], set_={"close": cl})
+                        .values(ticker=sym, bar_date=bd, close=float(cl))
+                        .on_conflict_do_update(index_elements=["ticker", "bar_date"], set_={"close": float(cl)})
                     )
                     bars_added += 1
                     if latest is None or bd >= latest[0]:
-                        latest = (bd, cl)
+                        latest = (bd, float(cl))
                 if latest:
                     db.execute(
                         pg_insert(TickerPrice)
@@ -86,9 +78,9 @@ def run():
             except Exception as e:  # noqa: BLE001
                 print(f"prices: {sym} failed: {e}")
                 db.rollback()
-            time.sleep(0.25)
+            time.sleep(0.2)
         common.record_run(db, "prices", rows_upserted=updated, success=True, note=f"{bars_added} bars")
-        print(f"prices: {updated} tickers, {bars_added} bars upserted")
+        print(f"prices: {updated} tickers, {bars_added} bars")
     except Exception as e:  # noqa: BLE001
         common.record_run(db, "prices", success=False, note=str(e))
         raise
