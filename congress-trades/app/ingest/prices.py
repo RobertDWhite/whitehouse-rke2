@@ -34,11 +34,13 @@ def run():
                 r = sess.get(BATCH_URL.format(symbols=symbols), timeout=30)
                 if r.status_code != 200:
                     continue
-                reader = csv.DictReader(io.StringIO(r.text))
-                for row in reader:
-                    sym = (row.get("Symbol") or "").split(".")[0].upper()
-                    close = row.get("Close")
-                    date = row.get("Date")
+                # f=sd2t2ohlcv yields HEADERLESS rows: symbol,date,time,open,high,low,close,volume
+                for cols in csv.reader(io.StringIO(r.text)):
+                    if len(cols) < 7 or cols[0].lower() == "symbol":
+                        continue
+                    sym = cols[0].split(".")[0].upper()
+                    date = cols[1]
+                    close = cols[6]
                     if not sym or close in (None, "", "N/D"):
                         continue
                     try:
