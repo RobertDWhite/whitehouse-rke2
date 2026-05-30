@@ -140,13 +140,13 @@ def run():
             .limit(10)
         ).all()]
 
-        conv_ids = select(TradeSignal.trade_id).where(and_(TradeSignal.signal_type == "conviction", TradeSignal.score >= 50))
+        conv_ids = select(TradeSignal.trade_id).where(and_(TradeSignal.signal_type == "conviction", TradeSignal.score >= 30))
         presets = [
             ("all", "All Congress", "equal", Trade.id.isnot(None)),
             ("democrat", "Democrats", "equal", Member.party == "Democrat"),
             ("republican", "Republicans", "equal", Member.party == "Republican"),
             ("top_performers", "Top-10 performers", "equal", Trade.member_id.in_(top_ids) if top_ids else Trade.id.is_(None)),
-            ("high_conviction", "Conviction ≥ 50 basket", "conviction", Trade.id.in_(conv_ids)),
+            ("high_conviction", "High-conviction basket", "conviction", Trade.id.in_(conv_ids)),
         ]
         made = 0
         for key, label, weighting, where in presets:

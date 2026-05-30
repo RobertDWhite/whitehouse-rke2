@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import delete, or_, select
@@ -8,6 +10,12 @@ from ..enrich import enrich_rows
 from ..models import Member, Trade, Watchlist
 
 router = APIRouter()
+READONLY = os.environ.get("PUBLIC_READONLY", "").lower() in ("1", "true", "yes")
+
+
+def _guard():
+    if READONLY:
+        raise HTTPException(403, "read-only mode")
 
 
 class WatchItem(BaseModel):
@@ -33,6 +41,7 @@ def list_watchlist(db: Session = Depends(get_db)):
 
 @router.post("/watchlist")
 def add_watchlist(item: WatchItem, db: Session = Depends(get_db)):
+    _guard()
     if item.kind not in ("member", "ticker"):
         raise HTTPException(400, "kind must be member or ticker")
     value = item.value.upper() if item.kind == "ticker" else item.value
@@ -47,6 +56,7 @@ def add_watchlist(item: WatchItem, db: Session = Depends(get_db)):
 
 @router.delete("/watchlist/{watch_id}")
 def remove_watchlist(watch_id: int, db: Session = Depends(get_db)):
+    _guard()
     db.execute(delete(Watchlist).where(Watchlist.id == watch_id))
     db.commit()
     return {"status": "removed"}
