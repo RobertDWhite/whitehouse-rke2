@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # poppler-utils -> pdftotext (text) + pdftoppm (rasterize for OCR); tesseract-ocr -> OCR engine
 RUN apt-get update \
