@@ -155,7 +155,7 @@ def notify(db, cfg):
         who = m.full_name if m else "Unknown"
         party = f" ({m.party[0]}-{m.state})" if (m and m.party and m.state) else ""
         direction = (t.transaction_type or "").upper()
-        msg = f"{who}{party} {direction} {t.ticker or t.asset_name or '?'} {t.amount_range or ''}".strip()
+        msg = f"{who}{party} {direction} {t.ticker or t.asset_name or '?'} {t.amount_range_raw or ''}".strip()
         tags = ",".join(sorted(set(types)))[:120]
         try:
             requests.post(
