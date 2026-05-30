@@ -12,7 +12,7 @@ from sqlalchemy import and_, case, func, select
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
-from app.models import AiSummary, Member, Trade
+from app.models import AiSummary, Member, Trade, TradeSignal
 
 from . import common
 
@@ -38,8 +38,11 @@ Rules:
   * net accumulation vs distribution (NET_PRESSURE: more buys than sells, or vice-versa)
 - Output STRICT JSON only (no markdown fences), matching:
 {"summary_md":"<3-5 sentence markdown overview leading with the hottest buys/sells and any cluster buying or dumping>",
- "observations":[{"text":"<one factual pattern, <=140 chars>","tickers":["..."],"members":["..."]}]}
-Produce 4-7 observations. Prioritize: most-bought, most-sold, cluster buys, cluster dumps, biggest single trades."""
+ "observations":[{"text":"<one factual pattern, <=140 chars>","tickers":["..."],"members":["..."]}],
+ "watchlist":[{"ticker":"<MUST be from WATCHLIST_CANDIDATES>","reason":"<<=120 chars, cite the metric (conviction/buyers/net) from DATA>"}]}
+Produce 4-7 observations. For the watchlist, pick 3-6 tickers ONLY from WATCHLIST_CANDIDATES, ordered by
+conviction then net accumulation; the reason must cite the data (e.g. 'conviction 62, 4 buyers, net +$1.2M').
+This is a research watchlist of disclosed accumulation, NOT a buy recommendation. Never invent a ticker."""
 
 _MID = (func.coalesce(Trade.amount_min, 0) + func.coalesce(Trade.amount_max, Trade.amount_min, 0)) / 2.0
 
@@ -183,6 +186,34 @@ def aggregate(db, window_days, member_id=None):
     if top_tk:
         lines.append("TOP_TICKERS: " + " ".join(f"{tk}({c})" for tk, c in top_tk))
 
+    # WATCHLIST_CANDIDATES: net-accumulation tickers with conviction + buyers — the only tickers
+    # the model may put on the watchlist (server overwrites the numbers, so they can't hallucinate).
+    candidates = {}
+    if not member_id:
+        net = func.sum(case((Trade.transaction_type == "purchase", _MID), (Trade.transaction_type == "sale", -_MID), else_=0))
+        buyers = func.count(func.distinct(case((Trade.transaction_type == "purchase", Trade.member_id))))
+        cand_rows = db.execute(
+            select(Trade.ticker, net.label("net"), buyers.label("buyers"))
+            .where(and_(where, Trade.ticker.isnot(None)))
+            .group_by(Trade.ticker)
+            .having(net > 0)
+            .order_by(net.desc())
+            .limit(12)
+        ).all()
+        conv = dict(
+            db.execute(
+                select(Trade.ticker, func.max(TradeSignal.score))
+                .join(TradeSignal, and_(TradeSignal.trade_id == Trade.id, TradeSignal.signal_type == "conviction"))
+                .where(and_(where, Trade.ticker.isnot(None)))
+                .group_by(Trade.ticker)
+            ).all()
+        )
+        if cand_rows:
+            lines.append("WATCHLIST_CANDIDATES (net-accumulated; only these may be on the watchlist):")
+            for tk, netv, bc in cand_rows:
+                candidates[tk] = {"conviction": conv.get(tk), "buyers": int(bc or 0), "net_notional": float(netv or 0)}
+                lines.append(f"- {tk}: conviction={conv.get(tk)} buyers={int(bc or 0)} net={_money(netv)}")
+
     data_block = "\n".join(lines)
     extra = set()
     if not member_id:
@@ -190,11 +221,13 @@ def aggregate(db, window_days, member_id=None):
             extra.add(r[0])
         for r in clusters + dumps + pressure:
             extra.add(r[0])
+        extra |= set(candidates.keys())
     tickers_in = {tk for tk, _ in top_tk} | extra
     return {
         "data_block": data_block,
         "total": total,
         "tickers": {t.upper() for t in tickers_in if t},
+        "candidates": {k.upper(): v for k, v in candidates.items()},
         "data_hash": hashlib.sha256(data_block.encode()).hexdigest(),
     }
 
@@ -264,7 +297,22 @@ def parse_and_ground(content, agg, db, window_days, member_id):
         if mbs and not resolved_members:
             continue
         grounded.append({"text": text[:200], "tickers": tks, "members": mbs, "member_ids": resolved_members})
-    return summary_md, grounded
+
+    # watchlist: only candidate tickers; server overwrites conviction/buyers with true values
+    candidates = agg.get("candidates") or {}
+    watchlist = []
+    seen = set()
+    for w in obj.get("watchlist", []) or []:
+        tk = (w.get("ticker") or "").upper()
+        if tk not in candidates or tk in seen:
+            continue
+        seen.add(tk)
+        c = candidates[tk]
+        watchlist.append(
+            {"ticker": tk, "reason": (w.get("reason") or "")[:160],
+             "conviction": c.get("conviction"), "buyers": c.get("buyers"), "net_notional": c.get("net_notional")}
+        )
+    return summary_md, grounded, watchlist
 
 
 def generate(db, cfg, window_days, member_id=None, scope="global"):
@@ -281,7 +329,7 @@ def generate(db, cfg, window_days, member_id=None, scope="global"):
     if latest and latest.data_hash == agg["data_hash"]:
         return False
     model, content = call_llm(cfg, agg["data_block"])
-    summary_md, observations = parse_and_ground(content, agg, db, window_days, member_id)
+    summary_md, observations, watchlist = parse_and_ground(content, agg, db, window_days, member_id)
     db.add(
         AiSummary(
             scope=scope,
@@ -289,6 +337,7 @@ def generate(db, cfg, window_days, member_id=None, scope="global"):
             window_days=window_days,
             summary_md=summary_md,
             observations=observations,
+            watchlist=watchlist,
             model=model,
             data_hash=agg["data_hash"],
             trade_count=agg["total"],
