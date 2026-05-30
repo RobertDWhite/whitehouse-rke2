@@ -16,18 +16,21 @@ data:
     house:
       zip_url_template: "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}FD.zip"
       ptr_pdf_template: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf"
-      # Empty -> ingester scans current year and the previous year automatically.
-      years: []
+      # Empty -> ingester scans current year and the previous year. Explicit list = deep
+      # backfill: index ZIPs are tiny (~100KB) and already-parsed filings are skipped, so the
+      # Forbid cron grinds through historical PTR PDFs once and is a cheap no-op thereafter.
+      years: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
     senate:
       base: "https://efdsearch.senate.gov"
       report_types: [11]                       # 11 = Periodic Transaction Report
-      start_date: "01/01/2023 00:00:00"        # MM/DD/YYYY HH:MM:SS
+      start_date: "01/01/2014 00:00:00"        # MM/DD/YYYY HH:MM:SS — deep backfill to STOCK-Act era
       page_size: 100
       throttle_seconds: 2
-      # incremental: results are newest-first; stop after this many consecutive
-      # already-parsed filings (0 = full backfill). Keeps frequent polls cheap.
-      stop_after_known: 40
+      # results are newest-first. 0 = always scan the full list (cheap: known filings are skipped
+      # before any HTML fetch, so steady-state only paginates JSON and fetches nothing). 0 also
+      # guarantees the deep backfill converges across Forbid-cron runs even if one is interrupted.
+      stop_after_known: 0
 
     ocr:
       enabled: true
