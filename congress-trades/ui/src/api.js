@@ -103,7 +103,7 @@ export function typeClass(t) {
 export function partyLetter(party) {
   if (!party) return null
   const c = party.trim()[0].toUpperCase()
-  return ['D', 'R', 'I', 'L'].includes(c) ? c : null
+  return ['D', 'R', 'I', 'L', 'G'].includes(c) ? c : null
 }
 
 export function compactMoney(n) {

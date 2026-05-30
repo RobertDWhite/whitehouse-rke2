@@ -115,6 +115,13 @@ def upsert_trade(
 ):
     name_norm = member.name_norm if member else ""
     ticker = nz.clean_ticker(ticker)
+    # Guard OCR/parse year-mangling (e.g. 3031, 2220): a transaction is disclosed AFTER it happens,
+    # so a date in the future or past its own disclosure is corrupt. Drop the date, keep the trade.
+    today = dt.date.today()
+    if transaction_date and (transaction_date > today or (disclosure_date and transaction_date > disclosure_date)):
+        transaction_date = None
+    if disclosure_date and disclosure_date > today:
+        disclosure_date = None
     key = nz.dedup_key(
         chamber, name_norm, transaction_date, ticker, amount_min, amount_max, transaction_type
     )
