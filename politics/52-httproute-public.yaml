@@ -1,3 +1,9 @@
+# Public route is gated by Authentik SSO: traffic for politics.white.fm is sent to the
+# Authentik embedded outpost (authentik-server:80, cross-namespace), which authenticates by
+# Host header and proxies to the upstream configured in its Proxy Provider
+# (http://politics-ui.politics.svc.cluster.local:80). Same pattern as congress/adsb/fr24.
+# Requires: the ReferenceGrant in authentik/ (politics added) AND an Authentik
+# Proxy Provider + Application for politics.white.fm assigned to the embedded outpost.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -12,5 +18,6 @@ spec:
     - politics.white.fm
   rules:
     - backendRefs:
-        - name: politics-ui
+        - name: authentik-server
+          namespace: authentik
           port: 80
