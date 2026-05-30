@@ -282,13 +282,25 @@ def parse_and_ground(content, agg, db, window_days, member_id):
     for name, mid in rows:
         name_to_id[name.lower()] = mid
 
+    def _strs(v):
+        # the model sometimes returns dicts ({"name": ...}) or numbers — coerce to clean strings
+        out = []
+        for x in v or []:
+            if isinstance(x, str):
+                out.append(x)
+            elif isinstance(x, dict):
+                out.append(str(x.get("name") or x.get("ticker") or x.get("symbol") or "").strip())
+        return [s for s in out if s]
+
     grounded = []
     for o in obj.get("observations", []) or []:
+        if not isinstance(o, dict):
+            continue
         text = (o.get("text") or "").strip()
         if not text:
             continue
-        tks = [t.upper() for t in (o.get("tickers") or []) if t]
-        mbs = [m for m in (o.get("members") or []) if m]
+        tks = [t.upper() for t in _strs(o.get("tickers"))]
+        mbs = _strs(o.get("members"))
         # drop observations that cite tickers/members not present in the window's data
         bad_ticker = any(t not in agg["tickers"] for t in tks) and tks
         resolved_members = [name_to_id[m.lower()] for m in mbs if m.lower() in name_to_id]
@@ -303,7 +315,9 @@ def parse_and_ground(content, agg, db, window_days, member_id):
     watchlist = []
     seen = set()
     for w in obj.get("watchlist", []) or []:
-        tk = (w.get("ticker") or "").upper()
+        if not isinstance(w, dict):
+            continue
+        tk = str(w.get("ticker") or "").upper()
         if tk not in candidates or tk in seen:
             continue
         seen.add(tk)
