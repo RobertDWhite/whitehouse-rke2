@@ -61,7 +61,7 @@ export default function TickerDetail() {
         {Object.entries(data.by_transaction_type || {}).map(([k, v]) => (
           <div className="card" key={k}><div className="label">{k}</div><div className="big num">{v}</div></div>
         ))}
-        <div className="card"><div className="label">Party split</div><div className="big num"><span className="pos">{party.D}D</span> / <span className="neg">{party.R}R</span></div></div>
+        <div className="card"><div className="label">Party split</div><div className="big num"><span className="pc-D">{party.D}D</span> / <span className="pc-R">{party.R}R</span></div></div>
       </div>
 
       {news && news.length > 0 && (

@@ -40,6 +40,9 @@ def init_db():
             "ALTER TABLE ai_summaries ADD COLUMN IF NOT EXISTS watchlist JSONB",
             "ALTER TABLE ticker_meta ADD COLUMN IF NOT EXISTS sentiment NUMERIC",
             "ALTER TABLE ticker_meta ADD COLUMN IF NOT EXISTS sentiment_n INTEGER",
+            # Scrub OCR/parse year-mangling: future dates or a transaction past its own disclosure.
+            "UPDATE trades SET transaction_date = NULL WHERE transaction_date > CURRENT_DATE OR (disclosure_date IS NOT NULL AND transaction_date > disclosure_date)",
+            "UPDATE trades SET disclosure_date = NULL WHERE disclosure_date > CURRENT_DATE",
         ):
             conn.execute(text(stmt))
 
