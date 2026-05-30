@@ -25,6 +25,8 @@ def init_db():
             ("net_worth_max", "NUMERIC"),
             ("net_worth_year", "INTEGER"),
             ("bioguide", "VARCHAR(16)"),
+            ("committees", "JSONB"),
+            ("committee_sectors", "JSONB"),
         ):
             conn.execute(text(f"ALTER TABLE members ADD COLUMN IF NOT EXISTS {col} {typ}"))
         for stmt in (
@@ -32,6 +34,10 @@ def init_db():
             "CREATE INDEX IF NOT EXISTS ix_trades_ticker_txdate ON trades (ticker, transaction_date)",
             "CREATE INDEX IF NOT EXISTS ix_trades_disclosure_date ON trades (disclosure_date)",
             "CREATE INDEX IF NOT EXISTS ix_members_bioguide ON members (bioguide)",
+            "ALTER TABLE trades ADD COLUMN IF NOT EXISTS entry_price NUMERIC",
+            "ALTER TABLE trades ADD COLUMN IF NOT EXISTS return_pct NUMERIC",
+            "ALTER TABLE trades ADD COLUMN IF NOT EXISTS bench_return_pct NUMERIC",
+            "ALTER TABLE ai_summaries ADD COLUMN IF NOT EXISTS watchlist JSONB",
         ):
             conn.execute(text(stmt))
 

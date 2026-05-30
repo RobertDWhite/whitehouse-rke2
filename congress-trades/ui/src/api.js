@@ -12,28 +12,62 @@ async function get(path, params) {
   return r.json()
 }
 
+async function send(method, path, body) {
+  const r = await fetch(BASE + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
 export const api = {
   trades: (p) => get('/trades', p),
   stats: () => get('/stats'),
+  timeseries: (days = 90) => get('/stats/timeseries', { days }),
+  sectorStats: (days = 90) => get('/stats/sectors', { days }),
   members: (p) => get('/members', p),
   member: (id) => get(`/members/${id}`),
   tickers: (p) => get('/tickers', p),
   ticker: (sym) => get(`/tickers/${encodeURIComponent(sym)}`),
   filings: () => get('/filings'),
   signals: (p) => get('/signals', p),
+  ideas: (p) => get('/ideas', p),
+  leaderboard: (p) => get('/leaderboard', p),
   aiSummary: (window = 7) => get('/ai/summary', { window }),
   aiMemberSummary: (id, window = 30) => get(`/ai/summary/member/${id}`, { window }),
+  watchlist: () => get('/watchlist'),
+  watchlistFeed: () => get('/watchlist/feed'),
+  watchAdd: (kind, value) => send('POST', '/watchlist', { kind, value }),
+  watchRemove: (id) => send('DELETE', `/watchlist/${id}`),
+}
+
+export function pct(n, digits = 1) {
+  if (n == null) return '—'
+  const v = n * 100
+  return (v >= 0 ? '+' : '') + v.toFixed(digits) + '%'
 }
 
 const SIGNAL_LABELS = {
   cluster_buy: 'cluster buy',
+  cluster_sell: 'cluster dump',
   large: 'large',
   options: 'options',
   late_disclosure: 'late',
   anomaly: 'anomaly',
+  conflict: 'conflict',
 }
 export function signalLabel(t) {
   return SIGNAL_LABELS[t] || t
+}
+
+// 0-100 conviction -> color band
+export function convictionClass(score) {
+  if (score == null) return ''
+  if (score >= 60) return 'conv-high'
+  if (score >= 35) return 'conv-mid'
+  return 'conv-low'
 }
 
 export function money(n) {

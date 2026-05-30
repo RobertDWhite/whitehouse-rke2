@@ -12,9 +12,12 @@ from app.models import Member
 from sqlalchemy import func, select
 
 from . import common
+from . import taxonomy
 
 CURRENT = "https://unitedstates.github.io/congress-legislators/legislators-current.json"
 HISTORICAL = "https://unitedstates.github.io/congress-legislators/legislators-historical.json"
+COMMITTEES = "https://unitedstates.github.io/congress-legislators/committees-current.json"
+COMMITTEE_MEMBERSHIP = "https://unitedstates.github.io/congress-legislators/committee-membership-current.json"
 
 _TITLES = {"hon", "mr", "mrs", "ms", "dr", "jr", "sr", "ii", "iii", "iv", "dds", "md"}
 
@@ -66,6 +69,21 @@ def run():
     build_lookup(sess, HISTORICAL, lookup)        # backfill former members
     print(f"enrich: loaded {len(lookup)} legislator name keys")
 
+    # committee memberships: bioguide -> [committee display names]
+    committees_by_bioguide = {}
+    try:
+        cmts = {c["thomas_id"]: c.get("name") for c in sess.get(COMMITTEES, timeout=60).json()}
+        membership = sess.get(COMMITTEE_MEMBERSHIP, timeout=60).json()
+        for cid, members in membership.items():
+            name = cmts.get(cid) or cmts.get(cid[:4]) or cid
+            for mem in members:
+                bg = mem.get("bioguide")
+                if bg:
+                    committees_by_bioguide.setdefault(bg, set()).add(name)
+        print(f"enrich: loaded committees for {len(committees_by_bioguide)} members")
+    except Exception as e:  # noqa: BLE001
+        print(f"enrich: committee fetch failed: {e}")
+
     db = SessionLocal()
     matched = 0
     try:
@@ -83,6 +101,11 @@ def run():
                 m.chamber = info["chamber"]
             if info.get("bioguide") and not m.bioguide:
                 m.bioguide = info["bioguide"]
+            bg = m.bioguide or info.get("bioguide")
+            cmts = sorted(committees_by_bioguide.get(bg, [])) if bg else []
+            if cmts:
+                m.committees = cmts
+                m.committee_sectors = taxonomy.committee_sectors(cmts)
             matched += 1
         db.commit()
         total = db.scalar(select(func.count(Member.id)))
