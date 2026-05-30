@@ -62,6 +62,14 @@ spec:
       ports:
         - port: 8000
           protocol: TCP
+    # MCP server (separate namespace) proxies read-only queries to the API.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: congress-mcp
+      ports:
+        - port: 8000
+          protocol: TCP
     - from:
         - namespaceSelector:
             matchLabels:
