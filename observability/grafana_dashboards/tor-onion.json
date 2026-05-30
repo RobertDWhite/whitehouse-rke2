@@ -1,0 +1,94 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "13.0.1",
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum(increase(onion_requests_total[$__range]))", "legendFormat": "requests", "refId": "A" } ],
+      "title": "Total onion requests ($__range)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "textMode": "auto" },
+      "pluginVersion": "13.0.1",
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum(rate(onion_requests_total[5m]))", "legendFormat": "req/s", "refId": "A" } ],
+      "title": "Onion request rate (5m)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 15, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" } }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "legend": { "calcs": [ "sum", "max" ], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum by (service) (rate(onion_requests_total[5m]))", "legendFormat": "{{service}}", "refId": "A" } ],
+      "title": "Request rate by service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisPlacement": "auto", "fillOpacity": 80, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineWidth": 1, "scaleDistribution": { "type": "linear" } }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 4 },
+      "id": 4,
+      "options": { "barRadius": 0, "barWidth": 0.7, "fullHighlight": false, "groupWidth": 0.7, "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false }, "orientation": "horizontal", "showValue": "auto", "stacking": "none", "tooltip": { "mode": "single", "sort": "none" }, "xTickLabelRotation": 0, "xTickLabelSpacing": 0 },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sort_desc(sum by (service) (increase(onion_requests_total[$__range])))", "format": "time_series", "instant": true, "legendFormat": "{{service}}", "refId": "A" } ],
+      "title": "Requests by service ($__range)",
+      "type": "barchart"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "id": 5,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum by (status) (rate(onion_requests_total[5m]))", "legendFormat": "{{status}}", "refId": "A" } ],
+      "title": "Request rate by HTTP status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "id": 6,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true, "sortBy": [ { "desc": true, "displayName": "Requests" } ] },
+      "pluginVersion": "13.0.1",
+      "targets": [ { "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sort_desc(sum by (service) (increase(onion_requests_total[$__range])))", "format": "table", "instant": true, "refId": "A" } ],
+      "title": "Onion requests per service ($__range)",
+      "transformations": [ { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "namespace": true, "pod": true, "status": true }, "renameByName": { "service": "Service", "Value": "Requests" } } } ],
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
+      "id": 7,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [ { "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" }, "editorMode": "code", "expr": "{namespace=\"tor-onion\", container=\"nginx\"} |= \"service=\" != \"service=health\"", "queryType": "range", "refId": "A" } ],
+      "title": "Live onion access log (Tor-only)",
+      "type": "logs"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [ "tor", "onion", "privacy" ],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Tor Onion Access",
+  "uid": "ffbp5qeorery8b",
+  "version": 1,
+  "weekStart": ""
+}
