@@ -67,8 +67,10 @@ export default function TradeTable({ items, showMember = true }) {
               <td><span className={`tag ${typeClass(t.transaction_type)}`}>{t.transaction_type}</span></td>
               <td className="right nowrap num">{amountRange(t)}</td>
               <td><Conviction score={t.conviction} /></td>
-              <td className={`right num ${t.excess_pct != null ? (t.excess_pct >= 0 ? 'pos' : 'neg') : ''}`}>
-                {t.return_pct != null ? pct(t.return_pct) : '—'}
+              <td className={`right num ${(t.live_return_pct ?? t.return_pct) != null ? ((t.live_return_pct ?? t.return_pct) >= 0 ? 'pos' : 'neg') : ''}`}
+                  title={t.entry_price ? `entry $${t.entry_price.toFixed?.(2) ?? t.entry_price} (disclosure date) → ${t.live_price ? 'live $' + t.live_price : 'close'}` : ''}>
+                {t.live_return_pct != null ? <>{pct(t.live_return_pct)}<span className="live-dot" title="live">●</span></>
+                  : t.return_pct != null ? pct(t.return_pct) : '—'}
               </td>
               <td className="nowrap"><SignalBadges signals={t.signals} /></td>
               <td className="nowrap">

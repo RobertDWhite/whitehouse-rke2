@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..enrich import enrich_rows
-from ..models import Member, TickerMeta, TickerPrice, Trade
+from ..models import Member, TickerMeta, TickerPrice, TickerQuote, Trade
 
 router = APIRouter()
 
@@ -40,12 +40,17 @@ def ticker_detail(symbol: str, db: Session = Depends(get_db), limit: int = Query
     )
     meta = db.get(TickerMeta, sym)
     price = db.get(TickerPrice, sym)
+    quote = db.get(TickerQuote, sym)
     return {
         "ticker": sym,
         "company": meta.company if meta else None,
         "sector": meta.sector if meta else None,
+        "sentiment": float(meta.sentiment) if (meta and meta.sentiment is not None) else None,
+        "sentiment_n": meta.sentiment_n if meta else None,
         "price": float(price.close) if (price and price.close is not None) else None,
         "price_as_of": price.as_of.isoformat() if (price and price.as_of) else None,
+        "live_price": float(quote.last) if (quote and quote.last is not None) else None,
+        "market_state": quote.market_state if quote else None,
         "count": len(rows),
         "by_transaction_type": by_type,
         "items": enrich_rows(db, rows),
