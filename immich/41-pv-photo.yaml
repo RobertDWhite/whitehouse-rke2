@@ -9,6 +9,9 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   mountOptions:
     - nfsvers=4.1
+    - nconnect=8        # 8 parallel TCP connections per mount — raises read throughput off the NAS
+    - rsize=1048576
+    - wsize=1048576
   nfs:
     server: 10.100.1.20
     path: /volume2/photo
