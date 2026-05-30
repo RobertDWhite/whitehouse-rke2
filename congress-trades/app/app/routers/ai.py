@@ -23,6 +23,7 @@ def _serialize(s):
         "window_days": s.window_days,
         "summary_md": s.summary_md,
         "observations": s.observations or [],
+        "watchlist": s.watchlist or [],
         "model": s.model,
         "trade_count": s.trade_count,
         "generated_at": s.generated_at.isoformat() if s.generated_at else None,

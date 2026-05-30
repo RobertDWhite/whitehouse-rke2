@@ -38,6 +38,9 @@ class Member(Base):
     net_worth_min: Mapped[int | None] = mapped_column(Numeric)
     net_worth_max: Mapped[int | None] = mapped_column(Numeric)
     net_worth_year: Mapped[int | None] = mapped_column(Integer)
+    # committee memberships (from unitedstates/congress-legislators) + derived oversight sectors
+    committees: Mapped[list | None] = mapped_column(JSON)
+    committee_sectors: Mapped[list | None] = mapped_column(JSON)
 
 
 class Filing(Base):
@@ -82,6 +85,11 @@ class Trade(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     dedup_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    # follower performance: entry = close on/after disclosure_date (the date you could act),
+    # return to latest close, and the same-window SPY benchmark. Precomputed nightly.
+    entry_price: Mapped[float | None] = mapped_column(Numeric)
+    return_pct: Mapped[float | None] = mapped_column(Numeric)
+    bench_return_pct: Mapped[float | None] = mapped_column(Numeric)
 
     __table_args__ = (
         # dominant access patterns: member detail and ticker detail, newest-first
@@ -144,6 +152,30 @@ class TickerPrice(Base):
     updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TickerBar(Base):
+    """Historical daily closes (Stooq) — enables entry-price/return-since-disclosure, leaderboards,
+    and benchmarking vs SPY. Benchmarks (SPY/QQQ) are stored as normal tickers."""
+
+    __tablename__ = "ticker_bars"
+
+    ticker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    bar_date: Mapped[dt.date] = mapped_column(Date, primary_key=True)
+    close: Mapped[float] = mapped_column(Numeric)
+
+
+class TickerMeta(Base):
+    """Sector/industry/company metadata from SEC (company_tickers + submissions)."""
+
+    __tablename__ = "ticker_meta"
+
+    ticker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    cik: Mapped[str | None] = mapped_column(String(16), index=True)
+    company: Mapped[str | None] = mapped_column(String(256))
+    sic: Mapped[str | None] = mapped_column(String(8))
+    sector: Mapped[str | None] = mapped_column(String(64), index=True)
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class AiSummary(Base):
     __tablename__ = "ai_summaries"
 
@@ -153,6 +185,7 @@ class AiSummary(Base):
     window_days: Mapped[int] = mapped_column(Integer)
     summary_md: Mapped[str | None] = mapped_column(Text)
     observations: Mapped[list | None] = mapped_column(JSON)
+    watchlist: Mapped[list | None] = mapped_column(JSON)
     model: Mapped[str | None] = mapped_column(String(64))
     data_hash: Mapped[str | None] = mapped_column(String(64))
     trade_count: Mapped[int | None] = mapped_column(Integer)
