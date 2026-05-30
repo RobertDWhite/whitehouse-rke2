@@ -313,3 +313,16 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # congresstrades.white.fm — public, no-SSO read-only host (own cert, off the wildcard)
+    - name: https-congresstrades-public
+      protocol: HTTPS
+      port: 443
+      hostname: "congresstrades.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: congresstrades-tls
+      allowedRoutes:
+        namespaces:
+          from: All
