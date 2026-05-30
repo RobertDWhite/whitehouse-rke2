@@ -56,6 +56,9 @@ data:
       # Stooq light-quote CSV (free, no key): one OHLCV row per symbol.
       quote_url: "https://stooq.com/q/l/?s={symbol}.us&f=sd2t2ohlcv&e=csv"
 
+    sentiment:
+      max_tickers: 120          # StockTwits is rate-limited; refresh the most-active tickers
+
     ai:
       base_url: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
       model: "qwen2.5:14b"       # batch job; falls back to llama3.1:8b then llama3.2:3b

@@ -30,15 +30,15 @@ SET_RETURN = text(
     """
 )
 
-# SPY return over the identical window (entry = first SPY bar on/after disclosure_date)
+# SPY return over the identical window (entry = first SPY bar on/after disclosure_date).
+# Correlated subqueries in SET (Postgres forbids a FROM-clause LATERAL referencing the UPDATE target).
 SET_BENCH = text(
     """
-    UPDATE trades t SET bench_return_pct = (spy_now.close / spy_entry.close - 1)
-    FROM (SELECT close FROM ticker_prices WHERE ticker = 'SPY') spy_now,
-         LATERAL (
-            SELECT b.close FROM ticker_bars b
-            WHERE b.ticker = 'SPY' AND b.bar_date >= t.disclosure_date
-            ORDER BY b.bar_date LIMIT 1) spy_entry
+    UPDATE trades t SET bench_return_pct =
+        (SELECT close FROM ticker_prices WHERE ticker = 'SPY')
+        / NULLIF((SELECT b.close FROM ticker_bars b
+                  WHERE b.ticker = 'SPY' AND b.bar_date >= t.disclosure_date
+                  ORDER BY b.bar_date LIMIT 1), 0) - 1
     WHERE t.entry_price IS NOT NULL AND t.disclosure_date IS NOT NULL
     """
 )

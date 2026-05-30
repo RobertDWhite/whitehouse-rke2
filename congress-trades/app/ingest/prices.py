@@ -17,7 +17,7 @@ from app.models import TickerBar, TickerPrice, Trade
 from . import common
 
 CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range={range}&interval=1d"
-BENCHMARKS = ["SPY", "QQQ"]
+BENCHMARKS = ["SPY", "QQQ", "NANC", "KRUZ"]  # NANC/KRUZ = the Congress-tracking ETFs
 BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 
 

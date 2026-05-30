@@ -41,6 +41,18 @@ export const api = {
   watchlistFeed: () => get('/watchlist/feed'),
   watchAdd: (kind, value) => send('POST', '/watchlist', { kind, value }),
   watchRemove: (id) => send('DELETE', `/watchlist/${id}`),
+  strategies: () => get('/strategies'),
+  strategy: (key) => get(`/strategies/${key}`),
+  portfolio: () => get('/portfolio/holdings'),
+  portfolioOverlap: () => get('/portfolio/overlap'),
+  holdingAdd: (h) => send('POST', '/portfolio/holdings', h),
+  holdingRemove: (id) => send('DELETE', `/portfolio/holdings/${id}`),
+  status: () => get('/status'),
+  tickerNews: (sym) => get(`/tickers/${encodeURIComponent(sym)}/news`),
+}
+
+export function exportCsv() {
+  window.open('/api/export/trades.csv', '_blank')
 }
 
 export function pct(n, digits = 1) {
@@ -57,6 +69,7 @@ const SIGNAL_LABELS = {
   late_disclosure: 'late',
   anomaly: 'anomaly',
   conflict: 'conflict',
+  corp_event: '8-K',
 }
 export function signalLabel(t) {
   return SIGNAL_LABELS[t] || t

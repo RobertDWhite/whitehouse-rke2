@@ -8,6 +8,8 @@ import MemberDetail from './pages/MemberDetail.jsx'
 import Tickers from './pages/Tickers.jsx'
 import TickerDetail from './pages/TickerDetail.jsx'
 import Signals from './pages/Signals.jsx'
+import Strategies from './pages/Strategies.jsx'
+import Portfolio from './pages/Portfolio.jsx'
 import Watchlist from './pages/Watchlist.jsx'
 import Sources from './pages/Sources.jsx'
 import GlobalSearch from './components/GlobalSearch.jsx'
@@ -21,11 +23,13 @@ export default function App() {
         <nav>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/ideas">Ideas</NavLink>
+          <NavLink to="/strategies">Strategies</NavLink>
           <NavLink to="/feed">Feed</NavLink>
           <NavLink to="/signals">Signals</NavLink>
           <NavLink to="/leaderboard">Leaderboard</NavLink>
           <NavLink to="/members">Members</NavLink>
           <NavLink to="/tickers">Tickers</NavLink>
+          <NavLink to="/portfolio">Portfolio</NavLink>
           <NavLink to="/watchlist">Watchlist</NavLink>
           <NavLink to="/sources">Sources</NavLink>
         </nav>
@@ -37,6 +41,8 @@ export default function App() {
           <Route path="/ideas" element={<Ideas />} />
           <Route path="/feed" element={<Feed />} />
           <Route path="/signals" element={<Signals />} />
+          <Route path="/strategies" element={<Strategies />} />
+          <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/members" element={<Members />} />
           <Route path="/members/:id" element={<MemberDetail />} />
