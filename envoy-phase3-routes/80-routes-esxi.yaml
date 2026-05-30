@@ -1,0 +1,131 @@
+# ESXi host UIs proxied through the gateway so they present the trusted
+# *.internal.white.fm wildcard cert instead of the per-host vSphere VMCA
+# cert (IP-only SAN). Envoy terminates TLS at the gateway and re-originates
+# HTTPS to each host with insecureSkipVerify (the hosts' certs are IP-only
+# and unvalidatable by BackendTLSPolicy). Same pattern as unifi/protect/pihole.
+#
+# Direct IP endpoints — NOT fqdn: esxiNN.internal.white.fm now points at the
+# gateway VIP, so an fqdn endpoint would loop back through Envoy.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: esxi11-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - ip:
+        address: 10.100.1.11
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: esxi13-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - ip:
+        address: 10.100.1.13
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: esxi14-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - ip:
+        address: 10.100.1.14
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: esxi15-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - ip:
+        address: 10.100.1.15
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: esxi11-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - esxi11.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: esxi11-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: esxi13-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - esxi13.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: esxi13-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: esxi14-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - esxi14.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: esxi14-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: esxi15-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - esxi15.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: esxi15-tls
