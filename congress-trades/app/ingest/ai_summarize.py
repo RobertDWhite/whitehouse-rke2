@@ -8,7 +8,7 @@ import hashlib
 import json
 
 import requests
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, select
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
@@ -31,12 +31,33 @@ Rules:
 - State only facts present in DATA. Never invent members, tickers, amounts, committees, or sectors.
 - If DATA is sparse, say so. Do not speculate.
 - Amounts are disclosed as ranges; never state a precise dollar figure.
+- LEAD with the most actionable patterns when the DATA shows them:
+  * "hot"/most-purchased tickers (TOP_PURCHASED) and most-sold tickers (TOP_SOLD)
+  * coordinated buying — multiple members bought the same ticker (CLUSTER_BUYS)
+  * "multiple dumps" — multiple members SOLD the same ticker (CLUSTER_DUMPS)
+  * net accumulation vs distribution (NET_PRESSURE: more buys than sells, or vice-versa)
 - Output STRICT JSON only (no markdown fences), matching:
-{"summary_md":"<3-5 sentence markdown overview>",
+{"summary_md":"<3-5 sentence markdown overview leading with the hottest buys/sells and any cluster buying or dumping>",
  "observations":[{"text":"<one factual pattern, <=140 chars>","tickers":["..."],"members":["..."]}]}
-Produce 3-6 observations, each directly supported by a line in DATA."""
+Produce 4-7 observations. Prioritize: most-bought, most-sold, cluster buys, cluster dumps, biggest single trades."""
 
 _MID = (func.coalesce(Trade.amount_min, 0) + func.coalesce(Trade.amount_max, Trade.amount_min, 0)) / 2.0
+
+
+def _ticker_agg(db, where, ttype, limit=8):
+    """Top tickers for a transaction type: (ticker, trade_count, distinct_members, volume)."""
+    return db.execute(
+        select(
+            Trade.ticker,
+            func.count().label("n"),
+            func.count(func.distinct(Trade.member_id)).label("members"),
+            func.coalesce(func.sum(_MID), 0).label("vol"),
+        )
+        .where(and_(where, Trade.ticker.isnot(None), Trade.transaction_type == ttype))
+        .group_by(Trade.ticker)
+        .order_by(func.count().desc(), func.coalesce(func.sum(_MID), 0).desc())
+        .limit(limit)
+    ).all()
 
 
 def _money(n):
@@ -86,6 +107,17 @@ def aggregate(db, window_days, member_id=None):
         for name, party, chamber, state, c in top:
             lines.append(f"- {name} ({(party or '?')[:1]}, {chamber}, {state}): {c} trades")
 
+        top_buys = _ticker_agg(db, where, "purchase")
+        top_sells = _ticker_agg(db, where, "sale")
+        if top_buys:
+            lines.append("TOP_PURCHASED (most-bought tickers):")
+            for tk, n, mc, vol in top_buys:
+                lines.append(f"- {tk}: {n} buys by {mc} member(s), {_money(vol)}")
+        if top_sells:
+            lines.append("TOP_SOLD (most-sold tickers):")
+            for tk, n, mc, vol in top_sells:
+                lines.append(f"- {tk}: {n} sells by {mc} member(s), {_money(vol)}")
+
         clusters = db.execute(
             select(Trade.ticker, func.count(func.distinct(Trade.member_id)))
             .where(and_(where, Trade.ticker.isnot(None), Trade.transaction_type == "purchase"))
@@ -98,6 +130,37 @@ def aggregate(db, window_days, member_id=None):
             lines.append("CLUSTER_BUYS (>=2 members bought same ticker):")
             for tk, mc in clusters:
                 lines.append(f"- {tk}: {mc} members bought")
+
+        dumps = db.execute(
+            select(Trade.ticker, func.count(func.distinct(Trade.member_id)))
+            .where(and_(where, Trade.ticker.isnot(None), Trade.transaction_type == "sale"))
+            .group_by(Trade.ticker)
+            .having(func.count(func.distinct(Trade.member_id)) >= 2)
+            .order_by(func.count(func.distinct(Trade.member_id)).desc())
+            .limit(8)
+        ).all()
+        if dumps:
+            lines.append("CLUSTER_DUMPS (>=2 members SOLD same ticker):")
+            for tk, mc in dumps:
+                lines.append(f"- {tk}: {mc} members sold")
+
+        # net buy/sell pressure for the most-active tickers (accumulation vs distribution)
+        pressure = db.execute(
+            select(
+                Trade.ticker,
+                func.sum(case((Trade.transaction_type == "purchase", 1), else_=0)),
+                func.sum(case((Trade.transaction_type == "sale", 1), else_=0)),
+            )
+            .where(and_(where, Trade.ticker.isnot(None)))
+            .group_by(Trade.ticker)
+            .order_by(func.count().desc())
+            .limit(10)
+        ).all()
+        if pressure:
+            lines.append("NET_PRESSURE (buys vs sells per active ticker):")
+            for tk, b, s in pressure:
+                tag = "accumulating" if (b or 0) > (s or 0) else "distributing" if (s or 0) > (b or 0) else "mixed"
+                lines.append(f"- {tk}: {int(b or 0)} buys / {int(s or 0)} sells ({tag})")
 
     big = db.execute(
         select(Member.full_name, Trade.ticker, Trade.transaction_type, Trade.amount_range_raw, Trade.transaction_date)
@@ -121,7 +184,13 @@ def aggregate(db, window_days, member_id=None):
         lines.append("TOP_TICKERS: " + " ".join(f"{tk}({c})" for tk, c in top_tk))
 
     data_block = "\n".join(lines)
-    tickers_in = {tk for tk, _ in top_tk} | {tk for tk, _ in (clusters if not member_id else [])}
+    extra = set()
+    if not member_id:
+        for r in top_buys + top_sells:
+            extra.add(r[0])
+        for r in clusters + dumps + pressure:
+            extra.add(r[0])
+    tickers_in = {tk for tk, _ in top_tk} | extra
     return {
         "data_block": data_block,
         "total": total,
