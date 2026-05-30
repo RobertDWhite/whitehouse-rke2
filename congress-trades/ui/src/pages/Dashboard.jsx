@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api, compactMoney } from '../api.js'
 import AiInsights from '../components/AiInsights.jsx'
 import BuySellTimeline from '../components/BuySellTimeline.jsx'
+import SectorTreemap from '../components/SectorTreemap.jsx'
 import PartyBadge from '../components/PartyBadge.jsx'
 import TradeTable from '../components/TradeTable.jsx'
 import { SkeletonCards, SkeletonTable } from '../components/Skeleton.jsx'
@@ -26,10 +27,12 @@ function Kpi({ label, value, d }) {
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [ts, setTs] = useState(null)
+  const [sectors, setSectors] = useState(null)
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => setStats(false))
     api.timeseries(120).then((d) => setTs(d.items)).catch(() => setTs([]))
+    api.sectorStats(90).then((d) => setSectors(d.items)).catch(() => setSectors([]))
   }, [])
 
   return (
@@ -110,6 +113,11 @@ export default function Dashboard() {
             </table>
           )}
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 24 }}>
+        <h3>Where the money is flowing · sector volume (90d)</h3>
+        {sectors === null ? <div className="loading">Loading…</div> : <SectorTreemap data={sectors} />}
       </div>
 
       <h2>Recently disclosed</h2>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, money } from '../api.js'
+import { api, money, pct } from '../api.js'
 import PartyBadge from '../components/PartyBadge.jsx'
 import StarToggle from '../components/StarToggle.jsx'
 import TradeTable from '../components/TradeTable.jsx'
@@ -9,8 +9,13 @@ import { SkeletonCards } from '../components/Skeleton.jsx'
 export default function TickerDetail() {
   const { symbol } = useParams()
   const [data, setData] = useState(null)
+  const [news, setNews] = useState(null)
 
-  useEffect(() => { setData(null); api.ticker(symbol).then(setData).catch(() => setData(false)) }, [symbol])
+  useEffect(() => {
+    setData(null); setNews(null)
+    api.ticker(symbol).then(setData).catch(() => setData(false))
+    api.tickerNews(symbol).then((d) => setNews(d.items || [])).catch(() => setNews([]))
+  }, [symbol])
 
   const byMember = useMemo(() => {
     if (!data?.items) return []
@@ -39,14 +44,36 @@ export default function TickerDetail() {
       <p className="muted">{data.company || ''}{data.sector ? ` · ${data.sector}` : ''} · {data.count} disclosed trades</p>
 
       <div className="cards">
-        {data.price != null && (
-          <div className="card"><div className="label">Latest close</div><div className="big num">{money(data.price)}</div><div className="note">{data.price_as_of || ''}</div></div>
+        {(data.live_price ?? data.price) != null && (
+          <div className="card">
+            <div className="label">{data.live_price != null ? 'Live price' : 'Latest close'}</div>
+            <div className="big num">{money(data.live_price ?? data.price)}{data.live_price != null && <span className="live-dot">●</span>}</div>
+            <div className="note">{data.market_state || data.price_as_of || ''}</div>
+          </div>
+        )}
+        {data.sentiment != null && (
+          <div className="card">
+            <div className="label">Retail sentiment</div>
+            <div className={`big num ${data.sentiment >= 0 ? 'pos' : 'neg'}`}>{data.sentiment >= 0 ? 'Bullish' : 'Bearish'} {pct(data.sentiment, 0)}</div>
+            <div className="note">StockTwits · {data.sentiment_n} msgs</div>
+          </div>
         )}
         {Object.entries(data.by_transaction_type || {}).map(([k, v]) => (
           <div className="card" key={k}><div className="label">{k}</div><div className="big num">{v}</div></div>
         ))}
         <div className="card"><div className="label">Party split</div><div className="big num"><span className="pos">{party.D}D</span> / <span className="neg">{party.R}R</span></div></div>
       </div>
+
+      {news && news.length > 0 && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <h3>Recent news</h3>
+          <div className="news-list">
+            {news.map((n, i) => (
+              <a key={i} href={n.link} target="_blank" rel="noopener noreferrer">{n.title}<span className="src"> · {n.source}</span></a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {byMember.length > 0 && (
         <>

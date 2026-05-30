@@ -6,7 +6,10 @@ from prometheus_client import make_asgi_app
 
 from .db import init_db
 from .metrics import register as register_metrics
-from .routers import ai, filings, ideas, leaderboard, members, signals_api, stats, tickers, trades, watchlist
+from .routers import (
+    ai, feeds, filings, ideas, leaderboard, members, portfolio, signals_api,
+    stats, strategies, tickers, trades, watchlist,
+)
 
 
 @asynccontextmanager
@@ -43,3 +46,6 @@ app.include_router(ai.router, prefix="/api")
 app.include_router(ideas.router, prefix="/api")
 app.include_router(leaderboard.router, prefix="/api")
 app.include_router(watchlist.router, prefix="/api")
+app.include_router(strategies.router, prefix="/api")
+app.include_router(portfolio.router, prefix="/api")
+app.include_router(feeds.router, prefix="/api")

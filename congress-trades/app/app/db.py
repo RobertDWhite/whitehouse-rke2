@@ -38,6 +38,8 @@ def init_db():
             "ALTER TABLE trades ADD COLUMN IF NOT EXISTS return_pct NUMERIC",
             "ALTER TABLE trades ADD COLUMN IF NOT EXISTS bench_return_pct NUMERIC",
             "ALTER TABLE ai_summaries ADD COLUMN IF NOT EXISTS watchlist JSONB",
+            "ALTER TABLE ticker_meta ADD COLUMN IF NOT EXISTS sentiment NUMERIC",
+            "ALTER TABLE ticker_meta ADD COLUMN IF NOT EXISTS sentiment_n INTEGER",
         ):
             conn.execute(text(stmt))
 

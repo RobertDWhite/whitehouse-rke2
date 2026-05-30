@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
-from app.models import Member, TickerMeta, Trade, TradeSignal, Watchlist
+from app.models import GovEvent, Member, TickerMeta, Trade, TradeSignal, Watchlist
 
 # signal types that should trigger ntfy alerts (conviction is a display score, not an alert)
 ALERT_TYPES = ["cluster_buy", "large", "options", "late_disclosure", "anomaly", "conflict"]
@@ -147,6 +147,25 @@ def compute(db, cfg):
         if csectors and sector in csectors:
             upsert_signal(db, tid, "conflict", 3, {"sector": sector, "ticker": tk})
             n += 1
+
+    # 7) corporate-event corroboration — a purchase whose ticker filed an 8-K within ~14 days after
+    for tid, tk in db.execute(
+        select(Trade.id, Trade.ticker)
+        .where(and_(Trade.transaction_type == "purchase", Trade.ticker.isnot(None), Trade.transaction_date.isnot(None)))
+        .where(
+            select(GovEvent.id)
+            .where(
+                and_(
+                    GovEvent.ticker == Trade.ticker,
+                    GovEvent.filed_at >= Trade.transaction_date,
+                    GovEvent.filed_at <= Trade.transaction_date + dt.timedelta(days=14),
+                )
+            )
+            .exists()
+        )
+    ).all():
+        upsert_signal(db, tid, "corp_event", 2, {"ticker": tk})
+        n += 1
 
     db.commit()
     compute_conviction(db)

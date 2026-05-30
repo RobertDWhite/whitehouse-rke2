@@ -164,7 +164,7 @@ class TickerBar(Base):
 
 
 class TickerMeta(Base):
-    """Sector/industry/company metadata from SEC (company_tickers + submissions)."""
+    """Sector/industry/company metadata from SEC (company_tickers + submissions) + sentiment."""
 
     __tablename__ = "ticker_meta"
 
@@ -173,7 +173,69 @@ class TickerMeta(Base):
     company: Mapped[str | None] = mapped_column(String(256))
     sic: Mapped[str | None] = mapped_column(String(8))
     sector: Mapped[str | None] = mapped_column(String(64), index=True)
+    sentiment: Mapped[float | None] = mapped_column(Numeric)  # StockTwits bull-bear ratio -1..1
+    sentiment_n: Mapped[int | None] = mapped_column(Integer)
     updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TickerQuote(Base):
+    """Live-ish last price (Yahoo 1m) for live return-since-disclosure."""
+
+    __tablename__ = "ticker_quotes"
+
+    ticker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    last: Mapped[float | None] = mapped_column(Numeric)
+    market_state: Mapped[str | None] = mapped_column(String(16))
+    as_of: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class GovEvent(Base):
+    """SEC EDGAR near-real-time filings (Form 4 insider, 8-K) keyed to a ticker via CIK."""
+
+    __tablename__ = "gov_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(32))  # edgar
+    form: Mapped[str | None] = mapped_column(String(16), index=True)  # 4 | 8-K
+    cik: Mapped[str | None] = mapped_column(String(16), index=True)
+    ticker: Mapped[str | None] = mapped_column(String(32), index=True)
+    title: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text)
+    filed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    accession: Mapped[str] = mapped_column(String(32), unique=True)
+
+
+class StrategyRun(Base):
+    """Cached backtest of a 'follow-strategy' portfolio (equity curve + metrics vs benchmarks)."""
+
+    __tablename__ = "strategy_runs"
+
+    strategy_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    label: Mapped[str | None] = mapped_column(String(128))
+    params: Mapped[dict | None] = mapped_column(JSON)
+    equity_curve: Mapped[list | None] = mapped_column(JSON)  # [[date, value, spy, nanc?], ...]
+    holdings: Mapped[list | None] = mapped_column(JSON)       # current smart-money basket
+    total_return: Mapped[float | None] = mapped_column(Numeric)
+    cagr: Mapped[float | None] = mapped_column(Numeric)
+    max_drawdown: Mapped[float | None] = mapped_column(Numeric)
+    excess_vs_spy: Mapped[float | None] = mapped_column(Numeric)
+    n_positions: Mapped[int | None] = mapped_column(Integer)
+    generated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Holding(Base):
+    """User paper-portfolio holding (single user behind SSO)."""
+
+    __tablename__ = "holdings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(32), index=True)
+    shares: Mapped[float | None] = mapped_column(Numeric)
+    cost_basis: Mapped[float | None] = mapped_column(Numeric)
+    note: Mapped[str | None] = mapped_column(Text)
+    added_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    __table_args__ = (UniqueConstraint("ticker", name="uq_holding_ticker"),)
 
 
 class AiSummary(Base):

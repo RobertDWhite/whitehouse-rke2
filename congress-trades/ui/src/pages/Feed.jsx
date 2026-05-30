@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api.js'
+import { api, exportCsv } from '../api.js'
 import TradeTable from '../components/TradeTable.jsx'
 
 const EMPTY = {
@@ -62,6 +62,7 @@ export default function Feed() {
           <option value="disclosure_date">Sort: Disclosed date</option>
           <option value="amount">Sort: Amount</option>
         </select>
+        <button className="btn" onClick={exportCsv} title="Download CSV">⬇ CSV</button>
       </div>
 
       {loading ? <div className="loading">Loading…</div>

@@ -2,7 +2,7 @@
 in a few batched queries (avoids N+1)."""
 from sqlalchemy import select
 
-from .models import Filing, TickerPrice, TradeSignal
+from .models import Filing, TickerPrice, TickerQuote, TradeSignal
 from .serialize import trade_dict
 
 
@@ -10,6 +10,10 @@ def enrich_rows(db, rows):
     ids = [t.id for t, _ in rows]
     fids = {t.filing_id for t, _ in rows if t.filing_id}
     tks = {t.ticker for t, _ in rows if t.ticker}
+    quote_map = {}
+    if tks:
+        for tk, last in db.execute(select(TickerQuote.ticker, TickerQuote.last).where(TickerQuote.ticker.in_(tks))).all():
+            quote_map[tk] = float(last) if last is not None else None
 
     sig_map = {}
     if ids:
@@ -53,5 +57,12 @@ def enrich_rows(db, rows):
             else None
         )
         d["entry_price"] = float(t.entry_price) if t.entry_price is not None else None
+        # live return-since-disclosure using the latest intraday quote (falls back to daily close)
+        live = quote_map.get(t.ticker)
+        d["live_price"] = live
+        if live and t.entry_price and float(t.entry_price) > 0:
+            d["live_return_pct"] = live / float(t.entry_price) - 1
+        else:
+            d["live_return_pct"] = None
         out.append(d)
     return out
