@@ -1,6 +1,8 @@
-"""SEC EDGAR near-real-time corporate filings (8-K material events), joined to tracked tickers
-via the company CIK (from ticker_meta). Powers a 'corp_event_after_trade' corroboration signal:
-a member bought T, then T filed an 8-K shortly after. Informational/timing, not causation."""
+"""SEC EDGAR near-real-time corporate filings, joined to tracked tickers via CIK.
+
+Stores 8-K material events and Form 4 insider transactions for tickers already in the app.
+Informational/timing only, not causation.
+"""
 import datetime as dt
 import re
 import xml.etree.ElementTree as ET
@@ -34,7 +36,7 @@ def run():
         for tk, cik in db.execute(select(TickerMeta.ticker, TickerMeta.cik).where(TickerMeta.cik.isnot(None))).all():
             cik_to_ticker[str(int(cik))] = tk  # normalize leading zeros
 
-        for form in ("8-K",):
+        for form in ("8-K", "4"):
             try:
                 r = sess.get(GETCURRENT.format(form=form), timeout=30)
                 if r.status_code != 200:

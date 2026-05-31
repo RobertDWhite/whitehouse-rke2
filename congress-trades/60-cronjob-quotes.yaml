@@ -34,6 +34,10 @@ spec:
                 - {name: CONFIG_PATH, value: /etc/congress/config.yaml}
                 - name: DATABASE_URL
                   valueFrom: {secretKeyRef: {name: congress-secrets, key: database-url}}
+                - name: ALPACA_API_KEY_ID
+                  valueFrom: {secretKeyRef: {name: congress-secrets, key: alpaca-api-key-id, optional: true}}
+                - name: ALPACA_API_SECRET_KEY
+                  valueFrom: {secretKeyRef: {name: congress-secrets, key: alpaca-api-secret-key, optional: true}}
               volumeMounts: [{name: config, mountPath: /etc/congress, readOnly: true}]
               resources:
                 requests: {cpu: 100m, memory: 256Mi}

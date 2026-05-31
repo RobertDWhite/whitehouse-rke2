@@ -90,6 +90,9 @@ class Trade(Base):
     entry_price: Mapped[float | None] = mapped_column(Numeric)
     return_pct: Mapped[float | None] = mapped_column(Numeric)
     bench_return_pct: Mapped[float | None] = mapped_column(Numeric)
+    option_type: Mapped[str | None] = mapped_column(String(8))  # call | put
+    option_strike: Mapped[float | None] = mapped_column(Numeric)
+    option_expiration: Mapped[dt.date | None] = mapped_column(Date)
 
     __table_args__ = (
         # dominant access patterns: member detail and ticker detail, newest-first
@@ -186,6 +189,7 @@ class TickerQuote(Base):
     ticker: Mapped[str] = mapped_column(String(32), primary_key=True)
     last: Mapped[float | None] = mapped_column(Numeric)
     market_state: Mapped[str | None] = mapped_column(String(16))
+    provider: Mapped[str | None] = mapped_column(String(32))
     as_of: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -203,6 +207,47 @@ class GovEvent(Base):
     url: Mapped[str | None] = mapped_column(Text)
     filed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     accession: Mapped[str] = mapped_column(String(32), unique=True)
+
+
+class LegislativeEvent(Base):
+    """Congress.gov context near a trade: bills, votes, amendments, and committee activity."""
+
+    __tablename__ = "legislative_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), default="congress.gov")
+    event_type: Mapped[str] = mapped_column(String(32), index=True)  # bill | vote | committee
+    congress: Mapped[int | None] = mapped_column(Integer)
+    chamber: Mapped[str | None] = mapped_column(String(16), index=True)
+    bioguide: Mapped[str | None] = mapped_column(String(16), index=True)
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("members.id"), index=True)
+    committee: Mapped[str | None] = mapped_column(String(256))
+    ticker: Mapped[str | None] = mapped_column(String(32), index=True)
+    sector: Mapped[str | None] = mapped_column(String(64), index=True)
+    title: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text)
+    occurred_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    external_id: Mapped[str] = mapped_column(String(128), unique=True)
+    payload: Mapped[dict | None] = mapped_column(JSON)
+
+
+class TradeReconciliation(Base):
+    """Cross-source data-quality checks between primary parsers and comparison feeds."""
+
+    __tablename__ = "trade_reconciliation"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), index=True)  # missing_primary | missing_comparison | mismatch
+    primary_trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id"), index=True)
+    comparison_source: Mapped[str | None] = mapped_column(String(32), index=True)
+    comparison_trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id"), index=True)
+    severity: Mapped[int] = mapped_column(Integer, default=1)
+    detail: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+
+    __table_args__ = (
+        UniqueConstraint("kind", "primary_trade_id", "comparison_source", "comparison_trade_id", name="uq_recon_issue"),
+    )
 
 
 class StrategyRun(Base):

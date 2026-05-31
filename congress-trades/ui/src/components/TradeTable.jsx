@@ -63,12 +63,13 @@ export default function TradeTable({ items, showMember = true }) {
                   <span className="muted" title={t.asset_name || 'No ticker'}>{t.asset_type}</span>
                 ) : '—'}
                 {t.est_shares ? <div className="muted" style={{ fontSize: 11 }}>~{t.est_shares.toLocaleString()} sh @ ${t.price}</div> : null}
+                {t.option_type ? <div className="muted" style={{ fontSize: 11 }}>{t.option_type.toUpperCase()}{t.option_strike ? ` $${t.option_strike}` : ''}{t.option_expiration ? ` exp ${t.option_expiration}` : ''}</div> : null}
               </td>
               <td><span className={`tag ${typeClass(t.transaction_type)}`}>{t.transaction_type}</span></td>
               <td className="right nowrap num">{amountRange(t)}</td>
               <td><Conviction score={t.conviction} /></td>
               <td className={`right num ${(t.live_return_pct ?? t.return_pct) != null ? ((t.live_return_pct ?? t.return_pct) >= 0 ? 'pos' : 'neg') : ''}`}
-                  title={t.entry_price ? `entry $${t.entry_price.toFixed?.(2) ?? t.entry_price} (disclosure date) → ${t.live_price ? 'live $' + t.live_price : 'close'}` : ''}>
+                  title={t.entry_price ? `entry $${t.entry_price.toFixed?.(2) ?? t.entry_price} (disclosure date) → ${t.live_price ? `${t.quote_provider || 'live'} $${t.live_price}` : 'close'}` : ''}>
                 {t.live_return_pct != null ? <>{pct(t.live_return_pct)}<span className="live-dot" title="live">●</span></>
                   : t.return_pct != null ? pct(t.return_pct) : '—'}
               </td>

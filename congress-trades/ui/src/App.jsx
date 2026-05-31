@@ -1,19 +1,24 @@
+import { lazy, Suspense } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
-import Dashboard from './pages/Dashboard.jsx'
-import Feed from './pages/Feed.jsx'
-import Ideas from './pages/Ideas.jsx'
-import Leaderboard from './pages/Leaderboard.jsx'
-import Members from './pages/Members.jsx'
-import MemberDetail from './pages/MemberDetail.jsx'
-import Tickers from './pages/Tickers.jsx'
-import TickerDetail from './pages/TickerDetail.jsx'
-import Signals from './pages/Signals.jsx'
-import Strategies from './pages/Strategies.jsx'
-import Portfolio from './pages/Portfolio.jsx'
-import Watchlist from './pages/Watchlist.jsx'
-import Sources from './pages/Sources.jsx'
 import GlobalSearch from './components/GlobalSearch.jsx'
 import { WatchlistProvider } from './watchctx.jsx'
+
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const Feed = lazy(() => import('./pages/Feed.jsx'))
+const Ideas = lazy(() => import('./pages/Ideas.jsx'))
+const Leaderboard = lazy(() => import('./pages/Leaderboard.jsx'))
+const Members = lazy(() => import('./pages/Members.jsx'))
+const MemberDetail = lazy(() => import('./pages/MemberDetail.jsx'))
+const Tickers = lazy(() => import('./pages/Tickers.jsx'))
+const TickerDetail = lazy(() => import('./pages/TickerDetail.jsx'))
+const Signals = lazy(() => import('./pages/Signals.jsx'))
+const Strategies = lazy(() => import('./pages/Strategies.jsx'))
+const Portfolio = lazy(() => import('./pages/Portfolio.jsx'))
+const Watchlist = lazy(() => import('./pages/Watchlist.jsx'))
+const Sources = lazy(() => import('./pages/Sources.jsx'))
+const Status = lazy(() => import('./pages/Status.jsx'))
+const Committees = lazy(() => import('./pages/Committees.jsx'))
+const Reconciliation = lazy(() => import('./pages/Reconciliation.jsx'))
 
 export default function App() {
   return (
@@ -27,30 +32,37 @@ export default function App() {
           <NavLink to="/feed">Feed</NavLink>
           <NavLink to="/signals">Signals</NavLink>
           <NavLink to="/leaderboard">Leaderboard</NavLink>
+          <NavLink to="/committees">Committees</NavLink>
           <NavLink to="/members">Members</NavLink>
           <NavLink to="/tickers">Tickers</NavLink>
           <NavLink to="/portfolio">Portfolio</NavLink>
           <NavLink to="/watchlist">Watchlist</NavLink>
           <NavLink to="/sources">Sources</NavLink>
+          <NavLink to="/status">Status</NavLink>
         </nav>
         <GlobalSearch />
       </header>
       <main>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/ideas" element={<Ideas />} />
-          <Route path="/feed" element={<Feed />} />
-          <Route path="/signals" element={<Signals />} />
-          <Route path="/strategies" element={<Strategies />} />
-          <Route path="/portfolio" element={<Portfolio />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/members" element={<Members />} />
-          <Route path="/members/:id" element={<MemberDetail />} />
-          <Route path="/tickers" element={<Tickers />} />
-          <Route path="/tickers/:symbol" element={<TickerDetail />} />
-          <Route path="/watchlist" element={<Watchlist />} />
-          <Route path="/sources" element={<Sources />} />
-        </Routes>
+        <Suspense fallback={<div className="loading">Loading…</div>}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/ideas" element={<Ideas />} />
+            <Route path="/feed" element={<Feed />} />
+            <Route path="/signals" element={<Signals />} />
+            <Route path="/strategies" element={<Strategies />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/committees" element={<Committees />} />
+            <Route path="/members" element={<Members />} />
+            <Route path="/members/:id" element={<MemberDetail />} />
+            <Route path="/tickers" element={<Tickers />} />
+            <Route path="/tickers/:symbol" element={<TickerDetail />} />
+            <Route path="/watchlist" element={<Watchlist />} />
+            <Route path="/sources" element={<Sources />} />
+            <Route path="/status" element={<Status />} />
+            <Route path="/reconciliation" element={<Reconciliation />} />
+          </Routes>
+        </Suspense>
       </main>
     </WatchlistProvider>
   )
