@@ -11,8 +11,13 @@ import { SkeletonCards } from '../components/Skeleton.jsx'
 export default function MemberDetail() {
   const { id } = useParams()
   const [data, setData] = useState(null)
+  const [events, setEvents] = useState([])
 
-  useEffect(() => { setData(null); api.member(id).then(setData).catch(() => setData(false)) }, [id])
+  useEffect(() => {
+    setData(null)
+    api.member(id).then(setData).catch(() => setData(false))
+    api.legislativeEvents({ member_id: id, limit: 10 }).then((d) => setEvents(d.items || [])).catch(() => setEvents([]))
+  }, [id])
 
   if (data === false) return <p className="muted">Couldn’t load member.</p>
   if (!data) return <SkeletonCards n={4} />
@@ -90,6 +95,22 @@ export default function MemberDetail() {
       </div>
 
       <AiInsights memberId={m.id} defaultWindow={30} />
+
+      {events.length > 0 && (
+        <>
+          <h2>Recent policy context</h2>
+          <div className="panel">
+            <div className="news-list">
+              {events.map((e) => (
+                <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer">
+                  {e.title}<span className="src"> · {e.event_type}{e.sector ? ` · ${e.sector}` : ''}</span>
+                </a>
+              ))}
+            </div>
+            <p className="note">Congress.gov activity near this member’s trading record. Context only, not causality.</p>
+          </div>
+        </>
+      )}
 
       {data.top_tickers?.length > 0 && (
         <>

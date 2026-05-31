@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 
 const SOURCE_LABEL = {
@@ -21,6 +22,7 @@ export default function Sources() {
         Primary-source parsers (House Clerk bulk PDFs, Senate eFD HTML) are authoritative and
         supersede the third-party feed. Non-zero <em>self-parsed</em> counts below prove the app
         stands on its own without relying on any third party.
+        {' '}See also <Link to="/status">freshness</Link> and <Link to="/reconciliation">reconciliation</Link>.
       </p>
 
       <h2>Trades by source</h2>

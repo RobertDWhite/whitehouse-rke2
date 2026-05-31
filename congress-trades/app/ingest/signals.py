@@ -4,6 +4,7 @@ All signals compute from data already stored. Designed to run right after each i
 (or on its own short tick). Idempotent: signals upsert on (trade_id, signal_type), and
 each fired alert marks `alerted_at` so re-runs don't re-notify."""
 import datetime as dt
+import re
 
 import requests
 from sqlalchemy import and_, func, select, text
@@ -15,6 +16,9 @@ from app.models import GovEvent, Member, TickerMeta, Trade, TradeSignal, Watchli
 
 # signal types that should trigger ntfy alerts (conviction is a display score, not an alert)
 ALERT_TYPES = ["cluster_buy", "large", "options", "late_disclosure", "anomaly", "conflict"]
+_CALLPUT = re.compile(r"\b(call|put)\b", re.IGNORECASE)
+_STRIKE = re.compile(r"\$?\s*(\d+(?:\.\d+)?)\s*(?:strike|strk|call|put)?", re.IGNORECASE)
+_EXP = re.compile(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b")
 
 from . import common
 
@@ -60,7 +64,30 @@ def compute(db, cfg):
         )
     ).all()
     for t in opt:
-        upsert_signal(db, t.id, "options", 3, {"asset_type": t.asset_type})
+        text = " ".join(x for x in [t.asset_name, t.comment, t.asset_type] if x)
+        cp = _CALLPUT.search(text)
+        strike = _STRIKE.search(text)
+        exp = _EXP.search(text)
+        if cp and not t.option_type:
+            t.option_type = cp.group(1).lower()
+        if strike and t.option_strike is None:
+            try:
+                t.option_strike = float(strike.group(1))
+            except ValueError:
+                pass
+        if exp and t.option_expiration is None:
+            try:
+                mm, dd, yy = [int(x) for x in exp.group(1).split("/")]
+                yy = 2000 + yy if yy < 100 else yy
+                t.option_expiration = dt.date(yy, mm, dd)
+            except ValueError:
+                pass
+        upsert_signal(db, t.id, "options", 3, {
+            "asset_type": t.asset_type,
+            "option_type": t.option_type,
+            "strike": float(t.option_strike) if t.option_strike is not None else None,
+            "expiration": t.option_expiration.isoformat() if t.option_expiration else None,
+        })
         n += 1
 
     # 3) disclosure-lag outlier
@@ -165,6 +192,27 @@ def compute(db, cfg):
         )
     ).all():
         upsert_signal(db, tid, "corp_event", 2, {"ticker": tk})
+        n += 1
+
+    # 8) legislative context — same member has recent Congress.gov activity in a relevant sector.
+    from app.models import LegislativeEvent  # local import keeps older DB bootstraps calm
+    for tid, tk, title in db.execute(
+        select(Trade.id, Trade.ticker, LegislativeEvent.title)
+        .join(Member, Member.id == Trade.member_id)
+        .join(TickerMeta, TickerMeta.ticker == Trade.ticker)
+        .join(
+            LegislativeEvent,
+            and_(
+                LegislativeEvent.member_id == Trade.member_id,
+                LegislativeEvent.sector == TickerMeta.sector,
+                LegislativeEvent.occurred_at >= Trade.transaction_date - dt.timedelta(days=30),
+                LegislativeEvent.occurred_at <= Trade.disclosure_date + dt.timedelta(days=30),
+            ),
+        )
+        .where(and_(Trade.ticker.isnot(None), Trade.transaction_date.isnot(None), Trade.disclosure_date.isnot(None)))
+        .limit(500)
+    ).all():
+        upsert_signal(db, tid, "legislative_context", 2, {"ticker": tk, "title": title})
         n += 1
 
     db.commit()

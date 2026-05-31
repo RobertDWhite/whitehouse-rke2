@@ -1,10 +1,10 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: congress-quotes
+  name: congress-reconcile
   namespace: congress-trades
 spec:
-  schedule: "*/10 * * * *"        # live quotes
+  schedule: "43 */4 * * *"        # parser/comparison feed quality checks
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -29,17 +29,13 @@ spec:
             - name: ingest
               image: registry.internal.white.fm/congress-app
               imagePullPolicy: IfNotPresent
-              command: ["python", "-m", "ingest.quotes"]
+              command: ["python", "-m", "ingest.reconcile"]
               env:
                 - {name: CONFIG_PATH, value: /etc/congress/config.yaml}
                 - name: DATABASE_URL
                   valueFrom: {secretKeyRef: {name: congress-secrets, key: database-url}}
-                - name: ALPACA_API_KEY_ID
-                  valueFrom: {secretKeyRef: {name: congress-secrets, key: alpaca-api-key-id, optional: true}}
-                - name: ALPACA_API_SECRET_KEY
-                  valueFrom: {secretKeyRef: {name: congress-secrets, key: alpaca-api-secret-key, optional: true}}
               volumeMounts: [{name: config, mountPath: /etc/congress, readOnly: true}]
               resources:
-                requests: {cpu: 100m, memory: 256Mi}
-                limits: {cpu: "500m", memory: 512Mi}
+                requests: {cpu: 50m, memory: 128Mi}
+                limits: {cpu: "250m", memory: 256Mi}
           volumes: [{name: config, configMap: {name: congress-config}}]

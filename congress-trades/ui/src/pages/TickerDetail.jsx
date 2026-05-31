@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { CartesianGrid, Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, money, pct } from '../api.js'
 import PartyBadge from '../components/PartyBadge.jsx'
 import StarToggle from '../components/StarToggle.jsx'
@@ -10,11 +11,17 @@ export default function TickerDetail() {
   const { symbol } = useParams()
   const [data, setData] = useState(null)
   const [news, setNews] = useState(null)
+  const [events, setEvents] = useState([])
+  const [bars, setBars] = useState([])
+  const [govEvents, setGovEvents] = useState([])
 
   useEffect(() => {
     setData(null); setNews(null)
     api.ticker(symbol).then(setData).catch(() => setData(false))
     api.tickerNews(symbol).then((d) => setNews(d.items || [])).catch(() => setNews([]))
+    api.legislativeEvents({ ticker: symbol, limit: 12 }).then((d) => setEvents(d.items || [])).catch(() => setEvents([]))
+    api.tickerBars(symbol, 365).then((d) => setBars(d.items || [])).catch(() => setBars([]))
+    api.tickerEvents(symbol).then((d) => setGovEvents(d.items || [])).catch(() => setGovEvents([]))
   }, [symbol])
 
   const byMember = useMemo(() => {
@@ -63,6 +70,54 @@ export default function TickerDetail() {
         ))}
         <div className="card"><div className="label">Party split</div><div className="big num"><span className="pc-D">{party.D}D</span> / <span className="pc-R">{party.R}R</span></div></div>
       </div>
+
+      {bars.length > 2 && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <h3>Price context · 1y</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={bars} margin={{ top: 12, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(139,148,158,.16)" vertical={false} />
+              <XAxis dataKey="date" minTickGap={28} tick={{ fill: 'var(--muted)', fontSize: 11 }} />
+              <YAxis domain={['dataMin', 'dataMax']} tickFormatter={(v) => `$${Math.round(v)}`} tick={{ fill: 'var(--muted)', fontSize: 11 }} width={48} />
+              <Tooltip contentStyle={{ background: 'var(--panel)', border: '1px solid var(--border)' }} formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Close']} />
+              <Line type="monotone" dataKey="close" stroke="var(--accent)" dot={false} strokeWidth={2} />
+              {(data.items || []).slice(0, 40).map((t) => {
+                const p = bars.find((b) => b.date >= t.disclosure_date)?.close
+                if (!p || !t.disclosure_date) return null
+                return <ReferenceDot key={t.id} x={t.disclosure_date} y={p} r={3} fill={t.transaction_type === 'sale' ? 'var(--sell)' : 'var(--buy)'} stroke="none" />
+              })}
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="note">Dots mark public disclosure dates, not transaction dates.</p>
+        </div>
+      )}
+
+      {events.length > 0 && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <h3>Policy context</h3>
+          <div className="news-list">
+            {events.map((e) => (
+              <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer">
+                {e.title}<span className="src"> · {e.member || e.sector || e.event_type}</span>
+              </a>
+            ))}
+          </div>
+          <p className="note">Nearby Congress.gov activity by members exposed to this ticker’s sector. Context, not causality.</p>
+        </div>
+      )}
+
+      {govEvents.length > 0 && (
+        <div className="panel" style={{ marginTop: 16 }}>
+          <h3>SEC event context</h3>
+          <div className="news-list">
+            {govEvents.map((e) => (
+              <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer">
+                <span className="tag src">{e.form}</span> {e.title}<span className="src"> · {e.filed_at || ''}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       {news && news.length > 0 && (
         <div className="panel" style={{ marginTop: 16 }}>

@@ -12,8 +12,14 @@ def enrich_rows(db, rows):
     tks = {t.ticker for t, _ in rows if t.ticker}
     quote_map = {}
     if tks:
-        for tk, last in db.execute(select(TickerQuote.ticker, TickerQuote.last).where(TickerQuote.ticker.in_(tks))).all():
-            quote_map[tk] = float(last) if last is not None else None
+        for tk, last, provider, as_of in db.execute(
+            select(TickerQuote.ticker, TickerQuote.last, TickerQuote.provider, TickerQuote.as_of).where(TickerQuote.ticker.in_(tks))
+        ).all():
+            quote_map[tk] = {
+                "last": float(last) if last is not None else None,
+                "provider": provider,
+                "as_of": as_of.isoformat() if as_of else None,
+            }
 
     sig_map = {}
     if ids:
@@ -58,8 +64,11 @@ def enrich_rows(db, rows):
         )
         d["entry_price"] = float(t.entry_price) if t.entry_price is not None else None
         # live return-since-disclosure using the latest intraday quote (falls back to daily close)
-        live = quote_map.get(t.ticker)
+        quote = quote_map.get(t.ticker) or {}
+        live = quote.get("last")
         d["live_price"] = live
+        d["quote_provider"] = quote.get("provider")
+        d["quote_as_of"] = quote.get("as_of")
         if live and t.entry_price and float(t.entry_price) > 0:
             d["live_return_pct"] = live / float(t.entry_price) - 1
         else:

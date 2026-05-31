@@ -71,16 +71,31 @@ def rss(db: Session = Depends(get_db), limit: int = Query(50, le=200)):
 @router.get("/status")
 def status(db: Session = Depends(get_db)):
     now = dt.datetime.now(dt.timezone.utc)
+    expected = {
+        "house": 60 * 60,
+        "senate": 90 * 60,
+        "lambda": 18 * 60 * 60,
+        "quotes": 30 * 60,
+        "prices": 36 * 60 * 60,
+        "signals": 2 * 60 * 60,
+        "gov_events": 2 * 60 * 60,
+        "legislative_events": 48 * 60 * 60,
+        "reconciliation": 24 * 60 * 60,
+    }
     sources = []
     for st in db.scalars(select(IngestState)).all():
         age = (now - st.last_success).total_seconds() if st.last_success else None
+        max_age = expected.get(st.source.split(":", 1)[0], 24 * 60 * 60)
         sources.append({"source": st.source, "last_success": st.last_success.isoformat() if st.last_success else None,
-                        "age_seconds": age, "rows": st.rows_upserted, "note": st.note})
+                        "age_seconds": age, "max_age_seconds": max_age,
+                        "stale": age is None or age > max_age,
+                        "rows": st.rows_upserted, "note": st.note})
     latest = db.scalar(select(func.max(Trade.disclosure_date)))
     return {
         "trades": db.scalar(select(func.count(Trade.id))) or 0,
         "members": db.scalar(select(func.count(Member.id))) or 0,
         "latest_disclosure": latest.isoformat() if latest else None,
+        "stale_sources": sum(1 for s in sources if s["stale"]),
         "sources": sources,
     }
 

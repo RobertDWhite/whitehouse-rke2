@@ -34,6 +34,9 @@ def trade_dict(t, m=None, filing=None, signals=None, price=None):
         "signals": signals if signals is not None else None,
         "price": float(price) if price is not None else None,
         "est_shares": est_shares,
+        "option_type": t.option_type,
+        "option_strike": float(t.option_strike) if t.option_strike is not None else None,
+        "option_expiration": t.option_expiration.isoformat() if t.option_expiration else None,
     }
     return d
 
