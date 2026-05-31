@@ -12,6 +12,7 @@ const MemberDetail = lazy(() => import('./pages/MemberDetail.jsx'))
 const Tickers = lazy(() => import('./pages/Tickers.jsx'))
 const TickerDetail = lazy(() => import('./pages/TickerDetail.jsx'))
 const Signals = lazy(() => import('./pages/Signals.jsx'))
+const DisclosureLag = lazy(() => import('./pages/DisclosureLag.jsx'))
 const Strategies = lazy(() => import('./pages/Strategies.jsx'))
 const Portfolio = lazy(() => import('./pages/Portfolio.jsx'))
 const Watchlist = lazy(() => import('./pages/Watchlist.jsx'))
@@ -31,6 +32,7 @@ export default function App() {
           <NavLink to="/strategies">Strategies</NavLink>
           <NavLink to="/feed">Feed</NavLink>
           <NavLink to="/signals">Signals</NavLink>
+          <NavLink to="/lag">Lag</NavLink>
           <NavLink to="/leaderboard">Leaderboard</NavLink>
           <NavLink to="/committees">Committees</NavLink>
           <NavLink to="/members">Members</NavLink>
@@ -49,6 +51,7 @@ export default function App() {
             <Route path="/ideas" element={<Ideas />} />
             <Route path="/feed" element={<Feed />} />
             <Route path="/signals" element={<Signals />} />
+            <Route path="/lag" element={<DisclosureLag />} />
             <Route path="/strategies" element={<Strategies />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/leaderboard" element={<Leaderboard />} />

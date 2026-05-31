@@ -24,6 +24,7 @@ async function send(method, path, body) {
 
 export const api = {
   trades: (p) => get('/trades', p),
+  trade: (id) => get(`/trades/${id}`),
   stats: () => get('/stats'),
   timeseries: (days = 90) => get('/stats/timeseries', { days }),
   sectorStats: (days = 90) => get('/stats/sectors', { days }),
@@ -55,6 +56,7 @@ export const api = {
   committee: (name) => get(`/committees/${encodeURIComponent(name)}`),
   legislativeEvents: (p) => get('/legislative-events', p),
   reconciliation: () => get('/reconciliation'),
+  disclosureLag: (days = 365) => get('/analytics/disclosure-lag', { days }),
 }
 
 export function exportCsv() {

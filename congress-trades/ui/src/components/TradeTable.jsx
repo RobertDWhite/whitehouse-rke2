@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { amountRange, pct, signalLabel, typeClass } from '../api.js'
 import Conviction from './Conviction.jsx'
 import PartyBadge from './PartyBadge.jsx'
 import StarToggle from './StarToggle.jsx'
+import TradeProvenance from './TradeProvenance.jsx'
 
 function SignalBadges({ signals }) {
   if (!signals || signals.length === 0) return null
@@ -18,27 +20,30 @@ function SignalBadges({ signals }) {
 }
 
 export default function TradeTable({ items, showMember = true }) {
+  const [detailId, setDetailId] = useState(null)
   if (!items || items.length === 0) return <p className="muted">No trades.</p>
   return (
-    <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
-      <table>
-        <thead>
-          <tr>
-            <th>Traded</th>
-            <th>Disclosed</th>
-            {showMember && <th>Member</th>}
-            <th>Ticker</th>
-            <th>Type</th>
-            <th className="right">Amount</th>
-            <th>Conviction</th>
-            <th className="right">Return*</th>
-            <th>Signals</th>
-            <th>Src</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((t) => (
-            <tr key={t.id}>
+    <>
+      <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Traded</th>
+              <th>Disclosed</th>
+              {showMember && <th>Member</th>}
+              <th>Ticker</th>
+              <th>Type</th>
+              <th className="right">Amount</th>
+              <th>Conviction</th>
+              <th className="right">Return*</th>
+              <th>Signals</th>
+              <th>Src</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((t) => (
+              <tr key={t.id}>
               <td className="nowrap">{t.transaction_date || '—'}</td>
               <td className="nowrap muted">
                 {t.disclosure_date || '—'}
@@ -74,15 +79,18 @@ export default function TradeTable({ items, showMember = true }) {
                   : t.return_pct != null ? pct(t.return_pct) : '—'}
               </td>
               <td className="nowrap"><SignalBadges signals={t.signals} /></td>
-              <td className="nowrap">
-                {t.source_url ? (
-                  <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="tag src" title="View filing">↗</a>
-                ) : <span className="tag src" title={t.source}>{(t.source || '').slice(0, 1).toUpperCase()}</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                <td className="nowrap">
+                  {t.source_url ? (
+                    <a href={t.source_url} target="_blank" rel="noopener noreferrer" className="tag src" title="View filing">↗</a>
+                  ) : <span className="tag src" title={t.source}>{(t.source || '').slice(0, 1).toUpperCase()}</span>}
+                </td>
+                <td><button className="btn-sm" onClick={() => setDetailId(t.id)}>Details</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {detailId && <TradeProvenance tradeId={detailId} onClose={() => setDetailId(null)} />}
+    </>
   )
 }
