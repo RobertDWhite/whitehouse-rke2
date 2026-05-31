@@ -4,6 +4,8 @@ import { api } from '../api.js'
 const LABELS = {
   missing_primary: 'Comparison feed item not yet found in primary parsers',
   unparsed_filing: 'Primary filing needs OCR/parser attention',
+  amount_mismatch: 'Matched row has amount drift',
+  missing_ticker: 'Primary row needs ticker mapping',
   mismatch: 'Cross-source mismatch',
 }
 

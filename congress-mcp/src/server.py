@@ -74,6 +74,13 @@ async def query_trades(
 
 
 @mcp.tool()
+async def trade_provenance(trade_id: int) -> Any:
+    """Full row-level provenance for a trade: filing metadata, parse status, source URL,
+    signal details, source priority, and reconciliation issues."""
+    return await _get(f"/api/trades/{trade_id}")
+
+
+@mcp.tool()
 async def search_members(
     q: str | None = None,
     party: str | None = None,
@@ -201,6 +208,13 @@ async def policy_context(ticker: str | None = None, member_id: int | None = None
 async def data_reconciliation() -> Any:
     """Parser/comparison-feed data-quality canaries: missing primary rows and unparsed filings."""
     return await _get("/api/reconciliation")
+
+
+@mcp.tool()
+async def disclosure_lag_analytics(days: int = 365) -> Any:
+    """Disclosure-lag analytics: histogram, late rate, slowest members, chamber/party splits,
+    and recent 45+ day lag trades."""
+    return await _get("/api/analytics/disclosure-lag", {"days": days})
 
 
 class TokenAuth(BaseHTTPMiddleware):
