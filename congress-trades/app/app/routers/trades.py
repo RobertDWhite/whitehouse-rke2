@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..enrich import enrich_rows
-from ..models import Member, Trade, TradeSignal
+from ..models import Filing, Member, Trade, TradeReconciliation, TradeSignal
 
 router = APIRouter()
 
@@ -95,3 +95,55 @@ def list_trades(
         "offset": offset,
         "items": enrich_rows(db, rows),
     }
+
+
+@router.get("/trades/{trade_id}")
+def get_trade(trade_id: int, db: Session = Depends(get_db)):
+    row = db.execute(
+        select(Trade, Member, Filing)
+        .join(Member, Trade.member_id == Member.id, isouter=True)
+        .join(Filing, Trade.filing_id == Filing.id, isouter=True)
+        .where(Trade.id == trade_id)
+    ).one_or_none()
+    if not row:
+        raise HTTPException(404, "trade not found")
+    t, m, f = row
+    item = enrich_rows(db, [(t, m)])[0]
+    item["filing"] = {
+        "id": f.id,
+        "source": f.source,
+        "doc_id": f.doc_id,
+        "filing_type": f.filing_type,
+        "filing_date": f.filing_date.isoformat() if f.filing_date else None,
+        "parse_status": f.parse_status,
+        "source_url": f.source_url,
+        "fetched_at": f.fetched_at.isoformat() if f.fetched_at else None,
+        "raw_excerpt": (f.raw_text or "")[:1200],
+    } if f else None
+    item["provenance"] = {
+        "dedup_key": t.dedup_key,
+        "source_priority": t.source_priority,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "primary_source": t.source in ("house_primary", "senate_primary"),
+        "amount_parse": {
+            "raw": t.amount_range_raw,
+            "min": float(t.amount_min) if t.amount_min is not None else None,
+            "max": float(t.amount_max) if t.amount_max is not None else None,
+        },
+    }
+    item["reconciliation"] = [
+        {
+            "kind": r.kind,
+            "severity": r.severity,
+            "comparison_source": r.comparison_source,
+            "comparison_trade_id": r.comparison_trade_id,
+            "detail": r.detail or {},
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in db.scalars(
+            select(TradeReconciliation)
+            .where(or_(TradeReconciliation.primary_trade_id == trade_id, TradeReconciliation.comparison_trade_id == trade_id))
+            .order_by(TradeReconciliation.severity.desc())
+        ).all()
+    ]
+    return item
