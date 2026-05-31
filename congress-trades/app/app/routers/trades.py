@@ -22,6 +22,7 @@ def list_trades(
     start_date: str | None = None,
     end_date: str | None = None,
     min_amount: int | None = None,
+    min_lag: int | None = None,
     max_lag: int | None = None,
     signal: str | None = None,
     q: str | None = None,
@@ -53,8 +54,10 @@ def list_trades(
     if min_amount:
         # use the upper bound, falling back to the lower bound for open-ended "over $X"
         conds.append(func.coalesce(Trade.amount_max, Trade.amount_min) >= min_amount)
+    if min_lag is not None:
+        conds.append((Trade.disclosure_date - Trade.transaction_date) >= min_lag)
     if max_lag is not None:
-        conds.append((Trade.disclosure_date - Trade.transaction_date) >= max_lag)
+        conds.append((Trade.disclosure_date - Trade.transaction_date) <= max_lag)
     if signal:
         conds.append(
             Trade.id.in_(select(TradeSignal.trade_id).where(TradeSignal.signal_type == signal))

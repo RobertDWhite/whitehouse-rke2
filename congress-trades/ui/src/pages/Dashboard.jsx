@@ -28,11 +28,13 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [ts, setTs] = useState(null)
   const [sectors, setSectors] = useState(null)
+  const [status, setStatus] = useState(null)
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => setStats(false))
     api.timeseries(120).then((d) => setTs(d.items)).catch(() => setTs([]))
     api.sectorStats(90).then((d) => setSectors(d.items)).catch(() => setSectors([]))
+    api.status().then(setStatus).catch(() => setStatus(false))
   }, [])
 
   return (
@@ -48,6 +50,7 @@ export default function Dashboard() {
           <Kpi label="House" value={(stats.by_chamber?.house || 0).toLocaleString()} />
           <Kpi label="Senate" value={(stats.by_chamber?.senate || 0).toLocaleString()} />
           <Kpi label="Self-parsed" value={((stats.by_source?.house_primary || 0) + (stats.by_source?.senate_primary || 0)).toLocaleString()} />
+          {status && <Kpi label="Stale sources" value={status.stale_sources || 0} />}
         </div>
       )}
 

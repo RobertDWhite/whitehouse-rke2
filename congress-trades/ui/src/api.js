@@ -31,6 +31,8 @@ export const api = {
   member: (id) => get(`/members/${id}`),
   tickers: (p) => get('/tickers', p),
   ticker: (sym) => get(`/tickers/${encodeURIComponent(sym)}`),
+  tickerBars: (sym, days = 365) => get(`/tickers/${encodeURIComponent(sym)}/bars`, { days }),
+  tickerEvents: (sym) => get(`/tickers/${encodeURIComponent(sym)}/events`),
   filings: () => get('/filings'),
   signals: (p) => get('/signals', p),
   ideas: (p) => get('/ideas', p),
@@ -49,6 +51,10 @@ export const api = {
   holdingRemove: (id) => send('DELETE', `/portfolio/holdings/${id}`),
   status: () => get('/status'),
   tickerNews: (sym) => get(`/tickers/${encodeURIComponent(sym)}/news`),
+  committees: () => get('/committees'),
+  committee: (name) => get(`/committees/${encodeURIComponent(name)}`),
+  legislativeEvents: (p) => get('/legislative-events', p),
+  reconciliation: () => get('/reconciliation'),
 }
 
 export function exportCsv() {
@@ -70,6 +76,7 @@ const SIGNAL_LABELS = {
   anomaly: 'anomaly',
   conflict: 'conflict',
   corp_event: '8-K',
+  legislative_context: 'policy context',
 }
 export function signalLabel(t) {
   return SIGNAL_LABELS[t] || t

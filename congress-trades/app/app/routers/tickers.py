@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..enrich import enrich_rows
-from ..models import Member, TickerMeta, TickerPrice, TickerQuote, Trade
+from ..models import GovEvent, Member, TickerBar, TickerMeta, TickerPrice, TickerQuote, Trade
 
 router = APIRouter()
 
@@ -54,4 +54,58 @@ def ticker_detail(symbol: str, db: Session = Depends(get_db), limit: int = Query
         "count": len(rows),
         "by_transaction_type": by_type,
         "items": enrich_rows(db, rows),
+    }
+
+
+@router.get("/tickers/{symbol}/bars")
+def ticker_bars(symbol: str, db: Session = Depends(get_db), days: int = Query(365, le=1825)):
+    sym = symbol.upper()
+    since = func.current_date() - days
+    rows = db.execute(
+        select(TickerBar.bar_date, TickerBar.close)
+        .where(and_(TickerBar.ticker == sym, TickerBar.bar_date >= since))
+        .order_by(TickerBar.bar_date)
+    ).all()
+    trades = db.execute(
+        select(Trade.disclosure_date, Trade.transaction_type, Trade.amount_min, Trade.amount_max)
+        .where(and_(Trade.ticker == sym, Trade.disclosure_date.isnot(None), Trade.disclosure_date >= since))
+        .order_by(Trade.disclosure_date)
+    ).all()
+    return {
+        "ticker": sym,
+        "items": [{"date": d.isoformat(), "close": float(c)} for d, c in rows],
+        "markers": [
+            {
+                "date": d.isoformat(),
+                "transaction_type": typ,
+                "amount_min": float(lo) if lo is not None else None,
+                "amount_max": float(hi) if hi is not None else None,
+            }
+            for d, typ, lo, hi in trades
+        ],
+    }
+
+
+@router.get("/tickers/{symbol}/events")
+def ticker_events(symbol: str, db: Session = Depends(get_db), limit: int = Query(25, le=100)):
+    sym = symbol.upper()
+    rows = db.scalars(
+        select(GovEvent)
+        .where(GovEvent.ticker == sym)
+        .order_by(GovEvent.filed_at.desc().nullslast())
+        .limit(limit)
+    ).all()
+    return {
+        "ticker": sym,
+        "items": [
+            {
+                "id": e.id,
+                "source": e.source,
+                "form": e.form,
+                "title": e.title,
+                "url": e.url,
+                "filed_at": e.filed_at.isoformat() if e.filed_at else None,
+            }
+            for e in rows
+        ],
     }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, signalLabel } from '../api.js'
 import TradeTable from '../components/TradeTable.jsx'
 
-const TYPES = ['cluster_buy', 'large', 'options', 'late_disclosure', 'anomaly']
+const TYPES = ['cluster_buy', 'cluster_sell', 'large', 'options', 'late_disclosure', 'anomaly', 'conflict', 'corp_event', 'legislative_context']
 
 export default function Signals() {
   const [type, setType] = useState('')
