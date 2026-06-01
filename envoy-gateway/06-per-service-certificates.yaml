@@ -139,3 +139,20 @@ spec:
     name: letsencrypt-dns
   dnsNames:
     - congresstrades.white.fm
+
+---
+# appstore.internal.white.fm — internal-only App Store review responder (Authentik SSO).
+# Both SANs per the per-service-cert convention even though only the internal listener exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: appstore-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: appstore-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - appstore.white.fm
+    - appstore.internal.white.fm

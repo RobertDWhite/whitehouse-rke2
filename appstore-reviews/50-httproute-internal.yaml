@@ -1,0 +1,25 @@
+# Internal route, gated by Authentik SSO. Traffic for appstore.internal.white.fm is sent
+# to the Authentik embedded outpost (authentik-server:80, cross-namespace), which
+# authenticates by Host header and proxies to the upstream configured in its Proxy
+# Provider (http://appstore-ui.appstore-reviews.svc.cluster.local:80). Same pattern as
+# grafana.internal.white.fm.
+# Requires: the ReferenceGrant in authentik/ (appstore-reviews added) AND an Authentik
+# Proxy Provider + Application for appstore.internal.white.fm assigned to the embedded
+# outpost. The dedicated gateway listener section + cert live in envoy-gateway/.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: appstore-internal
+  namespace: appstore-reviews
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-appstore-internal
+  hostnames:
+    - appstore.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          namespace: authentik
+          port: 80
