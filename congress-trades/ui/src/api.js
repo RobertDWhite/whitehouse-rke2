@@ -56,6 +56,7 @@ export const api = {
   committee: (name) => get(`/committees/${encodeURIComponent(name)}`),
   legislativeEvents: (p) => get('/legislative-events', p),
   reconciliation: () => get('/reconciliation'),
+  reconciliationResolve: (id, status, note) => send('POST', `/reconciliation/${id}/resolve`, { status, note }),
   disclosureLag: (days = 365) => get('/analytics/disclosure-lag', { days }),
 }
 
