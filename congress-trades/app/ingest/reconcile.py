@@ -10,7 +10,7 @@ from app.models import Filing, Member, Trade, TradeReconciliation
 from . import common
 
 
-def _issue(db, kind, primary_id=None, comparison_source=None, comparison_id=None, severity=1, detail=None):
+def _issue(db, kind, primary_id=None, comparison_source=None, comparison_id=None, severity=1, confidence=None, detail=None):
     db.execute(
         pg_insert(TradeReconciliation)
         .values(
@@ -19,12 +19,14 @@ def _issue(db, kind, primary_id=None, comparison_source=None, comparison_id=None
             comparison_source=comparison_source,
             comparison_trade_id=comparison_id,
             severity=severity,
+            confidence=confidence,
+            status="open",
             detail=detail or {},
             created_at=dt.datetime.now(dt.timezone.utc),
         )
         .on_conflict_do_update(
             index_elements=["kind", "primary_trade_id", "comparison_source", "comparison_trade_id"],
-            set_={"severity": severity, "detail": detail or {}, "created_at": dt.datetime.now(dt.timezone.utc)},
+            set_={"severity": severity, "confidence": confidence, "detail": detail or {}, "created_at": dt.datetime.now(dt.timezone.utc)},
         )
     )
 
@@ -80,6 +82,7 @@ def run():
                         comparison_source="lambda",
                         comparison_id=t.id,
                         severity=1,
+                        confidence=max(0.0, 1.0 - diff_ratio),
                         detail={
                             "member": m.full_name if m else best_member.full_name if best_member else None,
                             "ticker": t.ticker,
@@ -98,6 +101,7 @@ def run():
                 comparison_source="lambda",
                 comparison_id=t.id,
                 severity=2,
+                confidence=0.35,
                 detail={
                     "member": m.full_name if m else None,
                     "ticker": t.ticker,
@@ -131,6 +135,7 @@ def run():
                 primary_id=t.id,
                 comparison_source=t.source,
                 severity=1,
+                confidence=0.5,
                 detail={
                     "member": m.full_name if m else None,
                     "asset_name": t.asset_name,
@@ -149,6 +154,7 @@ def run():
                 "unparsed_filing",
                 comparison_source=f.source,
                 severity=3 if f.parse_status == "error" else 2,
+                confidence=1.0,
                 detail={
                     "doc_id": f.doc_id,
                     "source_url": f.source_url,

@@ -17,6 +17,7 @@ from app.db import SessionLocal, init_db
 from app.models import LegislativeEvent, Member, Trade
 
 from . import common
+from . import taxonomy
 
 
 def _parse_dt(value):
@@ -55,6 +56,67 @@ def _event_from_bill(member, bill):
     }
 
 
+def _event_from_context(row, event_type, congress, chamber):
+    title = row.get("title") or row.get("name") or row.get("description") or row.get("question")
+    committee = row.get("committeeName") or row.get("committee") or row.get("committees")
+    if isinstance(committee, list):
+        committee = ", ".join(str(c.get("name") or c) for c in committee[:2])
+    sectors = taxonomy.committee_sectors([committee]) if committee else []
+    ext_id = (
+        row.get("eventId")
+        or row.get("jacketNumber")
+        or row.get("rollCallNumber")
+        or row.get("number")
+        or row.get("url")
+        or title
+    )
+    occurred = (
+        row.get("date")
+        or row.get("startDate")
+        or row.get("meetingDate")
+        or row.get("voteDate")
+        or row.get("updateDate")
+    )
+    return {
+        "source": "congress.gov",
+        "event_type": event_type,
+        "congress": int(congress) if congress else None,
+        "chamber": chamber,
+        "bioguide": None,
+        "member_id": None,
+        "committee": committee,
+        "sector": sectors[0] if sectors else None,
+        "title": title,
+        "url": row.get("url") or row.get("congressdotgovUrl"),
+        "occurred_at": _parse_dt(occurred),
+        "external_id": f"{event_type}:{congress}:{chamber}:{ext_id}",
+        "payload": row,
+    }
+
+
+def _fetch_list(sess, url, params, keys):
+    r = sess.get(url, params=params, timeout=30)
+    if r.status_code >= 400:
+        print(f"legislative: {url} HTTP {r.status_code}")
+        return []
+    j = r.json()
+    for key in keys:
+        if isinstance(j.get(key), list):
+            return j[key]
+    return []
+
+
+def _store_event(db, event):
+    db.execute(
+        pg_insert(LegislativeEvent)
+        .values(**event)
+        .on_conflict_do_update(
+            index_elements=["external_id"],
+            set_={k: v for k, v in event.items() if k != "external_id"},
+        )
+    )
+
+
 def run():
     cfg = load_config()
     init_db()
@@ -64,6 +126,7 @@ def run():
     base = cc.get("base_url", "https://api.congress.gov/v3").rstrip("/")
     lookback = int(cc.get("lookback_days", 14))
     cap = int(cc.get("max_members_per_run", 80))
+    congress = int(cc.get("congress", 119))
     key = os.environ.get("CONGRESS_GOV_API_KEY")
     sess = common.make_session(cfg)
     db = SessionLocal()
@@ -94,19 +157,42 @@ def run():
                 time.sleep(1)
                 continue
             for bill in (r.json().get("sponsoredLegislation") or r.json().get("bills") or []):
-                event = _event_from_bill(member, bill)
-                db.execute(
-                    pg_insert(LegislativeEvent)
-                    .values(**event)
-                    .on_conflict_do_update(
-                        index_elements=["external_id"],
-                        set_={k: v for k, v in event.items() if k != "external_id"},
-                    )
-                )
+                _store_event(db, _event_from_bill(member, bill))
                 stored += 1
             if stored % 50 == 0:
                 db.commit()
             time.sleep(0.25)
+
+        params = {"format": "json", "limit": 100}
+        if key:
+            params["api_key"] = key
+        for chamber in ("house", "senate"):
+            for row in _fetch_list(
+                sess,
+                f"{base}/committee-meeting/{congress}/{chamber}",
+                params,
+                ("committeeMeetings", "meetings", "committeeMeeting"),
+            ):
+                _store_event(db, _event_from_context(row, "committee_meeting", congress, chamber))
+                stored += 1
+            for row in _fetch_list(
+                sess,
+                f"{base}/hearing/{congress}/{chamber}",
+                params,
+                ("hearings", "hearing"),
+            ):
+                _store_event(db, _event_from_context(row, "hearing", congress, chamber))
+                stored += 1
+            time.sleep(0.25)
+
+        for row in _fetch_list(
+            sess,
+            f"{base}/house-vote/{congress}",
+            params,
+            ("houseVotes", "votes", "houseVote"),
+        ):
+            _store_event(db, _event_from_context(row, "house_vote", congress, "house"))
+            stored += 1
         db.commit()
         note = f"{failures} member fetches failed" if failures else None
         common.record_run(db, "legislative_events", rows_upserted=stored, success=(stored > 0 or failures == 0), note=note)
