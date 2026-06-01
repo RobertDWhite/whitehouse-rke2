@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appstore-config
+  namespace: appstore-reviews
+data:
+  config.yaml: |
+    ai:
+      # ollama-router fronts the GPU backends (5090 on node-50, node-10 backup).
+      base_url: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
+      model: "qwen2.5:14b"
+      fallback_models: ["llama3.1:8b", "llama3.2:3b"]
+      temperature: 0.4
+      request_timeout: 120.0
