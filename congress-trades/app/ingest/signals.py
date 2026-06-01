@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
-from app.models import GovEvent, Member, TickerMeta, Trade, TradeSignal, Watchlist
+from app.models import Filing, GovEvent, Member, TickerMeta, Trade, TradeSignal, Watchlist
 
 # signal types that should trigger ntfy alerts (conviction is a display score, not an alert)
 ALERT_TYPES = ["cluster_buy", "large", "options", "late_disclosure", "anomaly", "conflict"]
@@ -283,17 +283,18 @@ def notify(db, cfg):
     # candidate trades: unalerted ALERT-type signals, summed score >= min_score OR on a watchlist
     # (conviction is excluded — it's a 0-100 display score, not an alert trigger)
     rows = db.execute(
-        select(Trade, Member, func.sum(TradeSignal.score), func.array_agg(TradeSignal.signal_type))
+        select(Trade, Member, Filing, func.sum(TradeSignal.score), func.array_agg(TradeSignal.signal_type))
         .join(TradeSignal, TradeSignal.trade_id == Trade.id)
         .join(Member, Member.id == Trade.member_id, isouter=True)
+        .join(Filing, Filing.id == Trade.filing_id, isouter=True)
         .where(and_(TradeSignal.alerted_at.is_(None), TradeSignal.signal_type.in_(ALERT_TYPES)))
-        .group_by(Trade.id, Member.id)
+        .group_by(Trade.id, Member.id, Filing.id)
         .order_by(func.sum(TradeSignal.score).desc())
         .limit(cap * 3)
     ).all()
 
     sent = 0
-    for t, m, score, types in rows:
+    for t, m, f, score, types in rows:
         on_watch = (str(t.member_id) in watch_members) or ((t.ticker or "") in watch_tickers)
         if not (score >= min_score or on_watch):
             continue
@@ -302,7 +303,33 @@ def notify(db, cfg):
         who = m.full_name if m else "Unknown"
         party = f" ({m.party[0]}-{m.state})" if (m and m.party and m.state) else ""
         direction = (t.transaction_type or "").upper()
-        msg = f"{who}{party} {direction} {t.ticker or t.asset_name or '?'} {t.amount_range_raw or ''}".strip()
+        sig_rows = db.execute(
+            select(TradeSignal.signal_type, TradeSignal.score, TradeSignal.detail)
+            .where(and_(TradeSignal.trade_id == t.id, TradeSignal.signal_type.in_(ALERT_TYPES)))
+            .order_by(TradeSignal.score.desc())
+        ).all()
+        reason_bits = []
+        for stype, sscore, detail in sig_rows:
+            d = detail or {}
+            if stype == "large":
+                reason_bits.append(f"large ${int(d.get('amount_min') or 0):,}+")
+            elif stype == "cluster_buy":
+                reason_bits.append(f"cluster buy ({d.get('members')} members)")
+            elif stype == "late_disclosure":
+                reason_bits.append(f"late disclosure ({d.get('lag_days')}d)")
+            elif stype == "conflict":
+                reason_bits.append(f"committee/sector overlap: {d.get('sector')}")
+            else:
+                reason_bits.append(stype.replace("_", " "))
+        lag = (t.disclosure_date - t.transaction_date).days if (t.disclosure_date and t.transaction_date) else None
+        lines = [
+            f"{who}{party} {direction} {t.ticker or t.asset_name or '?'} {t.amount_range_raw or ''}".strip(),
+            f"Why: {', '.join(reason_bits) or ', '.join(sorted(set(types)))}",
+            f"Dates: traded {t.transaction_date or '?'} · disclosed {t.disclosure_date or '?'}" + (f" · lag {lag}d" if lag is not None else ""),
+            f"Source: {t.source}" + (f" · {f.source_url}" if f and f.source_url else ""),
+            "Informational only; public disclosures are delayed and not trading advice.",
+        ]
+        msg = "\n".join(lines)
         tags = ",".join(sorted(set(types)))[:120]
         try:
             requests.post(

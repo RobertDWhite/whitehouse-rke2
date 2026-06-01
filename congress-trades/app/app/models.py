@@ -181,6 +181,18 @@ class TickerMeta(Base):
     updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TickerAlias(Base):
+    """Best-effort aliases for mapping disclosed asset names to canonical tickers."""
+
+    __tablename__ = "ticker_aliases"
+
+    alias: Mapped[str] = mapped_column(String(256), primary_key=True)
+    ticker: Mapped[str] = mapped_column(String(32), index=True)
+    source: Mapped[str | None] = mapped_column(String(32))
+    confidence: Mapped[float | None] = mapped_column(Numeric)
+    updated_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class TickerQuote(Base):
     """Live-ish last price (Yahoo 1m) for live return-since-disclosure."""
 
@@ -242,6 +254,10 @@ class TradeReconciliation(Base):
     comparison_source: Mapped[str | None] = mapped_column(String(32), index=True)
     comparison_trade_id: Mapped[int | None] = mapped_column(ForeignKey("trades.id"), index=True)
     severity: Mapped[int] = mapped_column(Integer, default=1)
+    confidence: Mapped[float | None] = mapped_column(Numeric)
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | resolved | ignored
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+    resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     detail: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
 

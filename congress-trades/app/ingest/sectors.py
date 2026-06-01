@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.config import load_config
 from app.db import SessionLocal, init_db
-from app.models import TickerMeta, Trade
+from app.models import TickerAlias, TickerMeta, Trade
 
 from . import common
 from . import taxonomy
@@ -34,7 +34,20 @@ def run():
         r.raise_for_status()
         by_ticker = {}
         for row in r.json().values():
-            by_ticker[str(row["ticker"]).upper()] = (str(row["cik_str"]).zfill(10), row.get("title"))
+            ticker = str(row["ticker"]).upper()
+            by_ticker[ticker] = (str(row["cik_str"]).zfill(10), row.get("title"))
+            title = (row.get("title") or "").strip()
+            if title:
+                db.execute(
+                    pg_insert(TickerAlias)
+                    .values(alias=title.lower(), ticker=ticker, source="sec_company_tickers", confidence=0.95,
+                            updated_at=dt.datetime.now(dt.timezone.utc))
+                    .on_conflict_do_update(
+                        index_elements=["alias"],
+                        set_={"ticker": ticker, "source": "sec_company_tickers", "confidence": 0.95,
+                              "updated_at": dt.datetime.now(dt.timezone.utc)},
+                    )
+                )
 
         # already have sector for these (skip re-fetch unless older than 30 days)
         cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)

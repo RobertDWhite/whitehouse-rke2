@@ -1,6 +1,8 @@
 import datetime as dt
+import os
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
@@ -9,8 +11,19 @@ from ..models import LegislativeEvent, Member, TickerMeta, Trade, TradeReconcili
 from ..enrich import enrich_rows
 
 router = APIRouter()
+READONLY = os.environ.get("PUBLIC_READONLY", "").lower() in ("1", "true", "yes")
 
 _MID = (func.coalesce(Trade.amount_min, 0) + func.coalesce(Trade.amount_max, Trade.amount_min, 0)) / 2.0
+
+
+def _guard():
+    if READONLY:
+        raise HTTPException(403, "read-only mode")
+
+
+class ReconciliationResolution(BaseModel):
+    status: str
+    note: str | None = None
 
 
 @router.get("/committees")
@@ -71,6 +84,7 @@ def legislative_events(
     member_id: int | None = None,
     ticker: str | None = None,
     sector: str | None = None,
+    event_type: str | None = None,
     days: int = Query(120, le=730),
     limit: int = Query(100, le=500),
 ):
@@ -88,6 +102,8 @@ def legislative_events(
             stmt = stmt.where(LegislativeEvent.ticker == ticker.upper())
     if sector:
         stmt = stmt.where(LegislativeEvent.sector == sector)
+    if event_type:
+        stmt = stmt.where(LegislativeEvent.event_type == event_type)
     rows = db.execute(stmt.order_by(LegislativeEvent.occurred_at.desc().nullslast()).limit(limit)).all()
     return {
         "items": [
@@ -109,16 +125,26 @@ def legislative_events(
 
 
 @router.get("/reconciliation")
-def reconciliation(db: Session = Depends(get_db), limit: int = Query(100, le=500)):
-    by_kind = dict(db.execute(select(TradeReconciliation.kind, func.count()).group_by(TradeReconciliation.kind)).all())
-    rows = db.scalars(select(TradeReconciliation).order_by(TradeReconciliation.severity.desc(), TradeReconciliation.created_at.desc()).limit(limit)).all()
+def reconciliation(db: Session = Depends(get_db), status: str = "open", limit: int = Query(100, le=500)):
+    by_kind = dict(db.execute(select(TradeReconciliation.kind, func.count()).where(TradeReconciliation.status == "open").group_by(TradeReconciliation.kind)).all())
+    by_status = dict(db.execute(select(TradeReconciliation.status, func.count()).group_by(TradeReconciliation.status)).all())
+    status_filter = TradeReconciliation.status == status if status != "all" else True
+    rows = db.scalars(
+        select(TradeReconciliation)
+        .where(status_filter)
+        .order_by(TradeReconciliation.severity.desc(), TradeReconciliation.created_at.desc())
+        .limit(limit)
+    ).all()
     return {
         "by_kind": by_kind,
+        "by_status": by_status,
         "items": [
             {
                 "id": r.id,
                 "kind": r.kind,
                 "severity": r.severity,
+                "confidence": float(r.confidence) if r.confidence is not None else None,
+                "status": r.status,
                 "comparison_source": r.comparison_source,
                 "primary_trade_id": r.primary_trade_id,
                 "comparison_trade_id": r.comparison_trade_id,
@@ -128,6 +154,21 @@ def reconciliation(db: Session = Depends(get_db), limit: int = Query(100, le=500
             for r in rows
         ],
     }
+
+
+@router.post("/reconciliation/{issue_id}/resolve")
+def resolve_reconciliation(issue_id: int, body: ReconciliationResolution, db: Session = Depends(get_db)):
+    _guard()
+    if body.status not in ("resolved", "ignored", "open"):
+        raise HTTPException(400, "status must be resolved, ignored, or open")
+    issue = db.get(TradeReconciliation, issue_id)
+    if not issue:
+        raise HTTPException(404, "reconciliation issue not found")
+    issue.status = body.status
+    issue.resolution_note = body.note
+    issue.resolved_at = dt.datetime.now(dt.timezone.utc) if body.status in ("resolved", "ignored") else None
+    db.commit()
+    return {"status": issue.status}
 
 
 @router.get("/analytics/disclosure-lag")
