@@ -416,7 +416,10 @@ spec:
   hostnames:
     - photos.internal.white.fm
   rules:
-    - backendRefs:
+    - timeouts:
+        request: "60s"
+        backendRequest: "60s"
+      backendRefs:
         - name: immich-server
           port: 2283
 ---
