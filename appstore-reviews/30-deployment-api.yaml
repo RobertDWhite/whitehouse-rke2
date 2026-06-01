@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appstore-api
+  namespace: appstore-reviews
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appstore-api
+  template:
+    metadata:
+      labels:
+        app: appstore-api
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: appstore-api
+          image: registry.internal.white.fm/appstore-app
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: CONFIG_PATH
+              value: /etc/appstore/config.yaml
+            - name: ASC_ISSUER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: appstore-secrets
+                  key: asc-issuer-id
+            - name: ASC_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: appstore-secrets
+                  key: asc-key-id
+            - name: ASC_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: appstore-secrets
+                  key: asc-private-key
+          volumeMounts:
+            - name: config
+              mountPath: /etc/appstore
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: appstore-config

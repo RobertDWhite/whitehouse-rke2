@@ -326,3 +326,16 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # appstore.internal.white.fm — internal App Store review responder (Authentik SSO)
+    - name: https-appstore-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "appstore.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: appstore-tls
+      allowedRoutes:
+        namespaces:
+          from: All
