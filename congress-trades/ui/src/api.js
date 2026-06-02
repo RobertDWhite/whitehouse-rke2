@@ -85,6 +85,18 @@ export function signalLabel(t) {
   return SIGNAL_LABELS[t] || t
 }
 
+const EVENT_LABELS = {
+  bill: 'bill',
+  amendment: 'amendment',
+  house_vote: 'House roll call',
+  member_house_vote: 'member vote',
+  hearing: 'hearing',
+  committee_meeting: 'committee meeting',
+}
+export function eventLabel(t) {
+  return EVENT_LABELS[t] || t
+}
+
 // 0-100 conviction -> color band
 export function convictionClass(score) {
   if (score == null) return ''

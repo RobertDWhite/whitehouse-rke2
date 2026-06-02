@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: congress-smoke-runbook
+  namespace: congress-trades
+data:
+  runbook: |
+    Congress Trades smoke runbook
+
+    Create one-off Jobs from scheduled ingesters so a new image/config can be
+    verified without waiting for CronJob cadence:
+
+      kubectl -n congress-trades create job --from=cronjob/congress-legislative-context congress-legislative-context-smoke-$(date +%Y%m%d%H%M%S)
+      kubectl -n congress-trades create job --from=cronjob/congress-gov-events congress-gov-events-smoke-$(date +%Y%m%d%H%M%S)
+      kubectl -n congress-trades get pods -l app=congress-ingest
+
+    Check logs and API rows:
+
+      kubectl -n congress-trades logs job/<job-name>
+      kubectl -n congress-trades port-forward svc/congress-api 8080:80
+      curl 'http://localhost:8080/api/legislative-events?event_type=member_house_vote&limit=5'
+      curl 'http://localhost:8080/api/tickers/NVDA/events'
+
+    Expected smoke signal:
+
+    - Legislative ingest records member_house_vote rows when the House vote API
+      returns member-level details for recently active members.
+    - SEC event ingest stores richer Form 4 titles when EDGAR XML is available
+      for tracked tickers.
+    - Failures should appear in the matching ingest state row and CronJob pod logs.
