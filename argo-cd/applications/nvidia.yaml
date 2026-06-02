@@ -4,13 +4,13 @@ metadata:
   name: nvidia-device-plugin
   namespace: argocd
 spec:
-  project: default
+  project: platform
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
   source:
     repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
-    path: nvidia-device-plugin
+    path: platform/controllers/nvidia-device-plugin
     targetRevision: main
   syncPolicy:
     automated:
