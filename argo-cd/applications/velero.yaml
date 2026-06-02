@@ -4,8 +4,7 @@ metadata:
   name: velero
   namespace: argocd
 spec:
-  project: default
-
+  project: platform
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
@@ -14,8 +13,7 @@ spec:
     # Secrets (SOPS / ksops)
     - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
       targetRevision: main
-      path: velero-secrets
-
+      path: platform/storage/velero-secrets
     # Velero Helm chart
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
