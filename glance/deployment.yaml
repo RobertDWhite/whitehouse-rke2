@@ -15,6 +15,13 @@ spec:
       labels:
         app: glance
     spec:
+      # All widget URLs are full hostnames or IPs, so search-domain expansion is
+      # pure overhead. ndots:1 avoids 5 DNS lookups per host (the ndots:5 default
+      # + 4 search domains), which was causing intermittent custom-api timeouts.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
       containers:
         - name: glance
           image: docker.io/glanceapp/glance
