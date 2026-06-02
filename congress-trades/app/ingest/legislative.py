@@ -94,6 +94,54 @@ def _event_from_context(row, event_type, congress, chamber):
     }
 
 
+def _vote_session(row):
+    return row.get("sessionNumber") or row.get("session") or row.get("session_number")
+
+
+def _vote_number(row):
+    return row.get("rollCallNumber") or row.get("rollCallVoteNumber") or row.get("voteNumber") or row.get("number")
+
+
+def _member_vote_bioguide(row):
+    member = row.get("member") if isinstance(row.get("member"), dict) else {}
+    return (
+        row.get("bioguideId")
+        or row.get("bioguideID")
+        or row.get("bioguide")
+        or row.get("memberId")
+        or member.get("bioguideId")
+        or member.get("bioguideID")
+        or member.get("bioguide")
+    )
+
+
+def _member_vote_value(row):
+    return row.get("voteCast") or row.get("vote") or row.get("position") or row.get("cast")
+
+
+def _event_from_member_vote(row, vote_row, member, congress):
+    session = _vote_session(vote_row)
+    number = _vote_number(vote_row)
+    vote = _member_vote_value(row)
+    vote_title = vote_row.get("question") or vote_row.get("title") or vote_row.get("description") or f"House vote {number}"
+    occurred = vote_row.get("date") or vote_row.get("voteDate") or vote_row.get("updateDate")
+    return {
+        "source": "congress.gov",
+        "event_type": "member_house_vote",
+        "congress": int(congress) if congress else None,
+        "chamber": "house",
+        "bioguide": member.bioguide,
+        "member_id": member.id,
+        "committee": None,
+        "sector": (member.committee_sectors or [None])[0],
+        "title": f"{member.full_name} voted {vote or '?'} on {vote_title}",
+        "url": vote_row.get("url") or vote_row.get("congressdotgovUrl"),
+        "occurred_at": _parse_dt(occurred),
+        "external_id": f"member_house_vote:{congress}:{session}:{number}:{member.bioguide}",
+        "payload": {"vote": vote_row, "member_vote": row},
+    }
+
+
 def _fetch_list(sess, url, params, keys):
     r = sess.get(url, params=params, timeout=30)
     if r.status_code >= 400:
@@ -127,6 +175,7 @@ def run():
     lookback = int(cc.get("lookback_days", 14))
     cap = int(cc.get("max_members_per_run", 80))
     congress = int(cc.get("congress", 119))
+    max_votes = int(cc.get("max_votes_per_run", 25))
     key = os.environ.get("CONGRESS_GOV_API_KEY")
     sess = common.make_session(cfg)
     db = SessionLocal()
@@ -185,14 +234,35 @@ def run():
                 stored += 1
             time.sleep(0.25)
 
-        for row in _fetch_list(
+        active_by_bioguide = {m.bioguide: m for m in members if m.bioguide}
+        house_votes = _fetch_list(
             sess,
             f"{base}/house-vote/{congress}",
             params,
             ("houseVotes", "votes", "houseVote"),
-        ):
+        )
+        for row in house_votes:
             _store_event(db, _event_from_context(row, "house_vote", congress, "house"))
             stored += 1
+        for row in house_votes[:max_votes]:
+            session = _vote_session(row)
+            number = _vote_number(row)
+            if not session or not number:
+                continue
+            member_rows = _fetch_list(
+                sess,
+                f"{base}/house-vote/{congress}/{session}/{number}/members",
+                params,
+                ("houseRollCallVoteMemberVotes", "memberVotes", "members", "votes"),
+            )
+            for member_vote in member_rows:
+                bioguide = _member_vote_bioguide(member_vote)
+                member = active_by_bioguide.get(bioguide)
+                if not member:
+                    continue
+                _store_event(db, _event_from_member_vote(member_vote, row, member, congress))
+                stored += 1
+            time.sleep(0.2)
         db.commit()
         note = f"{failures} member fetches failed" if failures else None
         common.record_run(db, "legislative_events", rows_upserted=stored, success=(stored > 0 or failures == 0), note=note)
