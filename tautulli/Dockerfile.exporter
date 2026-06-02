@@ -1,0 +1,7 @@
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN pip install --no-cache-dir prometheus_client==0.22.1
+COPY exporter.py /app/exporter.py
+WORKDIR /app
+EXPOSE 9487
+ENTRYPOINT ["python3", "/app/exporter.py"]
