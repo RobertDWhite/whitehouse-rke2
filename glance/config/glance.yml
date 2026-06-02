@@ -46,12 +46,9 @@ pages:
             {{ $temp_white = .Options.FloatOr "temp_white" 30.0 }}
           {{end}}
 
-        {{/* Request 1: get latitude and longitude for user's city */}}
-        {{ $location_string := replaceAll " " "%20" (.Options.StringOr "location" "") }}
-        {{ $url1 := printf "https://geocoding-api.open-meteo.com/v1/search?name=%s&count=20&language=en&format=json" $location_string }}
-        {{ $req1 := newRequest $url1 | getResponse }}
-        {{ $latitude := $req1.JSON.String "results.0.latitude" }}
-        {{ $longitude := $req1.JSON.String "results.0.longitude" }}
+        {{/* Coordinates hardcoded for Middletown, OH — Open-Meteo geocoding resolves "Middletown" to the wrong city */}}
+        {{ $latitude := "39.51506" }}
+        {{ $longitude := "-84.39828" }}
 
         {{/* Request 2: get daily weather forecast based on latitude and longitude */}}
         {{ $url2 := printf "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&temperature_unit=%s&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=America/New_York" $latitude $longitude $temp_unit}}
