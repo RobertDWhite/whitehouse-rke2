@@ -1,8 +1,10 @@
 {
   "__inputs": [],
   "__requires": [],
-  "annotations": { "list": [] },
-  "description": "Ollama LLM server — model inventory, VRAM usage, API latency, GPU metrics, and SDR tagging integration",
+  "annotations": {
+    "list": []
+  },
+  "description": "Ollama LLM server \u2014 model inventory, VRAM usage, API latency, GPU metrics, and SDR tagging integration",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -11,38 +13,83 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "Instance Health",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           },
           "mappings": [
-            { "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } }, "type": "value" }
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN"
+                },
+                "1": {
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
           ],
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
       "id": 1,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "ollama (node-10)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_up{instance=\"ollama\"}",
           "legendFormat": "",
           "refId": "A"
@@ -50,32 +97,72 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           },
           "mappings": [
-            { "options": { "0": { "text": "DOWN" }, "1": { "text": "UP" } }, "type": "value" }
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN"
+                },
+                "1": {
+                  "text": "UP"
+                }
+              },
+              "type": "value"
+            }
           ],
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
       "id": 2,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "ollama-5090 (node-50)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_up{instance=\"ollama-5090\"}",
           "legendFormat": "",
           "refId": "A"
@@ -83,23 +170,55 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 8, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 8,
+        "y": 1
+      },
       "id": 3,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "Models Loaded (ollama)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_models_loaded_total{instance=\"ollama\"}",
           "legendFormat": "",
           "refId": "A"
@@ -107,23 +226,55 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 11, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 11,
+        "y": 1
+      },
       "id": 4,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "Models Loaded (ollama-5090)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_models_loaded_total{instance=\"ollama-5090\"}",
           "legendFormat": "",
           "refId": "A"
@@ -131,23 +282,55 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 14, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 14,
+        "y": 1
+      },
       "id": 5,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "Models Available (ollama)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_models_available_total{instance=\"ollama\"}",
           "legendFormat": "",
           "refId": "A"
@@ -155,23 +338,55 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
           "unit": "short"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 3, "x": 17, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 17,
+        "y": 1
+      },
       "id": 6,
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "center" },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
       "title": "Models Available (ollama-5090)",
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_models_available_total{instance=\"ollama-5090\"}",
           "legendFormat": "",
           "refId": "A"
@@ -179,20 +394,42 @@
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          },
           "unit": "short",
           "decimals": 0
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
       "id": 207,
       "options": {
-        "reduceOptions": { "calcs": ["sum"] },
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ]
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -203,7 +440,10 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "sum(count_over_time({namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"generate|chat|completions|embed\" [24h]))",
           "queryType": "instant",
           "instant": true,
@@ -214,26 +454,53 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "id": 101,
       "title": "VRAM & Model Memory",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
       "id": 10,
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "showThresholdLabels": false,
         "showThresholdMarkers": true
       },
@@ -241,7 +508,10 @@
       "type": "bargauge",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_model_vram_bytes",
           "legendFormat": "{{instance}} / {{model}}",
           "refId": "A"
@@ -249,23 +519,47 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes",
-          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
       "id": 11,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        }
+      },
       "title": "VRAM Usage Over Time",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_model_vram_bytes",
           "legendFormat": "{{instance}} / {{model}}",
           "refId": "A"
@@ -273,61 +567,115 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes",
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
       "id": 12,
       "options": {
         "orientation": "horizontal",
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "showThresholdLabels": false,
         "showThresholdMarkers": false,
         "displayMode": "gradient"
       },
-      "title": "Model Catalogue — Disk Size",
+      "title": "Model Catalogue \u2014 Disk Size",
       "description": "All downloaded models across both instances",
       "type": "bargauge",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "max by (instance, model, family, quantization, parameters) (ollama_available_model_size_bytes)",
-          "legendFormat": "{{instance}} · {{model}} ({{parameters}}, {{quantization}})",
+          "legendFormat": "{{instance}} \u00b7 {{model}} ({{parameters}}, {{quantization}})",
           "refId": "A"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
       "id": 102,
       "title": "API Latency",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "s",
-          "custom": { "fillOpacity": 8, "lineWidth": 2 }
+          "custom": {
+            "fillOpacity": 8,
+            "lineWidth": 2
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 23 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 23
+      },
       "id": 20,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "title": "Ollama REST API Response Time",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_api_response_seconds",
           "legendFormat": "{{instance}} /api/{{endpoint}}",
           "refId": "A"
@@ -335,26 +683,49 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 2 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
             ]
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 23 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
       "id": 21,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -365,13 +736,19 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_api_response_seconds{endpoint=\"ps\"}",
           "legendFormat": "{{instance}} /api/ps",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "ollama_api_response_seconds{endpoint=\"version\"}",
           "legendFormat": "{{instance}} /api/version",
           "refId": "B"
@@ -380,29 +757,58 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 30 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
       "id": 103,
       "title": "Container Metrics",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "bytes",
-          "custom": { "fillOpacity": 10, "lineWidth": 2 }
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 31 },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
       "id": 33,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "title": "Container Memory RSS (Ollama pods)",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "container_memory_rss{namespace=\"ai-stack\",container=~\"ollama.*\",container!=\"\"}",
           "legendFormat": "{{pod}}",
           "refId": "A"
@@ -411,35 +817,67 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
       "id": 104,
       "title": "SDR Tagging Integration",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "unit": "reqps",
-          "custom": { "fillOpacity": 12, "lineWidth": 2 }
+          "custom": {
+            "fillOpacity": 12,
+            "lineWidth": 2
+          }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 40 },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
       "id": 40,
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
       "title": "Ollama Tagging Call Rate (SDR API)",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "rate(sdr_indexer_ollama_calls_total[5m])",
           "legendFormat": "calls/s",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "rate(sdr_indexer_ollama_errors_total[5m])",
           "legendFormat": "errors/s",
           "refId": "B"
@@ -447,26 +885,49 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "unit": "short",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 10 },
-              { "color": "red", "value": 50 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
             ]
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 40 },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 12,
+        "y": 40
+      },
       "id": 41,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -477,7 +938,10 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "increase(sdr_indexer_ollama_calls_total[24h])",
           "legendFormat": "",
           "refId": "A"
@@ -485,26 +949,49 @@
       ]
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "unit": "percentunit",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.05 },
-              { "color": "red", "value": 0.15 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.15
+              }
             ]
           }
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 40 },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 40
+      },
       "id": 42,
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -515,7 +1002,10 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "rate(sdr_indexer_ollama_errors_total[5m]) / clamp_min(rate(sdr_indexer_ollama_calls_total[5m]), 0.0001)",
           "legendFormat": "",
           "refId": "A"
@@ -524,22 +1014,43 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
       "id": 200,
       "title": "Request Analytics",
       "type": "row"
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 65
+      },
       "id": 209,
       "title": "Live Feeds",
       "type": "row"
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 66 },
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 66
+      },
       "id": 201,
       "options": {
         "dedupStrategy": "none",
@@ -555,7 +1066,10 @@
       "type": "logs",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "{namespace=\"ai-stack\", container=\"ollama\", stream=\"stdout\"} |= \"POST\" |~ \"(generate|chat|completions|embed)\"",
           "legendFormat": "",
           "refId": "A"
@@ -563,32 +1077,54 @@
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "drawStyle": "bars",
             "lineWidth": 1,
             "fillOpacity": 50,
             "barAlignment": 0,
-            "stacking": { "mode": "normal", "group": "A" }
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           },
           "unit": "reqps"
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 49 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
       "id": 202,
       "options": {
-        "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
       },
       "title": "Inference Request Rate by Source IP",
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "sum by (ip) (rate({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |= \"POST\" | pattern \"<ip> - \" [$__interval]))",
           "queryType": "range",
           "legendFormat": "{{ip}}",
@@ -597,39 +1133,70 @@
       ]
     },
     {
-      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short" },
+        "defaults": {
+          "unit": "short"
+        },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Value #A" },
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
             "properties": [
-              { "id": "displayName", "value": "Requests" },
-              { "id": "custom.width", "value": 100 }
+              {
+                "id": "displayName",
+                "value": "Requests"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 57 },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
       "id": 203,
       "options": {
         "frameIndex": 0,
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "Requests" }]
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Requests"
+          }
+        ]
       },
-      "title": "Top Callers — Source IP & Pod",
+      "title": "Top Callers \u2014 Source IP & Pod",
       "type": "table",
       "transformations": [
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true },
-            "renameByName": { "pod_ip": "ip" }
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "pod_ip": "ip"
+            }
           }
         },
         {
           "id": "joinByField",
-          "options": { "byField": "ip", "mode": "left" }
+          "options": {
+            "byField": "ip",
+            "mode": "left"
+          }
         },
         {
           "id": "organize",
@@ -664,7 +1231,12 @@
           "options": {
             "filters": [
               {
-                "config": { "id": "greaterOrEqual", "options": { "value": 1 } },
+                "config": {
+                  "id": "greaterOrEqual",
+                  "options": {
+                    "value": 1
+                  }
+                },
                 "fieldName": "Requests"
               }
             ],
@@ -675,7 +1247,10 @@
       ],
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "sum by (ip) (count_over_time({namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |= \"POST\" | pattern \"<ip> - \" [$__range]))",
           "queryType": "instant",
           "instant": true,
@@ -683,7 +1258,10 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
           "expr": "max by (pod_ip, pod, namespace) (kube_pod_info{namespace!~\"kube-system|cattle-.*|fleet-.*\"})",
           "legendFormat": "",
           "instant": true,
@@ -693,9 +1271,20 @@
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 88 },
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 88
+      },
       "id": 204,
       "options": {
         "dedupStrategy": "none",
@@ -711,7 +1300,10 @@
       "type": "logs",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "{namespace=\"ai-stack\", container=\"ollama\", stream=\"stderr\"} |~ \"(starting runner|model loaded|llm server|loading model)\"",
           "legendFormat": "",
           "refId": "A"
@@ -719,9 +1311,20 @@
       ]
     },
     {
-      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 76 },
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
       "id": 205,
       "options": {
         "dedupStrategy": "none",
@@ -737,7 +1340,10 @@
       "type": "logs",
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
           "expr": "{namespace=\"ai-stack\", container=\"nginx\", pod=~\"ollama-router-.*\"} |= \"POST /api/\" |= \"body={\"",
           "legendFormat": "",
           "refId": "A"
@@ -747,9 +1353,19 @@
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["ai", "ollama", "llm", "gpu"],
-  "templating": { "list": [] },
-  "time": { "from": "now-6h", "to": "now" },
+  "tags": [
+    "ai",
+    "ollama",
+    "llm",
+    "gpu"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "browser",
   "title": "Ollama LLM",
