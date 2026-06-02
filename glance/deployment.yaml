@@ -20,6 +20,9 @@ spec:
           image: docker.io/glanceapp/glance
           ports:
             - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: glance-secrets
           volumeMounts:
             - name: config
               mountPath: /app/config/glance.yml
