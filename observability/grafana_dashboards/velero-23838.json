@@ -99,7 +99,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "description": "The sum of one-off backup and schedule backup success total ",
       "fieldConfig": {
@@ -188,7 +188,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "description": "The Success Rate is lower when a Backup is running.",
       "fieldConfig": {
@@ -274,7 +274,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "fieldConfig": {
         "defaults": {
@@ -360,7 +360,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "fieldConfig": {
         "defaults": {
@@ -445,7 +445,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "description": "for schedule backup use only",
       "fieldConfig": {
@@ -559,7 +559,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "ffbp5qeorery8b"
       },
       "fieldConfig": {
         "defaults": {
@@ -654,7 +654,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "editorMode": "code",
           "expr": "velero_backup_active_total{schedule=~\"$schedule\"}\r\n#missing metric (https://github.com/vmware-tanzu/velero/issues/2254)",
@@ -792,7 +792,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "expr": "sum(increase(velero_backup_success_total{schedule=~\"$schedule\"}[1h])) > 0",
           "format": "time_series",
@@ -814,7 +814,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "expr": "sum(increase(velero_backup_partial_failure_total{schedule=~\"$schedule\"}[1h])) > 0",
           "legendFormat": "Backup partial failure",
@@ -832,7 +832,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "expr": "sum(increase(velero_backup_deletion_failure_total{schedule=~\"$schedule\"}[1h])) > 0",
           "legendFormat": "Backup deletion failure",
@@ -887,7 +887,7 @@
           "color": "rgba(255,0,255,0.7)"
         },
         "filterValues": {
-          "le": 1e-9
+          "le": 1e-09
         },
         "legend": {
           "show": true
@@ -912,7 +912,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -1021,7 +1021,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "editorMode": "code",
           "expr": "avg by (schedule) (avg_over_time(velero_backup_tarball_size_bytes{schedule=~\"$schedule\"}[15m]))",
@@ -1058,7 +1058,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "description": "",
           "fieldConfig": {
@@ -1148,7 +1148,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "fieldConfig": {
             "defaults": {
@@ -1234,7 +1234,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "ffbp5qeorery8b"
           },
           "fieldConfig": {
             "defaults": {
@@ -1335,7 +1335,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "ffbp5qeorery8b"
               },
               "exemplar": false,
               "expr": "round(sum(increase(velero_restore_failed_total{schedule=~\"$schedule\"}[1h])))",
@@ -1359,7 +1359,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "ffbp5qeorery8b"
               },
               "exemplar": false,
               "expr": "round(sum(increase(velero_restore_partial_failure_total{schedule=~\"$schedule\"}[1h])))",
@@ -1460,7 +1460,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "ffbp5qeorery8b"
               },
               "editorMode": "code",
               "expr": "sum(velero_restore_total)",
@@ -1573,7 +1573,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "ffbp5qeorery8b"
               },
               "editorMode": "code",
               "exemplar": false,
@@ -1599,7 +1599,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${datasource}"
+                "uid": "ffbp5qeorery8b"
               },
               "exemplar": false,
               "expr": "round(sum(increase(velero_csi_snapshot_failure_total{schedule=~\"$schedule\", backupName=~\"$csi_backup_name\"}[1h])))",
@@ -1626,7 +1626,11 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "prometheus",
+          "value": "ffbp5qeorery8b"
+        },
         "includeAll": false,
         "label": "Datasource",
         "name": "datasource",
