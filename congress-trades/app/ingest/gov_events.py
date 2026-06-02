@@ -6,7 +6,9 @@ Informational/timing only, not causation.
 import datetime as dt
 import re
 import xml.etree.ElementTree as ET
+from urllib.parse import urljoin
 
+from bs4 import BeautifulSoup
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -15,12 +17,34 @@ from app.db import SessionLocal, init_db
 from app.models import GovEvent, TickerMeta
 
 from . import common
+from .form4_xml import form4_title, parse_form4_xml
 
 GETCURRENT = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type={form}&company=&dateb=&owner=include&count=100&output=atom"
 SEC_UA = "whitehouse-rke2 congress-trades robert@whitematter.tech"
 _NS = {"a": "http://www.w3.org/2005/Atom"}
 _CIK = re.compile(r"\((\d{4,10})\)")
 _ACC = re.compile(r"accession[- ]?number=([\d-]+)")
+
+
+def _form4_xml_url(sess, filing_url, accession):
+    if not filing_url:
+        return None
+    r = sess.get(filing_url, timeout=30)
+    if r.status_code != 200:
+        return None
+    if "<ownershipDocument" in r.text:
+        return filing_url
+    soup = BeautifulSoup(r.text, "lxml")
+    accession_key = accession.replace("-", "")
+    for link in soup.find_all("a", href=True):
+        href = link["href"]
+        low = href.lower()
+        if not low.endswith(".xml") or "filingsummary" in low:
+            continue
+        if accession_key not in href.replace("-", ""):
+            continue
+    return urljoin(filing_url, href)
+    return None
 
 
 def run():
@@ -60,11 +84,26 @@ def run():
                         filed = dt.datetime.fromisoformat(updated) if updated else None
                     except ValueError:
                         filed = None
+                    event_title = title
+                    if form == "4":
+                        try:
+                            xml_url = _form4_xml_url(sess, url, accession)
+                            if xml_url:
+                                xr = sess.get(xml_url, timeout=30)
+                                if xr.status_code == 200:
+                                    parsed = parse_form4_xml(xr.text)
+                                    event_title = form4_title(title, parsed)
+                                    url = xml_url
+                        except Exception as e:  # noqa: BLE001
+                            print(f"gov_events: Form 4 XML parse failed {accession}: {e}")
                     db.execute(
                         pg_insert(GovEvent)
                         .values(source="edgar", form=form, cik=cikm.group(1), ticker=ticker,
-                                title=title[:300], url=url, filed_at=filed, accession=accession)
-                        .on_conflict_do_nothing(index_elements=["accession"])
+                                title=event_title[:300], url=url, filed_at=filed, accession=accession)
+                        .on_conflict_do_update(
+                            index_elements=["accession"],
+                            set_={"title": event_title[:300], "url": url, "filed_at": filed, "ticker": ticker},
+                        )
                     )
                     n += 1
                 db.commit()

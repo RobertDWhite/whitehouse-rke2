@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { api, money, pct } from '../api.js'
+import { api, eventLabel, money, pct } from '../api.js'
 import PartyBadge from '../components/PartyBadge.jsx'
 import StarToggle from '../components/StarToggle.jsx'
 import TradeTable from '../components/TradeTable.jsx'
@@ -98,7 +98,7 @@ export default function TickerDetail() {
           <div className="news-list">
             {events.map((e) => (
               <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer">
-                {e.title}<span className="src"> · {e.member || e.sector || e.event_type}</span>
+                {e.title}<span className="src"> · {e.member || e.sector || eventLabel(e.event_type)}</span>
               </a>
             ))}
           </div>

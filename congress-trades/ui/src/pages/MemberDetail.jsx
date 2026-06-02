@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, compactMoney, pct } from '../api.js'
+import { api, compactMoney, eventLabel, pct } from '../api.js'
 import AiInsights from '../components/AiInsights.jsx'
 import PartyBadge from '../components/PartyBadge.jsx'
 import StarToggle from '../components/StarToggle.jsx'
@@ -103,7 +103,7 @@ export default function MemberDetail() {
             <div className="news-list">
               {events.map((e) => (
                 <a key={e.id} href={e.url} target="_blank" rel="noopener noreferrer">
-                  {e.title}<span className="src"> · {e.event_type}{e.sector ? ` · ${e.sector}` : ''}</span>
+                  {e.title}<span className="src"> · {eventLabel(e.event_type)}{e.sector ? ` · ${e.sector}` : ''}</span>
                 </a>
               ))}
             </div>

@@ -10,6 +10,56 @@ permissions:
   security-events: write
 
 jobs:
+  congress-trades:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: congress-trades
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r app/requirements.txt
+
+      - name: Backend compile check
+        run: python -m compileall app/app app/ingest ../congress-mcp/src
+
+      - name: Backend tests
+        working-directory: congress-trades/app
+        run: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q tests
+
+      - name: Parse Congress manifests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          for path in sorted(Path(".").glob("*.yaml")):
+              with path.open() as f:
+                  list(yaml.safe_load_all(f))
+              print(f"parsed {path}")
+          PY
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: congress-trades/ui/package-lock.json
+
+      - name: UI build
+        working-directory: congress-trades/ui
+        run: |
+          npm ci
+          npm run build
+
   validate:
     runs-on: ubuntu-latest
     steps:

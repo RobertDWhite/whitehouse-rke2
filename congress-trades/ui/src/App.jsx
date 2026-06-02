@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import GlobalSearch from './components/GlobalSearch.jsx'
 import { WatchlistProvider } from './watchctx.jsx'
 
@@ -20,8 +20,11 @@ const Sources = lazy(() => import('./pages/Sources.jsx'))
 const Status = lazy(() => import('./pages/Status.jsx'))
 const Committees = lazy(() => import('./pages/Committees.jsx'))
 const Reconciliation = lazy(() => import('./pages/Reconciliation.jsx'))
+const PolicyContext = lazy(() => import('./pages/PolicyContext.jsx'))
 
 export default function App() {
+  const publicSite = window.CONGRESS_TRADES_CONFIG?.publicSite === true
+
   return (
     <WatchlistProvider>
       <header className="topbar">
@@ -34,10 +37,11 @@ export default function App() {
           <NavLink to="/signals">Signals</NavLink>
           <NavLink to="/lag">Lag</NavLink>
           <NavLink to="/leaderboard">Leaderboard</NavLink>
+          <NavLink to="/policy">Policy</NavLink>
           <NavLink to="/committees">Committees</NavLink>
           <NavLink to="/members">Members</NavLink>
           <NavLink to="/tickers">Tickers</NavLink>
-          <NavLink to="/portfolio">Portfolio</NavLink>
+          {!publicSite && <NavLink to="/portfolio">Portfolio</NavLink>}
           <NavLink to="/watchlist">Watchlist</NavLink>
           <NavLink to="/sources">Sources</NavLink>
           <NavLink to="/status">Status</NavLink>
@@ -53,8 +57,9 @@ export default function App() {
             <Route path="/signals" element={<Signals />} />
             <Route path="/lag" element={<DisclosureLag />} />
             <Route path="/strategies" element={<Strategies />} />
-            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/portfolio" element={publicSite ? <Navigate to="/" replace /> : <Portfolio />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/policy" element={<PolicyContext />} />
             <Route path="/committees" element={<Committees />} />
             <Route path="/members" element={<Members />} />
             <Route path="/members/:id" element={<MemberDetail />} />
