@@ -779,12 +779,18 @@ pages:
       subrequests:
         transfer:
           url: http://${QBITTORRENT_IP}/api/v2/transfer/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
         seeding:
           url: http://${QBITTORRENT_IP}/api/v2/torrents/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
           parameters:
             filter: seeding
         leeching:
           url: http://${QBITTORRENT_IP}/api/v2/torrents/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
           parameters:
             filter: downloading
       template: |-
