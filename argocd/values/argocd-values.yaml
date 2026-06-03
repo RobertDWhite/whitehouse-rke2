@@ -51,6 +51,19 @@ repoServer:
     value: /etc/sops/age/key.txt
   - name: ARGOCD_KUBECTL_IMAGE
     value: docker.io/bitnami/kubectl:1.30.5
+  # Retry git fetches. The SSH transport intermittently throws
+  # 'SSH agent requested but SSH_AUTH_SOCK not-specified' (argoproj/argo-cd#8084,
+  # #884, #6000) -- fetches succeed most of the time and randomly fail. The
+  # default is a single attempt, so one flaky fetch surfaces as a hard
+  # ComparisonError (apps stuck "Unknown"). Retrying with backoff masks it.
+  - name: ARGOCD_GIT_ATTEMPTS_COUNT
+    value: "5"
+  - name: ARGOCD_GIT_RETRY_DURATION
+    value: "1s"
+  - name: ARGOCD_GIT_RETRY_MAX_DURATION
+    value: "10s"
+  - name: ARGOCD_GIT_RETRY_FACTOR
+    value: "2"
   volumes:
   - name: custom-tools
     emptyDir: {}
