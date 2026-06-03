@@ -1,0 +1,36 @@
+name: codex-refresh
+namespace: codex-refresh
+srcPath: apps/ai/codex-refresh
+kustomize: {}
+syncWave: '0'
+ignoreDifferences:
+- group: ''
+  kind: Secret
+  name: codex-credentials
+  namespace: codex-refresh
+  jsonPointers:
+  - /data
+- group: ''
+  kind: Secret
+  name: codex-token
+  namespace: hermes
+  jsonPointers:
+  - /data
+- group: ''
+  kind: Secret
+  name: codex-token
+  namespace: openclaw
+  jsonPointers:
+  - /data
+- group: apps
+  kind: Deployment
+  name: hermes
+  namespace: hermes
+  jsonPointers:
+  - /spec/template/metadata/annotations/codex-refresh~1last-refresh
+- group: apps
+  kind: StatefulSet
+  name: openclaw
+  namespace: openclaw
+  jsonPointers:
+  - /spec/template/metadata/annotations/codex-refresh~1last-refresh
