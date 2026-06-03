@@ -5,13 +5,26 @@ metadata:
   namespace: argocd
 spec:
   description: "Cluster infrastructure: controllers, networking, storage, policy"
-  # Permissive during migration so moving apps into this project never breaks
-  # them. Tighten sourceRepos / clusterResourceWhitelist once apps have landed.
+  # sourceRepos scoped to the git/Helm repos this project's apps actually use.
+  # Defense-in-depth with the Kyverno image-registry allowlist.
   sourceRepos:
-    - "*"
+    - git@github.com:RobertDWhite/whitehouse-rke2.git
+    - https://charts.external-secrets.io
+    - https://charts.jetstack.io
+    - https://charts.longhorn.io
+    - https://github.com/RobertDWhite/whitehouse-rke2.git
+    - https://github.com/rancher/local-path-provisioner
+    - https://kyverno.github.io/kyverno/
+    - https://vmware-tanzu.github.io/helm-charts
+  # Destinations stay open: platform hosts cross-cutting deployers
+  # (network-policies, external-secrets, cert-manager, external-dns) that
+  # legitimately write resources into ~every namespace. Scoping here would
+  # be an all-namespaces list that guards nothing.
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
+  # Resource whitelists stay open: this tier includes Helm charts/operators whose
+  # full cluster-resource set (CRDs, webhooks, ClusterRoles) isn't visible in git.
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
