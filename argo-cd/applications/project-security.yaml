@@ -5,13 +5,32 @@ metadata:
   namespace: argocd
 spec:
   description: "Security & identity tooling"
-  # Permissive during migration so moving apps into this project never breaks
-  # them. Tighten sourceRepos / clusterResourceWhitelist once apps have landed.
+  # sourceRepos scoped to the git/Helm repos this project's apps actually use.
+  # Defense-in-depth with the Kyverno image-registry allowlist.
   sourceRepos:
-    - "*"
+    - git@github.com:RobertDWhite/whitehouse-rke2.git
+    - https://aquasecurity.github.io/helm-charts/
+    - https://crowdsecurity.github.io/helm-charts
+    - https://falcosecurity.github.io/charts
+    - https://github.com/RobertDWhite/whitehouse-rke2.git
+  # Destinations scoped to exactly the namespaces this project's apps deploy
+  # into (computed from their CRs + manifests). This fences these workloads
+  # out of infra namespaces (kube-system, cert-manager, longhorn-system, ...).
+  # A new namespace must be added here on purpose. Failure mode is a blocked
+  # sync (OutOfSync) -- never a prune.
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: "*"
+      namespace: authentik
+    - server: https://kubernetes.default.svc
+      namespace: crowdsec
+    - server: https://kubernetes.default.svc
+      namespace: falco
+    - server: https://kubernetes.default.svc
+      namespace: kube-bench
+    - server: https://kubernetes.default.svc
+      namespace: trivy-system
+  # Resource whitelists stay open: this tier includes Helm charts/operators whose
+  # full cluster-resource set (CRDs, webhooks, ClusterRoles) isn't visible in git.
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
