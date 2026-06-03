@@ -15,6 +15,10 @@ spec:
       labels:
         app: autokuma
     spec:
+      # Pin to a node that holds a Longhorn replica of autokuma-pvc so the RWO
+      # volume attaches locally and fast (cross-node attach to a replica-less
+      # node times out and churns). Mirrors the uptime-kuma pod's node pin.
+      nodeName: rke2-node-10
       containers:
         - name: autokuma
           image: ghcr.io/bigboot/autokuma
