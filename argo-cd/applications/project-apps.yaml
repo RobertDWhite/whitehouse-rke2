@@ -5,13 +5,135 @@ metadata:
   namespace: argocd
 spec:
   description: "User-facing workloads"
-  # Permissive during migration so moving apps into this project never breaks
-  # them. Tighten sourceRepos / clusterResourceWhitelist once apps have landed.
+  # sourceRepos scoped to the git/Helm repos this project's apps actually use.
+  # Defense-in-depth with the Kyverno image-registry allowlist.
   sourceRepos:
-    - "*"
+    - ghcr.io/openclaw-rocks/charts
+    - git@github.com:RobertDWhite/whitehouse-glacier.git
+    - git@github.com:RobertDWhite/whitehouse-rke2.git
+    - https://bjw-s-labs.github.io/helm-charts/
+    - https://github.com/RobertDWhite/whitehouse-rke2.git
+    - https://portainer.github.io/k8s/
+  # Destinations scoped to exactly the namespaces this project's apps deploy
+  # into (computed from their CRs + manifests). This fences these workloads
+  # out of infra namespaces (kube-system, cert-manager, longhorn-system, ...).
+  # A new namespace must be added here on purpose. Failure mode is a blocked
+  # sync (OutOfSync) -- never a prune.
   destinations:
     - server: https://kubernetes.default.svc
-      namespace: "*"
+      namespace: adsb
+    - server: https://kubernetes.default.svc
+      namespace: ai
+    - server: https://kubernetes.default.svc
+      namespace: ai-stack
+    - server: https://kubernetes.default.svc
+      namespace: appstore-reviews
+    - server: https://kubernetes.default.svc
+      namespace: astronomy
+    - server: https://kubernetes.default.svc
+      namespace: audiobookshelf
+    - server: https://kubernetes.default.svc
+      namespace: backoffice
+    - server: https://kubernetes.default.svc
+      namespace: calibre
+    - server: https://kubernetes.default.svc
+      namespace: codex-refresh
+    - server: https://kubernetes.default.svc
+      namespace: congress-mcp
+    - server: https://kubernetes.default.svc
+      namespace: congress-trades
+    - server: https://kubernetes.default.svc
+      namespace: convos
+    - server: https://kubernetes.default.svc
+      namespace: cyberchef
+    - server: https://kubernetes.default.svc
+      namespace: dispatcharr
+    - server: https://kubernetes.default.svc
+      namespace: envoy-gateway-system
+    - server: https://kubernetes.default.svc
+      namespace: fleet
+    - server: https://kubernetes.default.svc
+      namespace: freshrss
+    - server: https://kubernetes.default.svc
+      namespace: gibt-es-gott
+    - server: https://kubernetes.default.svc
+      namespace: glacier
+    - server: https://kubernetes.default.svc
+      namespace: glance
+    - server: https://kubernetes.default.svc
+      namespace: ground-station
+    - server: https://kubernetes.default.svc
+      namespace: hermes
+    - server: https://kubernetes.default.svc
+      namespace: homarr
+    - server: https://kubernetes.default.svc
+      namespace: homebridge
+    - server: https://kubernetes.default.svc
+      namespace: homepage
+    - server: https://kubernetes.default.svc
+      namespace: homeschool
+    - server: https://kubernetes.default.svc
+      namespace: hub
+    - server: https://kubernetes.default.svc
+      namespace: immich
+    - server: https://kubernetes.default.svc
+      namespace: intelowl
+    - server: https://kubernetes.default.svc
+      namespace: jetlog
+    - server: https://kubernetes.default.svc
+      namespace: jetlog-mcp
+    - server: https://kubernetes.default.svc
+      namespace: kavita
+    - server: https://kubernetes.default.svc
+      namespace: keeptrack
+    - server: https://kubernetes.default.svc
+      namespace: mastodon
+    - server: https://kubernetes.default.svc
+      namespace: matrix
+    - server: https://kubernetes.default.svc
+      namespace: media
+    - server: https://kubernetes.default.svc
+      namespace: media-mcp
+    - server: https://kubernetes.default.svc
+      namespace: misp
+    - server: https://kubernetes.default.svc
+      namespace: monica
+    - server: https://kubernetes.default.svc
+      namespace: monica-mcp
+    - server: https://kubernetes.default.svc
+      namespace: nitter
+    - server: https://kubernetes.default.svc
+      namespace: ntfy
+    - server: https://kubernetes.default.svc
+      namespace: ombi
+    - server: https://kubernetes.default.svc
+      namespace: openclaw
+    - server: https://kubernetes.default.svc
+      namespace: openclaw-operator-system
+    - server: https://kubernetes.default.svc
+      namespace: openhamclock
+    - server: https://kubernetes.default.svc
+      namespace: politics
+    - server: https://kubernetes.default.svc
+      namespace: portainer
+    - server: https://kubernetes.default.svc
+      namespace: postfix
+    - server: https://kubernetes.default.svc
+      namespace: raven
+    - server: https://kubernetes.default.svc
+      namespace: scrypted
+    - server: https://kubernetes.default.svc
+      namespace: sdr-research
+    - server: https://kubernetes.default.svc
+      namespace: tautulli
+    - server: https://kubernetes.default.svc
+      namespace: weather
+    - server: https://kubernetes.default.svc
+      namespace: worldmonitor
+    - server: https://kubernetes.default.svc
+      namespace: yeti
+  # Resource whitelists stay open: this tier includes Helm charts/operators whose
+  # full cluster-resource set (CRDs, webhooks, ClusterRoles) isn't visible in git.
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
