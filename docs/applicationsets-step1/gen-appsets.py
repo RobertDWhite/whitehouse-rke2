@@ -24,6 +24,10 @@ spec:
         revision: main
         files:
           - path: "argo-cd/app-configs/{prefix}/*.yaml"
+  # Base template is plain, valid YAML (only quoted string-templates + literal
+  # defaults), so generic YAML tooling parses it. ALL per-app variation -- incl.
+  # the typed prune/selfHeal overrides, which can't be {{{{}}}}'d in a bool
+  # field -- is injected by the templatePatch block string below.
   template:
     metadata:
       name: "{{{{ .name }}}}"
@@ -31,17 +35,15 @@ spec:
     spec:
       project: {project}
       source:
-        repoURL: {{{{ dig "repoURL" "{rke}" . }}}}
-        targetRevision: {{{{ dig "targetRevision" "main" . }}}}
+        repoURL: {rke}
+        targetRevision: main
         path: "{{{{ .srcPath }}}}"
       destination:
-        server: {{{{ dig "server" "{server}" . }}}}
+        server: {server}
       syncPolicy:
         automated:
-          prune: {{{{ dig "prune" true . }}}}
-          selfHeal: {{{{ dig "selfHeal" true . }}}}
-  # Conditional per-app fields injected via strategic-merge patch. Apps that
-  # don't declare a field render the clean template above untouched.
+          prune: true
+          selfHeal: true
   templatePatch: |
     {{{{- if hasKey . "syncWave" }}}}
     metadata:
@@ -56,15 +58,22 @@ spec:
     {{{{- if or (hasKey . "kustomize") (hasKey . "directory") }}}}
       source:
       {{{{- if hasKey . "kustomize" }}}}
-        kustomize:
-{{{{ .kustomize | toYaml | indent 10 }}}}
+        kustomize: {{{{ .kustomize | toYaml | nindent 10 }}}}
       {{{{- end }}}}
       {{{{- if hasKey . "directory" }}}}
-        directory:
-{{{{ .directory | toYaml | indent 10 }}}}
+        directory: {{{{ .directory | toYaml | nindent 10 }}}}
       {{{{- end }}}}
     {{{{- end }}}}
       syncPolicy:
+    {{{{- if or (hasKey . "prune") (hasKey . "selfHeal") }}}}
+        automated:
+      {{{{- if hasKey . "prune" }}}}
+          prune: {{{{ .prune }}}}
+      {{{{- end }}}}
+      {{{{- if hasKey . "selfHeal" }}}}
+          selfHeal: {{{{ .selfHeal }}}}
+      {{{{- end }}}}
+    {{{{- end }}}}
     {{{{- if hasKey . "syncOptions" }}}}
       {{{{- if .syncOptions }}}}
         syncOptions:
@@ -77,8 +86,7 @@ spec:
           - CreateNamespace=true
     {{{{- end }}}}
     {{{{- if hasKey . "ignoreDifferences" }}}}
-      ignoreDifferences:
-{{{{ .ignoreDifferences | toYaml | indent 6 }}}}
+      ignoreDifferences: {{{{ .ignoreDifferences | toYaml | nindent 6 }}}}
     {{{{- end }}}}
 '''
 
