@@ -15,5 +15,9 @@ generators:
 images:
   - name: louislam/uptime-kuma
     newTag: "2.4.0"
+  # Pinned by digest: the :master build (rev 3379fbae) ships the v3 DB
+  # migration the on-disk state requires; AutoKuma no longer publishes semver
+  # image tags (only master/latest/sha), and a digest also satisfies the
+  # cluster's require-image-digest policy.
   - name: ghcr.io/bigboot/autokuma
-    newTag: "v2.1.0-rc.1"
+    digest: "sha256:2575fa9ea8db99cf4e8800cfe47f5be7213b5d712c3ce0d59a174e52b69489d3"
