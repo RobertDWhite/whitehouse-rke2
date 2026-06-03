@@ -1,0 +1,123 @@
+# =============================================================
+# allow-uptime-kuma — let Uptime Kuma probe namespaces whose
+# netpols live in their own app dirs (data apps, MCP servers, the
+# media *arr stack, raven) and therefore didn't already allow the
+# uptime-kuma namespace. NetworkPolicies are additive, so this only
+# ADDS uptime-kuma as an allowed ingress source; default-deny and the
+# app's other allow rules are untouched.
+# Mirrors the allow-uptime-kuma policy in immich.yaml / simple-web-apps.yaml.
+# =============================================================
+
+# data apps (default-deny + allow-ingress-to-ui/api in their app dirs)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: weather}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: astronomy}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: politics}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: appstore-reviews}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: congress-trades}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+# MCP servers (default-deny + allow-envoy-gateway only)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: congress-mcp}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: media-mcp}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: jetlog-mcp}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: monica-mcp}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+# media *arr stack (its own complex netpol set in apps/media/media)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: media}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+---
+# raven (default-deny + allow-ingress-nginx / misp bridge)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-uptime-kuma, namespace: raven}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
