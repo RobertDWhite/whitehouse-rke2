@@ -1,0 +1,73 @@
+# GENERATED CONTROL PLANE -- not yet wired to app-of-apps (step 1: authoring +
+# parity proof only). Replaces the apps project's plain-directory
+# Application CRs. Each app ships an argo-cd/app-configs/apps/<name>.yaml that
+# this set templates into an Application. See PARITY-REPORT.md.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - git:
+        repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+        revision: main
+        files:
+          - path: "argo-cd/app-configs/apps/*.yaml"
+  template:
+    metadata:
+      name: "{{ .name }}"
+      namespace: argocd
+    spec:
+      project: apps
+      source:
+        repoURL: {{ dig "repoURL" "git@github.com:RobertDWhite/whitehouse-rke2.git" . }}
+        targetRevision: {{ dig "targetRevision" "main" . }}
+        path: "{{ .srcPath }}"
+      destination:
+        server: {{ dig "server" "https://kubernetes.default.svc" . }}
+      syncPolicy:
+        automated:
+          prune: {{ dig "prune" true . }}
+          selfHeal: {{ dig "selfHeal" true . }}
+  # Conditional per-app fields injected via strategic-merge patch. Apps that
+  # don't declare a field render the clean template above untouched.
+  templatePatch: |
+    {{- if hasKey . "syncWave" }}
+    metadata:
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{ .syncWave }}"
+    {{- end }}
+    spec:
+    {{- if hasKey . "namespace" }}
+      destination:
+        namespace: {{ .namespace }}
+    {{- end }}
+    {{- if or (hasKey . "kustomize") (hasKey . "directory") }}
+      source:
+      {{- if hasKey . "kustomize" }}
+        kustomize:
+{{ .kustomize | toYaml | indent 10 }}
+      {{- end }}
+      {{- if hasKey . "directory" }}
+        directory:
+{{ .directory | toYaml | indent 10 }}
+      {{- end }}
+    {{- end }}
+      syncPolicy:
+    {{- if hasKey . "syncOptions" }}
+      {{- if .syncOptions }}
+        syncOptions:
+        {{- range .syncOptions }}
+          - {{ . }}
+        {{- end }}
+      {{- end }}
+    {{- else }}
+        syncOptions:
+          - CreateNamespace=true
+    {{- end }}
+    {{- if hasKey . "ignoreDifferences" }}
+      ignoreDifferences:
+{{ .ignoreDifferences | toYaml | indent 6 }}
+    {{- end }}
