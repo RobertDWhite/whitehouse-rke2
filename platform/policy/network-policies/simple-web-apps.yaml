@@ -200,39 +200,6 @@ spec:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
-# ======================== CYBETHER ========================
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: default-deny, namespace: cybether}
-spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-all-egress, namespace: cybether}
-spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-intra-namespace, namespace: cybether}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress: [{from: [{podSelector: {}}]}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-ingress, namespace: cybether}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
-
----
 # ======================== WORLDMONITOR ========================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -272,64 +239,6 @@ spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: allow-ingress, namespace: audiobookshelf}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
-
----
-# ======================== LAZYLIBRARIAN ========================
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: default-deny, namespace: lazylibrarian}
-spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-all-egress, namespace: lazylibrarian}
-spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-ingress, namespace: lazylibrarian}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
-
----
-# ======================== SHELFMARK ========================
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: default-deny, namespace: shelfmark}
-spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-all-egress, namespace: shelfmark}
-spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-intra-namespace, namespace: shelfmark}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress: [{from: [{podSelector: {}}]}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-ingress, namespace: shelfmark}
 spec:
   podSelector: {}
   policyTypes: [Ingress]
