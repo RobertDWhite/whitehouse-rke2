@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: watch-badges
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: watch-badges
+  template:
+    metadata:
+      labels:
+        app: watch-badges
+    spec:
+      containers:
+        - name: nginx
+          # Static dashboard served from a ConfigMap; no custom image to build.
+          image: nginxinc/nginx-unprivileged:1.31-alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              # nginx-unprivileged uses worker_processes auto (one per core);
+              # headroom so the workers can't OOM under concurrent load.
+              memory: 128Mi
+      volumes:
+        - name: web
+          configMap:
+            name: badges-web

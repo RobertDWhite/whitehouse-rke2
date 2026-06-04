@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: watch-badges
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: apps/misc/watch-badges
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: watch-badges
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
