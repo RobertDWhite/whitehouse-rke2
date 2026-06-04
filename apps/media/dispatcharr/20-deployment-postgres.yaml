@@ -7,6 +7,10 @@ metadata:
     app: dispatcharr-db
 spec:
   replicas: 1
+  # Single-replica Postgres on an RWO volume: the default RollingUpdate
+  # deadlocks (new pod can't attach until old releases the volume).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: dispatcharr-db
