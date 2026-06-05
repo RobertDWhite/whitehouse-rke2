@@ -60,6 +60,8 @@ spec:
               mountPath: /config
             - name: books
               mountPath: /books
+            - name: downloads
+              mountPath: /downloads
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -67,3 +69,6 @@ spec:
         - name: books
           persistentVolumeClaim:
             claimName: calibre-books
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: lazylibrarian-downloads
