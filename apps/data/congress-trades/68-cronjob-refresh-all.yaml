@@ -1,0 +1,83 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: congress-refresh-all
+  namespace: congress-trades
+spec:
+  schedule: "0 8 * * *"          # 8am daily — consolidated full-pipeline sweep
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0             # one shot/day; refresh_all already tolerates per-step failures
+      activeDeadlineSeconds: 3600 # bound the whole 17-step sweep to 1h
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: congress-ingest
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/arch: amd64
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: [rke2-node-13, rke2-node-14, rke2-node-50]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          containers:
+            - name: ingest
+              image: registry.internal.white.fm/congress-app
+              imagePullPolicy: IfNotPresent
+              command: ["python", "-m", "ingest.refresh_all"]
+              env:
+                - name: CONFIG_PATH
+                  value: /etc/congress/config.yaml
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: congress-secrets
+                      key: database-url
+                - name: ALPACA_API_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: congress-secrets
+                      key: alpaca-api-key-id
+                      optional: true
+                - name: ALPACA_API_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: congress-secrets
+                      key: alpaca-api-secret-key
+                      optional: true
+                - name: CONGRESS_GOV_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: congress-secrets
+                      key: congress-gov-api-key
+                      optional: true
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/congress
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  cpu: "2"
+                  memory: 3Gi
+          volumes:
+            - name: config
+              configMap:
+                name: congress-config
