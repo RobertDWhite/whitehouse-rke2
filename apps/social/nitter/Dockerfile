@@ -9,7 +9,7 @@ RUN nimble build -y -d:release -d:nimPreviewHashRef && \
     nimble scss && \
     strip nitter
 
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache libsass openssl pcre
 COPY --from=build /src/nitter /usr/local/bin/nitter
 COPY --from=build /src/public /public
