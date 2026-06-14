@@ -1,0 +1,47 @@
+# Hard egress lockdown for the searxng namespace: every pod is default-deny
+# egress and may ONLY reach (1) cluster DNS, (2) the media VPN proxy, and
+# (3) other pods in this namespace (searxng -> valkey). There is no path to
+# the internet except through the gluetun/PIA tunnel — anything else fails
+# closed at L3.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress-except-vpn
+  namespace: searxng
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Cluster DNS (CoreDNS) — needed to resolve vpn-proxy/valkey service names.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The only internet egress: the VPN proxy (HTTP 8888 / SOCKS5 1080) in media.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchLabels:
+              app: vpn-proxy
+      ports:
+        - port: 8888
+          protocol: TCP
+        - port: 1080
+          protocol: TCP
+    # Intra-namespace: searxng -> valkey cache.
+    - to:
+        - podSelector: {}
+      ports:
+        - port: 6379
+          protocol: TCP
