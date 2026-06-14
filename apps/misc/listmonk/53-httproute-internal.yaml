@@ -1,0 +1,19 @@
+# Internal LAN access at listmonk.internal.white.fm. Same direct-to-service routing as
+# the public route (52-httproute-public.yaml) — listmonk handles its own admin auth, and
+# recipient unsubscribe/tracking links must not sit behind SSO.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: listmonk-internal
+  namespace: listmonk
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - listmonk.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: listmonk
+          port: 9000
