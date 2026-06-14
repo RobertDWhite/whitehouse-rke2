@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: listmonk
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: listmonk
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: "postgres"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              # Keep off rke2-node-14 (flaky Longhorn RWO attaches) and rke2-node-13.
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14]
+      containers:
+        - name: postgres
+          image: postgres
+          args:
+            - -c
+            - shared_buffers=256MB
+            - -c
+            - max_connections=100
+          env:
+            - name: POSTGRES_DB
+              value: "listmonk"
+            - name: POSTGRES_USER
+              value: "listmonk"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: listmonk-secrets
+                  key: db-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "listmonk"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "listmonk"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          # No allowPrivilegeEscalation:false here: the postgres:*-alpine entrypoint starts
+          # as root and drops to the postgres user via su-exec, which no_new_privs breaks.
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # Replicated storage: this DB is the source of truth for the subscriber list,
+        # campaign history, and bounce/engagement records — NOT a reconstructable cache.
+        # If this PVC stays Pending, Longhorn is scheduling-exhausted on the cluster
+        # (see apps/data/congress-trades/10-postgres.yaml note) — free capacity or
+        # temporarily switch to local-path. Velero backs up this namespace daily either way.
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 10Gi
