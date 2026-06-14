@@ -93,7 +93,9 @@ spec:
         # If this PVC stays Pending, Longhorn is scheduling-exhausted on the cluster
         # (see apps/data/congress-trades/10-postgres.yaml note) — free capacity or
         # temporarily switch to local-path. Velero backs up this namespace daily either way.
-        storageClassName: longhorn
+        # local-path stopgap: Longhorn provisioner wedged by the node-14 networking outage.
+        # Node-local (not replicated); Velero still backs up this ns. Revert to longhorn when healthy.
+        storageClassName: local-path
         resources:
           requests:
             storage: 10Gi
