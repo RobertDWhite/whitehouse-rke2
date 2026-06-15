@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-gramps-media
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  mountOptions:
+    - nfsvers=4.1
+    - nconnect=8
+    - rsize=1048576
+    - wsize=1048576
+  nfs:
+    server: 10.100.1.20
+    path: /volume1/Personal
