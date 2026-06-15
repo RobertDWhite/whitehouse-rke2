@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 05-storageclass.yaml
+  - 10-pvc-data.yaml
+  - 11-pvc-chromadb.yaml
+  - 20-deployment-chromadb.yaml
+  - 21-service-chromadb.yaml
+  - 30-deployment.yaml
+  - 40-service.yaml
+  - 53-httproute-internal.yaml
+
+generators:
+  - 25-ksops.yaml
+
+images:
+  - name: ghcr.io/robertdwhite/odysseus
+    newTag: "9d7a3d6"
+    digest: sha256:2dc6ba52e2b0cd62d51271eacc321e1d06d96d77e4bf715bfe326d1280bca162
+  - name: docker.io/chromadb/chroma
+    newTag: "1.5.9"
+    digest: sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6
+  - name: busybox
+    newTag: "1.37"
+    digest: sha256:9532d8c39891ca2ecde4d30d7710e01fb739c87a8b9299685c63704296b16028
