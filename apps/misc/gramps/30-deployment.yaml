@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gramps
+  namespace: gramps
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gramps
+  template:
+    metadata:
+      labels:
+        app: gramps
+    spec:
+      initContainers:
+        # The gramps image bakes its directory tree under /app and
+        # /root/.gramps; mounting an empty PVC over those paths hides it.
+        # Seed the dirs (incl. nested cache subdirs) and pre-generate the
+        # Flask secret so the web + celery containers never race to create it.
+        - name: init-dirs
+          image: ghcr.io/gramps-project/grampsweb
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              mkdir -p \
+                /data/users /data/indexdir /data/thumbnail_cache \
+                /data/cache/reports /data/cache/export \
+                /data/cache/request_cache /data/cache/persistent_cache \
+                /data/secret /data/media /data/grampsdb /data/persist
+              if [ ! -s /data/secret/secret ]; then
+                python3 -c "import secrets;print(secrets.token_urlsafe(32))" | tr -d "\n" > /data/secret/secret
+              fi
+          volumeMounts:
+            - name: gramps-data
+              mountPath: /data
+      containers:
+        - name: gramps
+          image: ghcr.io/gramps-project/grampsweb
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: GRAMPSWEB_TREE
+              value: "Gramps Web"
+            - name: GRAMPSWEB_BASE_URL
+              value: https://ancestry.white.fm
+            - name: GRAMPSWEB_CELERY_CONFIG__broker_url
+              value: redis://redis:6379/0
+            - name: GRAMPSWEB_CELERY_CONFIG__result_backend
+              value: redis://redis:6379/0
+            - name: GRAMPSWEB_RATELIMIT_STORAGE_URI
+              value: redis://redis:6379/1
+            - name: GUNICORN_NUM_WORKERS
+              value: "4"
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - {name: gramps-data, mountPath: /app/users, subPath: users}
+            - {name: gramps-data, mountPath: /app/indexdir, subPath: indexdir}
+            - {name: gramps-data, mountPath: /app/thumbnail_cache, subPath: thumbnail_cache}
+            - {name: gramps-data, mountPath: /app/cache, subPath: cache}
+            - {name: gramps-data, mountPath: /app/secret, subPath: secret}
+            - {name: gramps-data, mountPath: /app/media, subPath: media}
+            - {name: gramps-data, mountPath: /root/.gramps/grampsdb, subPath: grampsdb}
+            - {name: gramps-data, mountPath: /app/persist, subPath: persist}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 5000
+            failureThreshold: 60
+            periodSeconds: 5
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 10
+        - name: celery
+          image: ghcr.io/gramps-project/grampsweb
+          imagePullPolicy: IfNotPresent
+          # Use args (not command) so the image ENTRYPOINT still runs — it
+          # reads /app/secret/secret into GRAMPSWEB_SECRET_KEY before exec'ing
+          # the worker. Overriding command bypasses it and celery aborts with
+          # "SECRET_KEY must be specified".
+          args:
+            - celery
+            - -A
+            - gramps_webapi.celery
+            - worker
+            - --loglevel=INFO
+            - --concurrency=2
+          env:
+            - name: GRAMPSWEB_TREE
+              value: "Gramps Web"
+            - name: GRAMPSWEB_BASE_URL
+              value: https://ancestry.white.fm
+            - name: GRAMPSWEB_CELERY_CONFIG__broker_url
+              value: redis://redis:6379/0
+            - name: GRAMPSWEB_CELERY_CONFIG__result_backend
+              value: redis://redis:6379/0
+            - name: GRAMPSWEB_RATELIMIT_STORAGE_URI
+              value: redis://redis:6379/1
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - {name: gramps-data, mountPath: /app/users, subPath: users}
+            - {name: gramps-data, mountPath: /app/indexdir, subPath: indexdir}
+            - {name: gramps-data, mountPath: /app/thumbnail_cache, subPath: thumbnail_cache}
+            - {name: gramps-data, mountPath: /app/cache, subPath: cache}
+            - {name: gramps-data, mountPath: /app/secret, subPath: secret}
+            - {name: gramps-data, mountPath: /app/media, subPath: media}
+            - {name: gramps-data, mountPath: /root/.gramps/grampsdb, subPath: grampsdb}
+            - {name: gramps-data, mountPath: /app/persist, subPath: persist}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: gramps-data
+          persistentVolumeClaim:
+            claimName: gramps-data
+        - name: tmp
+          emptyDir: {}
