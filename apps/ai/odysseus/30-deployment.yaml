@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: odysseus
+  namespace: odysseus
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: odysseus
+  template:
+    metadata:
+      labels:
+        app: odysseus
+    spec:
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: ghcr-pull
+      initContainers:
+        # Odysseus' Chroma client connects at startup; wait for the companion
+        # ChromaDB service so the app doesn't crash-loop on first boot.
+        - name: wait-for-chromadb
+          image: busybox
+          command:
+            - sh
+            - -c
+            - 'until nc -z chromadb 8000; do echo "waiting for chromadb"; sleep 3; done'
+          securityContext:
+            allowPrivilegeEscalation: false
+      containers:
+        - name: odysseus
+          # Runs as root then drops to PUID/PGID via gosu in the entrypoint, so
+          # no runAsNonRoot / allowPrivilegeEscalation:false here (gosu needs setuid).
+          image: ghcr.io/robertdwhite/odysseus
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 7000
+              name: http
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            # LLM / inference — existing in-cluster Ollama (node-10)
+            - name: LLM_HOST
+              value: ollama.ai-stack.svc.cluster.local
+            - name: OLLAMA_BASE_URL
+              value: http://ollama.ai-stack.svc.cluster.local:11434/v1
+            # Embeddings via Ollama (all-minilm); falls back to local FastEmbed
+            # automatically if the endpoint/model is unavailable.
+            - name: EMBEDDING_URL
+              value: http://ollama.ai-stack.svc.cluster.local:11434/v1/embeddings
+            - name: EMBEDDING_MODEL
+              value: all-minilm:latest
+            # Vector store — companion ChromaDB in this namespace
+            - name: CHROMADB_HOST
+              value: chromadb
+            - name: CHROMADB_PORT
+              value: "8000"
+            # Web search — shared VPN-locked SearXNG (searxng namespace)
+            - name: SEARXNG_INSTANCE
+              value: http://searxng.searxng.svc.cluster.local:8080
+            # Persistence
+            - name: DATABASE_URL
+              value: sqlite:////app/data/app.db
+            # Auth — Odysseus native login (internal-only ingress)
+            - name: AUTH_ENABLED
+              value: "true"
+            - name: SECURE_COOKIES
+              value: "true"
+            - name: ALLOWED_ORIGINS
+              value: https://odysseus.internal.white.fm
+            - name: ODYSSEUS_ADMIN_USER
+              value: admin
+            - name: ODYSSEUS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: odysseus-secret
+                  key: ODYSSEUS_ADMIN_PASSWORD
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 7000
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 7000
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 7000
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: odysseus-data
+        - name: logs
+          emptyDir: {}
