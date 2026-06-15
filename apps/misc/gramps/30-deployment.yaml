@@ -32,7 +32,7 @@ spec:
                 /data/users /data/indexdir /data/thumbnail_cache \
                 /data/cache/reports /data/cache/export \
                 /data/cache/request_cache /data/cache/persistent_cache \
-                /data/secret /data/media /data/grampsdb /data/persist
+                /data/secret /data/grampsdb /data/persist
               if [ ! -s /data/secret/secret ]; then
                 python3 -c "import secrets;print(secrets.token_urlsafe(32))" | tr -d "\n" > /data/secret/secret
               fi
@@ -66,7 +66,7 @@ spec:
             - {name: gramps-data, mountPath: /app/thumbnail_cache, subPath: thumbnail_cache}
             - {name: gramps-data, mountPath: /app/cache, subPath: cache}
             - {name: gramps-data, mountPath: /app/secret, subPath: secret}
-            - {name: gramps-data, mountPath: /app/media, subPath: media}
+            - {name: gramps-media, mountPath: /app/media, subPath: Gramps}
             - {name: gramps-data, mountPath: /root/.gramps/grampsdb, subPath: grampsdb}
             - {name: gramps-data, mountPath: /app/persist, subPath: persist}
             - {name: tmp, mountPath: /tmp}
@@ -132,7 +132,7 @@ spec:
             - {name: gramps-data, mountPath: /app/thumbnail_cache, subPath: thumbnail_cache}
             - {name: gramps-data, mountPath: /app/cache, subPath: cache}
             - {name: gramps-data, mountPath: /app/secret, subPath: secret}
-            - {name: gramps-data, mountPath: /app/media, subPath: media}
+            - {name: gramps-media, mountPath: /app/media, subPath: Gramps}
             - {name: gramps-data, mountPath: /root/.gramps/grampsdb, subPath: grampsdb}
             - {name: gramps-data, mountPath: /app/persist, subPath: persist}
             - {name: tmp, mountPath: /tmp}
@@ -147,5 +147,8 @@ spec:
         - name: gramps-data
           persistentVolumeClaim:
             claimName: gramps-data
+        - name: gramps-media
+          persistentVolumeClaim:
+            claimName: gramps-media
         - name: tmp
           emptyDir: {}
