@@ -16,6 +16,9 @@ spec:
         app: odysseus
     spec:
       enableServiceLinks: false
+      # Image is built linux/amd64 only — keep it off the arm64 node (node-10).
+      nodeSelector:
+        kubernetes.io/arch: amd64
       imagePullSecrets:
         - name: ghcr-pull
       initContainers:
