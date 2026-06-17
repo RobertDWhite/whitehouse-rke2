@@ -25,6 +25,15 @@ spec:
             enabled: true
         defaultSettings:
           backupTarget: nfs://10.100.1.20:/volume1/longhorn-backups
+        # node-14 (control-plane) carries a kube-vip=disabled:NoSchedule taint;
+        # the manager DaemonSet has no default tolerations, so it was excluded
+        # from node-14 even though node-14 holds ~12TB of Longhorn disks. Tolerate
+        # it so the manager runs there and node-14 is a usable replica target.
+        longhornManager:
+          tolerations:
+            - key: kube-vip
+              operator: Exists
+              effect: NoSchedule
   syncPolicy:
     automated:
       prune: true
