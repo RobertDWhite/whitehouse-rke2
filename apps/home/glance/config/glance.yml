@@ -3,6 +3,25 @@ pages:
   columns:
   - size: small
     widgets:
+    - type: search
+      search-engine: duckduckgo
+      new-tab: true
+      bangs:
+        - title: YouTube
+          shortcut: '!yt'
+          url: https://www.youtube.com/results?search_query={QUERY}
+        - title: GitHub
+          shortcut: '!gh'
+          url: https://github.com/search?q={QUERY}&type=repositories
+        - title: Plex
+          shortcut: '!plex'
+          url: https://app.plex.tv/desktop/#!/search?query={QUERY}
+        - title: Immich
+          shortcut: '!photos'
+          url: https://photos.internal.white.fm/search?q={QUERY}
+        - title: Wikipedia
+          shortcut: '!w'
+          url: https://en.wikipedia.org/w/index.php?search={QUERY}
     - type: clock
       hour-format: 12h
     - type: calendar
@@ -277,6 +296,20 @@ pages:
 
           <div class="size-h6" style="margin-top: 10px;">Last Updated at {{ slice $updated 11 16 }}</div>
         </div>
+    - type: markets
+      title: Markets
+      cache: 30m
+      markets:
+        - symbol: SPY
+          name: S&P 500
+        - symbol: QQQ
+          name: Nasdaq 100
+        - symbol: BTC-USD
+          name: Bitcoin
+        - symbol: ETH-USD
+          name: Ethereum
+        - symbol: GC=F
+          name: Gold
   - size: full
     widgets:
     - type: bookmarks
@@ -313,19 +346,7 @@ pages:
         - title: Technitium
           url: https://technitium.internal.white.fm
           icon: di:technitium
-        - title: PiHole 1
-          url: https://pihole1.internal.white.fm
-          icon: di:pi-hole
-        - title: PiHole 2
-          url: https://pihole2.internal.white.fm
-          icon: di:pi-hole
-        - title: PiHole RKE2
-          url: https://pihole-rke2.internal.white.fm
-          icon: di:pi-hole
-        - title: Cloudflare (K8s)
-          url: https://dash.cloudflare.com/
-          icon: di:cloudflare
-        - title: Cloudflare (WhiteFM)
+        - title: Cloudflare
           url: https://dash.cloudflare.com/
           icon: di:cloudflare
         - title: Headplane
@@ -694,6 +715,96 @@ pages:
           </li>
           {{ end }}
         </ul>
+    - type: custom-api
+      title: Home Assistant
+      title-url: https://homeassistant.internal.white.fm
+      cache: 1m
+      url: ${HA_URL}/api/states
+      headers:
+        Authorization: Bearer ${HA_TOKEN}
+      template: |-
+        {{ $d := .JSON }}
+        {{/* Replace each REPLACE_ME entity_id below with a real Home Assistant
+             entity_id. A row only renders if the entity exists, so unedited
+             placeholders stay hidden. Copy a block to add more entities. The
+             climate block works for both thermostats (current_temperature) and
+             plain temperature sensors (state + unit). */}}
+
+        <div class="size-h5 color-highlight" style="margin-bottom: 5px;">Climate</div>
+        <ul class="list list-gap-5">
+          {{ $id := "climate.REPLACE_ME" }}
+          {{ $name := $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $t := $d.String (printf "#(entity_id==%q).attributes.current_temperature" $id) }}{{ $u := $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}{{ if $t }}{{ $t }}°{{ else }}{{ $d.String (printf "#(entity_id==%q).state" $id) }}{{ if $u }} {{ $u }}{{ end }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "sensor.REPLACE_ME_indoor_temp" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "sensor.REPLACE_ME_outdoor_temp" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span>
+          </li>
+          {{ end }}
+        </ul>
+
+        <div class="size-h5 color-highlight" style="margin: 10px 0 5px;">Security</div>
+        <ul class="list list-gap-5">
+          {{ $id = "lock.REPLACE_ME_front_door" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "binary_sensor.REPLACE_ME_front_door" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "binary_sensor.REPLACE_ME_garage" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
+          </li>
+          {{ end }}
+        </ul>
+    - type: rss
+      title: FreshRSS
+      title-url: ${FRESHRSS_URL}
+      style: vertical-list
+      limit: 15
+      collapse-after: 6
+      cache: 30m
+      feeds:
+        # Pulls your curated FreshRSS articles via its token-authed RSS export.
+        # get=a -> all articles. For a single category use get=c_<id> (find the
+        # id in the URL when viewing that category in FreshRSS).
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=a&token=${FRESHRSS_TOKEN}&nb=15
+          title: FreshRSS
 - name: Media
   columns:
   - size: small
@@ -778,6 +889,62 @@ pages:
           </div>
         {{ else }}
           {{ template "errorMsg" "Could not fetch data from API!" }}
+        {{ end }}
+    - type: custom-api
+      title: Library Health
+      cache: 10m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: '{__name__=~"radarr_movie_missing_total|radarr_movie_total|radarr_system_health_issues|sonarr_episode_missing_total|sonarr_series_total|sonarr_system_health_issues|readarr_book_missing_total|readarr_book_total|readarr_system_health_issues|bazarr_subtitles_missing_total|bazarr_subtitles_wanted_total|bazarr_system_health_issues"}'
+      template: |-
+        {{ $d := .JSON }}
+        {{ if eq (len ($d.Array "data.result")) 0 }}
+          <p class="color-negative text-center">No exportarr metrics in Prometheus.</p>
+        {{ else }}
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--color-separator);">
+              <th style="text-align: left; padding: 6px;">App</th>
+              <th style="text-align: right; padding: 6px;">Missing</th>
+              <th style="text-align: right; padding: 6px;">Library</th>
+              <th style="text-align: right; padding: 6px;">Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 6px;"><a href="https://radarr.internal.white.fm" class="color-highlight">Radarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"radarr_movie_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"radarr_movie_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"radarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://sonarr.internal.white.fm" class="color-highlight">Sonarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"sonarr_episode_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"sonarr_series_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"sonarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://readarr.internal.white.fm" class="color-highlight">Readarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"readarr_book_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"readarr_book_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"readarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://bazarr.internal.white.fm" class="color-highlight">Bazarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"bazarr_subtitles_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"bazarr_subtitles_wanted_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"bazarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+          </tbody>
+        </table>
         {{ end }}
     - type: custom-api
       title: qBittorrent
@@ -1860,6 +2027,129 @@ pages:
   - size: small
     widgets:
     - type: custom-api
+      title: Cluster Health
+      title-url: https://grafana.internal.white.fm
+      cache: 1m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sum(kube_node_status_condition{condition="Ready",status="true"})
+      subrequests:
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(kube_node_status_condition{condition="Ready",status="true"})
+        notready:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: kube_node_status_condition{condition="Ready",status="true"} == 0
+        alerts:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: sort_desc(count by (alertname, severity) (ALERTS{alertstate="firing"}))
+      template: |-
+        {{ $ready := .JSON.Int "data.result.0.value.1" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+        {{ $notready := (.Subrequest "notready").JSON.Array "data.result" }}
+        {{ $alerts := (.Subrequest "alerts").JSON.Array "data.result" }}
+
+        {{ $firing := 0 }}
+        {{ $crit := 0 }}
+        {{ range $alerts }}
+          {{ $c := .Int "value.1" }}
+          {{ $firing = add $firing $c }}
+          {{ if eq (.String "metric.severity") "critical" }}{{ $crit = add $crit $c }}{{ end }}
+        {{ end }}
+
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 {{ if lt $ready $total }}color-negative{{ else }}color-positive{{ end }}">{{ $ready }}/{{ $total }}</div>
+            <div class="size-h6">NODES READY</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt $firing 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $firing }}</div>
+            <div class="size-h6">ALERTS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt $crit 0 }}color-negative{{ else }}color-highlight{{ end }}">{{ $crit }}</div>
+            <div class="size-h6">CRITICAL</div>
+          </div>
+        </div>
+
+        {{ if gt (len $notready) 0 }}
+        <div style="margin-top: 10px;">
+          <div class="size-h5 color-negative">NotReady nodes</div>
+          <ul class="list-horizontal-text">
+            {{ range $notready }}<li>{{ .String "metric.node" }}</li>{{ end }}
+          </ul>
+        </div>
+        {{ end }}
+
+        {{ if gt (len $alerts) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+          {{ range $alerts }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate {{ if eq (.String "metric.severity") "critical" }}color-negative{{ else }}color-highlight{{ end }}">{{ .String "metric.alertname" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "metric.severity" }} · {{ .Int "value.1" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: ArgoCD
+      title-url: https://argo.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: argocd_app_info{health_status=~"Degraded|Missing"}
+      subrequests:
+        outofsync:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: argocd_app_info{sync_status="OutOfSync"}
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(argocd_app_info)
+      template: |-
+        {{ $unhealthy := .JSON.Array "data.result" }}
+        {{ $oos := (.Subrequest "outofsync").JSON.Array "data.result" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $total }}</div>
+            <div class="size-h6">APPS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $oos) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $oos }}</div>
+            <div class="size-h6">OUT OF SYNC</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $unhealthy) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $unhealthy }}</div>
+            <div class="size-h6">UNHEALTHY</div>
+          </div>
+        </div>
+
+        {{ if gt (len $unhealthy) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+          {{ range $unhealthy }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate color-highlight">{{ .String "metric.name" }}</span>
+            <span class="shrink-0 color-negative size-h6">{{ .String "metric.health_status" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+
+        {{ if gt (len $oos) 0 }}
+        <div class="size-h5" style="margin-top: 10px;">Out of sync</div>
+        <ul class="list-horizontal-text collapsible-container" data-collapse-after="8">
+          {{ range $oos }}<li>{{ .String "metric.name" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
       title: Technitium DNS Stats
       cache: 1h
       url: ${TECHNITIUM_URL}/api/dashboard/stats/get?token=${TECHNITIUM_TOKEN}&type=LastDay&utc=true
@@ -2145,6 +2435,29 @@ pages:
           {{ end }}
         {{ end }}
         </ul>
+    - type: releases
+      title: App Updates
+      cache: 6h
+      show-source-icon: true
+      token: ${GITHUB_TOKEN}
+      collapse-after: 8
+      repositories:
+        - glanceapp/glance
+        - immich-app/immich
+        - TechnitiumSoftware/DnsServer
+        - goauthentik/authentik
+        - longhorn/longhorn
+        - argoproj/argo-cd
+        - Radarr/Radarr
+        - Sonarr/Sonarr
+        - Readarr/Readarr
+        - morpheus65535/bazarr
+        - Prowlarr/Prowlarr
+        - advplyr/audiobookshelf
+        - Kareadita/Kavita
+        - louislam/uptime-kuma
+        - open-webui/open-webui
+        - ollama/ollama
   - size: full
     widgets:
     - type: custom-api
