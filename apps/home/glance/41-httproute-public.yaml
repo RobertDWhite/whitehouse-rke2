@@ -1,3 +1,13 @@
+# Public route is gated by Authentik SSO: traffic for home.white.fm is sent to the
+# Authentik embedded outpost (authentik-server:80, cross-namespace), which authenticates
+# by Host header and proxies to the upstream configured in its Proxy Provider
+# (http://glance.glance.svc.cluster.local:8080). Same pattern as freshrss/politics.
+# Requires BOTH:
+#   1. the ReferenceGrant in authentik/ (glance added to the `from` list), AND
+#   2. an Authentik Proxy Provider + Application for home.white.fm assigned to the
+#      embedded outpost, upstream http://glance.glance.svc.cluster.local:8080.
+# Until the Proxy Provider exists, home.white.fm fails closed (no data leak).
+# The internal route (glance.internal.white.fm / home.internal.white.fm) is unaffected.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -12,5 +22,6 @@ spec:
     - home.white.fm
   rules:
     - backendRefs:
-        - name: glance
-          port: 8080
+        - name: authentik-server
+          namespace: authentik
+          port: 80
