@@ -13,6 +13,10 @@ spec:
       labels:
         app: keeptrack
     spec:
+      # The keeptrack image is amd64-only; pin it off the arm64 node (node-10),
+      # where it was hitting `exec format error` and CrashLoopBackOff.
+      nodeSelector:
+        kubernetes.io/arch: amd64
       containers:
         - name: keeptrack
           image: registry.internal.white.fm/keeptrack

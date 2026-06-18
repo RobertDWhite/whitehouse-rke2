@@ -19,6 +19,15 @@ spec:
           image: ghcr.io/gchq/cyberchef
           ports:
             - containerPort: 80
+          # Give the static nginx time to come up before liveness/readiness
+          # engage — the aggressive liveness probe was reaping it mid-start,
+          # leaving the pod in a permanent CrashLoopBackOff.
+          startupProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /
