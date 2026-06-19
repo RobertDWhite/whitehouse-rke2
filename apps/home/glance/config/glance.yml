@@ -23,7 +23,7 @@ pages:
           shortcut: '!w'
           url: https://en.wikipedia.org/w/index.php?search={QUERY}
     - type: clock
-      hour-format: 12h
+      hour-format: 24h
     - type: calendar
       first-day-of-week: sunday
     - type: custom-api
@@ -312,6 +312,10 @@ pages:
           name: Gold
   - size: full
     widgets:
+    - type: search
+      search-engine: https://searxng.internal.white.fm/search?q={QUERY}
+      new-tab: true
+      autofocus: true
     - type: bookmarks
       title: White House
       groups:
@@ -595,6 +599,21 @@ pages:
           url: https://usbank.com
   - size: small
     widgets:
+    - type: rss
+      title: News
+      style: vertical-list
+      limit: 12
+      collapse-after: 5
+      cache: 30m
+      feeds:
+        - url: https://feeds.bbci.co.uk/news/world/rss.xml
+          title: BBC World
+        - url: https://feeds.npr.org/1001/rss.xml
+          title: NPR
+        - url: https://www.aljazeera.com/xml/rss/all.xml
+          title: Al Jazeera
+        - url: https://hnrss.org/frontpage
+          title: Hacker News
     - type: custom-api
       title: Immich Stats
       hide-header: true
