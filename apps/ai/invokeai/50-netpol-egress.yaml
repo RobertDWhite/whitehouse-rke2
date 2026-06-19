@@ -1,0 +1,31 @@
+# Egress lockdown for the invokeai namespace: pods are default-deny egress and
+# may ONLY reach cluster DNS. There is no path to the internet or other
+# namespaces — anything else fails closed at L3. Ingress is left open so the
+# Envoy gateway can reach the web UI on :9090.
+#
+# NOTE: this blocks InvokeAI's built-in model downloader (HuggingFace/CivitAI).
+# To install models, either temporarily relax this policy or copy weights into
+# the invokeai-models PVC. See the deploy notes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress-allow-dns
+  namespace: invokeai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Cluster DNS (CoreDNS) only.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
