@@ -38,8 +38,13 @@ spec:
                   # Use cluster DNS + EndpointSlice in external-services namespace
                   # so we don't depend on the public DNS record (which is now
                   # Cloudflare-proxied and refuses port 9000).
-                  s3Url: http://minio-s3.external-services.svc.cluster.local:9000
+                  # MinIO now terminates TLS on :9000. The served cert is for
+                  # minio.white.fm (Let's Encrypt) and is hostname-mismatched and
+                  # expired for this internal service name, so connect over https
+                  # and skip verification.
+                  s3Url: https://minio-s3.external-services.svc.cluster.local:9000
                   s3ForcePathStyle: "true"
+                  insecureSkipTLSVerify: "true"
                   # SSE-S3: tells the S3 client (Velero) to ask the backend
                   # to encrypt objects at rest. MinIO honors AES256 when SSE-S3
                   # is enabled on the bucket. Bucket-level enforcement still
