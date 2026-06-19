@@ -1,22 +1,20 @@
-# Egress lockdown for the invokeai namespace: pods are default-deny egress and
-# may ONLY reach cluster DNS. There is no path to the internet or other
-# namespaces — anything else fails closed at L3. Ingress is left open so the
-# Envoy gateway can reach the web UI on :9090.
-#
-# NOTE: this blocks InvokeAI's built-in model downloader (HuggingFace/CivitAI).
-# To install models, either temporarily relax this policy or copy weights into
-# the invokeai-models PVC. See the deploy notes.
+# Egress for the invokeai namespace: default-deny egress, allowed ONLY to
+# (1) cluster DNS and (2) the media VPN proxy (gluetun/PIA). All InvokeAI
+# internet traffic — including model downloads from HuggingFace/CivitAI — is
+# forced through the tunnel: the deployment sets HTTP(S)_PROXY to
+# vpn-proxy.media:8888. There is no direct internet path; anything else fails
+# closed at L3. Ingress is left open so the Envoy gateway can reach :9090.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: default-deny-egress-allow-dns
+  name: default-deny-egress-except-vpn
   namespace: invokeai
 spec:
   podSelector: {}
   policyTypes:
     - Egress
   egress:
-    # Cluster DNS (CoreDNS) only.
+    # Cluster DNS (CoreDNS) — to resolve the vpn-proxy + upstream names.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -28,4 +26,17 @@ spec:
         - port: 53
           protocol: UDP
         - port: 53
+          protocol: TCP
+    # The only internet egress: the VPN proxy (HTTP 8888 / SOCKS5 1080) in media.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchLabels:
+              app: vpn-proxy
+      ports:
+        - port: 8888
+          protocol: TCP
+        - port: 1080
           protocol: TCP
