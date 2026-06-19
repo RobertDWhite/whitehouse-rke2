@@ -31,6 +31,9 @@ spec:
   config:
     raw:
       gateway:
+        # openclaw >= 2026.6.x refuses to start unless gateway.mode is set
+        # explicitly (exit 78: "existing config is missing gateway.mode").
+        mode: "local"
         trustedProxies:
           - "127.0.0.0/8"
           - "10.42.0.0/16"
