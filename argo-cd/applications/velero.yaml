@@ -45,11 +45,11 @@ spec:
                   s3Url: https://minio-s3.external-services.svc.cluster.local:9000
                   s3ForcePathStyle: "true"
                   insecureSkipTLSVerify: "true"
-                  # SSE-S3: tells the S3 client (Velero) to ask the backend
-                  # to encrypt objects at rest. MinIO honors AES256 when SSE-S3
-                  # is enabled on the bucket. Bucket-level enforcement still
-                  # needs to be configured on the MinIO server itself.
-                  serverSideEncryption: AES256
+                  # NOTE: serverSideEncryption (SSE-S3 / AES256) intentionally
+                  # omitted. This MinIO has no KMS configured and rejects SSE
+                  # PutObjects with HTTP 501 NotImplemented. Backup volume data is
+                  # already encrypted client-side by kopia; re-add SSE only after
+                  # configuring KMS / auto-encryption on the MinIO server.
             volumeSnapshotLocation:
               - name: default
                 provider: velero.io/csi
