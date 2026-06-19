@@ -2844,12 +2844,12 @@ pages:
       cache: 2m
       url: ${PROMETHEUS_URL}/api/v1/query
       parameters:
-        query: sum(falco_events)
+        query: sum(falcosecurity_falcosidekick_falco_events_total)
       subrequests:
         pri:
           url: ${PROMETHEUS_URL}/api/v1/query
           parameters:
-            query: sum by (priority) (falco_events)
+            query: sum by (priority_raw) (falcosecurity_falcosidekick_falco_events_total)
       template: |-
         {{ $events := .JSON.Int "data.result.0.value.1" }}
         {{ $pri := (.Subrequest "pri").JSON.Array "data.result" }}
@@ -2862,7 +2862,7 @@ pages:
         {{ if gt (len $pri) 0 }}
         <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
         <ul class="list-horizontal-text">
-          {{ range $pri }}<li class="{{ if eq (.String "metric.priority") "Critical" "Error" "Warning" }}color-negative{{ end }}">{{ .String "metric.priority" }}: {{ .Int "value.1" }}</li>{{ end }}
+          {{ range $pri }}<li class="{{ if eq (.String "metric.priority_raw") "critical" "error" "warning" "emergency" "alert" }}color-negative{{ end }}">{{ .String "metric.priority_raw" }}: {{ .Int "value.1" }}</li>{{ end }}
         </ul>
         {{ end }}
   - size: full
