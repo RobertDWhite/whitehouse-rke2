@@ -437,6 +437,10 @@ pages:
         - title: SearXNG
           url: https://searxng.internal.white.fm
           icon: di:searxng
+        - title: InvokeAI
+          url: https://invokeai.internal.white.fm
+        - title: Odysseus
+          url: https://odysseus.internal.white.fm
       - title: Intelligence & Security
         links:
         - title: MISP
@@ -505,6 +509,28 @@ pages:
         - title: Listmonk
           url: https://listmonk.internal.white.fm
           icon: di:listmonk
+        - title: Homarr
+          url: https://homarr.internal.white.fm
+          icon: di:homarr
+        - title: Wallabag
+          url: https://wallabag.internal.white.fm
+          icon: di:wallabag
+        - title: Monica
+          url: https://monica.internal.white.fm
+          icon: di:monica
+        - title: Ancestry (Gramps)
+          url: https://ancestry.internal.white.fm
+        - title: EveryDocs
+          url: https://everydocs.internal.white.fm
+        - title: Fleet
+          url: https://fleet.internal.white.fm
+          icon: di:fleet
+        - title: Headplane
+          url: https://headplane.internal.white.fm
+          icon: di:headscale
+        - title: Nitter
+          url: https://nitter.internal.white.fm
+          icon: di:nitter
       - title: Downloads
         links:
         - title: Prowlarr
@@ -766,6 +792,19 @@ pages:
           </li>
           {{ end }}
         </ul>
+
+        <div class="size-h5 color-highlight" style="margin: 10px 0 5px;">Energy</div>
+        <ul class="list list-gap-5">
+          {{ $id = "sensor.refrigerator_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+          {{ $id = "sensor.washer_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+          {{ $id = "sensor.dryer_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+        </ul>
     # FreshRSS category feeds via token-authed RSS export (get=c_<id>).
     # Category IDs: 3=News, 2=NYM Customers, 4=U.S. Government, 5=U.S. State Government.
     - type: rss
@@ -800,6 +839,28 @@ pages:
           title: U.S. Gov
         - url: ${FRESHRSS_URL}/i/?a=rss&get=c_5&token=${FRESHRSS_TOKEN}&nb=15
           title: State Gov
+    - type: custom-api
+      title: Monica
+      title-url: https://monica.internal.white.fm
+      cache: 1h
+      url: ${MONICA_URL}/api/reminders?limit=10
+      headers:
+        Authorization: Bearer ${MONICA_TOKEN}
+        Accept: application/json
+      template: |-
+        {{ $rem := .JSON.Array "data" }}
+        {{ if eq (len $rem) 0 }}
+          <p class="color-subdue">No upcoming reminders (set MONICA_TOKEN).</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
+          {{ range $rem }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate">{{ .String "title" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "next_expected_date" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
 - name: Media
   columns:
   - size: small
@@ -940,6 +1001,38 @@ pages:
             </tr>
           </tbody>
         </table>
+        {{ end }}
+    - type: custom-api
+      title: Upcoming
+      cache: 30m
+      url: ${SONARR_URL}/api/v3/calendar
+      headers:
+        X-Api-Key: ${SONARR_API_KEY}
+      subrequests:
+        movies:
+          url: ${RADARR_URL}/api/v3/calendar
+          headers:
+            X-Api-Key: ${RADARR_API_KEY}
+      template: |-
+        {{ $eps := .JSON.Array "" }}
+        {{ $movies := (.Subrequest "movies").JSON.Array "" }}
+        {{ if and (eq (len $eps) 0) (eq (len $movies) 0) }}
+          <p class="color-subdue">Nothing scheduled (set SONARR_API_KEY / RADARR_API_KEY).</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
+          {{ range $eps }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate"><span class="color-primary">TV</span> {{ .String "series.title" }} S{{ .Int "seasonNumber" }}E{{ .Int "episodeNumber" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "airDate" }}</span>
+          </li>
+          {{ end }}
+          {{ range $movies }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate"><span class="color-primary">Movie</span> {{ .String "title" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "inCinemas" }}</span>
+          </li>
+          {{ end }}
+        </ul>
         {{ end }}
     - type: custom-api
       title: qBittorrent
@@ -2455,6 +2548,10 @@ pages:
         - ollama/ollama
   - size: full
     widgets:
+    - type: iframe
+      title: Grafana — Ops
+      source: https://grafana.internal.white.fm/d-solo/glance-ops/glance-ops?orgId=1&panelId=2&theme=dark&refresh=1m
+      height: 280
     - type: custom-api
       title: GitHub Actions
       url: https://api.github.com/repos/RobertDWhite/whitehouse-rke2/actions/runs
@@ -2580,3 +2677,186 @@ pages:
             </li>
           {{ end }}
         </ul>
+- name: Ops
+  columns:
+  - size: small
+    widgets:
+    - type: custom-api
+      title: Velero Backups
+      title-url: https://grafana.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: velero_backup_last_status{schedule!=""}
+      subrequests:
+        fails:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: velero_backup_failure_total{schedule!=""}
+        succ:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: velero_backup_success_total{schedule!=""}
+      template: |-
+        {{ $sch := .JSON.Array "data.result" }}
+        {{ $f := .Subrequest "fails" }}
+        {{ $s := .Subrequest "succ" }}
+        {{ if eq (len $sch) 0 }}
+          <p class="color-negative">No Velero schedules reporting.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $sch }}
+          {{ $name := .String "metric.schedule" }}
+          {{ $ok := eq (.Int "value.1") 1 }}
+          {{ $fc := $f.JSON.Int (printf "data.result.#(metric.schedule==%q).value.1" $name) }}
+          {{ $sc := $s.JSON.Int (printf "data.result.#(metric.schedule==%q).value.1" $name) }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="shrink-0 size-h6">
+              <span class="{{ if $ok }}color-positive{{ else }}color-negative{{ end }}">{{ if $ok }}OK{{ else }}FAIL{{ end }}</span>
+              · <span class="color-positive">{{ $sc }}✓</span> <span class="{{ if gt $fc 0 }}color-negative{{ end }}">{{ $fc }}✗</span>
+            </span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Prowlarr Indexers
+      title-url: https://prowlarr.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: prowlarr_indexer_unavailable == 1
+      subrequests:
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: prowlarr_indexer_total
+      template: |-
+        {{ $down := .JSON.Array "data.result" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $total }}</div>
+            <div class="size-h6">INDEXERS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $down) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $down }}</div>
+            <div class="size-h6">UNAVAILABLE</div>
+          </div>
+        </div>
+        {{ if gt (len $down) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list-horizontal-text collapsible-container" data-collapse-after="8">
+          {{ range $down }}<li class="color-negative">{{ .String "metric.indexer" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Internet Speed
+      title-url: https://speed.internal.white.fm
+      cache: 10m
+      url: ${MYSPEED_URL}/api/speedtests
+      template: |-
+        {{ $tests := .JSON.Array "" }}
+        {{ if eq (len $tests) 0 }}
+          <p class="color-subdue">No recent speedtests recorded.</p>
+        {{ else }}
+        {{ $t := index $tests (sub (len $tests) 1) }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h3 color-highlight">{{ $t.String "ping" }}</div><div class="size-h6">PING ms</div></div>
+          <div><div class="size-h3 color-positive">{{ $t.String "download" }}</div><div class="size-h6">DOWN</div></div>
+          <div><div class="size-h3 color-primary">{{ $t.String "upload" }}</div><div class="size-h6">UP</div></div>
+        </div>
+        {{ end }}
+    - type: custom-api
+      title: Falco
+      title-url: https://falco.internal.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sum(falcosidekick_inputs_total)
+      subrequests:
+        pri:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: sum by (priority) (falco_events)
+      template: |-
+        {{ $events := .JSON.Int "data.result.0.value.1" }}
+        {{ $pri := (.Subrequest "pri").JSON.Array "data.result" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $events }}</div>
+            <div class="size-h6">EVENTS SEEN</div>
+          </div>
+        </div>
+        {{ if gt (len $pri) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list-horizontal-text">
+          {{ range $pri }}<li class="{{ if eq (.String "metric.priority") "Critical" "Error" "Warning" }}color-negative{{ end }}">{{ .String "metric.priority" }}: {{ .Int "value.1" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+  - size: full
+    widgets:
+    - type: custom-api
+      title: Storage / PVC Capacity
+      title-url: https://longhorn.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: topk(15, 100 * kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)
+      subrequests:
+        cap:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: kubelet_volume_stats_capacity_bytes
+      template: |-
+        {{ $pvcs := .JSON.Array "data.result" }}
+        {{ $cap := .Subrequest "cap" }}
+        {{ if eq (len $pvcs) 0 }}
+          <p class="color-negative">No PVC stats reporting.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $pvcs }}
+          {{ $pct := .Float "value.1" }}
+          {{ $pvc := .String "metric.persistentvolumeclaim" }}
+          {{ $ns := .String "metric.namespace" }}
+          {{ $capb := $cap.JSON.Float (printf "data.result.#(metric.persistentvolumeclaim==%q).value.1" $pvc) }}
+          {{ $capg := printf "%.0f" (div $capb 1073741824.0) }}
+          {{ $color := "var(--color-positive)" }}
+          {{ if gt $pct 85.0 }}{{ $color = "var(--color-negative)" }}{{ else if gt $pct 70.0 }}{{ $color = "var(--color-primary)" }}{{ end }}
+          <li>
+            <div class="flex justify-between size-h6">
+              <span class="text-truncate">{{ $ns }}/{{ $pvc }}</span>
+              <span class="shrink-0">{{ printf "%.0f" $pct }}% · {{ $capg }}G</span>
+            </div>
+            <div style="background: rgba(128,128,128,0.2); border-radius: 4px; height: 6px; margin-top: 4px; overflow: hidden;">
+              <div style="width: {{ printf "%.0f" $pct }}%; background: {{ $color | safeCSS }}; height: 100%;"></div>
+            </div>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Crashlooping Pods (last 1h)
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: topk(15, sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[1h])) > 0)
+      template: |-
+        {{ $rows := .JSON.Array "data.result" }}
+        {{ if eq (len $rows) 0 }}
+          <p class="color-positive">No pods restarting in the last hour.</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+          {{ range $rows }}
+          {{ $n := .Int "value.1" }}
+          <li class="flex items-center justify-between gap-10">
+            <div class="min-width-0">
+              <span class="color-highlight text-truncate block">{{ .String "metric.pod" }}</span>
+              <span class="size-h6 color-subdue">{{ .String "metric.namespace" }}</span>
+            </div>
+            <span class="shrink-0 {{ if gt $n 5 }}color-negative{{ else }}color-primary{{ end }}">{{ $n }} restarts</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
