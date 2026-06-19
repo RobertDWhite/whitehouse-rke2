@@ -96,7 +96,10 @@ spec:
         providers:
           anthropic:
             baseUrl: "https://api.anthropic.com/v1"
-            apiKey: "$ANTHROPIC_API_KEY"
+            # env provides ANTHROPIC_TOKEN (via envFrom openclaw-api-keys), not
+            # ANTHROPIC_API_KEY. 2026.6.x fails startup on an unresolved secret
+            # ref, so point at the var that actually exists.
+            apiKey: "$ANTHROPIC_TOKEN"
             models:
               - name: "Claude Sonnet 4.6"
                 id: "claude-sonnet-4-6"
