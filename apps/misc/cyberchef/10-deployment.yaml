@@ -18,17 +18,26 @@ spec:
         - name: cyberchef
           image: ghcr.io/gchq/cyberchef
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+          # cyberchef 11.x serves on 8080 (not 80) — targeting :80 caused
+          # connection-refused crashloops. startupProbe also gives nginx time
+          # to come up before liveness/readiness engage.
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
             failureThreshold: 3

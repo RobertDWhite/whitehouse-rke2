@@ -86,6 +86,16 @@ spec:
         mountPath: /etc/coredns/extra
         readOnly: true
 
+    # The 128Mi chart default OOMKills coredns under the DNS query-storm during
+    # mass pod recovery (e.g. after a power outage), which flaps cluster DNS and
+    # deadlocks Longhorn/technitium recovery. 512Mi survives the storm.
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
     # Default zone: prefer the dnscrypt-proxy → VPN chain for privacy on
     # external lookups, fall back to public DNS so the cluster keeps
     # functioning when the VPN is degraded. health_check marks unhealthy
