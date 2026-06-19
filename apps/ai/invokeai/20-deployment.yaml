@@ -48,6 +48,20 @@ spec:
               value: 0.0.0.0
             - name: INVOKEAI_PORT
               value: "9090"
+            # Force all outbound internet (model downloads etc.) through the
+            # media VPN proxy (gluetun/PIA). Cluster-internal traffic bypasses it.
+            - name: HTTP_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: HTTPS_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: NO_PROXY
+              value: localhost,127.0.0.1,::1,.svc,.svc.cluster.local,.cluster.local,10.42.0.0/16,10.43.0.0/16
+            - name: http_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: https_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: no_proxy
+              value: localhost,127.0.0.1,::1,.svc,.svc.cluster.local,.cluster.local,10.42.0.0/16,10.43.0.0/16
           readinessProbe:
             httpGet:
               path: /api/v1/app/version
