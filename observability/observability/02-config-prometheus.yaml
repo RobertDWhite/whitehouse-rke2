@@ -67,6 +67,11 @@ data:
             action: keep
             regex: longhorn-backend
 
+          # Only the manager :9500 endpoint serves /metrics (9502/9503 don't).
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "9500"
+
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
       # =========================
