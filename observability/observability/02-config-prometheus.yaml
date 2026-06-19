@@ -52,6 +52,24 @@ data:
           - source_labels: [__meta_kubernetes_namespace]
             target_label: namespace
       # =========================
+      # Longhorn storage metrics (longhorn-backend manager :9500/metrics)
+      # =========================
+      - job_name: longhorn
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: longhorn-system
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: longhorn-backend
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+      # =========================
       # MinIO metrics scraping
       # =========================
       - job_name: minio

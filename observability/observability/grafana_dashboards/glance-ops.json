@@ -1,0 +1,98 @@
+{
+  "uid": "glance-ops",
+  "title": "Glance — Ops",
+  "tags": ["glance", "ops"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": { "list": [] },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Nodes Ready",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Prowlarr Unavailable",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "count(prowlarr_indexer_unavailable == 1) or vector(0)" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Velero Failures (total)",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "sum(velero_backup_failure_total{schedule!=\"\"})" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "ArgoCD Out-of-Sync",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "count(argocd_app_info{sync_status=\"OutOfSync\"}) or vector(0)" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "ArgoCD Degraded",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "count(argocd_app_info{health_status=\"Degraded\"}) or vector(0)" }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "PVC Usage %",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 4 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "100 * kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes", "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "fillOpacity": 10 }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 85 } ] } }, "overrides": [] }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Pod Container Restarts (rate 1h)",
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 13 },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" }, "expr": "topk(10, sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[1h])) > 0)", "legendFormat": "{{namespace}}/{{pod}}" }
+      ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 50 } }, "overrides": [] }
+    }
+  ]
+}
