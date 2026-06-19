@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 10-pvc-root.yaml
+  - 11-pvc-models.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 50-netpol-egress.yaml
+  - 53-httproute-internal.yaml
+
+images:
+  # InvokeAI publishes only rolling tags (latest/main/maincuda); pin by digest.
+  # This digest == `latest` == InvokeAI 6.13.0 (resolved 2026-06-19).
+  - name: ghcr.io/invoke-ai/invokeai
+    digest: sha256:ee9fc8f4f643336f00ff0a60c3740f7074947271e1e05bd57e702cc85af734fb
