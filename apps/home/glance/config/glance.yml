@@ -297,19 +297,68 @@ pages:
           <div class="size-h6" style="margin-top: 10px;">Last Updated at {{ slice $updated 11 16 }}</div>
         </div>
     - type: markets
-      title: Markets
+      title: Stocks
       cache: 30m
       markets:
-        - symbol: SPY
-          name: S&P 500
-        - symbol: QQQ
-          name: Nasdaq 100
+        - symbol: PE0W
+        - symbol: ARM
+        - symbol: NVDA
+        - symbol: SPCX
+        - symbol: QACDS
+        - symbol: AMD
+        - symbol: CUBE
+        - symbol: GEV
+        - symbol: WM
+        - symbol: VSMAC
+        - symbol: CVX
+        - symbol: INTX
+        - symbol: AAPL
+        - symbol: CRWV
+        - symbol: WFC
+        - symbol: UPS
+        - symbol: RIVN
+        - symbol: VZ
+        - symbol: NTSK
+        - symbol: CMCSA
+        - symbol: GE
+        - symbol: VSNT
+        - symbol: AITX
+    - type: markets
+      title: Mutual Funds
+      cache: 6h
+      markets:
+        - symbol: FXAIX
+        - symbol: FSPGX
+        - symbol: FSKAX
+        - symbol: VFTAX
+        - symbol: VTTSX
+        - symbol: PGOYX
+        - symbol: OIERX
+        - symbol: ARTKX
+        - symbol: RNWGX
+        - symbol: VWILX
+        - symbol: DODIX
+        - symbol: PIREX
+        - symbol: VEVIX
+        - symbol: PJGQX
+        - symbol: VFIJX
+        - symbol: BSIIX
+        - symbol: FIHBX
+        - symbol: FGCIX
+        - symbol: PFORX
+        - symbol: FDRXX
+        - symbol: SPAXX
+    - type: markets
+      title: Crypto
+      cache: 15m
+      markets:
         - symbol: BTC-USD
-          name: Bitcoin
         - symbol: ETH-USD
-          name: Ethereum
-        - symbol: GC=F
-          name: Gold
+        - symbol: XRP-USD
+        - symbol: SHIB-USD
+        - symbol: BTT-USD
+        - symbol: TRX-USD
+        - symbol: BABYDOGE-USD
   - size: full
     widgets:
     - type: search
@@ -859,23 +908,25 @@ pages:
         - url: ${FRESHRSS_URL}/i/?a=rss&get=c_5&token=${FRESHRSS_TOKEN}&nb=15
           title: State Gov
     - type: custom-api
-      title: Monica
+      title: Monica Contacts
       title-url: https://monica.internal.white.fm
       cache: 1h
-      url: ${MONICA_URL}/api/reminders?limit=10
+      # Monica v5 has no reminders API; show recent contacts from the vault instead.
+      url: ${MONICA_URL}/api/vaults/019dc2ab-e6bc-70c8-a9ae-a911a9b9ea29/contacts?limit=15
       headers:
         Authorization: Bearer ${MONICA_TOKEN}
         Accept: application/json
       template: |-
-        {{ $rem := .JSON.Array "data" }}
-        {{ if eq (len $rem) 0 }}
-          <p class="color-subdue">No upcoming reminders (set MONICA_TOKEN).</p>
+        {{ $c := .JSON.Array "data" }}
+        {{ if eq (len $c) 0 }}
+          <p class="color-subdue">No contacts (or MONICA_TOKEN unset).</p>
         {{ else }}
-        <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
-          {{ range $rem }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+          {{ range $c }}
+          {{ $fn := .String "first_name" }}{{ $ln := .String "last_name" }}{{ $nick := .String "nickname" }}
           <li class="flex justify-between gap-10">
-            <span class="text-truncate">{{ .String "title" }}</span>
-            <span class="shrink-0 size-h6">{{ .String "next_expected_date" }}</span>
+            <span class="text-truncate">{{ if or $fn $ln }}{{ $fn }} {{ $ln }}{{ else }}{{ $nick }}{{ end }}</span>
+            {{ if $nick }}<span class="shrink-0 size-h6 color-subdue">{{ $nick }}</span>{{ end }}
           </li>
           {{ end }}
         </ul>
