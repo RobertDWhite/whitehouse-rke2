@@ -724,15 +724,13 @@ pages:
         Authorization: Bearer ${HA_TOKEN}
       template: |-
         {{ $d := .JSON }}
-        {{/* Replace each REPLACE_ME entity_id below with a real Home Assistant
-             entity_id. A row only renders if the entity exists, so unedited
-             placeholders stay hidden. Copy a block to add more entities. The
-             climate block works for both thermostats (current_temperature) and
-             plain temperature sensors (state + unit). */}}
+        {{/* A row renders only if the entity exists. Each block shows
+             current_temperature for climate entities, else state + unit for
+             sensors. Add/swap entity_ids freely. */}}
 
         <div class="size-h5 color-highlight" style="margin-bottom: 5px;">Climate</div>
         <ul class="list list-gap-5">
-          {{ $id := "climate.REPLACE_ME" }}
+          {{ $id := "climate.thermostat_1_nativezone" }}
           {{ $name := $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
           {{ if $name }}
           <li class="flex justify-between items-center">
@@ -741,54 +739,21 @@ pages:
           </li>
           {{ end }}
 
-          {{ $id = "sensor.REPLACE_ME_indoor_temp" }}
+          {{ $id = "climate.jacuzzi_j_475_thermostat" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $t := $d.String (printf "#(entity_id==%q).attributes.current_temperature" $id) }}{{ $u := $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}{{ if $t }}{{ $t }}°{{ else }}{{ $d.String (printf "#(entity_id==%q).state" $id) }}{{ if $u }} {{ $u }}{{ end }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "sensor.temperature" }}
           {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
           {{ if $name }}
           <li class="flex justify-between items-center">
             <span class="text-truncate">{{ $name }}</span>
             <span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span>
-          </li>
-          {{ end }}
-
-          {{ $id = "sensor.REPLACE_ME_outdoor_temp" }}
-          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
-          {{ if $name }}
-          <li class="flex justify-between items-center">
-            <span class="text-truncate">{{ $name }}</span>
-            <span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span>
-          </li>
-          {{ end }}
-        </ul>
-
-        <div class="size-h5 color-highlight" style="margin: 10px 0 5px;">Security</div>
-        <ul class="list list-gap-5">
-          {{ $id = "lock.REPLACE_ME_front_door" }}
-          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
-          {{ if $name }}
-          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
-          <li class="flex justify-between items-center">
-            <span class="text-truncate">{{ $name }}</span>
-            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
-          </li>
-          {{ end }}
-
-          {{ $id = "binary_sensor.REPLACE_ME_front_door" }}
-          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
-          {{ if $name }}
-          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
-          <li class="flex justify-between items-center">
-            <span class="text-truncate">{{ $name }}</span>
-            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
-          </li>
-          {{ end }}
-
-          {{ $id = "binary_sensor.REPLACE_ME_garage" }}
-          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
-          {{ if $name }}
-          {{ $state := $d.String (printf "#(entity_id==%q).state" $id) }}
-          <li class="flex justify-between items-center">
-            <span class="text-truncate">{{ $name }}</span>
-            <span class="shrink-0 {{ if or (eq $state "on") (eq $state "unlocked") (eq $state "open") }}color-negative{{ else }}color-positive{{ end }}">{{ if eq $state "on" }}Open{{ else if eq $state "off" }}Closed{{ else }}{{ $state }}{{ end }}</span>
           </li>
           {{ end }}
         </ul>
