@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: invokeai
+  namespace: invokeai
+spec:
+  selector:
+    app: invokeai
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 9090
+  type: ClusterIP
