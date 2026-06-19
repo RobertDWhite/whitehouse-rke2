@@ -766,19 +766,40 @@ pages:
           </li>
           {{ end }}
         </ul>
+    # FreshRSS category feeds via token-authed RSS export (get=c_<id>).
+    # Category IDs: 3=News, 2=NYM Customers, 4=U.S. Government, 5=U.S. State Government.
     - type: rss
-      title: FreshRSS
+      title: News
+      title-url: ${FRESHRSS_URL}/i/?get=c_3
+      style: vertical-list
+      limit: 15
+      collapse-after: 5
+      cache: 30m
+      feeds:
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_3&token=${FRESHRSS_TOKEN}&nb=15
+          title: News
+    - type: rss
+      title: NYM Customers
+      title-url: ${FRESHRSS_URL}/i/?get=c_2
+      style: vertical-list
+      limit: 15
+      collapse-after: 5
+      cache: 30m
+      feeds:
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_2&token=${FRESHRSS_TOKEN}&nb=15
+          title: NYM Customers
+    - type: rss
+      title: U.S. & State Gov
       title-url: ${FRESHRSS_URL}
       style: vertical-list
       limit: 15
       collapse-after: 6
       cache: 30m
       feeds:
-        # Pulls your curated FreshRSS articles via its token-authed RSS export.
-        # get=a -> all articles. For a single category use get=c_<id> (find the
-        # id in the URL when viewing that category in FreshRSS).
-        - url: ${FRESHRSS_URL}/i/?a=rss&get=a&token=${FRESHRSS_TOKEN}&nb=15
-          title: FreshRSS
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_4&token=${FRESHRSS_TOKEN}&nb=15
+          title: U.S. Gov
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_5&token=${FRESHRSS_TOKEN}&nb=15
+          title: State Gov
 - name: Media
   columns:
   - size: small
