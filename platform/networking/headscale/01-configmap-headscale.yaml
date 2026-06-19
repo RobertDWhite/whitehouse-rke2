@@ -30,7 +30,14 @@ data:
       update_frequency: 24h
 
     disable_check_updates: true
-    ephemeral_node_inactivity_timeout: 30m
+
+    # v0.29: node-key expiry and ephemeral-node inactivity moved under a unified
+    # `node:` block. `oidc.expiry` was removed (use node.expiry) and
+    # `ephemeral_node_inactivity_timeout` relocated to node.ephemeral.inactivity_timeout.
+    node:
+      expiry: 720h  # node key lifetime before forced re-auth (was oidc.expiry.node_expiry); 0 = never
+      ephemeral:
+        inactivity_timeout: 30m
 
     database:
       type: sqlite
@@ -98,6 +105,3 @@ data:
       # to the Headscale application, then set the matching groups here.
       # allowed_groups:
       #   - headscale-users
-      expiry:
-        # How long an OIDC-issued node key lasts before forcing re-auth.
-        node_expiry: 720h  # 30 days
