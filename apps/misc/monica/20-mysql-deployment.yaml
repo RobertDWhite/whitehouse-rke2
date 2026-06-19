@@ -15,8 +15,8 @@ spec:
       labels:
         app: mysql
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: rke2-node-14
+      # No node pin: monica-mysql-data is a Longhorn (network) volume that attaches
+      # anywhere, and rke2-node-14 carries the kube-vip:disabled NoSchedule taint.
       containers:
         - name: mysql
           image: mariadb

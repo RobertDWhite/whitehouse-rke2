@@ -119,3 +119,8 @@ spec:
               kubernetes.io/metadata.name: envoy-gateway-system
     - from:
         - podSelector: {}
+    # Allow Prometheus (observability) to scrape falco :8765 + falcosidekick :2801.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
