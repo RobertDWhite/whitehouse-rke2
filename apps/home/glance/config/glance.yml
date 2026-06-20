@@ -741,6 +741,38 @@ pages:
         </div>
         {{ end }}
     - type: custom-api
+      title: Immich — On This Day
+      title-url: https://photos.internal.white.fm
+      cache: 6h
+      template: |-
+        {{ $for := offsetNow "0h" | formatTime "rfc3339" }}
+        {{ $resp := newRequest "${IMMICH_URL}/api/memories" | withParameter "for" $for | withHeader "x-api-key" "${IMMICH_KEY}" | getResponse }}
+        {{ if ne $resp.Response.StatusCode 200 }}
+        <p class="size-h6 color-negative" style="text-align: center;">Immich unavailable ({{ $resp.Response.StatusCode }})</p>
+        {{ else }}
+        {{ $mems := $resp.JSON.Array "@this" }}
+        {{ if eq (len $mems) 0 }}
+        <p class="size-h6 color-positive" style="text-align: center;">No memories from this day.</p>
+        {{ else }}
+        {{ $total := 0 }}
+        {{ range $mems }}{{ $total = add $total (.Int "assets.#") }}{{ end }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ $total }}</div><div class="size-h6">PHOTOS</div></div>
+          <div><div class="size-h2 color-highlight">{{ len $mems }}</div><div class="size-h6">YEARS</div></div>
+        </div>
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $mems }}
+          {{ $n := .Int "assets.#" }}
+          <li class="flex justify-between size-h6">
+            <span>{{ .Int "data.year" }}</span>
+            <span class="shrink-0">{{ $n }} photo{{ if ne $n 1 }}s{{ end }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+        {{ end }}
+    - type: custom-api
       title: Astronomy Picture of the Day
       cache: 1d
       url: https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}
@@ -2933,6 +2965,43 @@ pages:
         </ul>
         {{ else }}
         <p class="size-h6 color-positive" style="margin-top: 6px; text-align: center;">No active decisions — nothing currently blocked.</p>
+        {{ end }}
+    - type: custom-api
+      title: Fleet — Devices
+      title-url: https://fleet.internal.white.fm
+      cache: 5m
+      url: ${FLEET_URL}/api/v1/fleet/host_summary
+      headers:
+        Authorization: Bearer ${FLEET_TOKEN}
+      subrequests:
+        pol:
+          url: ${FLEET_URL}/api/v1/fleet/global/policies
+          headers:
+            Authorization: Bearer ${FLEET_TOKEN}
+      template: |-
+        {{ $total := .JSON.Int "totals_hosts_count" }}
+        {{ $online := .JSON.Int "online_count" }}
+        {{ $offline := .JSON.Int "offline_count" }}
+        {{ $pols := (.Subrequest "pol").JSON.Array "policies" }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ $total }}</div><div class="size-h6">HOSTS</div></div>
+          <div><div class="size-h2 color-positive">{{ $online }}</div><div class="size-h6">ONLINE</div></div>
+          <div><div class="size-h2 {{ if gt $offline 0 }}color-negative{{ else }}color-highlight{{ end }}">{{ $offline }}</div><div class="size-h6">OFFLINE</div></div>
+        </div>
+        {{ $failing := 0 }}
+        {{ range $pols }}{{ if gt (.Int "failing_host_count") 0 }}{{ $failing = add $failing 1 }}{{ end }}{{ end }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        {{ if eq $failing 0 }}
+        <p class="size-h6 color-positive" style="text-align: center;">All policies passing.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $pols }}{{ $f := .Int "failing_host_count" }}{{ if gt $f 0 }}
+          <li class="flex justify-between size-h6">
+            <span class="text-truncate">{{ .String "name" }}</span>
+            <span class="color-negative shrink-0">{{ $f }} failing</span>
+          </li>
+          {{ end }}{{ end }}
+        </ul>
         {{ end }}
   - size: full
     widgets:
