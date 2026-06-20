@@ -2896,6 +2896,44 @@ pages:
           {{ range $pri }}<li class="{{ if eq (.String "metric.priority_raw") "critical" "error" "warning" "emergency" "alert" }}color-negative{{ end }}">{{ .String "metric.priority_raw" }}: {{ .Int "value.1" }}</li>{{ end }}
         </ul>
         {{ end }}
+    - type: custom-api
+      title: Crowdsec — Security
+      cache: 2m
+      url: ${CROWDSEC_URL}/v1/decisions
+      headers:
+        X-Api-Key: ${CROWDSEC_BOUNCER_KEY}
+      subrequests:
+        mach:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(cs_info)
+      template: |-
+        {{ $bans := .JSON.Array "@this" }}
+        {{ $mach := (.Subrequest "mach").JSON.Int "data.result.0.value.1" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 {{ if gt (len $bans) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $bans }}</div>
+            <div class="size-h6">ACTIVE BANS</div>
+          </div>
+          <div>
+            <div class="size-h2 color-highlight">{{ $mach }}</div>
+            <div class="size-h6">ENGINES</div>
+          </div>
+        </div>
+        {{ if gt (len $bans) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $bans }}
+          <li class="flex justify-between size-h6">
+            <span class="color-negative shrink-0">{{ .String "value" }}</span>
+            <span class="text-truncate" style="margin: 0 8px;">{{ .String "scenario" }}</span>
+            <span class="shrink-0">{{ .String "duration" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ else }}
+        <p class="size-h6 color-positive" style="margin-top: 6px; text-align: center;">No active decisions — nothing currently blocked.</p>
+        {{ end }}
   - size: full
     widgets:
     - type: custom-api
