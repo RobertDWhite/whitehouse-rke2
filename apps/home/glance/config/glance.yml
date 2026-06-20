@@ -2618,10 +2618,58 @@ pages:
         - ollama/ollama
   - size: full
     widgets:
-    - type: iframe
-      title: Grafana — Ops
-      source: https://grafana.internal.white.fm/d-solo/glance-ops/glance-ops?orgId=1&panelId=2&theme=dark&refresh=1m
-      height: 280
+    - type: custom-api
+      title: Cluster CPU / Memory
+      title-url: https://grafana.internal.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sort_desc(100 * container_memory_working_set_bytes{id="/"} / on(instance) group_left machine_memory_bytes)
+      subrequests:
+        ncpu:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * rate(container_cpu_usage_seconds_total{id="/"}[5m]) / on(instance) group_left machine_cpu_cores
+        ccpu:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * sum(rate(container_cpu_usage_seconds_total{id="/"}[5m])) / sum(machine_cpu_cores)
+        cmem:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * sum(container_memory_working_set_bytes{id="/"}) / sum(machine_memory_bytes)
+      template: |-
+        {{ $nodes := .JSON.Array "data.result" }}
+        {{ $ncpu := .Subrequest "ncpu" }}
+        {{ $ccpu := .Subrequest "ccpu" }}
+        {{ $cmem := .Subrequest "cmem" }}
+        {{ if eq (len $nodes) 0 }}
+          <p class="color-negative">No node metrics reporting.</p>
+        {{ else }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ printf "%.0f" ($ccpu.JSON.Float "data.result.0.value.1") }}%</div><div class="size-h6">CLUSTER CPU</div></div>
+          <div><div class="size-h2 color-highlight">{{ printf "%.0f" ($cmem.JSON.Float "data.result.0.value.1") }}%</div><div class="size-h6">CLUSTER MEM</div></div>
+        </div>
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $nodes }}
+          {{ $mem := .Float "value.1" }}
+          {{ $node := .String "metric.instance" }}
+          {{ $cpu := $ncpu.JSON.Float (printf "data.result.#(metric.instance==%q).value.1" $node) }}
+          {{ $color := "var(--color-positive)" }}
+          {{ if gt $mem 85.0 }}{{ $color = "var(--color-negative)" }}{{ else if gt $mem 70.0 }}{{ $color = "var(--color-primary)" }}{{ end }}
+          <li>
+            <div class="flex justify-between size-h6">
+              <span class="text-truncate">{{ $node }}</span>
+              <span class="shrink-0">cpu {{ printf "%.0f" $cpu }}% · mem {{ printf "%.0f" $mem }}%</span>
+            </div>
+            <div style="background: rgba(128,128,128,0.2); border-radius: 4px; height: 6px; margin-top: 4px; overflow: hidden;">
+              <div style="width: {{ printf "%.0f" $mem }}%; background: {{ $color | safeCSS }}; height: 100%;"></div>
+            </div>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
     - type: custom-api
       title: GitHub Actions
       url: https://api.github.com/repos/RobertDWhite/whitehouse-rke2/actions/runs
