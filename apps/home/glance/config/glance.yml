@@ -1031,6 +1031,18 @@ pages:
         {{ else }}
           {{ template "errorMsg" "Could not fetch data from API!" }}
         {{ end }}
+    - type: rss
+      title: Recently Added Books
+      title-url: https://calibre.white.fm
+      style: vertical-list
+      limit: 10
+      collapse-after: 6
+      cache: 1h
+      feeds:
+        - url: ${CALIBRE_OPDS_URL}/opds/new
+          title: Calibre
+          headers:
+            Authorization: Basic ${CALIBRE_OPDS_B64}
     - type: custom-api
       title: Library Health
       cache: 10m
