@@ -47,6 +47,16 @@ spec:
                 secretKeyRef:
                   name: pages-env
                   key: MCP_TOKEN
+            - name: GIT_REMOTE
+              value: "ssh://git@ssh.github.com:443/RobertDWhite/pages-sites.git"
+            - name: GIT_SSH_KEY
+              value: "/keys/id_ed25519"
+            - name: GIT_AUTHOR_NAME
+              value: "pages-mcp"
+            - name: GIT_AUTHOR_EMAIL
+              value: "pages-mcp@white.fm"
+            - name: HOME
+              value: "/tmp"
           readinessProbe:
             httpGet:
               path: /healthz
@@ -81,9 +91,15 @@ spec:
               mountPath: /data/sites
             - name: tmp
               mountPath: /tmp
+            - name: git-key
+              mountPath: /keys
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: pages-data
         - name: tmp
           emptyDir: {}
+        - name: git-key
+          secret:
+            secretName: pages-git
