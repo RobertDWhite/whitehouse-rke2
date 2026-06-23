@@ -2,7 +2,11 @@
 # can view hosted sites. Two routes:
 #   - apex pages.internal.white.fm  -> directory index (shared *.internal listener)
 #   - *.pages.internal.white.fm     -> one subdomain per site (dedicated listener +
-#                                       cert SAN; external-dns auto-creates the record)
+#                                       cert SAN)
+# DNS: internal.white.fm is served by Technitium from static records in
+# platform/networking/technitium/35-zones-secret.sops.yaml (not external-dns).
+# A wildcard A record `*.pages.internal.white.fm -> 10.99.5.110` must exist there,
+# alongside the pages / pages-mcp records.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
