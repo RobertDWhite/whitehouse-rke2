@@ -60,6 +60,21 @@ spec:
         namespaces:
           from: All
 
+    # *.pages.internal.white.fm — per-site subdomains for the `pages` static-site
+    # host. A nested wildcard, so it needs its own listener (the *.internal.white.fm
+    # listener only matches one label). Cert SAN added in 05-certificates.yaml.
+    - name: https-pages-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "*.pages.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
     # *.w3rdw.radio
     - name: https-w3rdw-radio
       protocol: HTTPS
