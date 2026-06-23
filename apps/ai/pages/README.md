@@ -17,7 +17,11 @@ wildcard listener/cert, but the per-site subdomains are a **nested** wildcard
 (`*.pages.internal.white.fm`) — two labels deep — so they need a dedicated gateway
 listener (`https-pages-internal`) plus a cert SAN, both in
 `platform/networking/envoy-gateway/` (`20-gateway.yaml`, `05-certificates.yaml`).
-external-dns auto-creates the DNS record from the wildcard HTTPRoute's hostname.
+
+DNS for `internal.white.fm` is served by Technitium from static records in
+`platform/networking/technitium/35-zones-secret.sops.yaml` (not external-dns), so a
+wildcard `*.pages.internal.white.fm -> 10.99.5.110` A record must be added there,
+alongside the `pages` / `pages-mcp` records.
 
 ## MCP tools
 
