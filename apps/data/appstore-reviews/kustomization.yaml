@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: appstore-reviews
+
+resources:
+  - 00-namespace.yaml
+  - 10-configmap.yaml
+  - 30-deployment-api.yaml
+  - 31-service-api.yaml
+  - 40-deployment-ui.yaml
+  - 41-service-ui.yaml
+  - 50-httproute-internal.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/appstore-app
+    newName: ghcr.io/robertdwhite/appstore-app
+    digest: sha256:908ef0f987c768895a0fef15f97ec260ffe712febe42539e106528fee67763ae
+  - name: registry.internal.white.fm/appstore-ui
+    newName: ghcr.io/robertdwhite/appstore-ui
+    digest: sha256:d1986afe997f0ed39493466f492ffe48f3504df5631773d1c3f6d564b833402c

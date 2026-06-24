@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+ # - 16-ingress-network-policy.yaml
+ # - 17-ingress-network-policy.yaml
+  - 20-redis-deployment.yaml
+  - 25-redis-svc.yaml
+  - 30-pvc-immich-upload.yaml
+  - 31-pvc-photo.yaml
+  - 40-pv-immich-upload.yaml
+  - 41-pv-photo.yaml
+#  - 50-immich-ml-deployment.yaml
+  - 51-immich-gpu.yaml
+#  - 52-immich-cpu.yaml
+  - 55-immich-ml-svc.yaml
+  - 60-immich-server-deployment.yaml
+  - 61-immich-microservices.yaml
+  - 65-immich-server-svc.yaml
+  - 21-redis-exporter.yaml
+#  - 90-allow-uptime-kuma.yaml
+#  - 91-allow-immich-to-redis.yaml
+generators:
+  - ksops.yaml
+
+
+images:
+  - name: redis
+    newTag: "8.6-alpine"
+    digest: "sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2"
+
+  - name: ghcr.io/immich-app/immich-server
+    newTag: "v2.7.5"
+
+  # immich-machine-learning tag is pinned directly in 51-immich-gpu.yaml (:v2.7.5-cuda),
+  # because the kustomize images: transformer would otherwise strip the -cuda suffix.
+
+  - name: oliver006/redis_exporter
+    newTag: "v1.86.0"

@@ -1,0 +1,128 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-state-metrics
+  namespace: argocd
+spec:
+  project: observability
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-state-metrics
+    targetRevision: 5.20.0
+    helm:
+      releaseName: kube-state-metrics
+      values: |
+        namespaceOverride: observability
+
+        resources: {}
+
+        prometheus:
+          monitor:
+            enabled: false
+
+        extraArgs:
+          - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
+
+        rbac:
+          extraRules:
+            - apiGroups:
+                - aquasecurity.github.io
+              resources:
+                - vulnerabilityreports
+                - configauditreports
+                - clustervulnerabilityreports
+                - clusterconfigauditreports
+                - rbacassessmentreports
+                - clusterrbacassessmentreports
+                - sbomreports
+                - clustersbomreports
+              verbs:
+                - list
+                - watch
+
+        customResourceState:
+          enabled: true
+          config:
+            spec:
+              resources:
+
+                # =========================
+                # Namespaced Vulnerabilities
+                # =========================
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: VulnerabilityReport
+                  labelsFromPath:
+                    namespace: [metadata, namespace]
+                  metrics:
+                    - name: trivy_vulnerabilities
+                      help: "Trivy vulnerabilities by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, vulnerabilities]
+                        labelsFromPath:
+                          severity: [severity]
+                        valueFrom:
+                          path: []
+
+                # =========================
+                # Namespaced Config Audits (OK as-is)
+                # =========================
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ConfigAuditReport
+                  labelsFromPath:
+                    namespace: [metadata, namespace]
+                  metrics:
+                    - name: trivy_configaudit_failures
+                      help: "Trivy config audit failures"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, failCount]
+
+                # =========================
+                # Cluster Vulnerabilities
+                # =========================
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ClusterVulnerabilityReport
+                  metrics:
+                    - name: trivy_cluster_vulnerabilities
+                      help: "Cluster vulnerabilities by severity"
+                      each:
+                        type: Gauge
+                        gauge:
+                          path: [report, vulnerabilities]
+                        labelsFromPath:
+                          severity: [severity]
+                        valueFrom:
+                          path: []
+
+                # =========================
+                # Cluster Config Audits
+                # =========================
+                - groupVersionKind:
+                    group: aquasecurity.github.io
+                    version: v1alpha1
+                    kind: ClusterConfigAuditReport
+                  metrics:
+                    - name: trivy_cluster_configaudit_failures
+                      help: "Cluster config audit failures"
+                      type: Gauge
+                      valueFrom:
+                        path: [report, summary, failCount]
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

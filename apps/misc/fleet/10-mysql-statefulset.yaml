@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: fleet
+  labels:
+    app: mysql
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      initContainers:
+        - name: write-exporter-cnf
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              cat > /exporter-config/.my.cnf <<EOF
+              [client]
+              host=127.0.0.1
+              port=3306
+              user=root
+              password=${MYSQL_ROOT_PASSWORD}
+              EOF
+              chmod 0644 /exporter-config/.my.cnf
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql
+                  key: root-password
+          volumeMounts:
+            - name: exporter-config
+              mountPath: /exporter-config
+      containers:
+        - name: mysql
+          image: mysql
+          imagePullPolicy: IfNotPresent
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+            - --innodb_flush_log_at_trx_commit=1
+            - --sync_binlog=1
+            - --max_connections=300
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_DATABASE
+              value: fleet
+            - name: MYSQL_USER
+              value: fleet
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql
+                  key: password
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql
+                  key: root-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -p"${MYSQL_ROOT_PASSWORD}"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 60
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -p"${MYSQL_ROOT_PASSWORD}"
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysql -h 127.0.0.1 -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT 1"
+            periodSeconds: 10
+            timeoutSeconds: 5
+        - name: mysqld-exporter
+          image: prom/mysqld-exporter:v0.15.1
+          args:
+            - --config.my-cnf=/etc/mysqld-exporter/.my.cnf
+            - --collect.info_schema.tables
+            - --collect.info_schema.innodb_metrics
+          ports:
+            - containerPort: 9104
+              name: metrics
+          volumeMounts:
+            - name: exporter-config
+              mountPath: /etc/mysqld-exporter
+              readOnly: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: metrics
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: fleet-mysql
+        - name: exporter-config
+          emptyDir: {}

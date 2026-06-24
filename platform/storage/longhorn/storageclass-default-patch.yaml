@@ -1,0 +1,22 @@
+# Update the bundled `longhorn` StorageClass so PVCs created via it
+# automatically join the `default` recurring-job group (nightly NFS backup
+# + hourly snapshot). See recurringjobs.yaml for the jobs themselves.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "3"
+  staleReplicaTimeout: "30"
+  fromBackup: ""
+  fsType: ext4
+  dataLocality: disabled
+  unmapMarkSnapChainRemoved: ignored
+  disableRevisionCounter: "true"
+  recurringJobSelector: '[{"name":"default","isGroup":true}]'

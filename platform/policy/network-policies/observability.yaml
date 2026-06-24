@@ -1,0 +1,50 @@
+# =============================================================
+# observability namespace — Prometheus, Grafana, Loki, InfluxDB, AlertManager
+# =============================================================
+# Observability is the monitoring backbone — it needs to reach everything
+# and everything needs to reach it. Locking it down breaks visibility
+# into all other namespaces. Keep it open.
+# =============================================================
+
+# --- Default deny all ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: observability
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# --- Allow ALL ingress ---
+# Sources: ingress-nginx, MetalLB/LAN, uptime-kuma, FreshRSS BI, MISP ZMQ,
+# any future exporter or dashboard consumer
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-ingress
+  namespace: observability
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+
+---
+# --- Allow ALL egress ---
+# Destinations: k8s API (service discovery), every namespace (scraping),
+# external targets (MinIO, Pihole), Cloudflare (Grafana OAuth),
+# webhooks (AlertManager), UniFi controller (poller)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: observability
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}

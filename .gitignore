@@ -1,0 +1,98 @@
+# ── OS / editor ──────────────────────────────────────────────
+.DS_Store
+*.code-workspace
+
+# ── Dependencies & build artifacts ───────────────────────────
+node_modules/
+**/node_modules/
+dist/
+.next/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+**/charts/
+package-lock.json
+
+# ── Secrets — NEVER commit (general safety nets) ─────────────
+.env
+.env.*
+*.env
+!*.env.example
+*.agekey
+*.pem
+**/keys.txt
+*.decrypted*
+.decrypted~*
+*.sops.yaml.tmp
+rke2.yaml
+
+# ── Secrets — specific files (preserved) ─────────────────────
+authentik-stack/authentik.env
+adsb-stack/config/feeder-secret.yaml
+adsb-stack/fr24/feeder-secret.yaml
+adsb-stack/fr24/feeder-config.yaml
+matrix-stack/backup/synapse_backup.sql
+matrix-stack/configmaps/synapse-config.yaml
+matrix-stack/configmaps/maubot-config.yaml
+matrix-stack/configmaps/element-config.yaml
+matrix-stack/secrets/synapse-secrets.yaml
+matrix-stack/secrets/postgres-secret.yaml
+matrix-stack/secrets/postgres-maubot-secrets.yaml
+matrix-stack/secrets/postfix-smtp-secret.yaml
+matrix-stack/secrets/matrix-webhooks-secrets.yaml
+matrix-stack/secrets/webhook-rooms.sops.yaml
+matrix-stack/hookshot/urls.yaml
+matrix-stack/projects/postfix/accounts.db
+mastodon-stack/02-secrets-template.yaml
+mastodon-stack/cf-api-key.txt
+homarr-stack/secrets.yaml
+invidious/secrets.yaml
+invidious/values.resolved.yaml
+storage/pvc.txt
+storage/longhorn-pvc.sh
+argocd/script.sh
+
+# ── Local tooling / drafts ───────────────────────────────────
+.claude/
+CLAUDE.md
+tasks/lessons.md
+/docs/restructure-proposal
+
+# ── Vendored / embedded clones (not deployed from here) ──────
+sops/
+sdr-research-oss/
+
+# ── Extracted apps: source lives in their own RobertDWhite repos ──
+/astronomy/api
+/astronomy/ui
+/appstore-reviews/app
+/appstore-reviews/ui
+/backoffice/backend
+/backoffice/frontend
+/congress-trades/app
+/congress-trades/ui
+/weather/api
+/weather/ui
+/hub/ui
+/politics/api
+/politics/ui
+congress-mcp/src
+media-mcp/src
+mcp/jetlog/src
+mcp/monica/src
+
+# ── sdr-research: source kept ignored during its OSS migration ──
+/sdr-research/api
+/sdr-research/ui
+/sdr-research/voice-decoder
+/sdr-research/watchdog
+sdr-research/*.py
+sdr-research/**/*.py
+sdr-research/*-entrypoint*.py
+sdr-research/Dockerfile.*
+sdr-research/fx3-load.c
+
+# sdr-research patent drafts (sensitive IP — keep out of the repo)
+/sdr-research/patent

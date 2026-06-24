@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - homebridge-deployment.yaml
+  - homebridge-pdb.yaml
+  - homebridge-service.yaml
+  - homebridge-cert.yaml
+  - homebridge-routes.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: homebridge/homebridge
+    newTag: "2026-05-13"

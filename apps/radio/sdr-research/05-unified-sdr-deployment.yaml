@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr
+  template:
+    metadata:
+      labels:
+        app: unified-sdr
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      containers:
+        - name: unified-sdr
+          image: librespace/gnuradio
+          securityContext:
+            privileged: true
+          command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
+          env:
+            # Airspy Mini via direct local USB access on node-10.
+            # SoapyRemote control connected successfully but delivered empty sample
+            # buffers; using the native osmosdr airspy source removes that layer.
+            - name: OSMOSDR_ARGS
+              value: "airspy=0"
+            - name: CAPTURE_ID
+              value: "2m"
+            - name: FIXED_MONITOR_HZ
+              # 144.390 MHz — North American APRS primary; permanent demodulator
+              # ensures short APRS bursts are captured even when energy detector misses them
+              value: "144390000"
+            - name: SAMPLE_RATE
+              # Airspy Mini supports 3 MSPS or 6 MSPS; 6 MSPS covers full 2m band
+              # (143–149 MHz) including APRS, repeaters, and simplex.
+              value: "6000000"
+            - name: DWELL_CENTER_HZ
+              # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz
+              value: "146000000"
+            - name: SCAN_CENTERS
+              # Scanning disabled — retune causes double-free crash in SoapyRemote/osmosdr.
+              # Re-enable when a dedicated SDR covers airband/pager/weather.
+              # Was: [130000000, 153000000, 162500000]
+              value: "[]"
+            - name: DWELL_SEC
+              # Longer dwell: 6 MHz BW captures all 2m activity simultaneously
+              value: "60"
+            - name: SCAN_SEC
+              value: "5"
+            - name: NUM_DYN_FM
+              # 12 slots for 6 MHz BW — captures concurrent 2m activity
+              value: "12"
+            - name: NUM_DYN_CW
+              value: "4"
+            - name: NUM_DYN_ACARS
+              # ACARS not in 2m band — keep minimal
+              value: "0"
+            - name: SLOT_RECYCLE_SEC
+              value: "300"
+            - name: CLEAR_SLOTS_ON_RETUNE
+              value: "false"
+            - name: SQUELCH_OPEN_DB
+              value: "-50"
+            - name: SQUELCH_CLOSE_DB
+              value: "-55"
+            - name: RF_SQUELCH_DB
+              value: "-50"
+            - name: TAIL_SEC
+              value: "1.5"
+            - name: MIN_REC_SEC
+              value: "0.5"
+            - name: MAX_REC_SEC
+              value: "120"
+            - name: FFT_SIZE
+              value: "4096"
+            - name: FFT_INTERVAL
+              value: "1.0"
+            - name: ENERGY_THRESH_DB
+              value: "10"
+            - name: RF_GAIN
+              # Airspy Mini gain index (0–21); 18 provides sufficient signal
+              # to exceed RF squelch -50 dBFS in narrowband channels.
+              value: "18"
+            - name: PPM_CORRECTION
+              # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
+              value: "0"
+          resources:
+            requests:
+              cpu: 750m
+              memory: 1Gi
+            limits:
+              cpu: 3000m
+              memory: 4Gi
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+            - name: dshm
+              mountPath: /dev/shm
+            - name: usb
+              mountPath: /dev/bus/usb
+      terminationGracePeriodSeconds: 20
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: unified-sdr-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

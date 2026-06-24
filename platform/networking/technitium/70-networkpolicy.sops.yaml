@@ -1,0 +1,500 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: default-deny
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:xM4jz8JTBg==,iv:b6BoSYZHvxNwBP3k7FcA7UfEhiaCLPMvzfyDpsciYiY=,tag:AXZj2WErvAKsiv3phdEv3Q==,type:str]
+        - ENC[AES256_GCM,data:OdL7v+XZ,iv:GJ4bsNiQSiSSRP6Y8mP0+S3M8+O8FAqELAnbkQMyUlI=,tag:49mcIwU2IpB58Mv7Jen/OQ==,type:str]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-intra-namespace
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:9F4gjTmCyQ==,iv:lRU4OmORCEls2jsmAqNlbTzdK+i1uzIAGn8gaJ1z92Y=,tag:2NIQaAN7yY/UVfs2P6OfUg==,type:str]
+        - ENC[AES256_GCM,data:OtREzF/9,iv:rA9nDu498M7Sx+zXoAy/bsg+0HN5Z/edzcm858Fshmw=,tag:Y/RUkQBAaCtCPiqlfKECbQ==,type:str]
+    ingress:
+        - from:
+            - podSelector: {}
+    egress:
+        - to:
+            - podSelector: {}
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-coredns
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:V5XRTSLk,iv:3zPF6j7scnVKIojHi/iKgfXBc2YxylYYBBiYk8EzG/U=,tag:KxGyubpvNb8YRsvHd6m/OA==,type:str]
+    egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:Hle9ZTmVfzmldBA=,iv:VIoOPV60TZid4+Xi5LxQBxLE/gHGB8rTW4ydjCCHS+A=,tag:ytooa1fvKthDlayInTSQsQ==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:/FtD,iv:LNqhjANJFwQ52wzCACkb/nvRF9+39QeSssAw9fVeV/U=,tag:aKaI9T0QwATBLLVaFecYsw==,type:str]
+              port: ENC[AES256_GCM,data:lYU=,iv:G0dgpLIY0k801B8/PMDFUCzbCJHPyYB86sHCK3gStsI=,tag:LWFudy6AZ30c27i0DqXHxA==,type:int]
+            - protocol: ENC[AES256_GCM,data:DJMT,iv:ODjFm6jEdvKe+Gy1PhHAM5iFGCPkUEk6XETJQihFewk=,tag:IVxpoaDpWs4w5umQ4Q9NKg==,type:str]
+              port: ENC[AES256_GCM,data:h5I=,iv:vF2MNfJnwr0BZuTrkF/z0fE7wViEOllOHWT8GkJC61w=,tag:/BNgHsAUkuk8xv8yrbNjnA==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-kube-apiserver
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:KdT8149O,iv:zNHmTqJs329yBxe4MBSgcxA2sbxNHEuFvL9RRvC/OjU=,tag:fxERGGMDIU3EvUSmSfqo2g==,type:str]
+    egress:
+        - to:
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:pwvatIoRyenxozSYgw==,iv:sxZnaeZE8fVCxJCEmzanbpcsI+TllGqLWoIxlljuqBI=,tag:WoihO9RgSjyb5WW3GpXwcA==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:+jwr,iv:xLntRr5rxX6RmNLODmWxizAbm05QWXrThxvlP937qxw=,tag:kgCvulkOf5j1E1vdA0P/2w==,type:str]
+              port: ENC[AES256_GCM,data:NMD5YA==,iv:84lyXyrc3cCLSWy8JJBE2GE4jA5cO9t62aIx5K/5p58=,tag:aD7HG3kObD2RPdziT/7tQA==,type:int]
+        - to:
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:4dOZnbpxsVGVJfxn,iv:iJVcVSuB4X/MNfsOqmzQJK+kzuni9nP0fCqiLgMPCp0=,tag:YiDT6PcbJi8ZWUUP7QrA3g==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:vAX4,iv:US9kls0EKWM1f9R+fWkLPd34zXPAqKBRnfQ0WaXxbT8=,tag:qel1LAFMjTIV5kEONgZltA==,type:str]
+              port: ENC[AES256_GCM,data:hDus,iv:q1e2dBqXLntLDMTXu0uB6Cv+UAJIJ6LzUndIxrkcgnE=,tag:lIVxVmRFgh92Pul025SErg==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-authentik
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:hAq21GGJg5Hwrw==,iv:msKfc6tqL8IjqteqpJMENgebUQnF/lwMWabjErGNLE0=,tag:qLRjrLh8XRIjnjx/TG59IQ==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:SUJj5xM2,iv:KbwKTZyyr1wzhjsbV2dtx6vKhKqsHMKUlfGxRCzgKBI=,tag:xNh94GNY6bfraxrEjG2vLg==,type:str]
+    egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:LKqZQ9G0z/1b,iv:qBb+5mdYpSv6iItt/T4GxHjhYidPw94qTQVIc03uIXE=,tag:OsrGO98FgMy9KM6WZyeZVg==,type:str]
+              podSelector:
+                matchLabels:
+                    app.kubernetes.io/name: ENC[AES256_GCM,data:LdTGNqZuR6+O,iv:zkv5s0RrIsxEZ0974gokPQK17FQY3q4RV6fd61WKNPM=,tag:l2ZSJPm5GAh6TAkTCCxCPA==,type:str]
+                    app.kubernetes.io/component: ENC[AES256_GCM,data:dLRFO4uy,iv:SQjNySpA9I9MkiIrIwLyg4NRpyJ4QIdZ1csC7slKIPM=,tag:3ys9LWdwDaLW+cEqbt+8GA==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:37wV,iv:wjTG2qzhp1sVM+186qj7NhUKt6jmItU7wPaSkFRBlE0=,tag:MzYmQmcpisUP3WVrXkZX7Q==,type:str]
+              port: ENC[AES256_GCM,data:p+E=,iv:CoLh7yt1nEUMA9rqTnBh6Yni1BTRpp3LJcKTljXN2Go=,tag:sKaDoHUBsXYwHd/JvOZgOA==,type:int]
+            - protocol: ENC[AES256_GCM,data:KaGu,iv:ERg93FgeRLRJdf8K9I6WF8VUg/XuAU7TorOEwYXOqXM=,tag:dMtgBZHnMsUyJn1ee92oIA==,type:str]
+              port: ENC[AES256_GCM,data:uL14YA==,iv:7QIprQOaQW+FIiq1fSTbb2cQQi8JB863vpqN/qWgms0=,tag:nOY0ynTPpLem8ti+2YhO3w==,type:int]
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:iQH38W9JoAF8xeQwU3vKM9kO16A=,iv:waEew8MY6GXE9gc/JPYSSvz7xwWJRQTVm/DmellYLxg=,tag:NZnNwdwjgXfE++Q5OlUa4A==,type:str]
+              podSelector:
+                matchLabels:
+                    app.kubernetes.io/name: ENC[AES256_GCM,data:VvyQ8+I=,iv:dFAcWre3ty6V9x3sWXQC49ow2LRrrg2kaNP4ZGn3LlI=,tag:Td/he0TH8Px5DnZDhcYZ3w==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:2jQ1,iv:N+vDMC/F5ryZKq1uF0RDYvVGxYYY2Y3KhFUFItjpm7A=,tag:bW5HEaElHjwLYJNUwlP5HQ==,type:str]
+              port: ENC[AES256_GCM,data:5LhJGoY=,iv:bFJhWlcSvH7pqsD+aaGpkHs0e8S+8WJN12bby/QCiMc=,tag:/dSBDoQYsEmyQSVRSZUOcw==,type:int]
+            - protocol: ENC[AES256_GCM,data:RcLt,iv:PXmUVsW/JMEICIQayDdQ0edKOhvDgg5X/5O7+rT1dSY=,tag:fJ0Ds/VTv3yDe25xpF93sQ==,type:str]
+              port: ENC[AES256_GCM,data:0S0YTsg=,iv:4u3dwlpRWsApY3SMpAfpTvTiunXdK5Rl83vdPIbNNog=,tag:4V6A5evPansCPJInpP1o7w==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-dnscrypt-to-vpn-proxy
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:zpp9A8AmbgKA3cYH4ks=,iv:1trOUZdWda1AHlhacMS7s9iSqe2UBR6QI/LZZDTfUAc=,tag:aB1AEgFGYgCwmkw+EGdN7w==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:N1zbsK5o,iv:xpFSDkYQpAASr6TVU6hMIjEUA5Cov5N+sGdIZycpm9o=,tag:KcvZOD07sk+mspoi0VVvxQ==,type:str]
+    egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:HnIadsQ=,iv:1mXtnWhV2CWCFQ5KW1ENmI20dR5coKGkNZVW/ghf1Cw=,tag:zEEtZLlXehZgDQQjsMwvhA==,type:str]
+              podSelector:
+                matchLabels:
+                    app: ENC[AES256_GCM,data:XXKFHnvSiEv/,iv:Yf020SApF8drjflQpKSELTFgDQokz+YUsHDffdWA1ag=,tag:Z/hkYGQpXFYFcPEFVXtdiA==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:Ku8U,iv:t+kpiwvXzzZ7uHQr424UYAb+Wjxb2lQMJNOw5oNBk2g=,tag:SQ4/1WcMpN3OMpqxGeT6Zw==,type:str]
+              port: ENC[AES256_GCM,data:5Z+hLg==,iv:TPOnuD5BVJThmrUrArXNMq/eRNqWzJGVPm+dZgmWiHo=,tag:R28E+eoboZOw5ho1ZTPDYQ==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-technitium-to-vpn-proxy
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:Lae9/mE+nltsjA==,iv:3gT7rxYRYJ/hd9HAoOkxKNYlD/Tu/73lTiKo2EXh2f0=,tag:biVEPgoIi+8ZJcPzoSUAaQ==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:wNpLIpHi,iv:BoaZ75CVtvph9b75NvikHftUlQlJPzqsRbSy+xBEEqQ=,tag:gbpi8/5oh0anl3vIqHQFog==,type:str]
+    egress:
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:lOYRl54=,iv:3HEUJ+zinkabnOb1Jw1l1fHcRO0Y4x/Ps/Rxrr/V1nM=,tag:vXSAJXwFPPfblhoVSeHFNQ==,type:str]
+              podSelector:
+                matchLabels:
+                    app: ENC[AES256_GCM,data:woUP8NlUSt7G,iv:X7iR14Tj4S2HCgpr8jUIz0bM30UHmdVl9CKWpzdeZKs=,tag:l7ZYk2RHvn7MnQ0ftk7gGA==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:wAEr,iv:UwrfZEhlxFlfPFFQKZ3LzEBF8rVOyNb9+DTCB6hACjk=,tag:NkDIwpRWEAU6ZWUET6z55g==,type:str]
+              port: ENC[AES256_GCM,data:w0Pxqg==,iv:DusG8p8YiDj3Y0HL7QyxRis3fzLpNy+Y0L1ehsj8JPk=,tag:y3BTbl6mNNmIFQdM3VUeIw==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-ingress-dns
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:XUSuAKI0WdDy6Q==,iv:/ybFEVJhsXi/xNo+OcBJH8YG0ST7ZVaUBLccBrPTbAE=,tag:4I31RkC9UDi/HQUR2uXSQA==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:/clSyLpwWA==,iv:h3E0Ts9cttYN/4tgBn+gaqvXY4ZL2KEwyHr76+wC8uc=,tag:juyM053SXxzo4ijVXHINlw==,type:str]
+    ingress:
+        - from:
+            - namespaceSelector: {}
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:SJWDqSYQFfN3bGj0,iv:QJCfFVYkM5F5+ZCiX7XEGzI7+ME+hyqJLQscTsSrEWY=,tag:WGS/TrR4YTkR9UX2lIejSw==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:dasIOZ9x55E4gFNA,iv:22aE+RyXAF2UQgP40Ie2ntucLJnfdpAGhuuJj7q/aOo=,tag:6a7tY9xgg45KT1tzd9CKfQ==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:C4pmrTVQqA/UOo73eA==,iv:XbcncobJJ8K/ltZEJge/+1367Q+y+DpwSFFCSNfTQ2Q=,tag:AArRpbnOfHyW+9QCNeKE2A==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:22fnQN57u0UvicEo7Iw=,iv:ClvQaqclaWlAZ6c2KrvxfNnwL+nzSGL24v6HtN+IqYM=,tag:UyxtykCYvLgqrrTsHKfvjQ==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:cJpvHokcBbOn2hGAFw==,iv:S2Z9HFAEDhORcouBBX/HW6/Xc7y1s7BvARpux0JCiVE=,tag:7E5OeHRcGP910IcgB7Dc0g==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:UTdN8oVOv0mu9G/Hgg==,iv:Zy0+4fhO1hAubafZ0GWQJNlGon1vaf1yhzxf9PihkgY=,tag:4HSBivwUG43l607A93Aa1Q==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:KrVLYebaRXbqOUT42g==,iv:b9o3FNYh+z1HAx8fKp5n5hBK07CxMBh/w/cj1DDYdlE=,tag:PQNSH2w6oTDoF5meH172BQ==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:ELQkYXAeqiu05Lxuqw==,iv:KzTZjR9JP+IJFygoGAlhVvK9MV8WqQeWD4gZe7NSQwc=,tag:CrrBBIYcz20v3PoK6JurWA==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:dUwPGuHWVqVwHW2SNx4=,iv:SQSvphfvTXPmcDf909BaBaRwADe9OeKnRNdAiTeLz7o=,tag:O8gYabp+4RcqCwA7C98kxQ==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:xQSKkccvG65GQt93O/o=,iv:n9eC+e5tiyRZ8E22kReBM83NWl3HYP4X+uG4azi/M4A=,tag:V4xMl5h92vIDli4SrEVwwA==,type:str]
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:9KykoWuxwYa1ufXOVhg=,iv:AW2tLlKI0e1xWUcIxjYbwELT36doR6SNVucieIH2ES0=,tag:YKeh6S1XvOTjPfmazM194A==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:YQyW,iv:TlGgiUfUDdRIpGw5Ngan4wGRQqwckOIVbwoB861doco=,tag:+lP3Gv1cok0XafaoCMDfRg==,type:str]
+              port: ENC[AES256_GCM,data:n0w=,iv:8krTydXHXvDHE9wBf/TEWxMGUa/x9tNl/wfYGWh9nJc=,tag:0gWx/4bnBc9Kk2GfqJK8Aw==,type:int]
+            - protocol: ENC[AES256_GCM,data:cVxz,iv:x6vGPnMxfNTNMiJufGbnwgqZzFwsAHlMJsPL+Cm8CTY=,tag:XwwILLPznUVAdh0Dsznbjw==,type:str]
+              port: ENC[AES256_GCM,data:X/0=,iv:lWyHgylpKFxAMMIb4FGfjqGeoCe5OAEp65KoCmlPeno=,tag:mDixC/cqjkAna15H/GWHEw==,type:int]
+            - protocol: ENC[AES256_GCM,data:7R1W,iv:GzaBL0p9Q4w8l97FPOEdYs+vO4/21X4hsedYB5+KNVo=,tag:VklEp4+0OpyJ7EkIXc+LCg==,type:str]
+              port: ENC[AES256_GCM,data:OEQW,iv:L59HZWgQhAMSfjG4Gepv+46QwXN7FBwxPZ3pOEGV+OQ=,tag:q3ALumeqYsZT4/FHhzBjoA==,type:int]
+            - protocol: ENC[AES256_GCM,data:D6OF,iv:TRrYhR6mTmUmYw7WismkHkZfG58J42J7X/TsCt7C/Go=,tag:RYO0U5eg13RrpC4sXikeqA==,type:str]
+              port: ENC[AES256_GCM,data:8eLj,iv:AauupKMrJXa5bdrPQ+TP7/RtSdeTb7NMHMrcuVVxpw4=,tag:Fu5sLUDBrLXZEcS4UkuMcA==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-ingress-envoy
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:yYCSd8F+KSQb8Q==,iv:QwHBmKmHRCU0ix3O7FrcHKHwBayBJCbqnLUS8jqUIvQ=,tag:CT1TF2Hy/9NjL0cn6JtIXQ==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:0uBHRmvzvg==,iv:tUWeeO09pMPTMWE5AoHj4l5NPQyUT5ri6GmKoKFUHVA=,tag:SaNkcNKWrknO0czCX4fACQ==,type:str]
+    ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:Tt1ihLZe2CdBtITPYB+1hUDxerY=,iv:zs4S3oUHHarVFqnIqcz7ahkDUNVxzIz+tVSROe3PDrs=,tag:e4Jz3aCmu28lIlVH7XRFeQ==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:OdaF,iv:UJmUPtauu99x57wYPPUAxOHymSP9MmYdruOmc22X0RM=,tag:MvhvCLhbZkFVUYz6e7DH2A==,type:str]
+              port: ENC[AES256_GCM,data:2PZs+g==,iv:hDEZje6q+uLU4CY2jnGLWQicf/qW+imPlnU83gRMmcI=,tag:L5UYfqBSKFl+E8LtzLcQ0A==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-ingress-authentik
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:fSdt8zYY98q9Gw==,iv:5SZLdpCBlRFerg2r/xoL7vwiwaUt0vF7vSAUTzuDQ/0=,tag:ynTCCxkQf/deJ3KrdfyAUQ==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:vf2h7CxL/A==,iv:a+3BzSSD9fcGbY0XyTggiVOua/OW82/FXm8stfBv3Yc=,tag:7r5O0b6OP9ukg2oH4NWbhQ==,type:str]
+    ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:IozsrsQhXAYU,iv:TH9mlv02hIbQP6nJvI9EVLmG2R7l8C60cpuyj3QvnUw=,tag:QsXY86RnLfy1JfsSHvJIdQ==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:U3OX,iv:Z1l2CbXc+PWGV7HHVnAZarj3T693NAvV6e6OEq86WME=,tag:1Uvw2tm0fcVApgunO7Wo0Q==,type:str]
+              port: ENC[AES256_GCM,data:NJJdgw==,iv:AbGjuDpgXvx4Liwgropz8Lc2rvlAON/beWyVYX1/EnY=,tag:8aWgXfdip+AEpoUj6lJGKw==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-prometheus-scrape
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:5b0/n4nZ0g==,iv:hE5gWbtlIo0QvalvodSftrQsq80YDbdVlrWo7apTjb8=,tag:SjV0hIKweU7Uhw8bZ55+TQ==,type:str]
+    ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:HBM302HC0DJODnA9Ug==,iv:YHvDbLZPBnLZWb5Y5RpeFoosyA0GnJ5mJPmDdkJba2o=,tag:iJdvs71QzYqxXdzfW/2V0g==,type:str]
+              podSelector:
+                matchLabels:
+                    app: ENC[AES256_GCM,data:EmRklm+V/CUg4g==,iv:pukjVbcMahKsYn0Cx3zuFKwAyANG4vyLbcpiPMBdIQo=,tag:971m83avCrPVbjEC35AP0Q==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:L0kg,iv:c479s7uKRWcHG3Y5n/qWWIaOzJWwF5SQHJEhoMKLHEQ=,tag:yKA+i/pjdMhJqE1vDmkVTw==,type:str]
+              port: ENC[AES256_GCM,data:ZAiMgw==,iv:l6CJHS3z2b5/W2IdBeOz/9u01U/c0zl9HZzCD5ArYxE=,tag:Omfb6T96PoKDa0djcpvohA==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-uptime-kuma
+    namespace: technitium
+spec:
+    podSelector: {}
+    policyTypes:
+        - ENC[AES256_GCM,data:2o/YtICyPg==,iv:zhTqev0Q203Z/1Wx7wE+WJ2LqPy7iawt83M9Kjb0UoU=,tag:ubO5xmo2GU9Ko2F9CoCc7w==,type:str]
+    ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:ZP1+lnaJQoe8BBY=,iv:CgOYpKXMU1M8ksXY+i9wodmBXvnNKRauQROKA/z/reY=,tag:1EQ89gqE1y4DZzGFNdEetw==,type:str]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+    name: allow-egress-unifi-sync
+    namespace: technitium
+spec:
+    podSelector:
+        matchLabels:
+            app: ENC[AES256_GCM,data:IcLhqJ0Acjr2Og==,iv:gxgX6E6CjEthM1QsZ0fBSzwRuvaN6Gyh9HED6+WDXag=,tag:ddTzM/+UzVSgx56SrOBFPg==,type:str]
+    policyTypes:
+        - ENC[AES256_GCM,data:Ylrhrmf0,iv:1r6S/5weX8Rqatr27ZA8hcwP2r2cyny3AVfzqcD6CgI=,tag:vQo2eZOGoj2HJ9Mt0YkQuw==,type:str]
+    egress:
+        - to:
+            - ipBlock:
+                cidr: ENC[AES256_GCM,data:MgD9rvXYiQ8lHqYX,iv:z2mIiYsWSv9eTjvsljLNx7ixnEp6AnCRUswAKsY7fFs=,tag:DLLbZ+6/PO1wA9YD9pClUg==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:iZ5j,iv:6wttKlO/zUXyohUYUwaH5uw+beORYofAODXhn62bi2g=,tag:00iQHqymAkhJlPQ4J8tw4A==,type:str]
+              port: ENC[AES256_GCM,data:ReUg,iv:hXUMhlKsySn/zRIzCo4gvhxBr21VCTkMApP57OqpSrk=,tag:7heVj0Maleipb72pvSWLcw==,type:int]
+        - to:
+            - namespaceSelector:
+                matchLabels:
+                    kubernetes.io/metadata.name: ENC[AES256_GCM,data:Dt/RkKg=,iv:ksNMMVyYK0+5KqBtEqa42J+PQfMeco2V9O38+ewlLow=,tag:eqQBAf9mzvTaCILeWAkjZA==,type:str]
+              podSelector:
+                matchLabels:
+                    app: ENC[AES256_GCM,data:/2bkZiZPaPMy,iv:6rowhd7XIfVZcHiHNDY9k19En5xga37/+KohVye/PjY=,tag:HuTcE9KvN1RuyLNC5ATpZA==,type:str]
+          ports:
+            - protocol: ENC[AES256_GCM,data:qjDG,iv:i+OQZL7t2L9yJ9QCM6VlPFgUAQoxlmZ283vM/2lsZ+Y=,tag:IOn9I62mRw2UZcV3ZvXq5g==,type:str]
+              port: ENC[AES256_GCM,data:dceyog==,iv:2vwJsUYg6AhA3A5in548exkLVui4G0xSNUPyQ4/sOmw=,tag:JyfPcvAnS7dpqcCr5EjoCg==,type:int]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBEazJSN1BhS1NoUklSaDhD
+            SjBVTkd2dUthZmN2U0R0VDFjS0prQ3Z4bEJrCk5aeWM4VVF5SDByZU5Tdkc5UkUz
+            S04zWGhjcm1xN1BTS1FyRjdWd1dYNXcKLS0tIHJyUmMwRnJ6Q1BGUDdMek1ZWVhO
+            bGFKekZSOTgvODcrbkRPTTNxQmlNZFEK99GvAVYBIplIf9XkbFqTDsHxoMztIdI5
+            7ZbVz0jniWCR0XjkWRsoouu/VZAEWEsYb433JPm6bd3g/+z22oP1zA==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-21T00:55:33Z"
+    mac: ENC[AES256_GCM,data:lRia9VSl76YpzomACF7eWmhr0OMzM1sZIyyWL6EugxSMuNMaXwvqNC8nHlaSDGDSqhxDaqLVCh11o1tKsCJrGqF73t0S5hhIXCw+5boN599Ds4q1r7YKLezBD/lgTjtvrfBsgbBhWpL55Q1lhXDodt4CbTxN+IpZsAwo4wuaVvY=,iv:owS+IEVUEM2xua9YMn9OWUbqQXyeFprUyhlLg73cC9s=,tag:Ct+sOGz+oWxIQCaNfU5cBw==,type:str]
+    encrypted_regex: ^(spec)$
+    version: 3.10.2

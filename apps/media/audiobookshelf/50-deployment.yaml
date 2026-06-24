@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audiobookshelf
+  labels:
+    app: audiobookshelf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audiobookshelf
+  template:
+    metadata:
+      labels:
+        app: audiobookshelf
+    spec:
+      containers:
+        - name: audiobookshelf
+          image: ghcr.io/advplyr/audiobookshelf
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: AUDIOBOOKSHELF_UID
+              value: "1000"
+            - name: AUDIOBOOKSHELF_GID
+              value: "1000"
+          volumeMounts:
+            - name: books
+              mountPath: /audiobooks
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: books
+          persistentVolumeClaim:
+            claimName: pvc-audiobookshelf-books
+        - name: config
+          persistentVolumeClaim:
+            claimName: pvc-audiobookshelf-config

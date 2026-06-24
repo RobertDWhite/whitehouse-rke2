@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: codex-refresh
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: apps/ai/codex-refresh
+    kustomize: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: codex-refresh
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # CronJob updates codex-credentials and codex-token secrets in-cluster.
+  # ArgoCD must not revert those data fields back to git state.
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: codex-credentials
+      namespace: codex-refresh
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: codex-token
+      namespace: hermes
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: codex-token
+      namespace: openclaw
+      jsonPointers:
+        - /data
+    - group: apps
+      kind: Deployment
+      name: hermes
+      namespace: hermes
+      jsonPointers:
+        - /spec/template/metadata/annotations/codex-refresh~1last-refresh
+    - group: apps
+      kind: StatefulSet
+      name: openclaw
+      namespace: openclaw
+      jsonPointers:
+        - /spec/template/metadata/annotations/codex-refresh~1last-refresh

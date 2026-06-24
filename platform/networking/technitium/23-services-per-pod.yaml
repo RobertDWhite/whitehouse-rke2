@@ -1,0 +1,73 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-node-0
+  namespace: technitium
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.52
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-0
+  ports:
+    - { name: dns-udp, port: 53, protocol: UDP, targetPort: 53 }
+    - { name: dns-tcp, port: 53, protocol: TCP, targetPort: 53 }
+    - { name: cluster, port: 53443, protocol: TCP, targetPort: 53443 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-node-1
+  namespace: technitium
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.53
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-1
+  ports:
+    - { name: dns-udp, port: 53, protocol: UDP, targetPort: 53 }
+    - { name: dns-tcp, port: 53, protocol: TCP, targetPort: 53 }
+    - { name: cluster, port: 53443, protocol: TCP, targetPort: 53443 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-node-2
+  namespace: technitium
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.54
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-2
+  ports:
+    - { name: dns-udp, port: 53, protocol: UDP, targetPort: 53 }
+    - { name: dns-tcp, port: 53, protocol: TCP, targetPort: 53 }
+    - { name: cluster, port: 53443, protocol: TCP, targetPort: 53443 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-node-3
+  namespace: technitium
+  annotations:
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.55
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-3
+  ports:
+    - { name: dns-udp, port: 53, protocol: UDP, targetPort: 53 }
+    - { name: dns-tcp, port: 53, protocol: TCP, targetPort: 53 }
+    - { name: cluster, port: 53443, protocol: TCP, targetPort: 53443 }

@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-router-config
+  namespace: ai-stack
+data:
+  nginx.conf: |
+    events {}
+    http {
+      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time body=$request_body';
+
+      # 5090 is primary (fast GDDR7), Spark is backup (always-on)
+      # max_fails=0 on the backup: never eject it. Otherwise a cold-model load
+      # (briefly not accepting connections) trips the default max_fails=1 and,
+      # with the primary down, every queued request gets an instant
+      # "no live upstreams" 502 for the fail_timeout window.
+      upstream ollama_backends {
+        server ollama-5090.ai-stack.svc.cluster.local:11434 max_fails=0;
+        server ollama.ai-stack.svc.cluster.local:11434 backup max_fails=0;
+      }
+
+      server {
+        listen 11434;
+        client_body_buffer_size      1m;
+        client_body_in_single_buffer on;
+        client_max_body_size         100m;
+
+        location / {
+          access_log /dev/stdout ollama;
+          proxy_pass         http://ollama_backends;
+          proxy_next_upstream error timeout http_502 http_503 http_504;
+          proxy_next_upstream_tries 2;
+          proxy_connect_timeout  5s;
+          proxy_read_timeout    300s;
+          proxy_send_timeout    300s;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_buffering    off;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+        }
+      }
+    }

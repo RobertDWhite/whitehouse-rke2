@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-inotify-sysctl
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: node-inotify-sysctl
+  template:
+    metadata:
+      labels:
+        app: node-inotify-sysctl
+    spec:
+      tolerations:
+        - operator: Exists
+      hostPID: true
+      initContainers:
+        - name: set-inotify
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              sysctl -w fs.inotify.max_user_watches=524288
+              sysctl -w fs.inotify.max_user_instances=512
+          securityContext:
+            privileged: true
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources:
+            requests:
+              cpu: 1m
+              memory: 1Mi

@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-router
+  namespace: headscale
+  labels:
+    app: tailscale-router
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: tailscale-router
+  template:
+    metadata:
+      labels:
+        app: tailscale-router
+    spec:
+      serviceAccountName: tailscale-router
+      # Keep the subnet router off node-14 (flannel VTEP issue) and
+      # node-50 (transient GPU host) — losing this pod takes tailnet DNS
+      # with it, so it must run on a stable amd64 node.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
+                      - rke2-node-50
+      # tailscaled in kernel mode (TS_USERSPACE=false) needs the pod's
+      # net namespace to forward IPv4/IPv6 — otherwise advertised
+      # subnet routes silently drop every packet.
+      initContainers:
+        - name: enable-ip-forward
+          image: alpine:3.20
+          command:
+            - sh
+            - -c
+            - "sysctl -w net.ipv4.ip_forward=1 && sysctl -w net.ipv6.conf.all.forwarding=1"
+          securityContext:
+            privileged: true
+      containers:
+        - name: tailscale
+          image: tailscale/tailscale
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TS_HOSTNAME
+              value: rke2-subnet-router
+            - name: TS_KUBE_SECRET
+              value: tailscale-router-state
+            - name: TS_USERSPACE
+              value: "false"
+            - name: TS_EXTRA_ARGS
+              value: >-
+                --login-server=https://headscale.white.fm
+                --advertise-routes=10.42.0.0/16,10.43.0.0/16,10.99.5.0/24
+                --accept-dns=false
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-router-authkey
+                  key: authkey
+                  optional: true
+            - name: TS_STATE_DIR
+              value: /var/lib/tailscale
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/tailscale
+            - name: tun
+              mountPath: /dev/net/tun
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: state
+          emptyDir: {}
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tailscale-router
+  namespace: headscale
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tailscale-router
+  namespace: headscale
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tailscale-router-state"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tailscale-router
+  namespace: headscale
+subjects:
+  - kind: ServiceAccount
+    name: tailscale-router
+    namespace: headscale
+roleRef:
+  kind: Role
+  name: tailscale-router
+  apiGroup: rbac.authorization.k8s.io

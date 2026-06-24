@@ -1,0 +1,31 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: scrypted-tls
+  namespace: scrypted
+spec:
+  endpoints:
+    - fqdn:
+        hostname: scrypted.scrypted.svc.cluster.local
+        port: 10443
+  tls:
+    insecureSkipVerify: true
+    sni: scrypted.scrypted.svc.cluster.local
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: scrypted-internal
+  namespace: scrypted
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - scrypted.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: scrypted-tls

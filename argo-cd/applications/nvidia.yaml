@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nvidia-device-plugin
+  namespace: argocd
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    path: platform/controllers/nvidia-device-plugin
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ais-catcher
+  namespace: sdr-research
+spec:
+  # The second RTL-SDR on node-13 is now reserved for 70cm ham capture.
+  # Re-enable AIS only after a dedicated AIS-capable SDR is available.
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ais-catcher
+  template:
+    metadata:
+      labels:
+        app: ais-catcher
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      containers:
+      - name: ais-catcher
+        image: ghcr.io/jvde-github/ais-catcher:v0.60
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8100
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8100
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        command: ["AIS-catcher"]
+        args:
+          - "-t"
+          - "$(RTLTCP_HOST)"
+          - "$(RTLTCP_PORT)"
+          - "-N"
+          - "8100"
+          - "-o"
+          - "4"
+        env:
+        - name: RTLTCP_HOST
+          value: "rtl-tcp-70cm.sdr-research.svc.cluster.local"
+        - name: RTLTCP_PORT
+          value: "1235"
+        ports:
+        - name: http
+          containerPort: 8100

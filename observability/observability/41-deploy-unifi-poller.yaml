@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unifi-poller
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unifi-poller
+  template:
+    metadata:
+      labels:
+        app: unifi-poller
+    spec:
+      nodeSelector:
+        observability: "true"
+      containers:
+        - name: unifi-poller
+          image: ghcr.io/unpoller/unpoller
+          ports:
+            - containerPort: 9130
+          envFrom:
+            - secretRef:
+                name: unifi-poller
+          volumeMounts:
+            - name: config
+              mountPath: /etc/unpoller/up.conf
+              subPath: up.conf
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+
+      volumes:
+        - name: config
+          configMap:
+            name: unifi-poller-config

@@ -1,0 +1,118 @@
+:root {
+  --bg: #000000;
+  --card: #1c1c1e;
+  --card-2: #2c2c2e;
+  --text: #f5f5f7;
+  --muted: #98989f;
+  --line: #38383a;
+  --move: #fa114f;
+  --exercise: #a6f900;
+  --stand: #21d9c0;
+  --gold: #ffd60a;
+  --purple: #bf5af2;
+  --blue: #0a84ff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 28px 32px 12px;
+}
+
+.title { display: flex; align-items: center; gap: 14px; }
+.title h1 { font-size: 30px; font-weight: 700; margin: 0; letter-spacing: -0.5px; }
+
+.rings {
+  width: 34px; height: 34px; border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 54%, var(--move) 55%, var(--move) 70%, transparent 71%),
+    radial-gradient(circle, transparent 38%, var(--exercise) 39%, var(--exercise) 52%, transparent 53%),
+    radial-gradient(circle, transparent 20%, var(--stand) 21%, var(--stand) 36%, transparent 37%);
+}
+
+.meta { color: var(--muted); font-size: 13px; text-align: right; line-height: 1.5; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  padding: 8px 32px 4px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.stat .num { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+.stat .label { color: var(--muted); font-size: 12px; margin-top: 4px;
+  text-transform: uppercase; letter-spacing: 0.6px; }
+
+.filters {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 18px 32px 8px;
+}
+.chip {
+  appearance: none; border: 1px solid var(--line); background: var(--card);
+  color: var(--text); font-size: 13px; font-weight: 600;
+  padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.chip:hover { background: var(--card-2); }
+.chip.active { background: var(--text); color: #000; border-color: var(--text); }
+.chip .count { opacity: .55; margin-left: 6px; font-weight: 500; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 16px;
+  padding: 16px 32px 64px;
+}
+
+.badge {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 22px 18px 18px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  position: relative;
+}
+.medallion {
+  width: 78px; height: 78px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 800; color: #000;
+  margin-bottom: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.45), inset 0 0 0 3px rgba(255,255,255,.18);
+}
+.badge .name { font-size: 14px; font-weight: 700; line-height: 1.25; }
+.badge .cat { font-size: 11px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.5px; }
+.badge .date { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.badge .value { font-size: 12px; color: var(--muted); }
+.badge .times {
+  position: absolute; top: 12px; right: 12px;
+  background: var(--card-2); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700;
+}
+
+.empty { text-align: center; color: var(--muted); padding: 80px 20px; }
+.empty code { background: var(--card-2); padding: 2px 6px; border-radius: 6px; }
+
+@media (max-width: 560px) {
+  .topbar, .stats, .filters, .grid { padding-left: 16px; padding-right: 16px; }
+}

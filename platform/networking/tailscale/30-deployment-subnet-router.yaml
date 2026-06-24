@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subnet-router
+  namespace: tailscale
+  labels:
+    app: subnet-router
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: subnet-router
+  template:
+    metadata:
+      labels:
+        app: subnet-router
+    spec:
+      serviceAccountName: subnet-router
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      initContainers:
+        - name: sysctler
+          image: busybox:1.36
+          securityContext:
+            privileged: true
+          command: ["/bin/sh", "-c"]
+          args:
+            - sysctl -w net.ipv4.ip_forward=1 net.ipv6.conf.all.forwarding=1
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.78.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TS_KUBE_SECRET
+              value: subnet-router-state
+            - name: TS_USERSPACE
+              value: "false"
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: subnet-router-authkey
+                  key: TS_AUTHKEY
+                  optional: true
+            - name: TS_ROUTES
+              value: "10.99.5.0/24"
+            - name: TS_EXTRA_ARGS
+              value: "--login-server=https://headscale.white.fm --hostname=cluster-subnet-router --accept-dns=false"
+            - name: TS_STATE_DIR
+              value: /tmp/tailscale-state
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: state
+              mountPath: /tmp/tailscale-state
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: state
+          emptyDir: {}

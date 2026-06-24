@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: fr24-internal
+  namespace: adsb
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-w3rdw-radio
+  hostnames:
+    - fr24.internal.w3rdw.radio
+  rules:
+    - backendRefs:
+        - name: fr24
+          port: 8754

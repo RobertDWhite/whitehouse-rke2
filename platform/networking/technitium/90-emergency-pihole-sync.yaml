@@ -1,0 +1,186 @@
+# EMERGENCY-ONLY runtime sync from Pi-hole.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-pihole-sync
+  namespace: technitium
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    """One-shot Pi-hole -> Technitium mirror, addressed at every pod via
+    the headless service. Uses overwrite=true so reruns are idempotent.
+    Does NOT prune deletions."""
+    import os
+    import sys
+    import urllib3
+    import requests
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    POD_NAMES     = [p.strip() for p in os.environ["TECHNITIUM_PODS"].split(",") if p.strip()]
+    TECH_USER     = os.environ.get("TECHNITIUM_USER", "admin")
+    TECH_PASS     = os.environ["TECHNITIUM_PASSWORD"]
+    PIHOLE_HOSTS  = [h.strip() for h in os.environ["PIHOLE_HOSTS"].split(",") if h.strip()]
+    PIHOLE_PASS   = os.environ["PIHOLE_PASSWORD"]
+    INTERNAL_TLDS = [t.strip().rstrip(".") for t in os.environ.get(
+        "INTERNAL_TLDS",
+        "internal.white.fm,internal.w3rdw.radio,internal.whitematter.tech",
+    ).split(",") if t.strip()]
+
+    S = requests.Session(); S.verify = False
+
+    def tech(host, path, **params):
+        return S.get(f"http://{host}:5380{path}", params=params, timeout=15)
+
+    def login(host):
+        for pwd in (TECH_PASS, "admin"):
+            r = tech(host, "/api/user/login", user=TECH_USER, **{"pass": pwd})
+            if r.ok and r.json().get("status") == "ok":
+                return r.json()["token"]
+        raise RuntimeError(f"login failed: {host}")
+
+    def zones(host, token):
+        r = tech(host, "/api/zones/list", token=token)
+        return [z["name"] for z in r.json().get("response", {}).get("zones", [])]
+
+    def add_record(host, token, zone, name, rtype, value):
+        p = {"token": token, "domain": name, "zone": zone, "type": rtype,
+             "ttl": "300", "overwrite": "true"}
+        if rtype == "A":
+            p["ipAddress"] = value
+        elif rtype == "CNAME":
+            p["cname"] = value
+        else:
+            return False
+        r = tech(host, "/api/zones/records/add", **p)
+        return r.ok and r.json().get("status") == "ok"
+
+    def best_zone(name, zs):
+        labels = name.split(".")
+        for i in range(len(labels)):
+            cand = ".".join(labels[i:])
+            if cand in zs:
+                return cand
+        return None
+
+    def pihole(host):
+        s = requests.Session(); s.verify = False
+        r = s.post(f"{host}/api/auth", json={"password": PIHOLE_PASS}, timeout=15)
+        sid = r.json()["session"]["sid"]
+        h = {"sid": sid}
+        hosts  = s.get(f"{host}/api/config/dns/hosts", headers=h, timeout=15).json()
+        cnames = s.get(f"{host}/api/config/dns/cnameRecords", headers=h, timeout=15).json()
+        a = []
+        for entry in hosts.get("config", {}).get("dns", {}).get("hosts", []):
+            parts = entry.split()
+            if len(parts) >= 2:
+                ip = parts[0]
+                for n in parts[1:]:
+                    a.append((n.lower(), ip))
+        c = []
+        for entry in cnames.get("config", {}).get("dns", {}).get("cnameRecords", []):
+            parts = [p.strip() for p in entry.split(",")]
+            if len(parts) >= 2:
+                c.append((parts[0].lower(), parts[1].lower()))
+        return a, c
+
+    def in_scope(name):
+        return any(name == t or name.endswith("." + t) for t in INTERNAL_TLDS)
+
+    def main():
+        a_all, c_all = {}, {}
+        for h in PIHOLE_HOSTS:
+            try:
+                a, c = pihole(h)
+                for n, ip in a:
+                    if in_scope(n): a_all[n] = ip
+                for al, t in c:
+                    if in_scope(al): c_all[al] = t
+                print(f"[{h}] {len(a)} A, {len(c)} CNAME")
+            except Exception as e:
+                print(f"[{h}] FAIL: {e}", file=sys.stderr)
+
+        rc = 0
+        for pod in POD_NAMES:
+            try:
+                token = login(pod)
+                zs = set(zones(pod, token))
+                ok = 0
+                for n, ip in a_all.items():
+                    z = best_zone(n, zs)
+                    if z and add_record(pod, token, z, n, "A", ip): ok += 1
+                for al, tg in c_all.items():
+                    z = best_zone(al, zs)
+                    if z and add_record(pod, token, z, al, "CNAME", tg): ok += 1
+                print(f"[{pod}] pushed {ok}")
+            except Exception as e:
+                print(f"[{pod}] FAIL: {e}", file=sys.stderr); rc = 1
+        sys.exit(rc)
+
+    if __name__ == "__main__":
+        main()
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pihole-sync
+  namespace: technitium
+spec:
+  # Suspended: trigger manually via `kubectl create job --from=cronjob/pihole-sync sync-now`.
+  suspend: true
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: sync
+              image: python:3.13-alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  pip install --quiet --no-cache-dir requests urllib3
+                  exec python /scripts/sync.py
+              env:
+                - name: TECHNITIUM_PODS
+                  value: "technitium-0.technitium-headless.technitium.svc.cluster.local,technitium-1.technitium-headless.technitium.svc.cluster.local,technitium-2.technitium-headless.technitium.svc.cluster.local,technitium-3.technitium-headless.technitium.svc.cluster.local"
+                - name: TECHNITIUM_USER
+                  value: "admin"
+                - name: TECHNITIUM_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: technitium-credentials
+                      key: admin-password
+                - name: PIHOLE_HOSTS
+                  value: "https://10.99.5.2,https://10.100.0.20,https://10.100.0.21"
+                - name: PIHOLE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: technitium-credentials
+                      key: pihole-password
+                - name: INTERNAL_TLDS
+                  value: "internal.white.fm,internal.w3rdw.radio,internal.whitematter.tech"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+          volumes:
+            - name: script
+              configMap:
+                name: technitium-pihole-sync
+                defaultMode: 0555

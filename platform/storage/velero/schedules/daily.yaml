@@ -1,0 +1,47 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-critical
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  template:
+    # High-churn / transactional workloads: tighter RPO (daily)
+    includedNamespaces:
+      - authentik
+      - paperless
+      - matrix
+      - calibre
+      - audiobookshelf
+      - snappymail
+      - convos
+      - freshrss
+      - ombi
+      - uptime-kuma
+      - registry
+      - sdr-research
+      - congress-trades
+      - ai-stack
+      - dispatcharr
+      - jetlog
+      - mastodon
+      - misp
+      - lazylibrarian
+      - shelfmark
+      - raven
+      - yeti
+      - intelowl
+      - backoffice
+      - homeschool
+      - monica
+      - hermes
+      - headscale
+      - fleet
+      - scrypted
+      - homebridge
+      - listmonk
+      - odysseus
+      - pages
+    snapshotVolumes: true
+    snapshotMoveData: true
+    ttl: 168h # 7 days

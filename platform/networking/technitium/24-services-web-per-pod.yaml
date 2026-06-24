@@ -1,0 +1,33 @@
+
+---
+apiVersion: v1
+kind: Service
+metadata: { name: technitium-web-0, namespace: technitium }
+spec:
+  type: ClusterIP
+  selector: { app: technitium, statefulset.kubernetes.io/pod-name: technitium-0 }
+  ports: [{ name: http, port: 5380, protocol: TCP, targetPort: 5380 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: technitium-web-1, namespace: technitium }
+spec:
+  type: ClusterIP
+  selector: { app: technitium, statefulset.kubernetes.io/pod-name: technitium-1 }
+  ports: [{ name: http, port: 5380, protocol: TCP, targetPort: 5380 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: technitium-web-2, namespace: technitium }
+spec:
+  type: ClusterIP
+  selector: { app: technitium, statefulset.kubernetes.io/pod-name: technitium-2 }
+  ports: [{ name: http, port: 5380, protocol: TCP, targetPort: 5380 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: technitium-web-3, namespace: technitium }
+spec:
+  type: ClusterIP
+  selector: { app: technitium, statefulset.kubernetes.io/pod-name: technitium-3 }
+  ports: [{ name: http, port: 5380, protocol: TCP, targetPort: 5380 }]

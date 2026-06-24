@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: glacier
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    # Manifests live in a separate private repo; ArgoCD authenticates with a
+    # read-only deploy key (see argocd/secret-git-repo-glacier.sops.yaml).
+    repoURL: git@github.com:RobertDWhite/whitehouse-glacier.git
+    targetRevision: main
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: glacier
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

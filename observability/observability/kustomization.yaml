@@ -1,0 +1,184 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Namespace
+  - 00-namespace.yaml
+
+  # Configuration
+  - 01-config-loki.yaml
+  - 02-config-prometheus.yaml
+  - 02a-config-loki-rules.yaml
+  - 03-config-promtail.yaml
+  - 03a-config-alertmanager.yaml
+  - 13b-config-alertmanager-ntfy.yaml
+  - 04-config-unpoller.yaml
+  - 24-config-grafana-dashboard-provider.yaml
+  - 25-config-grafana-datasources.yaml
+
+  # NOTE: 30-rke2-audit-policy.yaml is intentionally NOT listed here.
+  # It is `kind: Policy` (audit.k8s.io/v1) — read by kube-apiserver
+  # before the API is even up — not a Kubernetes resource. The file
+  # lives in this directory as source-of-truth; copy it manually onto
+  # every RKE2 server node. See the file's header comments.
+
+  # Persistent storage
+  - 05-pvc-loki.yaml
+  - 06-pvc-prometheus.yaml
+  - 07-pvc-grafana.yaml
+
+  # Workloads
+  - 10-deploy-loki.yaml
+  - 11-deploy-prometheus.yaml
+  - 12-deploy-grafana.yaml
+  - 13-deploy-promtail.yaml
+  - 13a-deploy-alertmanager.yaml
+
+  # Promtail ServiceAccounts and RBAC
+  - 14-serviceaccount-promtail.yaml
+  - 15-clusterrole-promtail.yaml
+  - 16-clusterrolebinding-promtail.yaml
+
+  # Prometheus ServiceAccounts and RBAC
+  - 17-serviceaccount-prometheus.yaml
+  - 18-clusterrole-prometheus.yaml
+  - 19-clusterrolebinding-prometheus.yaml
+
+  # AlertManager service is in 13a-deploy-alertmanager.yaml
+
+  # Services
+  - 20-svc-loki.yaml
+  - 20b-svc-loki-metallb.yaml
+  - 21-svc-prometheus.yaml
+  - 22-svc-grafana.yaml
+  - 23-svc-syslog-metallb.yaml
+
+  # Grafana REST API direct route (bypasses Authentik outpost for token auth)
+  - 26-httproute-grafana-api.yaml
+
+  # Unifi Poller
+  - 41-deploy-unifi-poller.yaml
+  - 42-svc-unifi-poller.yaml
+  - 43-svc-unifi-poller-metallb.yaml
+
+  # InfluxDB
+  - 50-pvc-influxdb.yaml
+  - 52-deploy-influxdb.yaml
+  - 53-svc-influxdb.yaml
+  - 54-svc-influxdb-metallb.yaml
+  - 56-job-influxdb-buckets.yaml
+
+  # 57-secret-grafana-ha-dashboard.sops.yaml is loaded via ksops.yaml generator
+
+  # Pihole Exporter
+  - 110-deployment-pihole-exporter-a.yaml
+  - 111-deployment-pihole-exporter-b.yaml
+  - 112-deployment-pihole-exporter-c.yaml
+  - 120-svc-pihole-exporter.yaml
+  - 121-svc-pihole-exporter-b.yaml
+  - 122-svc-pihole-exporter-c.yaml
+
+  # App Store Connect Exporter
+  - appstore-connect/externalsecret.yaml
+  - appstore-connect/deployment.yaml
+
+generators:
+  - ksops.yaml
+
+configMapGenerator:
+  - name: observability-grafana-dashboards
+    files:
+      - ingress-nginx-14314-rev2.json=grafana_dashboards/ingress-nginx-14314-rev2.json
+      - envoy-gateway-ingress.json=grafana_dashboards/envoy-gateway-ingress.json
+      - cert-manager.json=grafana_dashboards/cert-manager.json
+      - coredns-custom.json=grafana_dashboards/coredns-custom.json
+      - freshrss-customer-intelligence.json=grafana_dashboards/freshrss-customer-intelligence.json
+      - misp-grafana.json=grafana_dashboards/misp-grafana.json
+      - rke2-dashboard.json=grafana_dashboards/rke2-dashboard.json
+      - sdr-activity.json=grafana_dashboards/sdr-activity.json
+      - sdr-research.json=grafana_dashboards/sdr-research.json
+      - syslog-rke2.json=grafana_dashboards/syslog-rke2.json
+      - syslog.json=grafana_dashboards/syslog.json
+      - trivy-operator.json=grafana_dashboards/trivy-operator.json
+      - trivy-overview.json=grafana_dashboards/trivy-overview.json
+      - claude-code.json=grafana_dashboards/claude-code.json
+      - claude-code-solo.json=grafana_dashboards/claude-code-solo.json
+      - cluster-health.json=grafana_dashboards/cluster-health.json
+      - glance-ops.json=grafana_dashboards/glance-ops.json
+      - app-health-overview.json=grafana_dashboards/app-health-overview.json
+      - security-operations.json=grafana_dashboards/security-operations.json
+      - argocd.json=grafana_dashboards/argocd.json
+      - database-health.json=grafana_dashboards/database-health.json
+      - cluster-traffic-by-url.json=grafana_dashboards/cluster-traffic-by-url.json
+      - tautulli.json=grafana_dashboards/tautulli.json
+      - sdr-pipeline-health.json=grafana_dashboards/sdr-pipeline-health.json
+      - sdr-station-health.json=grafana_dashboards/sdr-station-health.json
+      - appstore-connect.json=grafana_dashboards/appstore-connect.json
+      - ollama.json=grafana_dashboards/ollama.json
+      - weather-dashboard.json=grafana_dashboards/weather-dashboard.json
+      - technitium-fleet.json=grafana_dashboards/technitium-fleet.json
+      - kube-audit.json=grafana_dashboards/kube-audit.json
+      - kyverno-violations.json=grafana_dashboards/kyverno-violations.json
+      - tor-onion.json=grafana_dashboards/tor-onion.json
+      - glacier.json=grafana_dashboards/glacier.json
+  - name: observability-grafana-dashboards-imported
+    files:
+      - coredns-15762.json=grafana_dashboards/coredns-15762.json
+      - kubernetes-persistent-volumes-13646.json=grafana_dashboards/kubernetes-persistent-volumes-13646.json
+      - minio-13502.json=grafana_dashboards/minio-13502.json
+      - radarr-12896.json=grafana_dashboards/radarr-12896.json
+      - sonarr-12530.json=grafana_dashboards/sonarr-12530.json
+      - prowlarr.json=grafana_dashboards/prowlarr.json
+      - bazarr.json=grafana_dashboards/bazarr.json
+      - readarr.json=grafana_dashboards/readarr.json
+      - ultrafeeder-18398.json=grafana_dashboards/ultrafeeder-18398.json
+      - unifi-client-insights-11315.json=grafana_dashboards/unifi-client-insights-11315.json
+      - unifi-network-sites-11311.json=grafana_dashboards/unifi-network-sites-11311.json
+      - unifi-uap-insights-11314.json=grafana_dashboards/unifi-uap-insights-11314.json
+      - unifi-usg-insights-11313.json=grafana_dashboards/unifi-usg-insights-11313.json
+      - unifi-usw-insights-11312.json=grafana_dashboards/unifi-usw-insights-11312.json
+      - velero-23838.json=grafana_dashboards/velero-23838.json
+  - name: observability-grafana-dashboards-unifi-dpi
+    files:
+      - unifi-client-dpi-11310.json=grafana_dashboards/unifi-client-dpi-11310.json
+  - name: appstore-connect-exporter-scripts
+    files:
+      - exporter.py=appstore-connect/exporter.py
+
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    argocd.argoproj.io/sync-options: ServerSideApply=true
+
+
+
+images:
+  - name: prom/prometheus
+    newTag: "v3.12.0"
+
+  - name: grafana/promtail
+    newTag: "3.6.11"
+
+  - name: grafana/grafana
+    newTag: "13.1.0"
+
+  - name: grafana/grafana-image-renderer
+    newTag: "v5.8.11"
+
+  - name: influxdb
+    newTag: "2.9.1"
+
+  - name: ghcr.io/unpoller/unpoller
+    newTag: "v3.3.1"
+    
+  - name: ekofr/pihole-exporter
+    newTag: "v1.2.0"
+
+  - name: grafana/loki
+    newTag: "3.7.2"
+
+  - name: prom/alertmanager
+    newTag: "v0.33.0"
+
+  - name: ghcr.io/alexbakker/alertmanager-ntfy
+    newTag: "1.2.1"

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loki
+  template:
+    metadata:
+      labels:
+        app: loki
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: loki
+          image: grafana/loki
+          args:
+            - -config.file=/etc/loki/config.yaml
+          ports:
+            - containerPort: 3100
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+            # Loki ruler reads rule files per-tenant at
+            # /etc/loki/rules/<tenant>/. With auth_enabled=false the
+            # implicit tenant is "fake".
+            - name: rules
+              mountPath: /etc/loki/rules/fake
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: loki-data
+        - name: rules
+          configMap:
+            name: loki-rules

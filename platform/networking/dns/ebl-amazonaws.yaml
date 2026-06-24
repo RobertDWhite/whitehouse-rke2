@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rke2-coredns-extra
+  namespace: kube-system
+data:
+  white-fm.conf: |
+    # derp.white.fm has its own MetalLB VIP (the DERP service on 10.99.5.101),
+    # NOT the envoy gateway. The wildcard template below would otherwise point
+    # the in-cluster tailscale-router at envoy, which doesn't speak the DERP
+    # protocol -> tailnet relay times out -> MagicDNS / *.internal.white.fm
+    # break for tailscale clients. Override before the wildcard catches it.
+    derp.white.fm:53 {
+        errors
+        cache 30
+        hosts {
+            10.99.5.101 derp.white.fm
+            fallthrough
+        }
+    }
+    # *.white.fm wildcard answers locally — every public *.white.fm hostname
+    # this cluster runs lands on the envoy gateway VIP anyway, so cluster pods
+    # don't need to recurse out and back through the WAN.
+    white.fm:53 {
+        errors
+        cache 30
+        template IN A white.fm {
+            answer "{{ .Name }} 60 IN A 10.99.5.110"
+        }
+        template IN AAAA white.fm {
+            rcode NOERROR
+        }
+    }
+  internal-white-fm.conf: |
+    # *.internal.white.fm is authoritative on the Technitium pod-0
+    # LoadBalancer IP. Cluster replication only puts the zone on pod-0
+    # reliably, so we hit it directly rather than the round-robin VIP.
+    internal.white.fm:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
+    internal.w3rdw.radio:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
+    internal.whitematter.tech:53 {
+        errors
+        cache 30
+        forward . 10.99.5.52
+    }
+  amazonaws.conf: |
+    # Direct AWS lookups bypass the VPN chain — high volume, low privacy value.
+    elb.amazonaws.com:53 {
+        errors
+        cache 30
+        forward . 1.1.1.1 8.8.8.8
+    }
+
+    amazonaws.com:53 {
+        errors
+        cache 30
+        forward . 1.1.1.1 8.8.8.8
+    }
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-coredns
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    # Mount the extra server blocks from the rke2-coredns-extra ConfigMap and
+    # `import` them into the Corefile.
+    extraConfig:
+      import:
+        parameters: /etc/coredns/extra/*.conf
+    extraVolumes:
+      - name: extra-config
+        configMap:
+          name: rke2-coredns-extra
+          defaultMode: 420
+    extraVolumeMounts:
+      - name: extra-config
+        mountPath: /etc/coredns/extra
+        readOnly: true
+
+    # The 128Mi chart default OOMKills coredns under the DNS query-storm during
+    # mass pod recovery (e.g. after a power outage), which flaps cluster DNS and
+    # deadlocks Longhorn/technitium recovery. 512Mi survives the storm.
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+    # Default zone: prefer the dnscrypt-proxy → VPN chain for privacy on
+    # external lookups, fall back to public DNS so the cluster keeps
+    # functioning when the VPN is degraded. health_check marks unhealthy
+    # upstreams so traffic skips dnscrypt while it's crashlooping.
+    servers:
+      - zones:
+          - zone: .
+            use_tcp: true
+        port: 53
+        plugins:
+          - name: errors
+          - name: health
+            configBlock: |-
+              lameduck 10s
+          - name: ready
+          - name: kubernetes
+            parameters: in-addr.arpa ip6.arpa
+            configBlock: |-
+              pods insecure
+              fallthrough in-addr.arpa ip6.arpa
+              ttl 30
+          - name: rewrite
+            parameters: name auth.internal.white.fm envoy-envoy-gateway-system-main-b3b376e9.envoy-gateway-system.svc.cluster.local
+          - name: prometheus
+            parameters: 0.0.0.0:9153
+          - name: forward
+            parameters: . 10.43.6.253 1.1.1.1 8.8.8.8
+            configBlock: |-
+              policy sequential
+              health_check 5s
+          - name: cache
+            parameters: 30
+          - name: loop
+          - name: reload
+          - name: loadbalance

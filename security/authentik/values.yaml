@@ -1,0 +1,164 @@
+# ===========================
+# Authentik
+# ===========================
+
+authentik:
+  enabled: true
+  existingSecret:
+    secretName: authentik-env
+
+# ---------------------------
+# PostgreSQL
+# ---------------------------
+postgresql:
+  enabled: true
+
+  auth:
+    existingSecret: authentik-env
+    secretKeys:
+      userKey: POSTGRES_USER
+      passwordKey: password
+      databaseKey: POSTGRES_DB
+
+  primary:
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 10Gi
+
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+
+    nodeSelector:
+      kubernetes.io/hostname: rke2-node-11
+
+    tolerations:
+      - key: kube-vip
+        operator: Equal
+        value: disabled
+        effect: NoSchedule
+
+
+# ---------------------------
+# Redis (deployed separately via 22-redis.yaml, chart no longer bundles it)
+# ---------------------------
+
+# ---------------------------
+# Authentik Server
+# ---------------------------
+server:
+  enabled: true
+  # 4, not 5: hard pod-anti-affinity spreads one server pod per node, but only
+  # 4 nodes can reliably host it (node-11 carries an untolerated control-plane
+  # taint, node-14 is cordoned, node-50 is transient and frequently can't pull).
+  # At 5 the rollout deadlocks — the 5th pod is perpetually Pending/ImagePullBackOff,
+  # so the old ReplicaSet never drains and mixed-version login assets 404.
+  replicas: 4
+
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - server
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - authentik
+          topologyKey: kubernetes.io/hostname
+
+  envFrom:
+  - secretRef:
+      name: authentik-env
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 5Gi
+
+  containerPorts:
+    https: 9443
+
+  service:
+    type: ClusterIP
+    servicePortHttps: 443
+    servicePortHttpsName: https
+    sessionAffinity: ClientIP
+    sessionAffinityConfig:
+      clientIP:
+        timeoutSeconds: 3600
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    https: true
+
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+      cert-manager.io/cluster-issuer: letsencrypt-dns
+
+    hosts:
+    - auth.white.fm
+
+    - auth.internal.white.fm
+    paths:
+    - /
+
+    tls:
+    - secretName: auth-white-fm-tls
+      hosts:
+      - auth.white.fm
+      - auth.whitematter.tech
+      - auth.w3rdw.radio
+      - auth.internal.white.fm
+      - auth.internal.w3rdw.radio
+      - auth.internal.whitematter.tech
+worker:
+  enabled: true
+  replicas: 2
+
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - worker
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - authentik
+            topologyKey: kubernetes.io/hostname
+
+  envFrom:
+  - secretRef:
+      name: authentik-env
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+
+# ---------------------------
+# Security Contexts
+# ---------------------------
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000

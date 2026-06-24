@@ -1,0 +1,30 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+    name: synology-iscsi
+    annotations:
+        storageclass.kubernetes.io/is-default-class: "false"
+provisioner: csi.san.synology.com
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+parameters:
+    protocol: ENC[AES256_GCM,data:Xo+oim4=,iv:2IMI0vU7inBtb8rEskmdMll6g7dT/dQ6uIFpxwLuYxg=,tag:07fi8C7Tzy6C8TpFnLlesg==,type:str]
+    fsType: ENC[AES256_GCM,data:AiVudUY=,iv:XH9QBFfg/WucAfkytVtuZD4zpKx7wuKgTEFbLIYZRy0=,tag:CYc9kqZXIrQPqPaisdtZtA==,type:str]
+    dsm: ENC[AES256_GCM,data:Goq1icrv1+jtslk=,iv:j0BWDQey62MnmFXfYMnuPv9UM7JgrPgPI3bX/CfN/Ow=,tag:m8bJdhOk9iH2PKURg1N8CA==,type:str]
+    location: ENC[AES256_GCM,data:fKVX+mpWY+U=,iv:KY25uPQUGifXsvznS5vZTqYvyNJ4OhefyNY6VXiYV3A=,tag:hLHaEiWEhN2dcK0LchXlHA==,type:str]
+    formatOptions: ENC[AES256_GCM,data:T3C2m5pEHbDHxMQ=,iv:lsTm0wCXTeWinq1xqNvBd81bX+iURZhuepervIUD7CI=,tag:PlXoCOKP6h++I/wHoDIHMg==,type:str]
+sops:
+    age:
+        - recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA0TkFlR080VXh5d2UrZjNn
+            ZTlIdk9GZWZtRDRNdENGako3a3YyTlZScVdvCjZaQUNUNkwva0JMd1BsSSt3Rjl2
+            aW1LOUhLRk9LRmw2QVFhQktWaFp2akkKLS0tIE00YW5GdUJjekRXMllrQjdSWGYz
+            eFhzbGJVNzN4NGptWlFtNG5jSHM3TU0KemGEOyxMMBSTnoSDF+iodoinY5MO6KZo
+            CkG4jWsU/o3QrBRxRYfqYM4yXRakB4C7VLJh8lAvAIS6950Rlb/Z7Q==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-08-11T03:19:50Z"
+    mac: ENC[AES256_GCM,data:WFS0H/lJOIUjbNSrrdNQi9G8TtEk6TNVCZjZaj0ylZuQ23u/pk8dO46YpKaX8y4xnJc54FM4EaftvLReys85muxcojlLQHwXLR4lUsIoGjAJYNQL1dBVv0jdS5XDvCt+I+mAZo7AtZ+epq6oionj/GnQpZg3V0POk7BGK7P6jvw=,iv:TCXe0cIpAewkOW49ajQH7sfcnmK8bd9d9UIDRnxa170=,tag:VfIFNsFXs8ZhnzeopUw+1Q==,type:str]
+    encrypted_regex: ^(parameters)$
+    version: 3.10.2

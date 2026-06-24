@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: congress-trades
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: congress-trades
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  serviceName: "postgres"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      containers:
+        - name: postgres
+          image: postgres:15
+          args:
+            - -c
+            - shared_buffers=256MB
+            - -c
+            - max_connections=100
+          env:
+            - name: POSTGRES_DB
+              value: "congress"
+            - name: POSTGRES_USER
+              value: "congress"
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "congress"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "congress"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-password
+          secret:
+            secretName: congress-secrets
+            defaultMode: 0400
+            items:
+              - key: db-password
+                path: password
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # local-path (node-local): this DB is a cache fully reconstructable from the
+        # public primary sources, so it needs no replication/backup. Longhorn is
+        # currently scheduling-exhausted (can't place even a single 10Gi replica),
+        # so local-path avoids that dependency. If longhorn capacity is freed later
+        # and replication is desired, switch back to a longhorn storageClass.
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi

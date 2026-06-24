@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-ml-gpu
+  namespace: immich
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: immich-machine-learning
+  template:
+    metadata:
+      labels:
+        app: immich-machine-learning
+    spec:
+      # node-50's containerd does NOT default to the nvidia runtime (node-10 does),
+      # so without this the driver libs aren't injected and CUDA fails with "driver
+      # insufficient" / GPU=-1 even though the host driver is current.
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        # node-50 is transient (RTX 5090 box powered off sometimes) — don't evict on not-ready
+        - key: node.kubernetes.io/not-ready
+          effect: NoExecute
+          operator: Exists
+        # node-50 carries a soft dedicated=gpu taint — tolerate so it isn't deprioritized
+        - key: dedicated
+          value: gpu
+          effect: PreferNoSchedule
+          operator: Equal
+      containers:
+        - name: immich-ml
+          # CUDA build (amd64) so onnxruntime uses CUDAExecutionProvider on the 5090.
+          # Tag pinned here (not in kustomization images:) so the -cuda suffix isn't stripped.
+          image: ghcr.io/immich-app/immich-machine-learning:v2.7.5-cuda
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+          ports:
+            - containerPort: 3003
+          env:
+            - name: MPLCONFIGDIR
+              value: /cache/matplotlib
+            - name: HF_HOME
+              value: /cache/hf
+            - name: HUGGINGFACE_HUB_CACHE
+              value: /cache/hf
+            - name: TRANSFORMERS_CACHE
+              value: /cache/hf
+            # keep models resident so the server stops unloading after 300s and flapping
+            - name: MACHINE_LEARNING_MODEL_TTL
+              value: "0"
+          volumeMounts:
+            - name: ml-cache
+              mountPath: /cache
+              subPath: immich-ml-cache
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 3003
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: ml-cache
+          persistentVolumeClaim:
+            claimName: immich-upload

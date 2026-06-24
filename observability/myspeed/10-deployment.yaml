@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myspeed
+  namespace: myspeed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myspeed
+  template:
+    metadata:
+      labels:
+        app: myspeed
+    spec:
+      containers:
+        - name: myspeed
+          image: germannewsmaker/myspeed
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5216
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 5216
+            failureThreshold: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5216
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5216
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: myspeed-data
+              mountPath: /myspeed/data
+      volumes:
+        - name: myspeed-data
+          persistentVolumeClaim:
+            claimName: myspeed-data

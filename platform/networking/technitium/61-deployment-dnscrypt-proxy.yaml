@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnscrypt-proxy
+  namespace: technitium
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: dnscrypt-proxy
+  template:
+    metadata:
+      labels:
+        app: dnscrypt-proxy
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: dnscrypt-proxy
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: dnscrypt-proxy
+          image: klutchell/dnscrypt-proxy
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /etc/dnscrypt-proxy/dnscrypt-proxy.toml
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dnscrypt-proxy
+              readOnly: true
+            - name: cache
+              mountPath: /var/cache/dnscrypt-proxy
+      volumes:
+        - name: config
+          secret:
+            secretName: dnscrypt-proxy-config
+        - name: cache
+          emptyDir:
+            sizeLimit: 16Mi

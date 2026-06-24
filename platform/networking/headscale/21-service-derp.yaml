@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: derp
+  namespace: headscale
+  labels:
+    app: derp
+  annotations:
+    # Pin to a specific MetalLB IP if you want predictable port-forward
+    # routing. Otherwise MetalLB picks from its pool.
+    # metallb.universe.tf/loadBalancerIPs: "10.99.5.60"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: derp
+  ports:
+    # Dual-port alignment. derper inside the pod listens on 8443/3478.
+    # - 18443/13478 (derp-via-dns / stun-via-dns): what derp-map advertises.
+    #   Cluster pods resolve derp.white.fm via Technitium to 10.99.5.101
+    #   and hit these ports directly on the LB IP.
+    # - 8443/3478 (derp-via-unifi / stun-via-unifi): what the UniFi WAN
+    #   forward DNATs to (WAN 18443 → 10.99.5.101:8443, WAN 13478 →
+    #   10.99.5.101:3478). External clients enter on the WAN port and
+    #   land here.
+    - name: derp-via-dns
+      port: 18443
+      targetPort: 8443
+      protocol: TCP
+    - name: derp-via-unifi
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
+    - name: stun-via-dns
+      port: 13478
+      targetPort: 3478
+      protocol: UDP
+    - name: stun-via-unifi
+      port: 3478
+      targetPort: 3478
+      protocol: UDP

@@ -1,0 +1,11 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: media-mcp-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - 11-secret.sops.yaml
+  - 13-ghcr-pull.sops.yaml

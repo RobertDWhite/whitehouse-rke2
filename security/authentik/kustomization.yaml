@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: authentik
+
+generators:
+  - ksops.yaml
+
+resources:
+  - 20-service-alias-authentik.yaml
+  - 21-postgres-exporter.yaml
+  - 22-redis.yaml
+  - 31-referencegrant-cyberchef.yaml
+  - 32-backend-tls-policy.yaml
+  - 32-referencegrant-backoffice.yaml
+  - 33-referencegrant-phase3-batch.yaml
+  - 34-referencegrant-kavita.yaml
+  - 35-referencegrant-wallabag.yaml
+  - 35-referencegrant-appstore.yaml
+
+patches:
+  - path: 30-server-tls-mount-patch.yaml
+
+images:
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.19.1"
+  - name: redis
+    newTag: "8.6-alpine"
+    digest: "sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2"
+
+helmCharts:
+  - name: authentik
+    releaseName: authentik
+    version: 2026.5.3
+    repo: https://charts.goauthentik.io
+    valuesFile: values.yaml
+    includeCRDs: true
+    namespace: authentik

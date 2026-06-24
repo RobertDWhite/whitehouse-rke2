@@ -1,0 +1,74 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fleet-mysqldump
+  namespace: fleet
+  labels:
+    app: fleet-mysqldump
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: fleet-mysqldump
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: mysqldump
+              image: mysql
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -euc
+                - |
+                  STAMP=$(date -u +%Y%m%d-%H%M%S)
+                  OUT="/backups/fleet-${STAMP}.sql.gz"
+                  echo "[$(date -u +%FT%TZ)] starting mysqldump → ${OUT}"
+                  mysqldump \
+                    --host=mysql.fleet.svc.cluster.local \
+                    --user=root \
+                    --password="${MYSQL_ROOT_PASSWORD}" \
+                    --single-transaction \
+                    --quick \
+                    --routines \
+                    --triggers \
+                    --events \
+                    --hex-blob \
+                    --set-gtid-purged=OFF \
+                    --databases fleet \
+                    | gzip -9 > "${OUT}.tmp"
+                  mv "${OUT}.tmp" "${OUT}"
+                  SIZE=$(stat -c%s "${OUT}")
+                  echo "[$(date -u +%FT%TZ)] dump complete: ${OUT} (${SIZE} bytes)"
+                  if [ "${SIZE}" -lt 1024 ]; then
+                    echo "FATAL: dump suspiciously small (<1KB)"; exit 1
+                  fi
+                  echo "[$(date -u +%FT%TZ)] pruning dumps older than 30 days"
+                  find /backups -maxdepth 1 -type f -name 'fleet-*.sql.gz' -mtime +30 -print -delete || true
+                  ls -lh /backups | tail -20
+              env:
+                - name: MYSQL_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql
+                      key: root-password
+              volumeMounts:
+                - name: dumps
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+          volumes:
+            - name: dumps
+              persistentVolumeClaim:
+                claimName: fleet-mysql-dumps

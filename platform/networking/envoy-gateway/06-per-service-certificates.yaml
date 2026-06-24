@@ -1,0 +1,158 @@
+# Per-service Certificates for sensitive workloads.
+# Memory rule: new services get their own Certificate (envoy-gateway-system,
+# both .white.fm + .internal.white.fm SANs). Wildcards remain as fallback
+# while we migrate routes off them.
+#
+# All certs use the same letsencrypt-dns ClusterIssuer as the wildcards
+# (Cloudflare DNS-01). Provisioning takes a few minutes per cert after
+# ArgoCD syncs.
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: argocd-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - argo.white.fm
+    - argo.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: grafana-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: grafana-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - grafana.white.fm
+    - grafana.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: headscale-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: headscale-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - headscale.white.fm
+    - headscale.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: longhorn-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: longhorn-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - longhorn.internal.white.fm
+    - longhornui.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: authentik-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: authentik-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - auth.white.fm
+    - auth.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: sdr-mcp-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: sdr-mcp-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - sdr-mcp.white.fm
+    - sdr-mcp.internal.white.fm
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jetlog-mcp-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: jetlog-mcp-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - jetlog-mcp.white.fm
+    - jetlog-mcp.internal.white.fm
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homarr-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: homarr-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - homarr.white.fm
+    - homarr.internal.white.fm
+---
+# congresstrades.white.fm — public, no-SSO read-only host (public-only; the SSO/full app is
+# congress.white.fm + congress.internal.white.fm). Own cert so it no longer rides the wildcard.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: congresstrades-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: congresstrades-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - congresstrades.white.fm
+
+---
+# appstore.internal.white.fm — internal-only App Store review responder (Authentik SSO).
+# Both SANs per the per-service-cert convention even though only the internal listener exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: appstore-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: appstore-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - appstore.white.fm
+    - appstore.internal.white.fm

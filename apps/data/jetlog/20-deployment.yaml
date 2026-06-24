@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jetlog
+  namespace: jetlog
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  strategy:
+    # RWO Longhorn PVC: the new pod cannot attach the volume while the old pod
+    # still holds it, so RollingUpdate deadlocks on every image change. Recreate
+    # terminates the old pod first, freeing the volume for the new one.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jetlog
+  template:
+    metadata:
+      labels:
+        app: jetlog
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Uncomment initContainers + litestream sidecar after MinIO bucket + SOPS creds are set up
+      # initContainers:
+      #   - name: litestream-restore
+      #     image: litestream/litestream:0.3
+      #     args: ['restore', '-if-db-not-exists', '-if-replica-exists', '/data/jetlog.db']
+      #     volumeMounts:
+      #       - name: jetlog-data
+      #         mountPath: /data
+      #       - name: litestream-config
+      #         mountPath: /etc/litestream.yml
+      #         subPath: litestream.yml
+      containers:
+        - name: jetlog
+          image: registry.internal.white.fm/jetlog
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: JETLOG_PORT
+              value: "3000"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jetlog-env
+                  key: SECRET_KEY
+            - name: AUTH_HEADER
+              value: "X-Authentik-Username"
+          readinessProbe:
+            httpGet:
+              path: /config
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: jetlog-data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+        # Uncomment after MinIO setup:
+        # - name: litestream
+        #   image: litestream/litestream:0.3
+        #   args: ['replicate']
+        #   volumeMounts:
+        #     - name: jetlog-data
+        #       mountPath: /data
+        #     - name: litestream-config
+        #       mountPath: /etc/litestream.yml
+        #       subPath: litestream.yml
+        #   resources:
+        #     requests:
+        #       cpu: 10m
+        #       memory: 32Mi
+        #     limits:
+        #       cpu: 100m
+        #       memory: 64Mi
+      volumes:
+        - name: jetlog-data
+          persistentVolumeClaim:
+            claimName: jetlog-data
+        # - name: litestream-config
+        #   configMap:
+        #     name: litestream-config
+        - name: tmp
+          emptyDir: {}

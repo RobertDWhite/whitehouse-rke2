@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: misp
+
+generators:
+  - ksops.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: misp-zmq-forwarder
+    files:
+      - push_zmq_to_influxdb.py=scripts/push_zmq_to_influxdb.py
+  - name: misp-raven-bridge
+    files:
+      - misp_to_raven.py=scripts/misp_to_raven.py
+  - name: misp-config-overrides
+    files:
+      - optional.envars.json=config/optional.envars.json
+
+resources:
+  - 00-namespace.yaml
+  - 20-pvc-misp-files.yaml
+  - manifests/misp-dashboard-config.yaml
+  - manifests/misp-dashboard-redis.yaml
+  - manifests/misp-dashboard.yaml
+  - manifests/raven-bridge.yaml
+  - manifests/deployment-misp.yaml
+  - manifests/deployment-nginx.yaml
+  - manifests/redis.yaml
+  - manifests/mysql.yaml
+  - manifests/services.yaml
+  - manifests/cronjobs/cache-all-feeds.yaml
+  - manifests/cronjobs/fetch-all-feeds.yaml
+  - manifests/cronjobs/pull-all-servers.yaml
+  - manifests/cronjobs/push-all-servers.yaml
+  - manifests/cronjobs/update-galaxies.yaml
+  - manifests/cronjobs/update-noticelists.yaml
+  - manifests/cronjobs/update-taxonomies.yaml
+  - manifests/cronjobs/update-warninglists.yaml
+
+images:
+  - name: python
+    newTag: "3.14-slim"

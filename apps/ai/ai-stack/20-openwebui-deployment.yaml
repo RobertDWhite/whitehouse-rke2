@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openwebui
+  namespace: ai-stack
+  labels:
+    app: openwebui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openwebui
+  template:
+    metadata:
+      labels:
+        app: openwebui
+    spec:
+      containers:
+        - name: openwebui
+          image: ghcr.io/open-webui/open-webui
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: OLLAMA_BASE_URLS
+              value: "http://ollama-5090:11434;http://ollama:11434"
+            - name: ENABLE_OPENAI_API
+              value: "true"
+            - name: OPENAI_API_BASE_URL
+              value: "http://localai:8080/v1"
+            - name: OPENAI_API_KEY
+              value: "localai"
+            - name: IMAGES_OPENAI_API_BASE_URL
+              value: "http://localai-image-proxy:8080/v1"
+            - name: IMAGES_OPENAI_API_KEY
+              value: "localai"
+            - name: WEBUI_AUTH
+              value: "false"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: openwebui-data
+              mountPath: /app/backend/data
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: openwebui-data
+          persistentVolumeClaim:
+            claimName: openwebui-pvc

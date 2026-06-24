@@ -1,0 +1,558 @@
+# =============================================================
+# Simple web apps — standard pattern per namespace:
+#   default-deny + allow-all-egress + ingress from kube-system + uptime-kuma
+# Ingress is locked down. Egress is open — these are simple leaf apps
+# with no sensitive data to exfiltrate, and restricting egress ports
+# just breaks things silently (DNS, k8s API, external APIs, etc.)
+# =============================================================
+
+# ======================== HOMEPAGE ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: homepage}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: homepage}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: homepage}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== GLANCE ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: glance}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: glance}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: glance}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== HOMARR ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: homarr}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: homarr}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: homarr}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== JETLOG ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: jetlog}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: jetlog}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: jetlog}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: jetlog-mcp}}
+
+---
+# ======================== MYSPEED ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: myspeed}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: myspeed}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: myspeed}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== CYBERCHEF ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: cyberchef}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: cyberchef}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: cyberchef}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== OPENCLAW ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: openclaw}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+# Egress: DNS + cluster + OpenAI/Telegram only — block OpenClaw telemetry
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-egress, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    # DNS
+    - ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    # In-cluster pod network (Ollama, etc.)
+    - to: [{ipBlock: {cidr: 10.42.0.0/16}}, {ipBlock: {cidr: 10.43.0.0/16}}]
+    # External HTTPS — exclude OpenClaw home IPs
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 216.150.1.1/32
+              - 138.199.132.0/24
+      ports: [{protocol: TCP, port: 443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: openclaw}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== WORLDMONITOR ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: worldmonitor}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: worldmonitor}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: worldmonitor}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== AUDIOBOOKSHELF ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: audiobookshelf}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: audiobookshelf}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: audiobookshelf}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== CALIBRE ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: calibre}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: calibre}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: calibre}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: calibre}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: media}}
+
+---
+# ======================== OPENHAMCLOCK ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: openhamclock}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: openhamclock}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: openhamclock}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== KAVITA ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: kavita}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: kavita}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: kavita}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== NTFY ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: ntfy}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: ntfy}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: ntfy}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: congress-trades}}
+
+---
+# ======================== TAUTULLI ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: tautulli}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: tautulli}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: tautulli}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== GIBT-ES-GOTT ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: gibt-es-gott}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: gibt-es-gott}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: gibt-es-gott}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== HOMEBRIDGE ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: homebridge}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: homebridge}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: homebridge}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== HUB ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: hub}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: hub}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: hub}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== KEEPTRACK ========================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: keeptrack}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: keeptrack}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: keeptrack}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
+# ======================== MONICA ========================
+# Has internal mysql + postgres → needs intra-namespace ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: monica}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: monica}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: monica}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: monica}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monica-mcp}}
+
+---
+# ======================== NITTER ========================
+# Has internal redis → needs intra-namespace ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: nitter}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: nitter}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-intra-namespace, namespace: nitter}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress: [{from: [{podSelector: {}}]}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: nitter}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: politics}}

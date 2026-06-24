@@ -1,0 +1,47 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: congress-trades
+
+resources:
+  - 00-namespace.yaml
+  - 10-postgres.yaml
+  - 21-configmap.yaml
+  - 30-deployment-api.yaml
+  - 31-service-api.yaml
+  - 40-deployment-ui.yaml
+  - 41-service-ui.yaml
+  - 50-cronjob-lambda.yaml
+  - 51-cronjob-house.yaml
+  - 52-cronjob-senate.yaml
+  - 53-cronjob-enrich.yaml
+  - 54-cronjob-networth.yaml
+  - 55-cronjob-signals.yaml
+  - 56-cronjob-prices.yaml
+  - 57-cronjob-ai-summary.yaml
+  - 58-cronjob-returns.yaml
+  - 59-cronjob-sectors.yaml
+  - 60-cronjob-quotes.yaml
+  - 61-cronjob-gov-events.yaml
+  - 62-cronjob-sentiment.yaml
+  - 63-cronjob-backtest.yaml
+  - 64-cronjob-legislative.yaml
+  - 65-cronjob-reconcile.yaml
+  - 66-cronjob-ticker-aliases.yaml
+  - 68-cronjob-refresh-all.yaml
+  - 67-smoke-runbook-configmap.yaml
+  - 42-public-readonly.yaml
+  - 60-httproute-public.yaml
+  - 61-httproute-internal.yaml
+  - 64-httproute-public-noauth.yaml
+  - 70-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/congress-app
+    newName: ghcr.io/robertdwhite/congress-app
+    digest: sha256:624bf4fa61c8397da5835d1b941adb5745223a722fa5ffef3d65dd4ee71f84ef
+  - name: registry.internal.white.fm/congress-ui
+    newName: ghcr.io/robertdwhite/congress-ui
+    digest: sha256:8bc53df113e6566e86eef928cc5becde901b3aab91d54b8eb040193e28d909b2

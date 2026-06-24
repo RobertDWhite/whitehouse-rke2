@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argo-white-fm-tls
+  namespace: argocd
+spec:
+  secretName: argo-white-fm-tls
+  dnsNames:
+    - argo.white.fm
+  issuerRef:
+    name: letsencrypt-dns
+    kind: ClusterIssuer
+

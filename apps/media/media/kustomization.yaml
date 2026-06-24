@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: media
+
+resources:
+  - 00-namespace.yaml
+  - 12-vpn-proxy-watchdog.yaml
+  - 13-netpol-glacier.yaml
+  - 14-netpol-calibre-lazylibrarian.yaml
+  - 15-netpol-searxng-to-vpn.yaml
+  - 30-exportarr.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: ghcr.io/qdm12/gluetun
+    newTag: "v3.41.1"
+  - name: ghcr.io/onedr0p/exportarr
+    newTag: "v2.3.0"

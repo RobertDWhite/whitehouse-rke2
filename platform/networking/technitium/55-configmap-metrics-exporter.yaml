@@ -1,0 +1,262 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-metrics-exporter
+  namespace: technitium
+data:
+  exporter.py: |
+    #!/usr/bin/env python3
+    """Prometheus exporter for Technitium DNS Server.
+
+    Polls /api/dashboard/stats/get every 30s and exposes Prometheus
+    metrics on :9180/metrics. Runs as a sidecar in each Technitium pod
+    and only polls localhost so the metrics naturally end up labelled
+    per-pod by Prometheus' kubernetes_sd.
+
+    Stats are sliding-window (lastHour by default) — exposed as gauges
+    so Grafana can show "queries in the last hour" trends per node.
+    """
+    import http.server
+    import json
+    import os
+    import sys
+    import threading
+    import time
+    from urllib.parse import quote
+
+    import requests
+    import urllib3
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    API   = "http://localhost:5380"
+    USER  = os.environ.get("TECHNITIUM_USER", "admin")
+    PASS  = os.environ["TECHNITIUM_PASSWORD"]
+    PORT  = int(os.environ.get("METRICS_PORT", "9180"))
+    WINDOW = os.environ.get("STATS_WINDOW", "lastHour")
+    QUERY_LOGS_APP = os.environ.get("QUERY_LOGS_APP", "Query Logs (Sqlite)")
+    QUERY_LOGS_CLASS_PATH = os.environ.get("QUERY_LOGS_CLASS_PATH", "QueryLogsSqlite.App")
+    QUERY_STREAM_INTERVAL = float(os.environ.get("QUERY_STREAM_INTERVAL", "5"))
+    QUERY_STREAM_PAGE_SIZE = int(os.environ.get("QUERY_STREAM_PAGE_SIZE", "200"))
+
+    SESSION = requests.Session()
+    _lock = threading.Lock()
+    _metrics = "# exporter starting\n"
+    _token = None
+
+    def _login():
+        r = SESSION.get(f"{API}/api/user/login",
+                        params={"user": USER, "pass": PASS, "includeInfo": "true"},
+                        timeout=10)
+        return r.json()["token"]
+
+    def _stats():
+        global _token
+        if not _token:
+            _token = _login()
+        r = SESSION.get(f"{API}/api/dashboard/stats/get",
+                        params={"token": _token, "type": WINDOW}, timeout=10)
+        body = r.json()
+        if body.get("status") == "invalid-token":
+            _token = _login()
+            r = SESSION.get(f"{API}/api/dashboard/stats/get",
+                            params={"token": _token, "type": WINDOW}, timeout=10)
+            body = r.json()
+        return body.get("response", {})
+
+    # totalX -> (metric_name, label_value or None for ungrouped)
+    _RESPONSE_BREAKDOWN = {
+        "totalNoError":        "noerror",
+        "totalServerFailure":  "servfail",
+        "totalNxDomain":       "nxdomain",
+        "totalRefused":        "refused",
+        "totalAuthoritative":  "authoritative",
+        "totalRecursive":      "recursive",
+        "totalCached":         "cached",
+        "totalBlocked":        "blocked",
+        "totalDropped":        "dropped",
+    }
+
+    _SCALARS = {
+        "totalQueries":     ("technitium_queries_window",     "DNS queries handled in the configured stats window"),
+        "totalClients":     ("technitium_clients_window",     "Distinct DNS clients seen in the window"),
+        "zones":            ("technitium_zones",              "Authoritative zones served"),
+        "cachedEntries":    ("technitium_cache_entries",      "Entries currently in the recursive cache"),
+        "allowedZones":     ("technitium_allowed_zones",      "Manually allowed zones"),
+        "blockedZones":     ("technitium_blocked_zones",      "Manually blocked zones"),
+        "allowListZones":   ("technitium_allow_list_zones",   "Entries from allow lists"),
+        "blockListZones":   ("technitium_block_list_zones",   "Entries from block lists"),
+    }
+
+    def render(stats):
+        s = stats.get("stats", {}) or {}
+        out = []
+
+        # exporter health
+        out.append("# HELP technitium_exporter_up 1 if the last poll succeeded")
+        out.append("# TYPE technitium_exporter_up gauge")
+        out.append(f"technitium_exporter_up {1 if s else 0}")
+
+        # scalar gauges
+        for key, (name, helptext) in _SCALARS.items():
+            if key not in s:
+                continue
+            out.append(f"# HELP {name} {helptext}")
+            out.append(f"# TYPE {name} gauge")
+            out.append(f"{name} {s[key]}")
+
+        # response breakdown — single metric, one label per category
+        out.append("# HELP technitium_response_window DNS responses in window, by category")
+        out.append("# TYPE technitium_response_window gauge")
+        for key, label in _RESPONSE_BREAKDOWN.items():
+            if key in s:
+                out.append(f'technitium_response_window{{category="{label}"}} {s[key]}')
+
+        # query type breakdown (A, AAAA, HTTPS, etc.)
+        qt = stats.get("queryTypeChartData", {})
+        labels = qt.get("labels") or []
+        ds = (qt.get("datasets") or [{}])[0]
+        data = ds.get("data") or []
+        if labels and data:
+            out.append("# HELP technitium_query_type_window DNS queries in window, by record type")
+            out.append("# TYPE technitium_query_type_window gauge")
+            for label, value in zip(labels, data):
+                out.append(f'technitium_query_type_window{{type="{label}"}} {value}')
+
+        # protocol breakdown (Udp, Tcp, Tls, Https, Quic)
+        pt = stats.get("protocolTypeChartData", {})
+        labels = pt.get("labels") or []
+        ds = (pt.get("datasets") or [{}])[0]
+        data = ds.get("data") or []
+        if labels and data:
+            out.append("# HELP technitium_protocol_window DNS queries in window, by transport protocol")
+            out.append("# TYPE technitium_protocol_window gauge")
+            for label, value in zip(labels, data):
+                out.append(f'technitium_protocol_window{{protocol="{label}"}} {value}')
+
+        return "\n".join(out) + "\n"
+
+    def poller():
+        global _metrics
+        while True:
+            try:
+                stats = _stats()
+                with _lock:
+                    _metrics = render(stats)
+            except Exception as e:
+                print(f"poll error: {e}", flush=True)
+                with _lock:
+                    _metrics = "# HELP technitium_exporter_up 1 if the last poll succeeded\n# TYPE technitium_exporter_up gauge\ntechnitium_exporter_up 0\n"
+            time.sleep(30)
+
+    # ---- query log streamer ------------------------------------------------
+    # Polls the Query Logs (Sqlite) DNS app and prints one JSON line per new
+    # query to stdout. Promtail picks up the container log into Loki, where
+    # Grafana panels can tail/filter/aggregate. The pod log labels
+    # (namespace, pod, container) make it natural to slice by Technitium pod.
+
+    def _query_logs_endpoint():
+        # Technitium routes per-app query log lookups through /api/logs/query
+        # with the app and class identifiers in the querystring.
+        return f"{API}/api/logs/query"
+
+    def _fetch_recent_queries(token, page_size):
+        # descendingOrder=true so we always look at the newest page; we filter
+        # client-side by rowNumber.
+        r = SESSION.get(_query_logs_endpoint(), params={
+            "token": token,
+            "name": QUERY_LOGS_APP,
+            "classPath": QUERY_LOGS_CLASS_PATH,
+            "pageNumber": 1,
+            "entriesPerPage": page_size,
+            "descendingOrder": "true",
+        }, timeout=15)
+        if r.status_code == 404:
+            return None  # app not installed yet
+        body = r.json()
+        if body.get("status") == "invalid-token":
+            return "reauth"
+        if body.get("status") != "ok":
+            return None
+        return body.get("response", {}).get("entries", []) or []
+
+    def _emit(entry):
+        # Flatten to a small, queryable shape. One JSON object per line so
+        # Loki's `| json` parser produces clean labels.
+        out = {
+            "ts":       entry.get("timestamp"),
+            "client":   entry.get("clientIpAddress"),
+            "domain":   entry.get("qname"),
+            "qtype":    entry.get("qtype"),
+            "qclass":   entry.get("qclass"),
+            "rcode":    entry.get("rcode"),
+            "type":     entry.get("responseType"),
+            "rt_ms":    entry.get("responseRtt"),
+            "protocol": entry.get("protocol"),
+            "answer":   entry.get("answer"),
+            "row":      entry.get("rowNumber"),
+            "kind":     "query",
+        }
+        # `flush=True` so promtail sees it immediately.
+        sys.stdout.write(json.dumps(out, separators=(",", ":")) + "\n")
+        sys.stdout.flush()
+
+    def query_streamer():
+        global _token
+        last_row = -1
+        first_pass = True
+        while True:
+            try:
+                if not _token:
+                    _token = _login()
+                result = _fetch_recent_queries(_token, QUERY_STREAM_PAGE_SIZE)
+                if result == "reauth":
+                    _token = None
+                    time.sleep(2)
+                    continue
+                if result is None:
+                    # App not installed (yet) — back off.
+                    time.sleep(30)
+                    continue
+                entries = result
+                if entries:
+                    # API returns descending; play forward from oldest new row.
+                    new_entries = [e for e in entries
+                                   if (e.get("rowNumber") or -1) > last_row]
+                    new_entries.sort(key=lambda e: e.get("rowNumber") or 0)
+                    if first_pass:
+                        # On first poll just establish the watermark; don't
+                        # flood Loki with the back-catalog the app already has.
+                        if new_entries:
+                            last_row = new_entries[-1].get("rowNumber") or last_row
+                        first_pass = False
+                    else:
+                        for e in new_entries:
+                            _emit(e)
+                            last_row = max(last_row, e.get("rowNumber") or last_row)
+            except Exception as e:
+                print(f"query stream error: {e}", file=sys.stderr, flush=True)
+                time.sleep(5)
+            time.sleep(QUERY_STREAM_INTERVAL)
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/metrics":
+                with _lock:
+                    body = _metrics
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                self.send_header("Content-Length", str(len(body.encode())))
+                self.end_headers()
+                self.wfile.write(body.encode())
+            else:
+                self.send_response(404)
+                self.end_headers()
+        def log_message(self, *args, **kwargs):
+            pass  # quiet
+
+    if __name__ == "__main__":
+        threading.Thread(target=poller, daemon=True).start()
+        threading.Thread(target=query_streamer, daemon=True).start()
+        print(f"exporter listening on :{PORT}/metrics", flush=True)
+        http.server.HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

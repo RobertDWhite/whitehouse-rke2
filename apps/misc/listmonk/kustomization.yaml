@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: listmonk
+
+resources:
+  - 00-namespace.yaml
+  - 10-postgres.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 52-httproute-public.yaml
+  - 53-httproute-internal.yaml
+  - 60-pdb.yaml
+  - 70-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: listmonk/listmonk
+    newTag: "v6.1.0"
+    digest: sha256:179d00d9553c371b6fe88c9b145095d651e275bdd66db46b2e0b79daff316b6f
+  - name: postgres
+    newTag: "17-alpine"
+    digest: sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nitter
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 15-service.yaml
+  - 20-deployment-redis.yaml
+  - 25-service-redis.yaml
+  - 30-configmap.yaml
+  - 31-configmap-style-css.yaml
+  - 52-httproute.yaml
+  - 22-externalsecret.yaml
+
+images:
+  - name: registry.internal.white.fm/nitter
+    newName: registry.internal.white.fm/nitter
+    newTag: "1.0.0"
+  - name: redis
+    newTag: "7.4-alpine"
+    digest: "sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99"

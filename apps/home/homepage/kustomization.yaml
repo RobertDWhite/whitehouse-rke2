@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: homepage
+
+resources:
+  - namespace.yaml
+  - service.yaml
+  - 51-httproute-internal.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+#  - network-policy.yaml
+#  - allow-uptime-kuma.yaml
+  - metrics-reader.yaml
+#  - egress.yaml
+
+configMapGenerator:
+  - name: homepage-settings
+    files:
+      - settings.yaml=config/settings.yaml
+  - name: homepage-docker
+    files:
+      - docker.yaml=config/docker.yaml
+  - name: homepage-custom-css
+    files:
+      - custom.css=config/custom.css
+  - name: homepage-custom-js
+    files:
+      - custom.js=config/custom.js
+  - name: homepage-proxmox
+    files:
+      - proxmox.yaml=config/proxmox.yaml
+  - name: homepage-homeassistant
+    files:
+      - homeassistant.yaml=config/homeassistant.yaml
+  - name: homepage-uptime-kuma
+    files:
+      - uptime-kuma.yaml=config/uptime-kuma.yaml
+  - name: homepage-unifi
+    files:
+      - unifi.yaml=config/unifi.yaml
+
+
+
+generators:
+  - ksops-env.yaml
+
+images:
+  - name: ghcr.io/gethomepage/homepage
+    newTag: "v1.13.2"

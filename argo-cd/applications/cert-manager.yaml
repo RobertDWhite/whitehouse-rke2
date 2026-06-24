@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: platform
+  source:
+    repoURL: https://charts.jetstack.io
+    targetRevision: v1.18.0
+    chart: cert-manager
+    helm:
+      values: |
+        installCRDs: true
+
+        prometheus:
+          enabled: true
+
+        extraArgs:
+          - --feature-gates=ExperimentalCertificateSigningRequestControllers=true
+          # Bypass cluster DNS for DNS-01 propagation checks. Required because
+          # the cluster forwards through dnscrypt-proxy with block_undelegated,
+          # which returns SERVFAIL for _acme-challenge names that lack an NS
+          # chain. Public resolvers see CF's authoritative answers.
+          - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+          - --dns01-recursive-nameservers-only
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true

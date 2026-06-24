@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+#  - 10-pvc.yaml
+  - 11-autokuma-pvc.yaml
+  - 20-kuma-deployment.yaml
+  - 30-kuma-svc.yaml
+  - 42-autokuma-deployment.yaml
+#  - 55-network-policy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: louislam/uptime-kuma
+    newTag: "2.4.0"
+  # Pinned by digest: the :master build (rev 3379fbae) ships the v3 DB
+  # migration the on-disk state requires; AutoKuma no longer publishes semver
+  # image tags (only master/latest/sha), and a digest also satisfies the
+  # cluster's require-image-digest policy.
+  - name: ghcr.io/bigboot/autokuma
+    digest: "sha256:8acbd3ad3ec8cb6c066aa0ee541154921283ec78159015937128541921c47974"

@@ -1,0 +1,171 @@
+# FT8/WSPR decoder — captures HF audio via SoapyRemote from RX888 MkII,
+# decodes FT8/FT4/WSPR digital modes using jt9 + wsprd (WSJT-X),
+# writes one JSON file per decoded spot to /data/text/ft8/.
+# The API indexer picks these up and inserts into the spots table.
+#
+# IMPORTANT: The RX888 SoapyRemote server only serves one client at a time.
+# Scale openwebrxplus AND hfdl-decoder to 0 while running this decoder.
+#   kubectl scale deploy openwebrxplus -n sdr-research --replicas=0
+#   kubectl scale deploy hfdl-decoder  -n sdr-research --replicas=0
+#   kubectl scale deploy ft8-wspr-decoder -n sdr-research --replicas=1
+#
+# Build the image first:
+#   docker buildx build --platform linux/amd64,linux/arm64 --push \
+#     -t registry.internal.white.fm/ft8-wspr-decoder:1.0.8 \
+#     -f sdr-research/Dockerfile.ft8-wspr sdr-research/
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ft8-wspr-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1   # default HF workload on the directly attached RX888 node
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ft8-wspr-decoder
+  template:
+    metadata:
+      labels:
+        app: ft8-wspr-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-12
+      initContainers:
+        - name: install-rx888-plugin
+          image: registry.internal.white.fm/soapy-rx888-server:1.0.7-amd64
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /plugins
+              cp /usr/local/lib/SoapySDR/modules0.8/libSDDCSupport.so /plugins/
+          volumeMounts:
+            - name: soapy-plugins
+              mountPath: /plugins
+      containers:
+        - name: ft8-wspr-decoder
+          image: registry.internal.white.fm/unified-hf-decoder
+          securityContext:
+            privileged: true
+          command: ["python3", "/app/ft8-wspr-entrypoint.py"]
+          env:
+            - name: SOAPY_REMOTE
+              value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
+            - name: SOAPY_DEVICE_STRING
+              value: "driver=SDDC"
+            - name: SOAPY_SDR_PLUGIN_PATH
+              value: "/opt/soapy-modules"
+            - name: SOAPY_GAIN
+              value: "30"
+            - name: FT8_CAPTURE_BACKEND
+              value: "auto"
+            - name: FT8_OUTPUT_DIR
+              value: "/data/text/ft8"
+            # Standard FT8 dial frequencies (Hz) — most active HF bands
+            - name: FT8_FREQUENCIES
+              value: "3573000 7074000 10136000 14074000 18100000 21074000 24915000 28074000"
+            # WSPR beacon frequencies (Hz)
+            - name: WSPR_FREQUENCIES
+              value: "7038600 10138700 14095600 21094600 28124600"
+            # Capture one WSPR window (2 min) every N FT8 cycles
+            - name: WSPR_EVERY_N
+              value: "6"
+            # HF SSTV calling frequencies (Hz) — captured and saved for sstv-decoder
+            - name: SSTV_FREQUENCIES
+              value: "14230000 21340000 28680000 7171000"
+            # Capture SSTV every N FT8 cycles. Must be coprime with
+            # WSPR_EVERY_N (=6) AND HFDL_EVERY_N — older code preempted
+            # SSTV when both were due, starving it forever. The independent-
+            # counter scheduler in the rebuilt image fixes that, but we keep
+            # the value coprime as defense in depth.
+            - name: SSTV_EVERY_N
+              value: "7"
+            - name: SSTV_DWELL_SEC
+              value: "60"
+            # Where to write SSTV WAV captures. Must NOT be /data/audio/voice
+            # (the default) — the API indexer's no-speech / short-recording
+            # cleanup deletes voice WAVs within seconds, before sstv-decoder
+            # can read them. /data/audio/sstv is private to the SSTV pipeline.
+            - name: SSTV_OUTPUT_DIR
+              value: "/data/audio/sstv"
+            # HFDL — run dumphfdl periodically (releases radio, runs subprocess)
+            - name: HFDL_ENABLED
+              value: "true"
+            - name: HFDL_OUTPUT_DIR
+              value: "/data/text/hfdl"
+            # dumphfdl expects kHz, not Hz. The 2 MHz SDDC sample window
+            # centered at 10732.5 kHz covers 9732.5 - 11732.5 kHz, which
+            # holds nine allocated HFDL channels. Previously only 10081 +
+            # 11384 were monitored -> vanishingly low frame count. Listing
+            # all channels in the window lets dumphfdl parallel-decode.
+            - name: HFDL_FREQUENCIES
+              value: "10066 10081 10093 11184 11306 11318 11354 11384 11387"
+            - name: HFDL_DWELL_SEC
+              value: "180"
+            # Prime, coprime with WSPR_EVERY_N=6 and SSTV_EVERY_N=7, so
+            # none of the three modes systematically starves the others.
+            - name: HFDL_EVERY_N
+              value: "11"
+            - name: HFDL_SAMPLE_RATE
+              value: "2000000"
+            - name: HFDL_CENTERFREQ
+              value: "10732.5"
+            - name: HFDL_GAIN
+              value: "30"
+            # Station Maidenhead grid (for distance calculations)
+            - name: STATION_GRID
+              valueFrom:
+                secretKeyRef:
+                  name: sdr-viewer-secrets
+                  key: station-grid
+                  optional: true
+            - name: CAPTURE_SAMPLE_RATE
+              # RX888 MkII minimum supported rate; decimated to 12 kHz in software
+              value: "2000000"
+            - name: DECODE_DEPTH
+              value: "3"
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+            - name: soapy-plugins
+              mountPath: /opt/soapy-modules
+            - name: usb
+              mountPath: /dev/bus/usb
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q ft8-wspr-entrypoint"
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 3000m
+              # 2 MSPS * 15s * 8 bytes = 240 MB raw + scipy decimation overhead
+              memory: 2Gi
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-hf
+        - name: soapy-plugins
+          emptyDir: {}
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

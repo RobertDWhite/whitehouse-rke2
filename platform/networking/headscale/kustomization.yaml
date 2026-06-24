@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Bring-up:
+#
+# Phase 1 — API-driven OIDC bootstrap (this commit):
+#   1. Generate Authentik API token (Directory → Tokens & App passwords)
+#   2. cp 23-secret-authentik-token.example.yaml 23-secret-authentik-token.sops.yaml
+#      Paste token, then: sops --encrypt --in-place 23-secret-authentik-token.sops.yaml
+#   3. Commit + push. ArgoCD applies; the bootstrap Job creates the
+#      OAuth2 provider, application, and group in Authentik, fetches
+#      the generated client_secret, writes it to the headscale-oidc
+#      Secret, and rolls Headscale to pick it up.
+#
+# Phase 2 — Subnet router:
+#   1. After Headscale is healthy:
+#        kubectl -n headscale exec deploy/headscale -- \
+#          headscale --user <oidc-user-email> preauthkeys create \
+#          --reusable --expiration 99y
+#   2. cp 22-secret-authkey.example.yaml 22-secret-authkey.sops.yaml
+#      Paste key, then: sops --encrypt --in-place 22-secret-authkey.sops.yaml
+#   3. Uncomment 11-deploy-tailscale-router and ksops-router below; push.
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap-headscale.yaml
+  - 02-configmap-derp-map.yaml
+  - 10-deploy-headscale.yaml
+  - 12-deploy-derp.yaml
+  - 13-deploy-admin.yaml
+  - 20-service-headscale.yaml
+  - 21-service-derp.yaml
+  - 22-service-admin.yaml
+  - 25-configmap-bootstrap-script.yaml
+  - 26-rbac-bootstrap.yaml
+  - 27-job-bootstrap-authentik.yaml
+  - 30-cert-derp.yaml
+  - 40-httproute.yaml
+  - 41-backendtrafficpolicy.yaml
+  - 11-deploy-tailscale-router.yaml
+
+generators:
+  - ksops-oidc.yaml
+  - ksops-router.yaml
+
+images:
+  - name: headscale/headscale
+    newTag: "v0.29.1"
+  - name: tailscale/tailscale
+    newTag: "v1.98.4"
+  - name: alpine/k8s
+    newTag: "1.36.2"
+  - name: goodieshq/headscale-admin
+    newTag: "v0.27.0"
+  # ip_derper community image only publishes :latest. Pin by digest
+  # (immutable; satisfies the no-:latest policy). Bump by replacing
+  # this digest after verifying with `crane manifest ghcr.io/yangchuansheng/ip_derper:latest`.
+  - name: ghcr.io/yangchuansheng/ip_derper

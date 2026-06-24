@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: external-services
+
+resources:
+  - 00-namespace.yaml
+  - 12-service-authentik.yaml
+  # EndpointSlice replacement for legacy Endpoints (k8s 1.33+ deprecation
+  # and ArgoCD globally excludes /Endpoints; new endpoints go here).
+  - eps-minio-s3.yaml
+
+# Services, Ingresses, and Endpoints (all SOPS encrypted)
+generators:
+  - ksops.yaml

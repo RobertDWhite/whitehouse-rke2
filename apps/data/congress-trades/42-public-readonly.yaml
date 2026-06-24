@@ -1,0 +1,169 @@
+# Public, no-login read-only stack. Separate api+ui Deployments reuse the same images as the
+# SSO-gated internal pair, but the api runs with PUBLIC_READONLY=true so every mutating endpoint
+# (watchlist + portfolio POST/DELETE) returns 403. Exposed at congresstrades.white.fm with no
+# Authentik in front (see 64-httproute-public-noauth.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: congress-api-public
+  namespace: congress-trades
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: congress-api-public
+  template:
+    metadata:
+      labels:
+        app: congress-api-public
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: congress-api
+          image: registry.internal.white.fm/congress-app
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: CONFIG_PATH
+              value: /etc/congress/config.yaml
+            - name: PUBLIC_READONLY
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: congress-secrets
+                  key: database-url
+          volumeMounts:
+            - name: config
+              mountPath: /etc/congress
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: congress-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: congress-api-public
+  namespace: congress-trades
+spec:
+  selector:
+    app: congress-api-public
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: congress-ui-public
+  namespace: congress-trades
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: congress-ui-public
+  template:
+    metadata:
+      labels:
+        app: congress-ui-public
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      containers:
+        - name: congress-ui
+          image: registry.internal.white.fm/congress-ui
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: API_UPSTREAM
+              value: http://congress-api-public.congress-trades.svc.cluster.local:8000
+            - name: NGINX_RESOLVER
+              value: "10.43.0.10"
+            - name: PUBLIC_SITE
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: congress-ui-public
+  namespace: congress-trades
+spec:
+  selector:
+    app: congress-ui-public
+  ports:
+    - port: 80
+      targetPort: 8080

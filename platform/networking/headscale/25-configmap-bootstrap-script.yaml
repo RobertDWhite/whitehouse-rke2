@@ -1,0 +1,156 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-authentik-bootstrap
+  namespace: headscale
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    : "${AUTHENTIK_URL:?required}"
+    : "${AUTHENTIK_TOKEN:?required}"
+
+    APP_NAME="${APP_NAME:-Headscale}"
+    APP_SLUG="${APP_SLUG:-headscale}"
+    PROVIDER_NAME="${PROVIDER_NAME:-headscale}"
+    REDIRECT_URI="${REDIRECT_URI:-https://headscale.white.fm/oidc/callback}"
+    LAUNCH_URL="${LAUNCH_URL:-https://headscale.white.fm}"
+    GROUP_NAME="${GROUP_NAME:-headscale-users}"
+    HEADSCALE_NAMESPACE="${HEADSCALE_NAMESPACE:-headscale}"
+    HEADSCALE_SECRET_NAME="${HEADSCALE_SECRET_NAME:-headscale-oidc}"
+
+    api() {
+      curl -fsSL \
+        -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "$@"
+    }
+
+    echo "==> Resolving flows"
+    AUTH_FLOW=$(api "${AUTHENTIK_URL}/api/v3/flows/instances/?slug=default-authentication-flow" \
+      | jq -r '.results[0].pk // empty')
+    AUTHZ_FLOW=$(api "${AUTHENTIK_URL}/api/v3/flows/instances/?slug=default-provider-authorization-implicit-consent" \
+      | jq -r '.results[0].pk // empty')
+    INVALIDATION_FLOW=$(api "${AUTHENTIK_URL}/api/v3/flows/instances/?slug=default-provider-invalidation-flow" \
+      | jq -r '.results[0].pk // empty')
+
+    for v in AUTH_FLOW AUTHZ_FLOW INVALIDATION_FLOW; do
+      [ -z "${!v}" ] && { echo "ERROR: ${v} unresolved"; exit 1; }
+    done
+
+    echo "==> Resolving signing certificate"
+    SIGNING_KEY=$(api "${AUTHENTIK_URL}/api/v3/crypto/certificatekeypairs/?name=authentik+Self-signed+Certificate" \
+      | jq -r '.results[0].pk // empty')
+    if [ -z "${SIGNING_KEY}" ]; then
+      # Fallback: take first available cert
+      SIGNING_KEY=$(api "${AUTHENTIK_URL}/api/v3/crypto/certificatekeypairs/" \
+        | jq -r '.results[0].pk // empty')
+    fi
+    [ -z "${SIGNING_KEY}" ] && { echo "ERROR: no signing cert"; exit 1; }
+
+    echo "==> Resolving scope mappings (openid, email, profile, groups)"
+    SCOPES=$(api "${AUTHENTIK_URL}/api/v3/propertymappings/provider/scope/?ordering=scope_name" \
+      | jq -c '[.results[] | select(.scope_name == "openid" or .scope_name == "email"
+                                    or .scope_name == "profile" or .scope_name == "groups")
+              | .pk]')
+    [ "${SCOPES}" = "[]" ] && { echo "ERROR: scope mappings not found"; exit 1; }
+
+    echo "==> Ensuring group ${GROUP_NAME}"
+    GROUP_PK=$(api "${AUTHENTIK_URL}/api/v3/core/groups/?name=${GROUP_NAME}" \
+      | jq -r '.results[0].pk // empty')
+    if [ -z "${GROUP_PK}" ]; then
+      api -X POST -d "$(jq -n --arg name "${GROUP_NAME}" '{name: $name}')" \
+        "${AUTHENTIK_URL}/api/v3/core/groups/" >/dev/null
+      echo "    created"
+    else
+      echo "    exists"
+    fi
+
+    echo "==> Ensuring OAuth2 provider ${PROVIDER_NAME}"
+    PROVIDER_JSON=$(api "${AUTHENTIK_URL}/api/v3/providers/oauth2/?name=${PROVIDER_NAME}")
+    PROVIDER_PK=$(echo "${PROVIDER_JSON}" | jq -r '.results[0].pk // empty')
+
+    PROVIDER_PAYLOAD=$(jq -n \
+      --arg name "${PROVIDER_NAME}" \
+      --arg auth "${AUTH_FLOW}" \
+      --arg authz "${AUTHZ_FLOW}" \
+      --arg invalidation "${INVALIDATION_FLOW}" \
+      --arg key "${SIGNING_KEY}" \
+      --arg redirect "${REDIRECT_URI}" \
+      --argjson scopes "${SCOPES}" \
+      '{
+        name: $name,
+        authentication_flow: $auth,
+        authorization_flow: $authz,
+        invalidation_flow: $invalidation,
+        client_type: "confidential",
+        client_id: "headscale",
+        signing_key: $key,
+        property_mappings: $scopes,
+        redirect_uris: [{matching_mode: "strict", url: $redirect}],
+        sub_mode: "user_email",
+        include_claims_in_id_token: true,
+        access_code_validity: "minutes=1",
+        access_token_validity: "minutes=10",
+        refresh_token_validity: "days=30"
+      }')
+
+    if [ -z "${PROVIDER_PK}" ]; then
+      echo "    creating"
+      RESPONSE=$(api -X POST -d "${PROVIDER_PAYLOAD}" \
+        "${AUTHENTIK_URL}/api/v3/providers/oauth2/")
+      PROVIDER_PK=$(echo "${RESPONSE}" | jq -r '.pk')
+    else
+      echo "    updating"
+      api -X PATCH -d "${PROVIDER_PAYLOAD}" \
+        "${AUTHENTIK_URL}/api/v3/providers/oauth2/${PROVIDER_PK}/" >/dev/null
+    fi
+
+    echo "==> Fetching client_secret"
+    CLIENT_SECRET=$(api "${AUTHENTIK_URL}/api/v3/providers/oauth2/${PROVIDER_PK}/" \
+      | jq -r '.client_secret')
+    [ -z "${CLIENT_SECRET}" ] && { echo "ERROR: client_secret empty"; exit 1; }
+
+    echo "==> Ensuring application ${APP_SLUG}"
+    APP_PK=$(api "${AUTHENTIK_URL}/api/v3/core/applications/?slug=${APP_SLUG}" \
+      | jq -r '.results[0].pk // empty')
+
+    APP_PAYLOAD=$(jq -n \
+      --arg name "${APP_NAME}" \
+      --arg slug "${APP_SLUG}" \
+      --arg provider "${PROVIDER_PK}" \
+      --arg launch "${LAUNCH_URL}" \
+      '{
+        name: $name,
+        slug: $slug,
+        provider: ($provider | tonumber? // $provider),
+        meta_launch_url: $launch,
+        open_in_new_tab: false,
+        policy_engine_mode: "any"
+      }')
+
+    if [ -z "${APP_PK}" ]; then
+      echo "    creating"
+      api -X POST -d "${APP_PAYLOAD}" \
+        "${AUTHENTIK_URL}/api/v3/core/applications/" >/dev/null
+    else
+      echo "    updating"
+      # Authentik applications are keyed by slug in URLs, not pk
+      api -X PATCH -d "${APP_PAYLOAD}" \
+        "${AUTHENTIK_URL}/api/v3/core/applications/${APP_SLUG}/" >/dev/null
+    fi
+
+    echo "==> Writing client_secret to Secret ${HEADSCALE_NAMESPACE}/${HEADSCALE_SECRET_NAME}"
+    kubectl create secret generic "${HEADSCALE_SECRET_NAME}" \
+      --namespace="${HEADSCALE_NAMESPACE}" \
+      --from-literal=client-secret="${CLIENT_SECRET}" \
+      --dry-run=client -o yaml \
+      | kubectl apply -f -
+
+    echo "==> Restarting Headscale to load credentials"
+    kubectl rollout restart deployment/headscale -n "${HEADSCALE_NAMESPACE}" || true
+
+    echo "==> Done"

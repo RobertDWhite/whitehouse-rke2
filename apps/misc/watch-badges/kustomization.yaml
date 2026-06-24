@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 20-service.yaml
+  - 53-httproute-internal.yaml
+
+# Serve the dashboard straight from a ConfigMap (content-hashed name, so
+# editing the data file rolls the pod automatically). To refresh your badges:
+# regenerate web/awards.data.js, copy it here, commit, push -> ArgoCD syncs.
+configMapGenerator:
+  - name: badges-web
+    files:
+      - web/index.html
+      - web/styles.css
+      - web/app.js
+      - web/awards.data.js

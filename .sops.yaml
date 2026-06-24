@@ -1,0 +1,62 @@
+# .sops.yaml
+creation_rules:
+
+
+  - path_regex: matrix-stack/helm/values\.sops\.yaml$
+    encrypted_regex: '.*'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: matrix-stack/maubot/maubot-config-secret.sops.yaml$
+    encrypted_regex: 'config.yaml'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: '.*\.env$'
+    encrypted_regex: '^(.*)$'
+    input_type: dotenv
+    key_groups:
+      - age:
+          - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: homepage/deployment\.sops\.yaml$
+    encrypted_regex: '^(spec)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: hostaliases-patch.sops.yaml$
+    encrypted_regex: '^(spec)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: homepage/config/.*\.cm\.sops\.yaml$
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+    encrypted_regex: '^(.*)$'
+
+  - path_regex: 'external-services/(svc|ingress)-.*\.sops\.yaml$'
+    encrypted_regex: '^(.*)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: 'media/.*\.sops\.yaml$'
+    encrypted_regex: '^(.*)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: 'technitium/.*networkpolicy.*\.sops\.yaml$'
+    encrypted_regex: '^(spec)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - encrypted_regex: '^(data|stringData|parameters)$'
+    path_regex: '.*\.sops\.yaml$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: '(.*/)?(secret.*|.*secret|config.*|.*config).*\.ya?ml$'
+    encrypted_regex: '^(data|stringData)$'
+    key_groups:
+      - age:
+          - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: '(^|.*/)?immich/.*\.ya?ml$'
+    encrypted_regex: '^(data|stringData)$'
+    key_groups:
+      - age:
+          - age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+
+  - path_regex: homepage-tls.sops.yaml
+    encrypted_regex: '^(.*)$'
+    age: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scrypted
+  namespace: scrypted
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: scrypted
+  template:
+    metadata:
+      labels:
+        app: scrypted
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      containers:
+        - name: scrypted
+          image: koush/scrypted
+          env:
+            - name: SCRYPTED_WEBHOOK_UPDATE
+              value: "http://localhost:10444/v1/update"
+          envFrom:
+            - secretRef:
+                name: scrypted-webhook-secret
+          securityContext:
+            privileged: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 10443
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 10443
+              scheme: HTTPS
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /server/volume
+            - name: dri
+              mountPath: /dev/dri
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: scrypted-data
+        - name: dri
+          hostPath:
+            path: /dev/dri
+            type: Directory

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nitter
+  namespace: nitter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nitter
+  template:
+    metadata:
+      labels:
+        app: nitter
+    spec:
+      # nitter image is amd64-only; without this the rollout pod can land on
+      # the arm64 node-10 and crashloop with "exec format error".
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # Exclude node-15: its host-level cross-node networking (VXLAN/UDP 8472)
+      # is broken — pods there are unreachable from the gateway (503). Remove
+      # this once node-15's networking is fixed.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-15]
+      containers:
+        - name: nitter
+          image: registry.internal.white.fm/nitter
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /Jack/rss
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /Jack/rss
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /nitter.conf
+              subPath: nitter.conf
+              readOnly: true
+            - name: accounts
+              mountPath: /sessions.jsonl
+              subPath: sessions.jsonl
+              readOnly: true
+            - name: style-css
+              mountPath: /public/css/style.css
+              subPath: style.css
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nitter-config
+        - name: accounts
+          secret:
+            secretName: nitter-accounts
+        - name: style-css
+          configMap:
+            name: nitter-style-css

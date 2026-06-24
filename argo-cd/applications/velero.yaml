@@ -1,0 +1,98 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+
+  sources:
+    # Secrets (SOPS / ksops)
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      path: platform/storage/velero-secrets
+    # Velero Helm chart
+    - repoURL: https://vmware-tanzu.github.io/helm-charts
+      chart: velero
+      targetRevision: 6.4.0
+      helm:
+        releaseName: velero
+        values: |
+          upgradeCRDs: false
+
+          credentials:
+            existingSecret: cloud-credentials
+
+          configuration:
+            uploaderType: kopia
+            defaultVolumesToFsBackup: true
+            backupStorageLocation:
+              - name: default
+                provider: aws
+                bucket: velero-backup
+                default: true
+                config:
+                  # Use cluster DNS + EndpointSlice in external-services namespace
+                  # so we don't depend on the public DNS record (which is now
+                  # Cloudflare-proxied and refuses port 9000).
+                  # MinIO now terminates TLS on :9000. The served cert is for
+                  # minio.white.fm (Let's Encrypt) and is hostname-mismatched and
+                  # expired for this internal service name, so connect over https
+                  # and skip verification.
+                  s3Url: https://minio-s3.external-services.svc.cluster.local:9000
+                  s3ForcePathStyle: "true"
+                  insecureSkipTLSVerify: "true"
+                  # NOTE: serverSideEncryption (SSE-S3 / AES256) intentionally
+                  # omitted. This MinIO has no KMS configured and rejects SSE
+                  # PutObjects with HTTP 501 NotImplemented. Backup volume data is
+                  # already encrypted client-side by kopia; re-add SSE only after
+                  # configuring KMS / auto-encryption on the MinIO server.
+            volumeSnapshotLocation:
+              - name: default
+                provider: velero.io/csi
+                config:
+                  snapshotClass: longhorn-snapshot
+
+          deployNodeAgent: true
+
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+          nodeAgent:
+            resources:
+              requests:
+                cpu: 500m
+                memory: 1Gi
+              limits:
+                cpu: "2"
+                memory: 2Gi
+
+          initContainers:
+            - name: velero-plugin-for-aws
+              image: velero/velero-plugin-for-aws:v1.10.0
+              volumeMounts:
+                - mountPath: /target
+                  name: plugins
+
+          metrics:
+            enabled: true
+
+            serviceMonitor:
+              enabled: true
+              autodetect: true
+              additionalLabels:
+                release: prometheus
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

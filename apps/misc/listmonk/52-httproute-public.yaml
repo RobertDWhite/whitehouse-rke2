@@ -1,0 +1,23 @@
+# Public, no-SSO host. Unlike most *.white.fm apps (which route through the Authentik
+# embedded outpost), listmonk.white.fm goes STRAIGHT to the listmonk service. This is
+# deliberate: listmonk serves recipient-facing endpoints that must NOT sit behind SSO —
+# one-click unsubscribe, open/click tracking pixels, public subscription-management and
+# campaign-archive pages. Putting the host behind Authentik would break CAN-SPAM
+# unsubscribe links and tracking for recipients (who are not Authentik users).
+# The admin UI (/admin) is protected by listmonk's own built-in super-admin login.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: listmonk-public
+  namespace: listmonk
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - listmonk.white.fm
+  rules:
+    - backendRefs:
+        - name: listmonk
+          port: 9000

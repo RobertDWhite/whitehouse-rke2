@@ -1,0 +1,114 @@
+# =============================================================
+# sdr-research namespace — SDR monitoring stack
+# =============================================================
+# Internal: API, UI, Postgres, decoders, RTL-SDR, SoapyRemote, spectrum-exporter
+# External deps: ai-stack/ollama, adsb/ultrafeeder, external APIs
+# =============================================================
+
+# --- Default deny all ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# --- Allow all egress ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}
+
+---
+# --- Allow intra-namespace (ingress only) ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {}}]
+
+---
+# --- Allow ingress-nginx + authentik proxy → UI, API, OpenWebRX ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx
+  namespace: sdr-research
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [sdr-viewer-ui, sdr-viewer-api, openwebrxplus]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+
+---
+# --- Allow Prometheus scraping → API, spectrum-exporter, exporters ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 9187
+        - protocol: TCP
+          port: 9121
+
+---
+# --- Allow uptime-kuma monitoring ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-uptime-kuma
+  namespace: sdr-research
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homebridge
+  namespace: homebridge
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homebridge
+  template:
+    metadata:
+      labels:
+        app: homebridge
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      initContainers:
+        - name: seed-config
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /homebridge/config.json ]; then
+                cp /seed/config.json /homebridge/config.json
+                echo "seeded /homebridge/config.json from secret"
+              else
+                echo "/homebridge/config.json already exists, leaving alone"
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /homebridge
+            - name: config-seed
+              mountPath: /seed
+              readOnly: true
+      containers:
+        - name: homebridge
+          image: homebridge/homebridge
+          env:
+            - name: TZ
+              value: America/Los_Angeles
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8581
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8581
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /homebridge
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: homebridge-data
+        - name: config-seed
+          secret:
+            secretName: homebridge-config-seed

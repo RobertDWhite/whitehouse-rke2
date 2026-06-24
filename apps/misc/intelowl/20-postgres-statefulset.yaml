@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: intelowl-postgres
+  labels:
+    app.kubernetes.io/name: intelowl-postgres
+spec:
+  serviceName: intelowl-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: intelowl-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
+            - name: POSTGRES_DB
+              value: intel_owl_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - intelowl
+                - -d
+                - intel_owl_db
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - intelowl
+                - -d
+                - intel_owl_db
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-password
+          secret:
+            secretName: intelowl-secrets
+            defaultMode: 0400
+            items:
+              - key: DB_PASSWORD
+                path: password
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        storageClassName: longhorn
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

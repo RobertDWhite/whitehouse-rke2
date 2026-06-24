@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: derp
+  namespace: headscale
+  labels:
+    app: derp
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: derp
+  template:
+    metadata:
+      labels:
+        app: derp
+    spec:
+      securityContext:
+        fsGroup: 1000
+      # ip_derper image is amd64-only — must avoid node-10 (arm64).
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
+                      - rke2-node-50
+      containers:
+        - name: derper
+          image: ghcr.io/yangchuansheng/ip_derper
+          imagePullPolicy: IfNotPresent
+          # The image's default CMD runs build_cert.sh first (which would
+          # overwrite our Let's Encrypt cert with self-signed). Override
+          # to invoke the derper binary directly with our cert.
+          command: ["/app/derper"]
+          args:
+            - "--c=/var/lib/derper/derper.key"
+            - "--hostname=derp.white.fm"
+            - "--certmode=manual"
+            - "--certdir=/certs"
+            - "--a=:8443"
+            - "--http-port=-1"
+            - "--stun=true"
+            - "--stun-port=3478"
+            - "--verify-clients=false"
+          ports:
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            - name: stun
+              containerPort: 3478
+              protocol: UDP
+          volumeMounts:
+            - name: tls
+              mountPath: /certs
+              readOnly: true
+            - name: state
+              mountPath: /var/lib/derper
+          livenessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 8443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: tls
+          secret:
+            secretName: derp-white-fm-tls
+            defaultMode: 0440
+            items:
+              - key: tls.crt
+                path: derp.white.fm.crt
+              - key: tls.key
+                path: derp.white.fm.key
+        - name: state
+          emptyDir: {}

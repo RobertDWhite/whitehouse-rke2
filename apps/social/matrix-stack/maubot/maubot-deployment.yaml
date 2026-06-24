@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maubot
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: maubot
+  template:
+    metadata:
+      labels:
+        app: maubot
+    spec:
+      initContainers:
+        - name: copy-config
+          image: busybox:1.36
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Always overwrite PVC config with latest ConfigMap
+              cp /opt/maubot/config.yaml /data/config.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /opt/maubot/config.yaml
+              subPath: config.yaml
+            - name: maubot-data
+              mountPath: /data
+      containers:
+        - name: maubot
+          image: dock.mau.dev/maubot/maubot
+          ports:
+            - containerPort: 29316
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 29316
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 29316
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: maubot-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: maubot-data
+              mountPath: /data
+            - name: config
+              mountPath: /opt/maubot/config.yaml
+              subPath: config.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: maubot-config
+        - name: maubot-data
+          persistentVolumeClaim:
+            claimName: maubot-data

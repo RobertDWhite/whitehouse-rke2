@@ -1,0 +1,420 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-import-script
+  namespace: technitium
+data:
+  import.py: |
+    #!/usr/bin/env python3
+    """Sidecar that imports GitOps-managed zones into Technitium. Every pod
+    imports /zones/*.yaml as Primary zones independently — we do NOT use the
+    cluster catalog for zone replication. The cluster channel uses self-signed
+    certs (CN=technitium-N, no SANs) and .NET 9's strict TLS rejects every
+    secondary's catalog pull (RemoteCertificateNameMismatch), so zone
+    replication has been broken since the 15.x upgrade. Each pod owning its
+    own zone copy from the same SOPS Secret is simpler and survives any one
+    pod going down.
+
+    Every pod:
+      - waits for API, rotates default password, applies bootstrap settings
+      - watches /zones for changes, re-imports on edit (independent Primary)
+
+    Only technitium-0 (POD_ORDINAL == 0):
+      - applies blocklists, installs the Query Logs Sqlite app
+      - initializes the Technitium cluster (per-pod hostname registration
+        under dns-cluster.internal.white.fm — useful for per-pod web UI)
+
+    Other pods still join the cluster (hostname registration only). The
+    SecondaryCatalog zone stays in syncFailed state — that's expected and
+    benign now that we don't depend on it.
+
+    Zone source of truth stays git → sops Secret → /zones/*.yaml.
+    """
+    import glob
+    import os
+    import socket
+    import sys
+    import time
+
+    import urllib3
+    import requests
+    import yaml
+
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    API         = "http://localhost:5380"
+    USER        = os.environ.get("TECHNITIUM_USER", "admin")
+    PASS        = os.environ["TECHNITIUM_PASSWORD"]
+    ZONES_DIR   = os.environ.get("ZONES_DIR", "/zones")
+    POD_NAME    = os.environ.get("POD_NAME") or socket.gethostname()
+    POD_ORDINAL = int(POD_NAME.rsplit("-", 1)[-1])
+
+    FORWARDERS  = os.environ.get("FORWARDERS", "10.43.6.253")
+    FORWARDER_PROTOCOL = os.environ.get("FORWARDER_PROTOCOL", "Udp")
+    BLOCK_LISTS = os.environ.get("BLOCK_LISTS", "https://big.oisd.nl/")
+
+
+    PROXY_ADDRESS = os.environ.get("PROXY_ADDRESS", "vpn-proxy.media.svc.cluster.local")
+    PROXY_PORT    = os.environ.get("PROXY_PORT", "8888")
+    QUERY_LOGS_APP = "Query Logs (Sqlite)"
+    QUERY_LOGS_MAX_DAYS = int(os.environ.get("QUERY_LOGS_MAX_DAYS", "30"))
+
+    # Cluster topology — must match the per-pod LB Services in
+    # 23-services-per-pod.yaml (10.99.5.52 + ordinal).
+    CLUSTER_DOMAIN = os.environ.get("CLUSTER_DOMAIN", "dns-cluster.internal.white.fm")
+    CLUSTER_CATALOG = f"cluster-catalog.{CLUSTER_DOMAIN}"
+    NODE_BASE_OCTET = int(os.environ.get("NODE_BASE_OCTET", "52"))   # .52 = pod-0
+    NODE_IP_PREFIX  = os.environ.get("NODE_IP_PREFIX", "10.99.5.")
+    PRIMARY_IP      = f"{NODE_IP_PREFIX}{NODE_BASE_OCTET}"
+    PRIMARY_URL     = f"https://{PRIMARY_IP}:53443/"
+    OWN_IP          = f"{NODE_IP_PREFIX}{NODE_BASE_OCTET + POD_ORDINAL}"
+    IS_PRIMARY      = (POD_ORDINAL == 0)
+
+    S = requests.Session()
+
+    # ---- low-level helpers --------------------------------------------------
+
+    def wait_for_api():
+        deadline = time.time() + 600
+        while time.time() < deadline:
+            try:
+                r = S.get(f"{API}/", timeout=5)
+                if r.ok or r.status_code in (401, 403):
+                    return
+            except Exception:
+                pass
+            time.sleep(3)
+        raise RuntimeError("technitium API never came up")
+
+    def login():
+        for pwd in (PASS, "admin"):
+            try:
+                r = S.get(f"{API}/api/user/login",
+                          params={"user": USER, "pass": pwd, "includeInfo": "true"},
+                          timeout=15)
+                if r.ok and r.json().get("status") == "ok":
+                    return r.json()["token"], (pwd == "admin")
+            except Exception:
+                pass
+        raise RuntimeError("login failed")
+
+    def change_password(token):
+        S.get(f"{API}/api/user/changePassword",
+              params={"token": token, "pass": PASS}, timeout=15).raise_for_status()
+
+    def set_settings(token):
+        S.get(f"{API}/api/settings/set", params={
+            "token": token,
+            "forwarders": FORWARDERS,
+            "forwarderProtocol": FORWARDER_PROTOCOL,
+            "dnssecValidation": "true",
+            "enableBlocking": "true",
+            "blockListUrls": BLOCK_LISTS,
+        }, timeout=30).raise_for_status()
+
+    # ---- outbound HTTP proxy + Query Logs DNS app --------------------------
+
+    def ensure_outbound_proxy(token):
+        # Idempotent: re-setting the same proxy is a no-op for Technitium.
+        # Without this, /api/apps/listStoreApps + downloadAndInstall fail
+        # because the namespace netpol forbids direct internet egress.
+        # Technitium parses proxyBypass as comma-separated hosts/CIDRs; older
+        # newline-separated attempts return "Invalid proxy bypass value".
+        try:
+            r = S.get(f"{API}/api/settings/set", params={
+                "token": token,
+                "proxyType": "Http",
+                "proxyAddress": PROXY_ADDRESS,
+                "proxyPort": PROXY_PORT,
+                "proxyBypass": "127.0.0.1,localhost,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+            }, timeout=30)
+            if not (r.ok and r.json().get("status") == "ok"):
+                print(f"warn: proxy set failed: {r.text[:200]}", file=sys.stderr)
+        except Exception as e:
+            print(f"warn: proxy set error: {e}", file=sys.stderr)
+
+    def list_installed_apps(token):
+        r = S.get(f"{API}/api/apps/list", params={"token": token}, timeout=15)
+        if not r.ok:
+            return set()
+        return {a.get("name") for a in r.json().get("response", {}).get("apps", [])}
+
+    def find_store_app_url(token, name):
+        r = S.get(f"{API}/api/apps/listStoreApps", params={"token": token}, timeout=30)
+        if not (r.ok and r.json().get("status") == "ok"):
+            return None
+        for a in r.json().get("response", {}).get("storeApps", []):
+            if a.get("name") == name:
+                return a.get("url")
+        return None
+
+    def install_query_logs_app(token):
+        if QUERY_LOGS_APP in list_installed_apps(token):
+            return True
+        url = find_store_app_url(token, QUERY_LOGS_APP)
+        if not url:
+            print(f"warn: {QUERY_LOGS_APP} not found in app store (proxy reachable?)", file=sys.stderr)
+            return False
+        r = S.post(f"{API}/api/apps/downloadAndInstall",
+                   params={"token": token},
+                   data={"name": QUERY_LOGS_APP, "url": url},
+                   timeout=180)
+        ok = r.ok and r.json().get("status") == "ok"
+        if ok:
+            print(f"installed DNS app: {QUERY_LOGS_APP}")
+        else:
+            print(f"warn: install {QUERY_LOGS_APP} failed: {r.text[:300]}", file=sys.stderr)
+        return ok
+
+    def configure_query_logs_retention(token):
+        # Pull current config, patch maxLogDays, push back. Retention applies
+        # per-pod since each pod has its own SQLite log database.
+        import json
+        r = S.get(f"{API}/api/apps/config/get",
+                  params={"token": token, "name": QUERY_LOGS_APP}, timeout=15)
+        if not (r.ok and r.json().get("status") == "ok"):
+            return False
+        raw = r.json().get("response", {}).get("config") or "{}"
+        try:
+            cfg = json.loads(raw)
+        except Exception:
+            cfg = {}
+        if cfg.get("maxLogDays") == QUERY_LOGS_MAX_DAYS:
+            return True
+        cfg["maxLogDays"] = QUERY_LOGS_MAX_DAYS
+        cfg.setdefault("enableLogging", True)
+        r = S.post(f"{API}/api/apps/config/set",
+                   params={"token": token},
+                   data={"name": QUERY_LOGS_APP, "config": json.dumps(cfg)},
+                   timeout=30)
+        ok = r.ok and r.json().get("status") == "ok"
+        if ok:
+            print(f"set {QUERY_LOGS_APP} maxLogDays={QUERY_LOGS_MAX_DAYS}")
+        return ok
+
+    def ensure_query_logs(token):
+        try:
+            if install_query_logs_app(token):
+                configure_query_logs_retention(token)
+        except Exception as e:
+            print(f"warn: ensure_query_logs failed: {e}", file=sys.stderr)
+
+    # ---- blocklists (primary only, on bootstrap) ---------------------------
+
+    BLOCKLISTS_FILE = os.environ.get("BLOCKLISTS_FILE", "/blocklists/blocklists.yaml")
+
+    def apply_blocklists(token):
+        if not os.path.exists(BLOCKLISTS_FILE):
+            print(f"no blocklists file at {BLOCKLISTS_FILE}, skipping")
+            return
+        with open(BLOCKLISTS_FILE) as f:
+            data = yaml.safe_load(f) or {}
+        urls = data.get("blockListUrls") or []
+        blocked = data.get("blocked") or []
+        allowed = data.get("allowed") or []
+        if urls:
+            params = [("token", token)] + [("blockListUrls", u) for u in urls]
+            r = S.get(f"{API}/api/settings/set", params=params, timeout=30)
+            if r.ok and r.json().get("status") == "ok":
+                print(f"blocklists: set {len(urls)} URLs")
+            else:
+                print(f"  ! blockListUrls set failed: {r.text[:200]}", file=sys.stderr)
+        ok = 0
+        for d in blocked:
+            r = S.get(f"{API}/api/blocked/add", params={"token": token, "domain": d}, timeout=10)
+            if r.ok and r.json().get("status") == "ok":
+                ok += 1
+        print(f"blocklists: {ok}/{len(blocked)} custom blocks applied")
+        ok = 0
+        for d in allowed:
+            r = S.get(f"{API}/api/allowed/add", params={"token": token, "domain": d}, timeout=10)
+            if r.ok and r.json().get("status") == "ok":
+                ok += 1
+        print(f"blocklists: {ok}/{len(allowed)} allowed entries applied")
+
+    # ---- cluster ops --------------------------------------------------------
+
+    def cluster_state(token):
+        r = S.get(f"{API}/api/admin/cluster/state",
+                  params={"token": token}, timeout=15)
+        if not r.ok:
+            return {}
+        return r.json().get("response", {})
+
+    def cluster_init_primary(token):
+        print(f"[primary] initializing cluster {CLUSTER_DOMAIN} with IP {PRIMARY_IP}")
+        r = S.get(f"{API}/api/admin/cluster/init", params={
+            "token": token,
+            "clusterDomain": CLUSTER_DOMAIN,
+            "primaryNodeIpAddresses": PRIMARY_IP,
+        }, timeout=60)
+        body = r.json()
+        if body.get("status") != "ok":
+            raise RuntimeError(f"cluster init failed: {body.get('errorMessage')}")
+        print("[primary] cluster initialized")
+
+    def cluster_init_join(token):
+        print(f"[secondary] joining cluster via {PRIMARY_URL} as {OWN_IP}")
+        r = S.post(f"{API}/api/admin/cluster/initJoin", params={"token": token},
+                   data={
+                       "secondaryNodeIpAddresses": OWN_IP,
+                       "primaryNodeUrl": PRIMARY_URL,
+                       "primaryNodeIpAddress": PRIMARY_IP,
+                       "ignoreCertificateErrors": "true",
+                       "primaryNodeUsername": USER,
+                       "primaryNodePassword": PASS,
+                       "primaryNodeTotp": "",
+                   }, timeout=120)
+        body = r.json()
+        if body.get("status") != "ok":
+            raise RuntimeError(f"cluster join failed: {body.get('errorMessage')}")
+        print("[secondary] joined cluster")
+
+    # ---- zone ops (primary only) -------------------------------------------
+
+    def list_zones(token):
+        r = S.get(f"{API}/api/zones/list",
+                  params={"token": token}, timeout=15)
+        r.raise_for_status()
+        return [z["name"] for z in r.json().get("response", {}).get("zones", [])]
+
+    def create_zone(token, name):
+        r = S.get(f"{API}/api/zones/create",
+                  params={"token": token, "zone": name, "type": "Primary"},
+                  timeout=15)
+        return r.ok and r.json().get("status") == "ok"
+
+    def add_record(token, zone, name, rtype, value):
+        params = {"token": token, "domain": name, "zone": zone,
+                  "type": rtype, "ttl": "300", "overwrite": "true"}
+        if rtype in ("A", "AAAA"):
+            params["ipAddress"] = value
+        elif rtype == "CNAME":
+            params["cname"] = value
+        elif rtype == "TXT":
+            params["text"] = value
+        elif rtype == "MX":
+            prio, host = value.split(None, 1)
+            params["preference"] = prio
+            params["exchange"] = host
+        else:
+            print(f"  ! unsupported type {rtype}", file=sys.stderr)
+            return False
+        r = S.get(f"{API}/api/zones/records/add", params=params, timeout=15)
+        return r.ok and r.json().get("status") == "ok"
+
+    def enroll_in_catalog(token, zone):
+        # idempotent: re-running with the same catalog is a no-op
+        r = S.get(f"{API}/api/zones/options/set", params={
+            "token": token, "zone": zone, "catalog": CLUSTER_CATALOG,
+        }, timeout=15)
+        ok = r.ok and r.json().get("status") == "ok"
+        if not ok:
+            print(f"  ! enroll {zone} in catalog failed: {r.text[:200]}", file=sys.stderr)
+        return ok
+
+    def import_zone(token, path, existing):
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+        zone = data.get("zone")
+        if not zone:
+            return
+        if zone not in existing:
+            if create_zone(token, zone):
+                print(f"created zone {zone}")
+                existing.add(zone)
+        # No catalog enrollment: cluster catalog TLS is broken (see module
+        # docstring); every pod imports independently from /zones.
+        records = data.get("records") or []
+        ok = fail = 0
+        for r in records:
+            if add_record(token, zone, r["name"], r["type"].upper(), str(r["value"])):
+                ok += 1
+            else:
+                fail += 1
+                print(f"  ! failed {r['type']} {r['name']} -> {r['value']}", file=sys.stderr)
+        print(f"{zone}: {ok} ok, {fail} failed ({len(records)} declared)")
+
+    def snapshot():
+        return {p: os.path.getmtime(p) for p in sorted(glob.glob(f"{ZONES_DIR}/*.yaml"))}
+
+    # ---- main ---------------------------------------------------------------
+
+    def main():
+        print(f"=== {POD_NAME} (ordinal={POD_ORDINAL}, role={'primary' if IS_PRIMARY else 'secondary'}) ===")
+        wait_for_api()
+        token, was_default = login()
+        if was_default:
+            print("rotating default admin password")
+            change_password(token)
+            token, _ = login()
+            try:
+                set_settings(token)
+            except Exception as e:
+                print(f"warn: set_settings failed: {e}", file=sys.stderr)
+
+        # Always-on: keep proxy reconciled. Idempotent.
+        ensure_outbound_proxy(token)
+        # Only the primary installs DNS apps. In cluster mode the secondary's
+        # /api/apps/downloadAndInstall is delegated to the primary over the
+        # cluster channel (https://primary:53443) which fails cert validation
+        # against the self-signed cluster cert. Each pod's data PVC holds its
+        # own copy of the app, and Technitium's cluster catalog propagates the
+        # files to secondaries automatically — so we only need to install
+        # once, on the primary.
+        if IS_PRIMARY:
+            ensure_query_logs(token)
+            try:
+                apply_blocklists(token)
+            except Exception as e:
+                print(f"warn: apply_blocklists failed: {e}", file=sys.stderr)
+
+        state = cluster_state(token)
+        joined = state.get("clusterInitialized", False)
+
+        # Cluster membership: primary initializes, others join. This is only
+        # used for per-pod hostname registration under dns-cluster.internal.*
+        # — zone replication is handled per-pod via the watch loop below.
+        if IS_PRIMARY:
+            if not joined:
+                cluster_init_primary(token)
+            else:
+                print(f"[primary] already initialized as {state.get('clusterDomain')}")
+        else:
+            if not joined:
+                for attempt in range(10):
+                    try:
+                        cluster_init_join(token)
+                        break
+                    except Exception as e:
+                        print(f"join attempt {attempt+1} failed: {e}", file=sys.stderr)
+                        time.sleep(30)
+                else:
+                    print("!! gave up on joining cluster after 10 attempts", file=sys.stderr)
+            else:
+                print(f"[secondary] already cluster member of {state.get('clusterDomain')}")
+
+        # Every pod runs the zone-import watch loop independently. Each pod's
+        # PVC keeps its own copy of every Primary zone; SOPS Secret on disk
+        # is the source of truth, hot-reloaded within ~60s of mtime change.
+        last = {}
+        while True:
+            current = snapshot()
+            if current != last:
+                if last:
+                    print("zones changed on disk, re-importing")
+                # Technitium session tokens expire; the startup token goes stale and every
+                # later re-import fails wholesale ("0 ok, N failed"). Refresh before each
+                # import so newly-added zone records actually get applied.
+                token, _ = login()
+                existing = set(list_zones(token))
+                for path in sorted(current.keys()):
+                    try:
+                        import_zone(token, path, existing)
+                    except Exception as e:
+                        print(f"!! {path}: {e}", file=sys.stderr)
+                last = current
+            time.sleep(60)
+
+    if __name__ == "__main__":
+        main()

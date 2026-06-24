@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voice-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: voice-decoder
+  template:
+    metadata:
+      labels:
+        app: voice-decoder
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      containers:
+        - name: voice-decoder
+          image: registry.internal.white.fm/sdr-whisper-cuda:0.1.1
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: 4000m
+              memory: 4Gi
+              nvidia.com/gpu: "1"
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TZ
+              value: UTC
+            - name: WHISPER_MODEL
+              value: "large-v3"
+            - name: WHISPER_DEVICE
+              value: "cuda"
+            - name: WHISPER_COMPUTE_TYPE
+              value: "float16"
+            - name: WHISPER_ENFORCE_GPU
+              value: "true"
+            - name: MIN_FILE_AGE_SEC
+              value: "120"
+            - name: MIN_STABLE_SEC
+              value: "30"
+            - name: CHUNK_SEC
+              value: "30"
+            - name: NO_SPEECH_THRESHOLD
+              value: "0.7"
+            - name: COMPRESSION_RATIO_THRESHOLD
+              value: "2.0"
+            - name: LOG_PROB_THRESHOLD
+              value: "-1.0"
+            - name: RETRY_EMPTY_TRANSCRIPTS
+              value: "true"
+            - name: HF_HOME
+              value: /model-cache
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "compute,utility"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+            - name: model-cache
+              mountPath: /model-cache
+          command:
+            - python3
+            - /scripts/transcribe.py
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: voice-decoder-scripts
+            defaultMode: 0755
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: whisper-model-cache

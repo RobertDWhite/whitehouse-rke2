@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headscale
+  namespace: headscale
+  labels:
+    app: headscale
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: headscale
+  template:
+    metadata:
+      labels:
+        app: headscale
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        fsGroup: 1000
+      # node-14: known flannel VTEP / DNS issue (can't resolve docker.io).
+      # node-50: transient GPU host, GPU-only — keep stateful infra off it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
+                      - rke2-node-50
+      containers:
+        - name: headscale
+          image: headscale/headscale
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+            - name: grpc
+              containerPort: 50443
+          volumeMounts:
+            - name: config
+              mountPath: /etc/headscale
+              readOnly: true
+            - name: oidc
+              mountPath: /etc/headscale-oidc
+              readOnly: true
+            - name: derp-map
+              mountPath: /etc/headscale-derp
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/headscale
+            - name: run
+              mountPath: /var/run/headscale
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: config
+          configMap:
+            name: headscale-config
+        - name: oidc
+          secret:
+            secretName: headscale-oidc
+            optional: true
+            items:
+              - key: client-secret
+                path: client-secret
+                mode: 0440
+        - name: derp-map
+          configMap:
+            name: headscale-derp-map
+        - name: data
+          persistentVolumeClaim:
+            claimName: headscale-data
+        - name: run
+          emptyDir: {}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: headscale
+  namespace: headscale
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: headscale

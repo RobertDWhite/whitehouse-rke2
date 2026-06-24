@@ -1,0 +1,356 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Kyverno policy violations — counts, rate, top namespaces, webhook latency, recent PolicyReport entries. Metric names verified against Kyverno docs at install (chart 3.8.1 / appVersion v1.18.1); double-check after a chart bump as some names changed historically (kyverno_policy_rule_info → kyverno_policy_rule_info_total).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "count(count by (policy_name) (kyverno_policy_rule_info_total))",
+          "instant": true,
+          "legendFormat": "policies",
+          "refId": "A"
+        }
+      ],
+      "title": "Policies installed",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "sum(kyverno_policy_rule_info_total)",
+          "instant": true,
+          "legendFormat": "rules",
+          "refId": "A"
+        }
+      ],
+      "title": "Rules total",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "sum(increase(kyverno_admission_requests_total{request_allowed=\"false\"}[24h]))",
+          "instant": true,
+          "legendFormat": "denied",
+          "refId": "A"
+        }
+      ],
+      "title": "Admission denials (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "description": "Audit-mode failures over the last 24h. The exact label/metric name varies between Kyverno minor versions — `kyverno_policy_results_total{policy_validation_mode=\"audit\", rule_result=\"fail\"}` is the v1.18 name. Sanity-check on the first run.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "sum(increase(kyverno_policy_results_total{rule_result=\"fail\"}[24h]))",
+          "instant": true,
+          "legendFormat": "audit fails",
+          "refId": "A"
+        }
+      ],
+      "title": "Audit-mode failures (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "description": "Per-policy failure rate. Includes both Audit and Enforce modes — useful to track which policies are noisy in the audit window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "sum by (policy_name) (rate(kyverno_policy_results_total{rule_result=\"fail\"}[5m]))",
+          "legendFormat": "{{policy_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Policy failures / sec by policy",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "description": "Top namespaces by total policy failures. Note: the label name may be `resource_namespace` (Kyverno v1.18) — older versions used `namespace`.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 100 }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": {
+        "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "topk(10, sum by (resource_namespace) (kyverno_policy_results_total{rule_result=\"fail\"}))",
+          "instant": true,
+          "legendFormat": "{{resource_namespace}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top namespaces by failures",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "description": "Admission webhook latency at p95 broken out by webhook type (validating/mutating). High latency on the admission path slows down every kubectl apply in the cluster.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 13 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+          "expr": "histogram_quantile(0.95, sum by (le, request_webhook) (rate(kyverno_admission_review_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{request_webhook}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Admission webhook latency (p95)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "description": "Most-recent policy-failure log lines from the kyverno admission controller. Falls back to logs because PolicyReport CRs aren't directly queryable in Grafana — the controller logs the same data with policy/rule/resource fields.",
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 22 },
+      "id": 8,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "showControls": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+          "expr": "{namespace=\"kyverno\"} |~ \"(?i)(policy violation|validation rule .+ failed|policy report|fail)\" != \"connect: connection refused\"",
+          "refId": "A"
+        }
+      ],
+      "title": "Recent policy failures (kyverno controller logs)",
+      "type": "logs"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": ["kyverno", "security", "policy", "prometheus"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Kyverno Policy Violations",
+  "uid": "kyverno-violations",
+  "version": 1
+}

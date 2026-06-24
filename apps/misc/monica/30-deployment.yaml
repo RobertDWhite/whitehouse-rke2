@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: monica
+  namespace: monica
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: monica
+  template:
+    metadata:
+      labels:
+        app: monica
+    spec:
+      # Image is published amd64-only; keep Monica off the cluster's arm64
+      # node(s). (No longer pinned to a specific host — see git history.)
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        - name: wait-for-db
+          image: mariadb
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - until bash -c 'echo > /dev/tcp/mysql.monica.svc.cluster.local/3306' 2>/dev/null; do sleep 2; done
+      containers:
+        - name: monica
+          image: registry.internal.white.fm/monica
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          env:
+            - name: APP_ENV
+              value: production
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: https://monica.white.fm
+            - name: DB_CONNECTION
+              value: mysql
+            - name: DB_HOST
+              value: mysql.monica.svc.cluster.local
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: monica
+            - name: DB_USERNAME
+              value: monica
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: monica-secrets
+                  key: db-password
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: monica-secrets
+                  key: app-key
+            - name: MAIL_MAILER
+              value: smtp
+            - name: MAIL_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: MAIL_PORT
+              value: "25"
+            - name: MAIL_ENCRYPTION
+              value: "null"
+            - name: MAIL_FROM_ADDRESS
+              value: monica@whitematter.tech
+            - name: MAIL_FROM_NAME
+              value: Monica
+            - name: CACHE_STORE
+              value: database
+            - name: SESSION_DRIVER
+              value: database
+            - name: QUEUE_CONNECTION
+              value: sync
+            - name: APP_TRUSTED_PROXIES
+              value: "*"
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: storage
+              mountPath: /var/www/html/storage/app
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /login
+              port: 80
+            failureThreshold: 60
+            periodSeconds: 5
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 10
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: monica-storage

@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: matrix-redis
+  namespace: matrix
+spec:
+  serviceName: matrix-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matrix-redis
+  template:
+    metadata:
+      labels:
+        app: matrix-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis
+        command: ["redis-server", "--appendonly", "yes"]
+        ports:
+          - containerPort: 6379
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - mountPath: /data
+            name: data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi
+      storageClassName: longhorn

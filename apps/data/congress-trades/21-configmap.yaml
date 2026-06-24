@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: congress-config
+  namespace: congress-trades
+data:
+  config.yaml: |
+    # User-Agent is required — the House Clerk WAF returns 403 for empty UAs.
+    user_agent: "Mozilla/5.0 (compatible; whitehouse-congress/1.0; +https://congress.white.fm)"
+
+    lambda:
+      url: "https://www.lambdafin.com/api/congressional/recent"
+      days: 365          # 730 returns 422 — 365 is the working max window
+      limit: 500         # 500 is the API's max page size (750+ returns 422)
+
+    house:
+      zip_url_template: "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/{year}FD.zip"
+      ptr_pdf_template: "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf"
+      # Empty -> ingester scans current year and the previous year. Explicit list = deep
+      # backfill: index ZIPs are tiny (~100KB) and already-parsed filings are skipped, so the
+      # Forbid cron grinds through historical PTR PDFs once and is a cheap no-op thereafter.
+      years: [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
+
+    senate:
+      base: "https://efdsearch.senate.gov"
+      report_types: [11]                       # 11 = Periodic Transaction Report
+      start_date: "01/01/2014 00:00:00"        # MM/DD/YYYY HH:MM:SS — deep backfill to STOCK-Act era
+      page_size: 100
+      throttle_seconds: 2
+      # results are newest-first. 0 = always scan the full list (cheap: known filings are skipped
+      # before any HTML fetch, so steady-state only paginates JSON and fetches nothing). 0 also
+      # guarantees the deep backfill converges across Forbid-cron runs even if one is interrupted.
+      stop_after_known: 0
+
+    ocr:
+      enabled: true
+      dpi: 200
+
+    networth:
+      # Annual FD reports with the Schedule A asset table. Sitting members' most recent
+      # annual report is usually 1-2 years back; scan a few years (newest wins per member).
+      years: [2024, 2025, 2026]
+
+    signals:
+      window_days: 14            # window for cluster/streak detection (by disclosure_date)
+      large_usd: 100000          # amount_min >= this => "large" signal (tiers at 250k/1M)
+      cluster_min_members: 2     # >= N distinct members same ticker+direction in window
+      baseline_multiple: 5       # trade >= Nx a member's median => anomaly
+      lag_outlier_days: 40       # disclosure_lag >= this => late-disclosure signal
+
+    alerts:
+      enabled: true
+      ntfy_url: "http://ntfy.ntfy.svc.cluster.local:8080"
+      ntfy_topic: "congress-trades"
+      min_score: 3               # only push trades whose summed signal score >= this
+      max_per_run: 25            # safety cap on notifications per ingest
+
+    prices:
+      # Historical bars use Yahoo's chart endpoint; live-ish quotes prefer Alpaca
+      # credentials when present and fall back to Yahoo chart metadata.
+      provider_order: ["alpaca", "yahoo"]
+
+    sentiment:
+      max_tickers: 120          # StockTwits is rate-limited; refresh the most-active tickers
+
+    ai:
+      base_url: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
+      model: "qwen2.5:14b"       # batch job; falls back to llama3.1:8b then llama3.2:3b
+      fallback_models: ["llama3.1:8b", "llama3.2:3b"]
+      temperature: 0.2
+      request_timeout: 600.0
+      windows: [7, 30]           # global summaries to generate
+      member_window_days: 30     # per-member summaries (only members active in window)
+
+    congress_gov:
+      enabled: true
+      base_url: "https://api.congress.gov/v3"
+      congress: 119
+      lookback_days: 14
+      max_members_per_run: 80
+      max_votes_per_run: 25

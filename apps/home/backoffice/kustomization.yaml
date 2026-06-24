@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: backoffice
+generators:
+  - ksops.yaml
+resources:
+  - 00-namespace.yaml
+  - 01-rbac.yaml
+  - 10-postgres-pvc.yaml
+  - 20-postgres-deployment.yaml
+  - 21-api-deployment.yaml
+  - 22-web-deployment.yaml
+  - 30-postgres-service.yaml
+  - 31-api-service.yaml
+  - 32-web-service.yaml
+  - 40-authentik-service.yaml
+  - 50-ingress.yaml
+  - 51-ingress-internal.yaml
+  - 52-httproute-public.yaml
+  - 53-httproute-internal.yaml
+images:
+  - name: postgres
+    newTag: "16-alpine"
+    digest: "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+  - name: registry.internal.white.fm/backoffice-api
+    newName: ghcr.io/robertdwhite/backoffice-api
+    digest: sha256:5709a92d579006723068e5989242382ad20eb6b8c96744d4497b150068f3eb3b
+  - name: registry.internal.white.fm/backoffice-web
+    newName: ghcr.io/robertdwhite/backoffice-web
+    digest: sha256:ef0e4d78cf010d6627b4df975d926f84713cc74da35daf2f95f4c8c9450cdc53

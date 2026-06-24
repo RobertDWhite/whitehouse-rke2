@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: freshrss-bi-pipeline
+  namespace: freshrss
+spec:
+  schedule: "*/30 * * * *"
+  startingDeadlineSeconds: 600
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 2700
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          terminationGracePeriodSeconds: 30
+          nodeSelector:
+            kubernetes.io/arch: arm64
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                          - rke2-node-50
+          restartPolicy: Never
+          containers:
+            - name: bi-pipeline
+              image: freshrss-bi-pipeline
+              imagePullPolicy: IfNotPresent
+              args:
+                - --config
+                - /config/config.yaml
+              envFrom:
+                - secretRef:
+                    name: freshrss-bi-secrets
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                - name: data
+                  mountPath: /data
+          volumes:
+            - name: config
+              configMap:
+                name: freshrss-bi-config
+            - name: data
+              persistentVolumeClaim:
+                claimName: freshrss-bi-data

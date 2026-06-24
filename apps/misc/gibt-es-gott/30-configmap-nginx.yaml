@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: gibt-es-gott
+data:
+  default.conf: |
+    types {
+      text/vtt vtt;
+      application/x-subrip srt;
+    }
+
+    server {
+      listen 8080 default_server;
+      server_name _;
+
+      root /content;
+      index index.html;
+
+      gzip on;
+      gzip_types text/plain text/vtt text/css application/javascript application/x-subrip text/html;
+
+      add_header X-Content-Type-Options nosniff always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+      # Long-cache video so Cloudflare keeps it at the edge.
+      location ~* \.mp4$ {
+        mp4;
+        mp4_buffer_size 1m;
+        mp4_max_buffer_size 5m;
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      # Subtitles and other static text get the same edge caching treatment.
+      location ~* \.(vtt|srt|txt|css|json)$ {
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      # HTML changes when we redeploy; short cache so updates land quickly.
+      location ~* \.html$ {
+        add_header Cache-Control "public, max-age=300" always;
+        add_header X-Content-Type-Options nosniff always;
+      }
+
+      location / {
+        try_files $uri $uri/ =404;
+      }
+    }

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 12-externalsecret.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 53-httproute-internal.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/media-mcp
+    newName: ghcr.io/robertdwhite/media-mcp
+    digest: sha256:f51447cc03c6bb6847e8c862ee8675689b7166a31c0173757caff20749749734

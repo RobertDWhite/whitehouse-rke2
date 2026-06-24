@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: homarr
+  namespace: homarr
+automountServiceAccountToken: true
+---
+# Homarr's Kubernetes integration (ENABLE_KUBERNETES=true in the Deployment)
+# calls *ForAllNamespaces() against pods / services / ingresses to populate its
+# dashboard widgets. That's the ONLY reason this is cluster-scoped — Homarr is
+# a dashboard, not an operator, so the verbs are strictly read-only and the
+# resource list is the minimum set that keeps the K8s widgets functional.
+#
+# Do NOT broaden this back to the upstream Helm chart defaults. The chart
+# grants secrets/configmaps/PVs/nodes/namespaces/metrics cluster-wide, which
+# turns a public dashboard pod into a credential exfil vector if it's ever
+# compromised. If a future widget genuinely needs another resource, add the
+# single resource here with a comment justifying it — don't restore the
+# blanket grant.
+#
+# Explicitly excluded (and why):
+#   - secrets:        never; Homarr would gain read on every Secret cluster-wide
+#   - configmaps:     contains app config that often embeds quasi-secrets
+#   - nodes/namespaces/PVCs/PVs/endpoints: not needed for tile rendering
+#   - metrics.k8s.io: nice-to-have graphs, not worth the blast radius
+#   - apps/deployments: not needed for tile rendering
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homarr-cluster-role
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: homarr-cluster-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: homarr
+    namespace: homarr
+roleRef:
+  kind: ClusterRole
+  name: homarr-cluster-role
+  apiGroup: rbac.authorization.k8s.io

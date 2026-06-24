@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: calibre
+
+resources:
+  - 00-namespace.yaml
+  - 20-pv-calibre.yaml
+  - 25-pvc-calibre.yaml
+  - 60-pvc-calibre-web-automated-config.yaml
+  - 61-pvc-calibre-web-automated-ingest.yaml
+  - 70-deployment-calibre-web-automated.yaml
+  - 80-svc-calibre-web-automated.yaml
+
+images:
+  - name: crocodilestick/calibre-web-automated
+    newTag: "v4.0.6"

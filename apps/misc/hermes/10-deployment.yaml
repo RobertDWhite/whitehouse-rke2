@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: hermes
+  labels:
+    app.kubernetes.io/name: hermes
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        # Container entrypoint must start as root to chown the data volume
+        # and drop to UID 10000 via gosu. fsGroup ensures the PVC is owned
+        # by the hermes group so secret-bootstrap (running as 10000) can write.
+        fsGroup: 10000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: bootstrap-claude-creds
+          image: registry.internal.white.fm/hermes-agent:v2026.4.30
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              mkdir -p /opt/data/.claude
+              cp /tmp/secret/CLAUDE_CREDENTIALS_JSON /opt/data/.claude/.credentials.json
+              chown -R 10000:10000 /opt/data/.claude
+              chmod 700 /opt/data/.claude
+              chmod 600 /opt/data/.claude/.credentials.json
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: claude-creds
+              mountPath: /tmp/secret
+              readOnly: true
+      containers:
+        - name: gateway
+          image: registry.internal.white.fm/hermes-agent
+          imagePullPolicy: IfNotPresent
+          args: ["gateway", "run"]
+          env:
+            - name: HOME
+              value: /opt/data
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+            # Route inference to in-cluster Ollama (RTX 5090 on rke2-node-50).
+            # Subscription OAuth paths (Claude / ChatGPT) all require paid
+            # extra-usage; ollama is the free local fallback.
+            - name: HERMES_INFERENCE_PROVIDER
+              value: custom
+            - name: HERMES_INFERENCE_MODEL
+              value: llama3.1:8b
+            - name: OPENAI_BASE_URL
+              value: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+            - name: OPENAI_API_KEY
+              value: dummy
+            - name: MATRIX_HOMESERVER
+              value: https://matrix.white.fm
+            - name: MATRIX_USER_ID
+              value: "@hermes:white.fm"
+            - name: MATRIX_ENCRYPTION
+              value: "true"
+            - name: MATRIX_HOME_ROOM
+              value: "!AJjNfrvHsszhSMMsjY:white.fm"
+            - name: MATRIX_REQUIRE_MENTION
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: hermes-api-keys
+            - secretRef:
+                name: hermes-matrix-secrets
+            # codex-token disabled — ChatGPT subscription token returns
+            # insufficient_quota at api.openai.com. Inference now goes through
+            # Ollama (OPENAI_BASE_URL above) with OPENAI_API_KEY=dummy.
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "gateway run"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+        - name: dashboard
+          image: registry.internal.white.fm/hermes-agent
+          imagePullPolicy: IfNotPresent
+          args: ["dashboard", "--host", "0.0.0.0", "--no-open", "--insecure"]
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HERMES_UID
+              value: "10000"
+            - name: HERMES_GID
+              value: "10000"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: claude-creds
+          secret:
+            secretName: hermes-matrix-secrets
+            items:
+              - key: CLAUDE_CREDENTIALS_JSON
+                path: CLAUDE_CREDENTIALS_JSON
+                mode: 0600
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes
+  namespace: hermes
+spec:
+  selector:
+    app.kubernetes.io/name: hermes
+  ports:
+    - name: dashboard
+      port: 9119
+      targetPort: 9119

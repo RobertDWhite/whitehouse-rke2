@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-glacier-to-vpn
+  namespace: media
+spec:
+  podSelector:
+    matchLabels:
+      app: vpn-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: glacier
+      ports:
+        - port: 1080
+          protocol: TCP
+        - port: 8888
+          protocol: TCP

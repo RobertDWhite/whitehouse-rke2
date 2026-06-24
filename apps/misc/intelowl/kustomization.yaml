@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: intelowl
+
+generators:
+  - ksops.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+resources:
+  - 00-namespace.yaml
+  - 10-configmap-env.yaml
+  - 10-configmap-nginx.yaml
+  - 10-configmap-uwsgi.yaml
+  - 20-postgres-statefulset.yaml
+  - 21-redis-deployment.yaml
+  - 22-rabbitmq-deployment.yaml
+  - 30-deployment-web.yaml
+  - 31-deployment-daphne.yaml
+  - 33-deployment-celery.yaml
+  - 40-services.yaml
+
+images:
+  - name: intelowlproject/intelowl
+    newTag: "v6.6.1"
+  - name: intelowlproject/intelowl_nginx
+    newTag: "v6.6.1"
+  - name: postgres
+    newTag: "16-alpine"
+    digest: "sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229"
+  - name: redis
+    newTag: "8.6.3-alpine"
+    digest: "sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2"
+  - name: rabbitmq
+    newTag: "4.3-alpine"
+  - name: busybox
+    newTag: "1.38"

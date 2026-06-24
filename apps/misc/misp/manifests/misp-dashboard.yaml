@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: misp-dashboard
+  labels:
+    app.kubernetes.io/name: misp-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: misp-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: misp-dashboard
+    spec:
+      # Image is built amd64-only; rke2-node-10 is the cluster's only arm64
+      # node, where this would hit "exec format error". Pin to amd64.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: misp-dashboard
+          image: registry.internal.white.fm/misp-dashboard:20260304-2
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          env:
+            - name: MISP_INSTANCE_NAME
+              value: whitehouse-misp
+            - name: MISP_ZMQ_URL
+              value: tcp://misp-zmq.misp.svc.cluster.local:50000
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+          startupProbe:
+            tcpSocket:
+              port: 8001
+            failureThreshold: 12
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 8001
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: 8001
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/misp-dashboard/config.cfg
+              subPath: config.cfg
+      volumes:
+        - name: config
+          configMap:
+            name: misp-dashboard-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misp-dashboard
+  labels:
+    app.kubernetes.io/name: misp-dashboard
+spec:
+  selector:
+    app.kubernetes.io/name: misp-dashboard
+  ports:
+    - name: http
+      port: 8001
+      targetPort: 8001
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: misp-zmq
+  labels:
+    app.kubernetes.io/name: misp-zmq
+spec:
+  selector:
+    app.kubernetes.io/name: misp
+  ports:
+    - name: zmq
+      port: 50000
+      targetPort: 50000
+      protocol: TCP

@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: observability
+  namespace: argocd
+spec:
+  description: "Metrics, logs, dashboards, uptime"
+  # sourceRepos scoped to the git/Helm repos this project's apps actually use.
+  # Defense-in-depth with the Kyverno image-registry allowlist.
+  sourceRepos:
+    - git@github.com:RobertDWhite/whitehouse-rke2.git
+    - https://github.com/RobertDWhite/whitehouse-rke2.git
+    - https://prometheus-community.github.io/helm-charts
+  # Destinations scoped to exactly the namespaces this project's apps deploy
+  # into (computed from their CRs + manifests). This fences these workloads
+  # out of infra namespaces (kube-system, cert-manager, longhorn-system, ...).
+  # A new namespace must be added here on purpose. Failure mode is a blocked
+  # sync (OutOfSync) -- never a prune.
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: myspeed
+    - server: https://kubernetes.default.svc
+      namespace: observability
+    - server: https://kubernetes.default.svc
+      namespace: uptime-kuma
+  # Resource whitelists stay open: this tier includes Helm charts/operators whose
+  # full cluster-resource set (CRDs, webhooks, ClusterRoles) isn't visible in git.
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

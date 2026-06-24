@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 53-httproute-internal.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/monica-mcp
+    newName: ghcr.io/robertdwhite/monica-mcp
+    digest: sha256:926a34c1c2922bb4345c93392337407f103566fa0353522cb916ab950e7ba4ed

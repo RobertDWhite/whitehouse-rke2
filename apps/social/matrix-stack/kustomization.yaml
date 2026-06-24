@@ -1,0 +1,93 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+
+  # Element
+  - element/element-configmap.yaml
+  - element/element-deployment.yaml
+  - element/element-service.yaml
+
+  # Namespace
+  - ingress/ns.yaml
+
+  # Maubot
+  - maubot/maubot-deployment.yaml
+#  - maubot/maubot-pvc.yaml
+  - maubot/maubot-service.yaml
+
+  # Postgres
+#  - postgres/postgres-pvc.yaml
+  - postgres/postgres-service.yaml
+  - postgres/postgres-statefulset.yaml
+  - postgres/postgres-exporter.yaml
+
+  # Projects - Postfix
+  - projects/postfix/postfix-service.yaml
+  - projects/postfix/postfix.yaml
+
+  # Redis
+#  - redis/redis-pvc.yaml
+  - redis/redis-service.yaml
+  - redis/redis-statefulset.yaml
+  - redis/redis-exporter.yaml
+
+  # Synapse
+  - synapse/synapse-configmap.yaml
+  - synapse/synapse-deployment.yaml
+#  - synapse/synapse-pvc.yaml
+  - synapse/synapse-service.yaml
+
+  # Hookshot (replaces matrix-encrypted-webhooks)
+  - hookshot/hookshot-configmap.yaml
+  - hookshot/hookshot-deployment.yaml
+  - hookshot/hookshot-pvc.yaml
+  - hookshot/hookshot-service.yaml
+  
+  # Well-known
+  - well-known/configmap.yaml
+  - well-known/deployment.yaml
+  - well-known/service.yaml
+
+generators:
+  - ksops-secret.yaml
+
+images:
+  # Maubot
+  - name: dock.mau.dev/maubot/maubot
+    newTag: "v0.6.0"
+
+  # Element Web
+  - name: vectorim/element-web
+    newTag: "v1.12.22"
+
+  # Redis
+  - name: redis
+    newTag: "8"
+    digest: "sha256:4d25e2fe601f7ffaeb4437cb6ced3518bc36edf34ebe98863c80836943d94529"
+
+  # Postgres
+  - name: postgres
+    newTag: "15"
+    digest: "sha256:1b92e7a80c021647bf70f5d3eb66066a998e4f5cf43c07bb9dc9f729782cf88e"
+
+  # Synapse
+  - name: matrixdotorg/synapse
+    newTag: "v1.155.0"
+
+  # NGINX
+  - name: nginx
+    newTag: "1.31-alpine"
+
+  # Init containers / utilities
+  - name: busybox
+    newTag: "1.38"
+  - name: bitnami/kubectl
+    newTag: "latest"
+  - name: halfshot/matrix-hookshot
+    newTag: "latest"
+  - name: juanluisbaptiste/postfix
+    newTag: "alpine"
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.19.1"
+  - name: oliver006/redis_exporter
+    newTag: "v1.86.0"

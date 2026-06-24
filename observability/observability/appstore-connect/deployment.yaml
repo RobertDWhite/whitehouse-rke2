@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appstore-connect-exporter
+  namespace: observability
+  labels:
+    app: appstore-connect-exporter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: appstore-connect-exporter
+  template:
+    metadata:
+      labels:
+        app: appstore-connect-exporter
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        - name: install-deps
+          image: python:3.12-slim
+          command:
+            - /bin/sh
+            - -c
+            - pip install --quiet --target=/pylibs prometheus_client==0.22.1 PyJWT==2.10.1 cryptography==44.0.3
+          volumeMounts:
+            - name: pylibs
+              mountPath: /pylibs
+      containers:
+        - name: exporter
+          image: python:3.12-slim
+          command:
+            - /bin/sh
+            - -c
+            - exec python3 /scripts/exporter.py
+          env:
+            - name: PYTHONPATH
+              value: "/pylibs"
+            - name: EXPORTER_PORT
+              value: "9488"
+            # All fields from the 1Password item are mounted as env vars.
+            # Expected fields in 1Password: issuer_id, key_id, private_key,
+            # app_ids (comma-separated), vendor_number.
+            # Adjust the field names below if your 1Password item uses
+            # different labels.
+          envFrom:
+            - secretRef:
+                name: appstore-connect-api
+          ports:
+            - name: metrics
+              containerPort: 9488
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9488
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9488
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: pylibs
+              mountPath: /pylibs
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: pylibs
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: appstore-connect-exporter-scripts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appstore-connect-exporter
+  namespace: observability
+  labels:
+    app: appstore-connect-exporter
+spec:
+  selector:
+    app: appstore-connect-exporter
+  ports:
+    - name: metrics
+      port: 9488
+      targetPort: 9488
+      protocol: TCP

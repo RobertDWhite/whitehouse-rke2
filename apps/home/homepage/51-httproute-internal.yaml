@@ -1,0 +1,18 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homepage-internal
+  namespace: homepage
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    # home.internal.white.fm moved to the Glance dashboard (glance/40-httproute.yaml).
+    # Homepage now lives at its own hostname so it stays reachable.
+    - homepage.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: homepage
+          port: 3000

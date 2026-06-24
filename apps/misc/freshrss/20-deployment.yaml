@@ -1,0 +1,186 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freshrss
+  namespace: freshrss
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: freshrss
+  template:
+    metadata:
+      labels:
+        app: freshrss
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+
+      initContainers:
+        - name: install-aiassistant
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              echo "Installing FreshRSS AI Assistant..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-AIAssistant"
+              TMP="/tmp/xExtension-AIAssistant"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if [ -d "${TARGET}" ]; then
+                echo "AI Assistant already present; keeping existing copy."
+              elif git clone https://github.com/cvlc/freshrss-ai-assistant "${TMP}" && git -C "${TMP}" checkout ab3acc69fe7d3380bce021b2b82ad0a8743ce6cb; then
+                if [ -d "${TMP}/freshrss-ai-assistant" ]; then
+                  SRC="${TMP}/freshrss-ai-assistant"
+                else
+                  SRC="${TMP}"
+                fi
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "AI Assistant extension installed."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not install AI Assistant from git; keeping existing copy."
+              else
+                echo "ERROR: failed to install AI Assistant and no existing copy is available." >&2
+                exit 1
+              fi
+          volumeMounts:
+            - name: extensions
+              mountPath: /config/www/freshrss/extensions
+
+        - name: install-feeddigest
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              echo "Installing FeedDigest..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-FeedDigest"
+              TMP="/tmp/xExtension-FeedDigest"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if git clone https://github.com/fengchang/xExtension-FeedDigest "${TMP}" && git -C "${TMP}" checkout 9454077765b5984f980d1eba90fe61d81453290a; then
+                if [ -d "${TMP}/xExtension-FeedDigest" ]; then
+                  SRC="${TMP}/xExtension-FeedDigest"
+                else
+                  SRC="${TMP}"
+                fi
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                # FreshRSS Entry::date() returns formatted text by default; force raw epoch.
+                if grep -q '\$timestamp = \$originalEntry->date();' "${TARGET}.new/extension.php"; then
+                  sed -i 's/\$timestamp = \$originalEntry->date();/\$timestamp = (int) \$originalEntry->date(true);/' "${TARGET}.new/extension.php"
+                fi
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "FeedDigest extension updated."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not update FeedDigest; keeping existing copy."
+              else
+                echo "ERROR: failed to install FeedDigest and no existing copy is available." >&2
+                exit 1
+              fi
+          volumeMounts:
+            - name: extensions
+              mountPath: /config/www/freshrss/extensions
+
+        - name: install-wordhighlighter
+          image: alpine/git
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              echo "Installing WordHighlighter..."
+              EXT_DIR="/config/www/freshrss/extensions"
+              TARGET="${EXT_DIR}/xExtension-WordHighlighter"
+              TMP="/tmp/freshrss-extensions"
+              mkdir -p "${EXT_DIR}"
+              rm -rf "${TMP}"
+              if git clone https://github.com/FreshRSS/Extensions.git "${TMP}" && git -C "${TMP}" checkout 3e5686139f2b708957543e6a6b159722af83d69b; then
+                SRC="${TMP}/xExtension-WordHighlighter"
+                rm -rf "${TARGET}.new"
+                mkdir -p "${TARGET}.new"
+                cp -a "${SRC}/." "${TARGET}.new/"
+                rm -rf "${TARGET}"
+                mv "${TARGET}.new" "${TARGET}"
+                chown -R 1000:1000 "${TARGET}"
+                rm -rf "${TMP}"
+                echo "WordHighlighter extension updated."
+              elif [ -d "${TARGET}" ]; then
+                echo "WARNING: could not update WordHighlighter; keeping existing copy."
+              else
+                echo "ERROR: failed to install WordHighlighter and no existing copy is available." >&2
+                exit 1
+              fi
+          volumeMounts:
+            - name: extensions
+              mountPath: /config/www/freshrss/extensions
+
+      containers:
+        - name: freshrss
+          image: lscr.io/linuxserver/freshrss
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /i/
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /i/
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "America/New_York"
+          volumeMounts:
+            - name: data
+              mountPath: /config
+            - name: extensions
+              mountPath: /config/www/freshrss/extensions
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: freshrss-data
+        - name: extensions
+          persistentVolumeClaim:
+            claimName: freshrss-extensions

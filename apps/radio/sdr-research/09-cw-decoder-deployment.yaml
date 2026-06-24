@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cw-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cw-decoder
+  template:
+    metadata:
+      labels:
+        app: cw-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      restartPolicy: Always
+      containers:
+        - name: cw-decoder
+          image: debian:stable-slim
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          env:
+            - name: MIN_FILE_AGE_SEC
+              value: "15"
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q cw_decode.py"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -q cw_decode.py"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Installing Python3 (CW decoder dependency)"
+              apt-get update -qq
+              apt-get install -y --no-install-recommends python3
+              rm -rf /var/lib/apt/lists/*
+              echo "Starting Python CW decoder"
+              exec python3 /scripts/cw_decode.py
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: cw-decoder-scripts
+            defaultMode: 0755

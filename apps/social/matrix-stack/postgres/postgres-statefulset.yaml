@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: matrix-postgresql
+  namespace: matrix
+spec:
+  serviceName: matrix-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matrix-postgresql
+  template:
+    metadata:
+      labels:
+        app: matrix-postgresql
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values:
+                - rke2-node-50
+                - rke2-node-14
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+          - containerPort: 5432
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        readinessProbe:
+          exec:
+            command: ["pg_isready"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command: ["pg_isready"]
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+        envFrom:
+          - secretRef:
+              name: matrix-postgresql-secret
+        env:
+          - name: PGDATA
+            value: /var/lib/postgresql/data/pgdata
+          - name: LANG
+            value: C.UTF-8
+          - name: LC_COLLATE
+            value: C
+          - name: LC_CTYPE
+            value: C
+          - name: POSTGRES_INITDB_ARGS
+            value: "--locale=C --encoding=UTF8"
+        volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            name: data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 50Gi
+      storageClassName: longhorn

@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: yeti-arangodb
+  labels:
+    app.kubernetes.io/name: yeti-arangodb
+spec:
+  serviceName: yeti-arangodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: yeti-arangodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: yeti-arangodb
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      initContainers:
+        - name: auto-upgrade
+          image: arangodb
+          command:
+            - arangod
+            - --database.auto-upgrade
+            - "true"
+            - --server.statistics
+            - "false"
+            - --database.ignore-datafile-errors
+            - "true"
+          env:
+            - name: ARANGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: yeti-secrets
+                  key: ARANGO_ROOT_PASSWORD
+          volumeMounts:
+            - name: arangodb-data
+              mountPath: /var/lib/arangodb3
+      containers:
+        - name: arangodb
+          image: arangodb
+          ports:
+            - name: http
+              containerPort: 8529
+          env:
+            - name: ARANGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: yeti-secrets
+                  key: ARANGO_ROOT_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: 8529
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8529
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: arangodb-data
+              mountPath: /var/lib/arangodb3
+  volumeClaimTemplates:
+    - metadata:
+        name: arangodb-data
+      spec:
+        storageClassName: longhorn
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

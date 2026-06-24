@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-derp-map
+  namespace: headscale
+data:
+  derp-map.yaml: |
+    regions:
+      900:
+        regionid: 900
+        regioncode: home
+        regionname: Whitehouse Home
+        nodes:
+          - name: derp-home-1
+            regionid: 900
+            hostname: derp.white.fm
+            derpport: 18443
+            stunport: 13478
+            # Empty so each client resolves via its own DNS:
+            #   - cluster pods → Technitium → 10.99.5.101 (LB) :18443/:13478
+            #   - off-LAN clients → public DNS → WAN IP :18443/:13478 → UniFi forward → LB
+            # Service exposes 18443/13478 directly so both paths match.
+            ipv4: ""
+            ipv6: ""
+            insecurefortests: false

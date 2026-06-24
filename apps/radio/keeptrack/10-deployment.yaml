@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keeptrack
+  namespace: keeptrack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keeptrack
+  template:
+    metadata:
+      labels:
+        app: keeptrack
+    spec:
+      # The keeptrack image is amd64-only; pin it off the arm64 node (node-10),
+      # where it was hitting `exec format error` and CrashLoopBackOff.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: keeptrack
+          image: registry.internal.white.fm/keeptrack
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

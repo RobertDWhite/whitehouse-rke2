@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mastodon
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 03-pvc.yaml
+  - 04-deployment-web.yaml
+  - 05-deployment-streaming.yaml
+  - 06-deployment-sidekiq.yaml
+  - 07-service-web.yaml
+  - 08-service-streaming.yaml
+  - 09-postgres.yaml
+  - 10-redis.yaml
+  - 11-elasticsearch.yaml
+  - 09b-postgres-exporter.yaml
+  - 10b-redis-exporter.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: ghcr.io/mastodon/mastodon
+    newTag: "v4.6.0"
+  - name: ghcr.io/mastodon/mastodon-streaming
+    newTag: "v4.6.0"
+  - name: postgres
+    newTag: "15"
+    digest: "sha256:1b92e7a80c021647bf70f5d3eb66066a998e4f5cf43c07bb9dc9f729782cf88e"
+  - name: redis
+    newTag: "8"
+    digest: "sha256:4d25e2fe601f7ffaeb4437cb6ced3518bc36edf34ebe98863c80836943d94529"
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.19.1"
+  - name: oliver006/redis_exporter
+    newTag: "v1.86.0"

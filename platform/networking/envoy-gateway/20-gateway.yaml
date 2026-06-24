@@ -1,0 +1,356 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main
+  namespace: envoy-gateway-system
+spec:
+  gatewayClassName: eg-metallb
+  listeners:
+    # HTTP catch-all — redirected to HTTPS via 25-http-redirect.yaml
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - envoy-gateway-system
+                  - adsb
+
+    # *.white.fm
+    - name: https-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "*.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # white.fm
+    - name: https-root-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.white.fm
+    - name: https-internal-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.pages.internal.white.fm — per-site subdomains for the `pages` static-site
+    # host. A nested wildcard, so it needs its own listener (the *.internal.white.fm
+    # listener only matches one label). Cert SAN added in 05-certificates.yaml.
+    - name: https-pages-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "*.pages.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.w3rdw.radio
+    - name: https-w3rdw-radio
+      protocol: HTTPS
+      port: 443
+      hostname: "*.w3rdw.radio"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-w3rdw-radio-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.w3rdw.radio
+    - name: https-internal-w3rdw-radio
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.w3rdw.radio"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-w3rdw-radio-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.whitematter.tech
+    - name: https-whitematter-tech
+      protocol: HTTPS
+      port: 443
+      hostname: "*.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-whitematter-tech-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # *.internal.whitematter.tech
+    - name: https-internal-whitematter-tech
+      protocol: HTTPS
+      port: 443
+      hostname: "*.internal.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-whitematter-tech-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # ---- Per-service listeners (06-per-service-certificates.yaml) ----
+    # Each pins one or two hostnames to a service-scoped Certificate so
+    # we no longer rely on the white.fm wildcard for these workloads.
+    # HTTPRoutes for these hosts attach via sectionName.
+
+    # auth.white.fm
+    - name: https-auth-public
+      protocol: HTTPS
+      port: 443
+      hostname: "auth.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: authentik-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # auth.internal.white.fm
+    - name: https-auth-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "auth.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: authentik-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # grafana.white.fm
+    - name: https-grafana-public
+      protocol: HTTPS
+      port: 443
+      hostname: "grafana.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: grafana-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # grafana.internal.white.fm
+    - name: https-grafana-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "grafana.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: grafana-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # headscale.white.fm
+    - name: https-headscale-public
+      protocol: HTTPS
+      port: 443
+      hostname: "headscale.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: headscale-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # headscale.internal.white.fm
+    - name: https-headscale-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "headscale.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: headscale-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # longhorn.internal.white.fm (covers both longhorn + longhornui hostnames
+    # via the same cert; longhornui still resolves via the wildcard listener)
+    - name: https-longhorn-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "longhorn.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: longhorn-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # longhornui.internal.white.fm
+    - name: https-longhornui-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "longhornui.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: longhorn-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # argo.internal.white.fm (argocd only has an internal hostname on the
+    # main Gateway; argo.white.fm is served by argocd's own ingress)
+    - name: https-argocd-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "argo.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: argocd-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # sdr-mcp.white.fm — MCP server for the SDR station (token-gated)
+    - name: https-sdr-mcp-public
+      protocol: HTTPS
+      port: 443
+      hostname: "sdr-mcp.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: sdr-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # sdr-mcp.internal.white.fm
+    - name: https-sdr-mcp-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "sdr-mcp.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: sdr-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # jetlog-mcp.white.fm — MCP server for the jetlog flight log (token-gated)
+    - name: https-jetlog-mcp-public
+      protocol: HTTPS
+      port: 443
+      hostname: "jetlog-mcp.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jetlog-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # jetlog-mcp.internal.white.fm
+    - name: https-jetlog-mcp-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "jetlog-mcp.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jetlog-mcp-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # homarr.white.fm — dashboard
+    - name: https-homarr-public
+      protocol: HTTPS
+      port: 443
+      hostname: "homarr.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: homarr-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # homarr.internal.white.fm
+    - name: https-homarr-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "homarr.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: homarr-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # congresstrades.white.fm — public, no-SSO read-only host (own cert, off the wildcard)
+    - name: https-congresstrades-public
+      protocol: HTTPS
+      port: 443
+      hostname: "congresstrades.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: congresstrades-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # appstore.internal.white.fm — internal App Store review responder (Authentik SSO)
+    - name: https-appstore-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "appstore.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: appstore-tls
+      allowedRoutes:
+        namespaces:
+          from: All

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: searxng-settings
+  namespace: searxng
+data:
+  # Only settings that have no SEARXNG_* env override live here. secret_key,
+  # base_url, valkey.url, limiter and image_proxy are set via env in the
+  # Deployment (see settings_defaults.py environ_name mappings).
+  settings.yml: |
+    use_default_settings: true
+
+    # JSON output is required by API consumers (e.g. odysseus deep-research /
+    # web-search) that call this instance at searxng.searxng.svc:8080.
+    search:
+      formats:
+        - html
+        - json
+
+    outgoing:
+      request_timeout: 6.0
+      max_request_timeout: 12.0
+      # Every outbound engine request egresses ONLY through the media VPN proxy
+      # (gluetun/PIA). The NetworkPolicy enforces this at L3; this makes SearXNG
+      # itself use the tunnel rather than failing closed on every search.
+      proxies:
+        all://:
+          - http://vpn-proxy.media.svc.cluster.local:8888

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acars-decoder
+  namespace: sdr-research
+spec:
+  replicas: 0   # shares Airspy SoapyRemote — mutually exclusive with vdl2-decoder & unified-sdr-2m
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: acars-decoder
+  template:
+    metadata:
+      labels:
+        app: acars-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      containers:
+      - name: acars-decoder
+        image: registry.internal.white.fm/acars-decoder
+        securityContext:
+          allowPrivilegeEscalation: false
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        env:
+        - name: SOAPY_REMOTE
+          value: "airspy-soapy.sdr-research.svc.cluster.local:55132"
+        - name: ACARS_OUTPUT_DIR
+          value: "/data/text/acars"
+        - name: ACARS_FREQUENCIES
+          # Standard VHF ACARS channels (MHz)
+          value: "129.125 130.025 130.425 130.450 131.125 131.550"
+        - name: ACARS_GAIN
+          value: "18"
+        volumeMounts:
+        - name: sdr-data
+          mountPath: /data
+      volumes:
+      - name: sdr-data
+        persistentVolumeClaim:
+          claimName: sdr-artifacts-rwx

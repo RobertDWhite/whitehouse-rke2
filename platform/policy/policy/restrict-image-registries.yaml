@@ -1,0 +1,264 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Supply Chain
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Container images must come from an approved registry. The allowlist
+      below was built by walking the repo for every image reference
+      (`grep -rhE 'image:|newName:|repository:' --include='*.yaml' .`).
+      Bumping a vendored OSS source to a new publisher requires extending
+      this list.
+spec:
+  # Audit only — many existing OSS workloads pull from publishers we
+  # haven't enumerated yet. Tighten the list, then flip to Enforce.
+  validationFailureAction: Audit
+  background: true
+  failurePolicy: Ignore
+  rules:
+    - name: image-registry-allowed
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # Platform / Kyverno-managed namespaces.
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - cert-manager
+                - longhorn-system
+                - metallb-system
+                - falco
+                - crowdsec
+                - trivy-system
+                - tigera-operator
+                - calico-system
+                - calico-apiserver
+                - argocd
+      validate:
+        message: >-
+          Image must come from an approved registry. See
+          policy/restrict-image-registries.yaml for the allowlist; to add a
+          publisher, append it and reference the workload that needs it.
+        # Kyverno glob matches against the full image reference. We list
+        # both "docker.io/foo/*" and "foo/*" patterns because Kubernetes
+        # leaves the implicit docker.io prefix in place when authors omit
+        # it (e.g. `image: postgres:15`).
+        pattern:
+          spec:
+            =(initContainers):
+              - image: >-
+                  registry.internal.white.fm/* |
+                  ghcr.io/kyverno/* |
+                  ghcr.io/jimmidyson/* |
+                  ghcr.io/w3rdw/* |
+                  ghcr.io/openclaw/* |
+                  ghcr.io/yangchuansheng/* |
+                  ghcr.io/jvde-github/* |
+                  ghcr.io/gethomepage/* |
+                  ghcr.io/gramps-project/* |
+                  ghcr.io/robertdwhite/* |
+                  ghcr.io/advplyr/* |
+                  ghcr.io/alexbakker/* |
+                  ghcr.io/bigboot/* |
+                  ghcr.io/calibrain/* |
+                  ghcr.io/dispatcharr/* |
+                  ghcr.io/gchq/* |
+                  ghcr.io/homarr-labs/* |
+                  ghcr.io/immich-app/* |
+                  ghcr.io/kube-vip/* |
+                  ghcr.io/maastrichtu-ids/* |
+                  ghcr.io/mastodon/* |
+                  ghcr.io/misp/* |
+                  ghcr.io/onedr0p/* |
+                  ghcr.io/open-webui/* |
+                  ghcr.io/paperless-ngx/* |
+                  ghcr.io/sdr-enthusiasts/* |
+                  ghcr.io/sgoudelis/* |
+                  ghcr.io/tailscale/* |
+                  ghcr.io/unpoller/* |
+                  quay.io/prometheuscommunity/* |
+                  quay.io/aquasec/* |
+                  quay.io/go-skynet/* |
+                  quay.io/invidious/* |
+                  registry.k8s.io/* |
+                  k8s.gcr.io/sig-storage/* |
+                  public.ecr.aws/docker/library/* |
+                  lscr.io/linuxserver/* |
+                  docker.io/library/* |
+                  library/* |
+                  ?:* | ?-*:* |
+                  alpine | alpine:* | alpine/* |
+                  busybox | busybox:* | busybox/* |
+                  nginx | nginx:* |
+                  postgres | postgres:* |
+                  redis | redis:* |
+                  mysql | mysql:* |
+                  mariadb | mariadb:* |
+                  rabbitmq | rabbitmq:* |
+                  influxdb | influxdb:* |
+                  arangodb | arangodb:* |
+                  python | python:* |
+                  znc | znc:* |
+                  registry | registry:* |
+                  bitnami/* | docker.io/bitnami/* |
+                  grafana/* | docker.io/grafana/* |
+                  tailscale/* | docker.io/tailscale/* |
+                  headscale/* | docker.io/headscale/* |
+                  goodieshq/* | docker.io/goodieshq/* |
+                  librespace/* | docker.io/librespace/* |
+                  legacycode/* | docker.io/legacycode/* |
+                  prom/* | docker.io/prom/* |
+                  ekofr/* | docker.io/ekofr/* |
+                  oliver006/* | docker.io/oliver006/* |
+                  envoyproxy/* | docker.io/envoyproxy/* |
+                  ollama/* | docker.io/ollama/* |
+                  velero/* | docker.io/velero/* |
+                  matrixdotorg/* | docker.io/matrixdotorg/* |
+                  halfshot/* | docker.io/halfshot/* |
+                  vectorim/* | docker.io/vectorim/* |
+                  jceloria/* | docker.io/jceloria/* |
+                  cloudflare/* | docker.io/cloudflare/* |
+                  technitium/* | docker.io/technitium/* |
+                  valkey/* | docker.io/valkey/* |
+                  homebridge/* | docker.io/homebridge/* |
+                  koush/* | docker.io/koush/* |
+                  listmonk/* | docker.io/listmonk/* |
+                  wallabag/* | docker.io/wallabag/* |
+                  searxng/* | docker.io/searxng/* |
+                  chromadb/* | docker.io/chromadb/* |
+                  intelowlproject/* | docker.io/intelowlproject/* |
+                  yetiplatform/* | docker.io/yetiplatform/* |
+                  klutchell/* | docker.io/klutchell/* |
+                  juanluisbaptiste/* | docker.io/juanluisbaptiste/* |
+                  germannewsmaker/* | docker.io/germannewsmaker/* |
+                  ggilman/* | docker.io/ggilman/* |
+                  louislam/* | docker.io/louislam/* |
+                  jvmilazz0/* | docker.io/jvmilazz0/* |
+                  binwiederhier/* | docker.io/binwiederhier/* |
+                  crocodilestick/* | docker.io/crocodilestick/* |
+                  viaductoss/* | docker.io/viaductoss/* |
+                  aquasec/* | docker.io/aquasec/* |
+                  glanceapp/* | docker.io/glanceapp/* |
+                  docker.elastic.co/* |
+                  dock.mau.dev/* |
+                  registry.gitlab.com/gitlab-ci-utils/*
+            =(ephemeralContainers):
+              - image: >-
+                  registry.internal.white.fm/* |
+                  ghcr.io/* |
+                  quay.io/* |
+                  registry.k8s.io/* |
+                  k8s.gcr.io/sig-storage/* |
+                  public.ecr.aws/docker/library/* |
+                  lscr.io/linuxserver/* |
+                  docker.io/* | library/* |
+                  alpine | alpine:* | busybox | busybox:* | nginx | nginx:* |
+                  postgres | postgres:* | redis | redis:* | mysql | mysql:* |
+                  mariadb | mariadb:* | python | python:*
+            containers:
+              - image: >-
+                  registry.internal.white.fm/* |
+                  ghcr.io/kyverno/* |
+                  ghcr.io/jimmidyson/* |
+                  ghcr.io/w3rdw/* |
+                  ghcr.io/openclaw/* |
+                  ghcr.io/yangchuansheng/* |
+                  ghcr.io/jvde-github/* |
+                  ghcr.io/gethomepage/* |
+                  ghcr.io/gramps-project/* |
+                  ghcr.io/robertdwhite/* |
+                  ghcr.io/advplyr/* |
+                  ghcr.io/alexbakker/* |
+                  ghcr.io/bigboot/* |
+                  ghcr.io/calibrain/* |
+                  ghcr.io/dispatcharr/* |
+                  ghcr.io/gchq/* |
+                  ghcr.io/homarr-labs/* |
+                  ghcr.io/immich-app/* |
+                  ghcr.io/kube-vip/* |
+                  ghcr.io/maastrichtu-ids/* |
+                  ghcr.io/mastodon/* |
+                  ghcr.io/misp/* |
+                  ghcr.io/onedr0p/* |
+                  ghcr.io/open-webui/* |
+                  ghcr.io/paperless-ngx/* |
+                  ghcr.io/sdr-enthusiasts/* |
+                  ghcr.io/sgoudelis/* |
+                  ghcr.io/tailscale/* |
+                  ghcr.io/unpoller/* |
+                  quay.io/prometheuscommunity/* |
+                  quay.io/aquasec/* |
+                  quay.io/go-skynet/* |
+                  quay.io/invidious/* |
+                  registry.k8s.io/* |
+                  k8s.gcr.io/sig-storage/* |
+                  public.ecr.aws/docker/library/* |
+                  lscr.io/linuxserver/* |
+                  docker.io/library/* |
+                  library/* |
+                  alpine | alpine:* | alpine/* |
+                  busybox | busybox:* | busybox/* |
+                  nginx | nginx:* |
+                  postgres | postgres:* |
+                  redis | redis:* |
+                  mysql | mysql:* |
+                  mariadb | mariadb:* |
+                  rabbitmq | rabbitmq:* |
+                  influxdb | influxdb:* |
+                  arangodb | arangodb:* |
+                  python | python:* |
+                  znc | znc:* |
+                  registry | registry:* |
+                  bitnami/* | docker.io/bitnami/* |
+                  grafana/* | docker.io/grafana/* |
+                  tailscale/* | docker.io/tailscale/* |
+                  headscale/* | docker.io/headscale/* |
+                  goodieshq/* | docker.io/goodieshq/* |
+                  librespace/* | docker.io/librespace/* |
+                  legacycode/* | docker.io/legacycode/* |
+                  prom/* | docker.io/prom/* |
+                  ekofr/* | docker.io/ekofr/* |
+                  oliver006/* | docker.io/oliver006/* |
+                  envoyproxy/* | docker.io/envoyproxy/* |
+                  ollama/* | docker.io/ollama/* |
+                  velero/* | docker.io/velero/* |
+                  matrixdotorg/* | docker.io/matrixdotorg/* |
+                  halfshot/* | docker.io/halfshot/* |
+                  vectorim/* | docker.io/vectorim/* |
+                  jceloria/* | docker.io/jceloria/* |
+                  cloudflare/* | docker.io/cloudflare/* |
+                  technitium/* | docker.io/technitium/* |
+                  valkey/* | docker.io/valkey/* |
+                  homebridge/* | docker.io/homebridge/* |
+                  koush/* | docker.io/koush/* |
+                  listmonk/* | docker.io/listmonk/* |
+                  wallabag/* | docker.io/wallabag/* |
+                  searxng/* | docker.io/searxng/* |
+                  chromadb/* | docker.io/chromadb/* |
+                  intelowlproject/* | docker.io/intelowlproject/* |
+                  yetiplatform/* | docker.io/yetiplatform/* |
+                  klutchell/* | docker.io/klutchell/* |
+                  juanluisbaptiste/* | docker.io/juanluisbaptiste/* |
+                  germannewsmaker/* | docker.io/germannewsmaker/* |
+                  ggilman/* | docker.io/ggilman/* |
+                  louislam/* | docker.io/louislam/* |
+                  jvmilazz0/* | docker.io/jvmilazz0/* |
+                  binwiederhier/* | docker.io/binwiederhier/* |
+                  crocodilestick/* | docker.io/crocodilestick/* |
+                  viaductoss/* | docker.io/viaductoss/* |
+                  aquasec/* | docker.io/aquasec/* |
+                  glanceapp/* | docker.io/glanceapp/* |
+                  docker.elastic.co/* |
+                  dock.mau.dev/* |
+                  registry.gitlab.com/gitlab-ci-utils/*

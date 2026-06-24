@@ -1,0 +1,154 @@
+apiVersion: openclaw.rocks/v1alpha1
+kind: OpenClawInstance
+metadata:
+  name: openclaw
+  namespace: openclaw
+spec:
+  image:
+    repository: registry.internal.white.fm/openclaw-claude
+    tag: "2026.6.8-claude.1"
+  envFrom:
+    - secretRef:
+        name: openclaw-api-keys
+    - secretRef:
+        name: openclaw-matrix-secrets
+    # codex-token last so its OPENAI_API_KEY (ChatGPT subscription access_token)
+    # overrides the platform key. Refreshed every 6 days by codex-refresh CronJob.
+    - secretRef:
+        name: codex-token
+        optional: true
+  env:
+    - name: OLLAMA_API_KEY
+      value: "ollama-local"
+    - name: KUBECONFIG
+      value: "/home/openclaw/.openclaw/kube-config.yaml"
+    - name: CLAUDE_CONFIG_DIR
+      value: "/home/openclaw/.openclaw/.claude"
+    # Empty out the unusable OpenAI API key so the memory subsystem
+    # doesn't try (and fail) to call OpenAI embeddings on every message.
+    - name: OPENAI_API_KEY
+      value: ""
+  config:
+    raw:
+      gateway:
+        # openclaw >= 2026.6.x refuses to start unless gateway.mode is set
+        # explicitly (exit 78: "existing config is missing gateway.mode").
+        mode: "local"
+        trustedProxies:
+          - "127.0.0.0/8"
+          - "10.42.0.0/16"
+        controlUi:
+          allowedOrigins:
+            - "https://openclaw.white.fm"
+            - "https://openclaw.internal.white.fm"
+      agents:
+        defaults:
+          model:
+            # qwen3:30b is a 30B MoE thinking model — strong reasoning,
+            # 3B active params at a time so inference stays fast on the 5090.
+            # Subscription OAuth (claude-cli) and Anthropic API key both
+            # require paid usage; reverted to local llama3.1:8b on rke2-node-50
+            # RTX 5090. claude-cli kept as a fallback for when extra-usage
+            # credits are added.
+            primary: "ollama/llama3.1:8b"
+            fallbacks:
+              - "claude-cli/claude-sonnet-4-6"
+          models:
+            "ollama/qwen3:30b":
+              alias: "local"
+            "anthropic/claude-sonnet-4-6":
+              alias: "claude"
+            "anthropic/claude-opus-4-6":
+              alias: "claude-opus"
+            "claude-cli/claude-sonnet-4-6":
+              alias: "claude-code"
+            "claude-cli/claude-opus-4-6":
+              alias: "claude-code-opus"
+            # ChatGPT/Codex OAuth is the only OpenAI route; the API-key path
+            # was removed because the account is over quota.
+            "openai-codex/gpt-5.5":
+              alias: "chatgpt"
+              params:
+                transport: "auto"
+      channels:
+        telegram:
+          enabled: true
+          groupPolicy: "open"
+        matrix:
+          enabled: true
+          homeserver: "https://matrix.white.fm"
+          userId: "@jarvis:white.fm"
+          encryption: true
+          autoJoin: "allowlist"
+          autoJoinAllowlist:
+            - "!EoEWzxuqJYcAtVUQsh:white.fm"
+          groupPolicy: "allowlist"
+          groups:
+            "!EoEWzxuqJYcAtVUQsh:white.fm":
+              requireMention: true
+          replyToMode: "first"
+          historyLimit: 50
+          threadReplies: "off"
+          dm:
+            policy: "open"
+            sessionScope: "per-user"
+      models:
+        providers:
+          anthropic:
+            baseUrl: "https://api.anthropic.com/v1"
+            # env provides ANTHROPIC_TOKEN (via envFrom openclaw-api-keys), not
+            # ANTHROPIC_API_KEY. 2026.6.x fails startup on an unresolved secret
+            # ref, so point at the var that actually exists.
+            apiKey: "$ANTHROPIC_TOKEN"
+            models:
+              - name: "Claude Sonnet 4.6"
+                id: "claude-sonnet-4-6"
+              - name: "Claude Opus 4.6"
+                id: "claude-opus-4-6"
+          # This surfaces the ChatGPT/Codex route in OpenClaw, but it still
+          # needs a post-deploy OAuth/device login inside the running instance.
+          openai-codex:
+            baseUrl: "https://api.openai.com/v1"
+            models:
+              - name: "ChatGPT / Codex GPT-5.5"
+                id: "gpt-5.5"
+                contextTokens: 160000
+          ollama:
+            baseUrl: "http://ollama-router.ai-stack.svc.cluster.local:11434"
+            models:
+              - name: "qwen3:30b"
+                id: "qwen3:30b"
+                api: "ollama"
+  probes:
+    startup:
+      failureThreshold: 120
+      periodSeconds: 5
+    liveness:
+      initialDelaySeconds: 300
+      failureThreshold: 6
+      periodSeconds: 30
+      timeoutSeconds: 10
+  availability:
+    nodeSelector:
+      kubernetes.io/arch: amd64
+  storage:
+    persistence:
+      enabled: true
+      size: 10Gi
+  security:
+    podSecurityContext:
+      fsGroupChangePolicy: OnRootMismatch
+    networkPolicy:
+      additionalEgress:
+        - to:
+            - ipBlock:
+                cidr: 10.42.0.0/16
+          ports:
+            - protocol: TCP
+              port: 11434
+        - to:
+            - ipBlock:
+                cidr: 10.43.0.1/32
+          ports:
+            - protocol: TCP
+              port: 443

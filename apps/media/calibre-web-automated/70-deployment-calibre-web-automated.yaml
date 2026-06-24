@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calibre-web-automated
+  namespace: calibre
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: calibre-web-automated
+  template:
+    metadata:
+      labels:
+        app: calibre-web-automated
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      containers:
+        - name: calibre-web-automated
+          image: crocodilestick/calibre-web-automated
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8083
+            failureThreshold: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8083
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8083
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "America/New_York"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: calibre-library
+              mountPath: /calibre-library
+            - name: ingest
+              mountPath: /cwa-book-ingest
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: calibre-web-automated-config
+        - name: calibre-library
+          persistentVolumeClaim:
+            claimName: calibre-books
+        - name: ingest
+          persistentVolumeClaim:
+            claimName: calibre-web-automated-ingest

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcharr-db
+  namespace: dispatcharr
+  labels:
+    app: dispatcharr-db
+spec:
+  replicas: 1
+  # Single-replica Postgres on an RWO volume: the default RollingUpdate
+  # deadlocks (new pod can't attach until old releases the volume).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dispatcharr-db
+  template:
+    metadata:
+      labels:
+        app: dispatcharr-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres
+          ports:
+            - containerPort: 5432
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            exec:
+              command: ["pg_isready"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/secrets/postgres/password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-password
+              mountPath: /run/secrets/postgres
+              readOnly: true
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: dispatcharr-postgres-data
+        - name: postgres-password
+          secret:
+            secretName: dispatcharr-secret
+            defaultMode: 0400
+            items:
+              - key: POSTGRES_PASSWORD
+                path: password

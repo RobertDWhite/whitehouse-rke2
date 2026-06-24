@@ -1,0 +1,12 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: argocd-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - secret-sops-age.sops.yaml
+  - secret-git-repo.sops.yaml
+  - secret-git-repo-glacier.sops.yaml

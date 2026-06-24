@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcharr-celery
+  namespace: dispatcharr
+  labels:
+    app: dispatcharr-celery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dispatcharr-celery
+  template:
+    metadata:
+      labels:
+        app: dispatcharr-celery
+    spec:
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      containers:
+        - name: celery
+          image: ghcr.io/dispatcharr/dispatcharr
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          command:
+            - bash
+            - -c
+            - "cd /app && nice -n 5 celery -A dispatcharr worker -l info --concurrency=2"
+          volumeMounts:
+            - name: dispatcharr-data
+              mountPath: /data
+          env:
+            - name: POSTGRES_HOST
+              value: db
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_HOST
+              value: redis
+            - name: CELERY_BROKER_URL
+              value: redis://redis:6379/0
+            - name: DISPATCHARR_LOG_LEVEL
+              value: info
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: SECRET_KEY
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dispatcharr-secret
+                  key: SECRET_KEY
+      volumes:
+        - name: dispatcharr-data
+          persistentVolumeClaim:
+            claimName: dispatcharr-data

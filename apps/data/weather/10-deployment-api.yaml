@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-api
+  namespace: weather
+spec:
+  replicas: 1
+  # PVC is RWO; rolling-update would deadlock waiting for the new pod to
+  # mount a volume the old pod still holds. Recreate kills first then starts.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: weather-api
+  template:
+    metadata:
+      labels:
+        app: weather-api
+      annotations:
+        # Force pod restart when the SOPS-encrypted config changes (kustomize
+        # rewrites this hash via configMapGenerator-equivalent on every apply).
+        # No-op until you wire it up, but the env var pattern below works without it.
+        weather.config/checksum: "v1"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: weather-api
+          image: ghcr.io/robertdwhite/weather-dashboard-api
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: WX_CONFIG
+              value: /etc/weather-dashboard/config.yaml
+            - name: APRS_SOURCE_URL
+              value: http://sdr-viewer-api.sdr-research.svc.cluster.local:8000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/weather-dashboard
+              readOnly: true
+            - name: timemachine
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: 2000m
+              memory: 1Gi
+      volumes:
+        - name: config
+          secret:
+            secretName: weather-secret
+            items:
+              - key: config.yaml
+                path: config.yaml
+        - name: timemachine
+          persistentVolumeClaim:
+            claimName: weather-timemachine

@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 10-pvc.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 31-authentik-service.yaml
+  - 52-httproute-public.yaml
+  - 53-httproute-internal.yaml
+
+images:
+  - name: wallabag/wallabag
+    digest: sha256:4a527e027e0d59e87c14225ef11e005af3d4890374202ad319ce5e63dfc66709  # 2.6.14

@@ -1,0 +1,1061 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: observability
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      external_labels:
+        origin_prometheus: whitehouse-rke2
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+                - alertmanager.observability.svc.cluster.local:9093
+
+    rule_files:
+      - /etc/prometheus/sdr-alerts.yml
+      - /etc/prometheus/cluster-alerts.yml
+
+    scrape_configs:
+      - job_name: prometheus
+        static_configs:
+          - targets: ["localhost:9090"]
+
+      - job_name: unifi-poller
+        static_configs:
+          - targets:
+              - unifi-poller.observability.svc.cluster.local:9130
+      # =========================
+      # Velero metrics scraping
+      # =========================
+      - job_name: velero
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: velero
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: velero
+
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http-monitoring
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+      # =========================
+      # Longhorn storage metrics (longhorn-backend manager :9500/metrics)
+      # =========================
+      - job_name: longhorn
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: longhorn-system
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: longhorn-backend
+
+          # Only the manager :9500 endpoint serves /metrics (9502/9503 don't).
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "9500"
+
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+      # =========================
+      # MinIO metrics scraping
+      # =========================
+      - job_name: minio
+        scheme: https
+        metrics_path: /minio/v2/metrics/cluster
+
+        static_configs:
+          - targets:
+              - minio-bucket.white.fm:9000
+
+        tls_config:
+          insecure_skip_verify: true
+
+      # =========================
+      # Argo CD metrics scraping
+      # =========================
+      - job_name: argocd-server-metrics
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-server-metrics
+          - source_labels: [__meta_kubernetes_service_port_name]
+            action: keep
+            regex: http-metrics
+
+      - job_name: argocd-metrics
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-application-controller-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http-metrics
+
+      - job_name: argocd-repo-server
+        kubernetes_sd_configs:
+          - role: service
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: argocd
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: argocd-repo-server-metrics
+          - source_labels: [__meta_kubernetes_service_port_name]
+            action: keep
+            regex: http-metrics
+
+      # =========================
+      # Weather Dashboard API
+      # =========================
+      - job_name: weather-api
+        metrics_path: /metrics
+        scrape_interval: 30s
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: weather
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: weather-api
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
+      # CoreDNS metrics scraping
+      # =========================
+
+      - job_name: coredns
+        kubernetes_sd_configs:
+          - role: endpoints
+
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: rke2-coredns-metrics
+
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: kube-system
+
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      # =========================
+      # Pihole metrics scraping
+      # =========================
+
+      - job_name: pihole
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: pihole-exporter
+
+      # =========================
+      # Kube-state-metrics Scraping
+      # =========================
+
+      - job_name: kube-state-metrics
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: observability
+
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: kube-state-metrics
+
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
+
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
+
+      # =========================
+      # Kubelet and cAdvisor scraping (required by RKE2 dashboard)
+      # =========================
+      - job_name: kubelet
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
+
+      - job_name: cadvisor
+        scheme: https
+        kubernetes_sd_configs:
+          - role: node
+        tls_config:
+          insecure_skip_verify: true
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+          - target_label: origin_prometheus
+            replacement: whitehouse-rke2
+
+      - job_name: trivy-operator
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: trivy-system
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: trivy-operator
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      # =========================
+      # *arr exporters (exportarr) — in-cluster, namespace=media
+      # Discovers radarr/sonarr/bazarr/prowlarr/readarr exporters by label.
+      # `app.kubernetes.io/instance` is exposed as `arr` for dashboard grouping.
+      # scrape_interval bumped to 5m / timeout 2m because exportarr
+      # paginates through the full library on each scrape — sonarr with
+      # ~17k episodes takes 30-60s; the default 10s timeout fails.
+      # =========================
+      - job_name: exportarr
+        scrape_interval: 5m
+        scrape_timeout: 2m
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [media]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_label_app]
+            action: keep
+            regex: exportarr
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_service_label_app_kubernetes_io_instance]
+            target_label: arr
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
+      # glacier namespace metrics
+      # =========================
+      - job_name: glacier
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: glacier
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
+      # CrowdSec LAPI metrics
+      # =========================
+      - job_name: crowdsec
+        static_configs:
+          - targets:
+              - crowdsec-service.crowdsec.svc.cluster.local:6060
+
+      # =========================
+      # CrowdSec Agent metrics
+      # =========================
+      - job_name: crowdsec-agents
+        static_configs:
+          - targets:
+              - crowdsec-agent-service.crowdsec.svc.cluster.local:6060
+
+      # =========================
+      # Falco metrics scraping
+      # =========================
+      - job_name: falco
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: falco
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: falco-falco-metrics
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
+      - job_name: falcosidekick
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: falco
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: falco-falcosidekick
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
+
+      # =========================
+      # cert-manager metrics scraping
+      # =========================
+      - job_name: cert-manager
+        kubernetes_sd_configs:
+          - role: pod
+
+        relabel_configs:
+          # Only cert-manager namespace
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: cert-manager
+
+          # Only controller pods
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: keep
+            regex: controller
+
+          # Only metrics port (cert-manager default)
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "9402"
+
+          # Metrics path
+          - target_label: __metrics_path__
+            replacement: /metrics
+
+          # Preserve labels for Grafana dashboard
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+
+      # =========================
+      # sdr-research API metrics
+      # =========================
+      - job_name: sdr-research-api
+        static_configs:
+          - targets:
+              - sdr-viewer-api.sdr-research.svc.cluster.local:8000
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      - job_name: congress-api
+        static_configs:
+          - targets:
+              - congress-api.congress-trades.svc.cluster.local:8000
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # =================================
+      # Claude Code OTEL metrics
+      # =================================
+      - job_name: claude-code
+        static_configs:
+          - targets:
+              - 10.100.2.118:8889
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # =================================
+      # Claude Code deep stats (JSONL)
+      # =================================
+      - job_name: claude-code-stats
+        static_configs:
+          - targets:
+              - 10.100.2.118:9101
+        metrics_path: /metrics
+        scrape_interval: 120s
+
+      # =========================
+      # Tautulli (Plex monitoring)
+      # =========================
+      - job_name: tautulli
+        static_configs:
+          - targets:
+              - tautulli-metrics.tautulli.svc.cluster.local:9487
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # ================================
+      # App Store Connect
+      # ================================
+      - job_name: appstore-connect
+        static_configs:
+          - targets:
+              - appstore-connect-exporter.observability.svc.cluster.local:9488
+        metrics_path: /metrics
+        scrape_interval: 300s
+
+      # =========================
+      # Matrix Synapse metrics
+      # =========================
+      - job_name: synapse
+        static_configs:
+          - targets:
+              - synapse.matrix.svc.cluster.local:8008
+        metrics_path: /_synapse/metrics
+        scrape_interval: 30s
+
+      # =================================
+      # sdr-research spectrum survey
+      # =================================
+      - job_name: sdr-spectrum-survey
+        static_configs:
+          - targets:
+              - spectrum-exporter.sdr-research.svc.cluster.local:8080
+        metrics_path: /metrics
+        scrape_interval: 5s
+
+      # =========================
+      # PostgreSQL Exporter metrics
+      # =========================
+      - job_name: postgres-exporter
+        static_configs:
+          - targets:
+              - postgres-exporter.sdr-research.svc.cluster.local:9187
+            labels:
+              namespace: sdr-research
+          - targets:
+              - postgres-exporter.matrix.svc.cluster.local:9187
+            labels:
+              namespace: matrix
+          - targets:
+              - postgres-exporter.dispatcharr.svc.cluster.local:9187
+            labels:
+              namespace: dispatcharr
+          - targets:
+              - postgres-exporter.mastodon.svc.cluster.local:9187
+            labels:
+              namespace: mastodon
+          - targets:
+              - postgres-exporter.authentik.svc.cluster.local:9187
+            labels:
+              namespace: authentik
+        scrape_interval: 30s
+
+      # =========================
+      # Redis Exporter metrics
+      # =========================
+      - job_name: redis-exporter
+        static_configs:
+          - targets:
+              - redis-exporter.matrix.svc.cluster.local:9121
+            labels:
+              namespace: matrix
+          - targets:
+              - redis-exporter.dispatcharr.svc.cluster.local:9121
+            labels:
+              namespace: dispatcharr
+          - targets:
+              - redis-exporter.mastodon.svc.cluster.local:9121
+            labels:
+              namespace: mastodon
+          - targets:
+              - redis-exporter.immich.svc.cluster.local:9121
+            labels:
+              namespace: immich
+        scrape_interval: 30s
+
+      # =========================
+      # Fleet MDM — server + MySQL exporter
+      # =========================
+      - job_name: fleet
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [fleet]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            action: keep
+            regex: fleet
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "9100"
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+        scrape_interval: 30s
+
+      - job_name: fleet-mysqld
+        static_configs:
+          - targets:
+              - mysql.fleet.svc.cluster.local:9104
+            labels:
+              namespace: fleet
+        scrape_interval: 30s
+
+      # =========================
+      # Envoy Gateway controller (control plane)
+      # =========================
+      - job_name: envoy-gateway-controller
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: envoy-gateway-system
+          - source_labels: [__meta_kubernetes_pod_label_control_plane]
+            action: keep
+            regex: envoy-gateway
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            action: keep
+            regex: "19001"
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # =========================
+      # Envoy Proxy (data plane)
+      # =========================
+      - job_name: envoy-proxy
+        metrics_path: /stats/prometheus
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: envoy-gateway-system
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+            action: keep
+            regex: proxy
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_label_gateway_envoyproxy_io_owning_gateway_name]
+            target_label: gateway
+
+      # =========================
+      # Ollama LLM exporter
+      # =========================
+      - job_name: ollama
+        static_configs:
+          - targets:
+              - ollama-exporter.ai-stack.svc.cluster.local:9401
+        metrics_path: /metrics
+        scrape_interval: 15s
+        honor_labels: true
+
+      # Technitium DNS — exporter sidecar in each pod, scraped per-pod via
+      # the headless Service so each time series gets a `pod` label
+      # (technitium-0/1/2/3) for per-node breakdown in Grafana.
+      - job_name: technitium
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [technitium]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: technitium
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # kube-bench CIS scan results — exporter reads the latest JSON written
+      # by the daily CronJob on a shared PVC and serves Prometheus metrics.
+      - job_name: kube-bench
+        static_configs:
+          - targets:
+              - kube-bench-exporter.kube-bench.svc.cluster.local:9100
+        metrics_path: /metrics
+        scrape_interval: 5m
+
+      # =========================
+      # Kyverno admission/background/cleanup/reports controllers
+      # All four expose /metrics on port 8000 via per-controller Services.
+      # Service names follow the chart helper: {fullname}-svc-metrics for
+      # the admission controller, {fullname}-<role>-metrics for the others.
+      # =========================
+      - job_name: kyverno
+        static_configs:
+          - targets:
+              - kyverno-svc-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: admission
+          - targets:
+              - kyverno-background-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: background
+          - targets:
+              - kyverno-cleanup-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: cleanup
+          - targets:
+              - kyverno-reports-controller-metrics.kyverno.svc.cluster.local:8000
+            labels:
+              controller: reports
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+  sdr-alerts.yml: |
+    groups:
+      - name: sdr-research.pvc
+        interval: 5m
+        rules:
+          - alert: SdrArtifactsPVCFilling
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+                / kubelet_volume_stats_capacity_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+              ) > 0.85
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "sdr-artifacts PVC is {{ $value | humanizePercentage }} full"
+              description: >
+                The sdr-artifacts PVC in sdr-research has exceeded 85% capacity.
+                Consider running recording retention or expanding the volume.
+
+          - alert: SdrArtifactsPVCCritical
+            expr: |
+              (
+                kubelet_volume_stats_used_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+                / kubelet_volume_stats_capacity_bytes{namespace="sdr-research", persistentvolumeclaim="sdr-artifacts"}
+              ) > 0.95
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "sdr-artifacts PVC is {{ $value | humanizePercentage }} full — CRITICAL"
+              description: >
+                The sdr-artifacts PVC in sdr-research has exceeded 95% capacity.
+                New recordings will fail immediately. Run retention now.
+
+      - name: sdr-research.indexer
+        interval: 2m
+        rules:
+          - alert: SdrIndexerStale
+            expr: |
+              time() - sdr_indexer_last_run_timestamp_seconds > 300
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR indexer has not run in >5 minutes"
+              description: >
+                The sdr-research indexer background task appears to have stalled.
+                Check the API pod logs or consider restarting it.
+
+      - name: sdr-research.ollama
+        interval: 5m
+        rules:
+          - alert: SdrOllamaErrorRateHigh
+            expr: |
+              rate(sdr_indexer_ollama_errors_total[10m])
+              / rate(sdr_indexer_ollama_calls_total[10m]) > 0.8
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR Ollama error rate > 80%"
+              description: >
+                More than 80% of Ollama tagging calls are failing.
+                Check that the Ollama service is reachable and the model is loaded.
+
+      - name: sdr-research.queue
+        interval: 5m
+        rules:
+          - alert: SdrPendingTranscriptBacklog
+            expr: sdr_recordings_pending_transcript_total > 200
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR transcription queue > 200 recordings"
+              description: >
+                More than 200 voice/CW recordings are awaiting transcription.
+                The Whisper sidecar may be overloaded or stalled.
+
+          - alert: SdrPendingFreqLabelBacklog
+            expr: sdr_recordings_pending_freq_label_total > 1000
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR frequency label queue > 1000 recordings"
+              description: >
+                More than 1000 recordings are awaiting frequency label assignment.
+                The RepeaterBook sync or known-frequency matcher may be stalled.
+
+          - alert: SdrPendingAiTagsBacklog
+            expr: sdr_recordings_pending_ai_tags_total > 500
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "SDR AI tagging queue > 500 recordings"
+              description: >
+                More than 500 recordings are awaiting Ollama AI tagging.
+                Check that the Ollama service is reachable and processing requests.
+
+          - alert: SdrHardwareOffline
+            expr: sdr_hardware_last_seen_seconds > 900
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "SDR hardware has not produced audio for >15 minutes"
+              description: >
+                No new audio files have been detected from the RTL-SDR hardware
+                in over 15 minutes. Check the rtl-tcp DaemonSet and unified-sdr pod.
+
+          - alert: SdrRepeaterSyncStale
+            expr: sdr_repeater_sync_age_seconds > 172800
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Repeater database not synced in >48 hours"
+              description: >
+                The local RepeaterBook cache has not been updated in over 48 hours.
+                Check the API pod logs for repeater sync errors.
+
+  cluster-alerts.yml: |
+    groups:
+      - name: vpn-proxy
+        interval: 1m
+        rules:
+          - alert: VpnProxyDown
+            expr: kube_pod_container_status_ready{namespace="media",container="gluetun"} == 0
+            for: 2m
+            labels: {severity: critical}
+            annotations:
+              summary: "vpn-proxy (gluetun) not ready for >2m — DNS chain breaks"
+              description: >
+                gluetun pod in media is failing readiness. Liveness should
+                auto-restart within 3 min; the watchdog CronJob restarts on its
+                next 3-min tick. If this fires for >10 min the auto-recovery is
+                broken — check `kubectl -n media logs deploy/vpn-proxy` and
+                `kubectl -n media get cronjob vpn-proxy-watchdog`.
+          - alert: VpnProxyRestartingFrequently
+            expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[1h]) > 3
+            for: 5m
+            labels: {severity: warning}
+            annotations:
+              summary: "vpn-proxy restarted >3× in last hour — flapping"
+      - name: cluster.node-resources
+        interval: 2m
+        rules:
+          - alert: NodeHighCPU
+            expr: |
+              100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} CPU usage > 90%"
+
+          - alert: NodeHighMemory
+            expr: |
+              (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.90
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} memory usage > 90%"
+
+          - alert: NodeDiskFilling
+            expr: |
+              (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Node {{ $labels.instance }} filesystem {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+
+          - alert: NodeDiskCritical
+            expr: |
+              (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.95
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Node {{ $labels.instance }} filesystem {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full — CRITICAL"
+
+      - name: cluster.pvc
+        interval: 5m
+        rules:
+          - alert: PVCFilling
+            expr: |
+              (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) > 0.85
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full"
+
+      - name: cluster.pod-health
+        interval: 2m
+        rules:
+          # Flap-resistant restart counter:
+          #   - Use `increase()` over a 1h window (was rate over 15m × 15
+          #     minutes — same rough math but with a much smaller window
+          #     that hovered right at the threshold and flapped on every
+          #     evaluation tick).
+          #   - Threshold raised from 3 to 8: a pod that restarts <8 times
+          #     per hour is annoying but not actively melting. Genuinely
+          #     stuck pods restart far more.
+          #   - `for: 15m` (was 5m): the metric must stay above the
+          #     threshold for 15 minutes before notifying. Filters out
+          #     short-lived restart bursts (rolling deploys, image pulls,
+          #     etc.) and gives transient issues time to self-heal.
+          - alert: PodCrashLooping
+            expr: |
+              increase(kube_pod_container_status_restarts_total[1h]) > 8
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping ({{ $value | humanize }} restarts in the last hour)"
+
+          - alert: DeploymentReplicasMissing
+            expr: |
+              kube_deployment_spec_replicas - kube_deployment_status_ready_replicas > 0
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has {{ $value }} unavailable replicas"
+
+      - name: cluster.velero
+        interval: 5m
+        rules:
+          - alert: VeleroBackupFailed
+            expr: |
+              increase(velero_backup_failure_total[24h]) > 0
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Velero backup failure detected in the last 24h"
+
+          - alert: VeleroBackupStale
+            expr: |
+              time() - velero_backup_last_successful_timestamp > 172800
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "No successful Velero backup in >48 hours"
+
+      - name: cluster.certificates
+        interval: 15m
+        rules:
+          - alert: CertificateExpiringSoon
+            expr: |
+              certmanager_certificate_expiration_timestamp_seconds - time() < 1209600
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in < 14 days"
+
+          - alert: CertificateExpiryCritical
+            expr: |
+              certmanager_certificate_expiration_timestamp_seconds - time() < 259200
+            for: 0m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in < 3 days"
+
+      # =================================================================
+      # Workload health — catches the failure modes we used to discover
+      # by accident. Added 2026-04-07 after a freshrss-bi-pipeline tag
+      # bump (1.1.1 → 1.1.2) silently broke the dashboard for ~6 weeks
+      # because the new image was never pushed and nothing alerted on
+      # the resulting ImagePullBackOff CronJob iterations.
+      # =================================================================
+      - name: cluster.workloads
+        interval: 2m
+        rules:
+          # A pod has been stuck waiting on an image pull for >10 minutes.
+          # Covers tag-bumped-but-never-pushed, registry outages, typos in
+          # image names, and busted credentials.
+          - alert: ImagePullBackOff
+            expr: |
+              kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} == 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} cannot pull its image ({{ $labels.reason }}) — check that the tag exists in the registry"
+
+          # A recently-started Job owned by a CronJob has failed pods.
+          # The 6-hour `start_time` filter is critical: kube-state-metrics
+          # exposes failed-pod counts for every Job retained in the API
+          # server (controlled by failedJobsHistoryLimit), so without
+          # scoping to recent jobs this alert would spam on stale historical
+          # failures. Fast (5m) so daily/weekly batch jobs page within
+          # minutes of a real failure instead of waiting for the 24h
+          # safety net below.
+          - alert: CronJobIterationFailed
+            expr: |
+              (kube_job_status_failed > 0)
+              * on(namespace, job_name) group_left(owner_kind)
+                  kube_job_owner{owner_kind="CronJob"}
+              * on(namespace, job_name) group_left()
+                  (kube_job_status_start_time > (time() - 21600))
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CronJob iteration {{ $labels.namespace }}/{{ $labels.job_name }} has failed pods (check `kubectl describe job` — usually ImagePullBackOff or runtime error)"
+
+          # The big one — catches CronJobs that have not had a successful
+          # run in the last 24 hours, INCLUDING jobs that have literally
+          # never succeeded (lastSuccessfulTime is null and the metric is
+          # absent entirely, which kube-state-metrics handles by simply
+          # not exporting the series). The `unless` clause inverts that:
+          # any non-suspended cronjob older than 2h that doesn't have a
+          # successful run within the last 86400s fires the alert.
+          #
+          # Validated against the live cluster: this query matches
+          # freshrss/freshrss-bi-pipeline (which has been silently failing
+          # for ~6 weeks since a tag bump that was never built/pushed) —
+          # the exact failure mode that motivated this rule.
+          - alert: CronJobNotSucceedingIn24h
+            expr: |
+              (time() - kube_cronjob_created) > 7200
+              and on(namespace, cronjob) kube_cronjob_spec_suspend == 0
+              unless on(namespace, cronjob)
+                (kube_cronjob_status_last_successful_time > (time() - 86400))
+            for: 15m
+            labels:
+              severity: critical
+            annotations:
+              summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has had no successful run in >24h (or ever) — pipeline is silently broken"
+
+      - name: fleet.availability
+        rules:
+          - alert: FleetDown
+            expr: up{job="fleet"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fleet server pod {{ $labels.pod }} is down — devices cannot enroll or check in"
+
+          - alert: FleetAllReplicasDown
+            expr: absent(up{job="fleet"} == 1)
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "All Fleet replicas are down"
+
+          - alert: FleetMySQLDown
+            expr: up{job="fleet-mysqld"} == 0
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fleet MySQL is down — Fleet API will be unavailable"
+
+      - name: fleet.capacity
+        rules:
+          - alert: FleetMySQLDiskHigh
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              > 0.75
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysql PVC > 75% full"
+
+          - alert: FleetMySQLDiskCritical
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql"}
+              > 0.90
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "fleet-mysql PVC > 90% full — expand the PVC NOW"
+
+          - alert: FleetMysqlDumpsDiskHigh
+            expr: |
+              kubelet_volume_stats_used_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+              / kubelet_volume_stats_capacity_bytes{namespace="fleet", persistentvolumeclaim="fleet-mysql-dumps"}
+              > 0.80
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysql-dumps PVC > 80% full — check retention or expand"
+
+      - name: fleet.backups
+        rules:
+          - alert: FleetMysqldumpStale
+            expr: |
+              (time() - kube_cronjob_status_last_successful_time{namespace="fleet", cronjob="fleet-mysqldump"})
+              > 43200
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "fleet-mysqldump has not succeeded in >12h (schedule is every 6h)"

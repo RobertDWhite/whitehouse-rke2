@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+      nodeSelector:
+        observability: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
+      containers:
+        - name: grafana
+          image: grafana/grafana
+          envFrom:
+            - secretRef:
+                name: grafana-admin
+          ports:
+            - containerPort: 3000
+          env:
+            # GF_SECURITY_ADMIN_USER / _PASSWORD come from the grafana-admin
+            # SOPS secret via envFrom above. Do not re-add inline values here —
+            # an inline env entry overrides envFrom, and previously pinned the
+            # admin password to "admin".
+            - name: GF_SERVER_ROOT_URL
+              value: "https://grafana.white.fm"
+            - name: GF_MISP_INFLUX_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-unpoller
+                  key: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+            - name: GF_MISP_INFLUX_ORG
+              valueFrom:
+                secretKeyRef:
+                  name: influxdb-unpoller
+                  key: DOCKER_INFLUXDB_INIT_ORG
+
+            # Authentik proxy-provider front-ends both grafana.white.fm and
+            # grafana.internal.white.fm and forwards X-Authentik-* headers.
+            - name: GF_AUTH_PROXY_ENABLED
+              value: "true"
+            - name: GF_AUTH_PROXY_HEADER_NAME
+              value: "X-authentik-username"
+            - name: GF_AUTH_PROXY_HEADER_PROPERTY
+              value: "username"
+            # Do not auto-create Grafana users on first proxy-auth hit. New
+            # users must be provisioned explicitly; this prevents anyone who
+            # can spoof X-authentik-username from materializing an account.
+            - name: GF_AUTH_PROXY_AUTO_SIGN_UP
+              value: "false"
+            - name: GF_AUTH_PROXY_HEADERS
+              value: "Email:X-authentik-email Name:X-authentik-name Login:X-authentik-username Groups:X-authentik-groups"
+            - name: GF_AUTH_PROXY_HEADERS_ENCODED
+              value: "false"
+            - name: GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN
+              value: "true"
+            # Only trust proxy-auth headers from the in-cluster Authentik outpost.
+            # Source IPs hitting :3000 are authentik-server pods (Envoy routes
+            # grafana.white.fm at authentik-server, which proxies here with
+            # X-authentik-* headers). Service CIDR (10.43/16) is never a source
+            # IP, so it was dropped. The pod CIDR (10.42/16) is the tightest
+            # honest scope until authentik-server is pinned to specific nodes —
+            # 5 replicas with podAntiAffinity span /24 slices across the fleet.
+            # Defense-in-depth lives in the observability NetworkPolicy.
+            - name: GF_AUTH_PROXY_WHITELIST
+              value: "10.42.0.0/16"
+            - name: GF_AUTH_TOKEN_ROTATION_INTERVAL_MINUTES
+              value: "720"
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+            - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
+              value: "Viewer"
+            - name: GF_RENDERING_SERVER_URL
+              value: "http://localhost:8081/render"
+            - name: GF_RENDERING_CALLBACK_URL
+              value: "http://localhost:3000/"
+            - name: GF_RENDERING_RENDERER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: GF_RENDERING_AUTH_TOKEN
+            - name: GF_LOG_FILTERS
+              value: "rendering:debug"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards/dashboardproviders.yaml
+              subPath: dashboardproviders.yaml
+              readOnly: true
+            - name: datasources-provider
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards
+              readOnly: true
+        - name: grafana-image-renderer
+          image: grafana/grafana-image-renderer
+          ports:
+            - containerPort: 8081
+          env:
+            - name: ENABLE_METRICS
+              value: "true"
+            - name: HTTP_PORT
+              value: "8081"
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: GF_RENDERING_AUTH_TOKEN
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: dashboards-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: datasources-provider
+          configMap:
+            name: grafana-datasources
+        - name: dashboards
+          projected:
+            sources:
+              - configMap:
+                  name: observability-grafana-dashboards
+              - configMap:
+                  name: observability-grafana-dashboards-imported
+              - configMap:
+                  name: observability-grafana-dashboards-unifi-dpi
+              - secret:
+                  name: observability-grafana-dashboards-private

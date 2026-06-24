@@ -1,0 +1,320 @@
+fresh_rss:
+  # Example: https://freshrss.example.com/api/greader.php
+  greader_api_url: "https://freshrss.example.com/api/greader.php"
+  username: "api-user"
+  api_password: "replace-with-freshrss-api-password"
+  verify_tls: true
+  timeout_seconds: 20
+  retry_attempts: 3
+  retry_backoff_seconds: 2
+  page_size: 100
+  max_items: 300
+  unread_only: true
+  lookback_hours: 72
+
+ai:
+  enabled: true
+  # For Ollama OpenAI mode include /v1.
+  # Example: http://ollama.ai-stack.svc.cluster.local:11434/v1
+  base_url: "http://ollama.ai-stack.svc.cluster.local:11434/v1"
+  api_key: "dummy"
+  model: "llama3.1:8b"
+  temperature: 0.1
+  max_tokens: 700
+  timeout_seconds: 45
+  retry_attempts: 2
+  retry_backoff_seconds: 1.5
+
+enrichment:
+  enabled: true
+  timeout_seconds: 12
+  verify_tls: true
+  max_chars: 7000
+  min_summary_chars: 260
+  user_agent: "FreshRSS-BI-Enricher/1.0"
+  # Optional domain skip list for paywalled or noisy sources.
+  skip_domains: []
+
+taxonomy:
+  event_types:
+    - pricing_change
+    - outage_incident
+    - security_incident
+    - layoffs_reorg
+    - funding_mna
+    - product_launch
+    - cloud_cost_signal
+    - regulatory_change
+    - partner_change
+    - customer_reference
+    - other
+
+scoring:
+  # Scores are clamped to 0-100, and customer min_alert_score values are
+  # also clamped into this range.
+  min_alert_score: 45
+  default_weights:
+    keyword_match: 5.5
+    competitor_match: 8.0
+    cloud_match: 7.0
+    feed_match: 30.0
+    domain_match: 12.0
+    context_match: 4.0
+    urgency: 4.0
+    health_risk: 20.0
+    cloud_spend_pressure: 20.0
+    churn_risk: 16.0
+    renewal_risk: 16.0
+    novelty: 10.0
+    renewal_window_boost: 10.0
+    renewal_window_days: 90
+    strategic_priority_match: 6.0
+    stack_confirmed_match: 7.0
+    stack_possible_match: 3.5
+    open_risk_match: 5.0
+    committee_priority_match: 4.5
+    memory_topic_match: 3.0
+    memory_unresolved_match: 4.0
+    stage_boosts:
+      at_risk: 8.0
+      expansion: 5.0
+      onboarding: 3.0
+
+dynamic_thresholds:
+  enabled: true
+  percentile: 0.82
+  blend_weight: 0.65
+  min_history: 30
+  clamp_min: 25
+  clamp_max: 90
+  history_size: 400
+
+alert_routing:
+  min_confidence_for_alert: 0.5
+  watchlist_score_floor: 30
+  positive_signal_opportunity_floor: 35
+  cooldown_hours: 48
+  no_signal_days: 7
+  needs_data:
+    enabled: true
+    score_floor: 25
+    confidence_max: 0.45
+    min_summary_chars: 110
+    max_evidence_snippets: 1
+    require_missing_link: false
+
+feedback:
+  enabled: false
+  file: "./feedback/labels.jsonl"
+  min_samples_for_adjustment: 5
+  max_adjustment: 0.25
+
+customers:
+  - id: acme_health
+    name: Acme Health
+    url: "https://acmehealth.example.com"
+    min_alert_score: 50
+    feed_urls:
+      - "https://acmehealth.example.com/press-releases/rss"
+    keywords:
+      - acme health
+      - epic
+      - cerner
+      - healthcare
+      - cms
+      - hipaa
+    competitors:
+      - datadog
+      - microsoft
+      - google cloud
+    cloud_keywords:
+      - aws
+      - azure
+      - gcp
+      - cloud pricing
+      - egress
+      - kubernetes
+    tech_stack:
+      - epic
+      - cerner
+      - aws
+    strategic_themes:
+      - patient data protection
+      - cloud modernization
+    known_risks:
+      - ransomware
+      - outage
+    renewal_date: "2026-11-15"
+    business_context:
+      segment: enterprise_healthcare
+      arr: 420000
+      contract_value: 510000
+      stage: at_risk
+      products_owned:
+        - core-platform
+        - security-module
+      products_evaluating:
+        - analytics-addon
+      active_use_cases:
+        - patient-data-protection
+        - cloud-cost-optimization
+      stack_confirmed:
+        - aws
+        - epic
+        - snowflake
+      stack_possible:
+        - datadog
+        - splunk
+      exec_priorities:
+        - hipaa compliance
+        - cloud cost control
+        - uptime
+      open_risks:
+        - ransomware
+        - incident response maturity
+      decision_committee:
+        - role: CIO
+          influence: 0.9
+          priorities:
+            - reliability
+            - compliance
+        - role: VP Engineering
+          influence: 0.8
+          priorities:
+            - cloud cost
+            - platform stability
+    event_type_weights:
+      security_incident: 12
+      outage_incident: 10
+      pricing_change: 9
+      regulatory_change: 8
+
+  - id: northwind_saas
+    name: Northwind SaaS
+    url: "https://northwindsaas.example.com"
+    min_alert_score: 48
+    feed_urls:
+      - "https://northwindsaas.example.com/blog/rss"
+      - "https://northwindsaas.example.com/news/rss"
+    keywords:
+      - northwind
+      - saas spend
+      - finops
+      - platform engineering
+      - renewal
+    competitors:
+      - snowflake
+      - databricks
+      - atlassian
+    cloud_keywords:
+      - commit discount
+      - cloud bill
+      - reserved instances
+      - aws
+      - azure
+      - gcp
+    context_terms:
+      - platform engineering
+      - data governance
+      - cost optimization
+    renewal_date: "2026-09-30"
+    business_context:
+      segment: enterprise_saas
+      arr: 280000
+      contract_value: 330000
+      stage: expansion
+      products_owned:
+        - observability-core
+      products_evaluating:
+        - finops-insights
+      active_use_cases:
+        - cloud-governance
+        - product-analytics
+      stack_confirmed:
+        - aws
+        - databricks
+      stack_possible:
+        - snowflake
+        - atlassian
+      exec_priorities:
+        - cost optimization
+        - engineering velocity
+      open_risks:
+        - renewal uncertainty
+      decision_committee:
+        - role: CTO
+          influence: 0.9
+          priorities:
+            - platform engineering
+            - governance
+    event_type_weights:
+      cloud_cost_signal: 12
+      pricing_change: 11
+      layoffs_reorg: 7
+      funding_mna: 6
+
+customer_tiers:
+  default_tier: standard
+  tiers:
+    - name: strategic
+      min_arr: 400000
+      score_multiplier: 1.12
+      threshold_adjustment: -4
+    - name: growth
+      min_arr: 200000
+      max_arr: 399999
+      score_multiplier: 1.05
+      threshold_adjustment: -2
+    - name: standard
+      min_arr: 0
+      max_arr: 199999
+      score_multiplier: 1.0
+      threshold_adjustment: 0
+
+playbooks:
+  default:
+    security_incident:
+      - Trigger security-impact check with account team within 24h.
+      - Prepare customer-facing risk brief and mitigation options.
+    outage_incident:
+      - Confirm affected workloads and draft stakeholder update.
+    pricing_change:
+      - Model renewal impact and prepare optimization recommendations.
+    product_launch:
+      - Identify expansion angle and map to active use cases.
+  by_segment:
+    enterprise_healthcare:
+      regulatory_change:
+        - Assess compliance impact and update executive summary for CIO.
+    enterprise_saas:
+      cloud_cost_signal:
+        - Run cost benchmark and propose commit-discount strategy.
+
+state:
+  file: "./state/bi_pipeline_state.json"
+  keep_seen_ids: 15000
+  story_state_max_items: 10000
+  theme_history_size: 60
+  account_memory_max_items: 10
+
+output:
+  directory: "./output"
+  top_n_per_customer: 5
+  # Optional output retention controls.
+  # Set retention_days to 0 to disable age-based pruning.
+  retention_days: 30
+  # Set max_run_directories to 0 to disable count-based pruning.
+  max_run_directories: 400
+  webhook_url: ""
+  webhook_timeout_seconds: 10
+
+influxdb:
+  enabled: false
+  # Example in-cluster service URL:
+  # http://influxdb.observability.svc.cluster.local:8086
+  url: "http://influxdb.observability.svc.cluster.local:8086"
+  org: "home"
+  bucket: "homeassistant"
+  token: ""
+  timeout_seconds: 10
+  measurement_prefix: "freshrss_bi"

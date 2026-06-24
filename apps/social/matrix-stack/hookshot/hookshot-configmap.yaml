@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hookshot-config
+  namespace: matrix
+data:
+  config.yml: |
+    bridge:
+      domain: white.fm
+      url: http://synapse:8008
+      mediaUrl: https://matrix.white.fm
+      port: 9993
+      bindAddress: 0.0.0.0
+
+    logging:
+      level: info
+      colorize: false
+
+    passFile: /secrets/passkey.pem
+
+    bot:
+      displayname: Hookshot
+
+    generic:
+      enabled: true
+      urlPrefix: https://webhooks.white.fm/webhook/
+      allowJsTransformationFunctions: true
+      waitForComplete: false
+
+    widgets:
+      publicUrl: https://hookshot.white.fm/widgetapi/v1/static
+      branding:
+        widgetTitle: Hookshot
+      roomSetupWidget:
+        addOnInvite: true
+      disallowedIpRanges: []
+
+    listeners:
+      - port: 9000
+        bindAddress: 0.0.0.0
+        resources:
+          - webhooks
+      - port: 5065
+        bindAddress: 0.0.0.0
+        resources:
+          - widgets
+
+    cache:
+      redisUri: redis://matrix-redis:6379
+
+    encryption:
+      storagePath: /data/encryption
+
+    permissions:
+      - actor: white.fm
+        services:
+          # "*" covers generic webhooks, feeds, github, etc. — the legacy
+          # "webhooks" string matches no ServiceCategory and silently denies
+          # provisioning via the widget API.
+          - service: "*"
+            level: admin

@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sstv-decoder
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sstv-decoder
+  template:
+    metadata:
+      labels:
+        app: sstv-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      containers:
+        - name: sstv-decoder
+          image: registry.internal.white.fm/sstv-decoder
+          securityContext:
+            allowPrivilegeEscalation: false
+          # Entrypoint baked into the image since 1.0.3 — no runtime patching.
+          # AUDIO_DIRS, EXTRA_SSTV_RANGES, MIN_FILE_AGE_SEC_* are read directly
+          # from the env block below by /sstv-entrypoint.py.
+          command: ["python3", "/sstv-entrypoint.py"]
+          env:
+            - name: SDL_VIDEODRIVER
+              value: "offscreen"
+            - name: SDL_AUDIODRIVER
+              value: "dummy"
+            # Primary: /data/audio/sstv (written by ft8-wspr-decoder, stable
+            # on first sight). Secondary: /data/audio/voice (written by
+            # unified-sdr; race-resistant snapshot in the entrypoint).
+            - name: AUDIO_DIRS
+              value: "/data/audio/sstv,/data/audio/voice,/data/hf/audio/sstv"
+            - name: SSTV_OUTPUT_DIR
+              value: "/data/images/sstv"
+            - name: MIN_FILE_AGE_SEC_SSTV
+              value: "1"
+            - name: MIN_FILE_AGE_SEC_VOICE
+              value: "8"
+            - name: POLL_INTERVAL_SEC
+              value: "5"
+            # Extra SSTV frequency ranges: "lo_hz:hi_hz:label,..."
+            # HF SSTV calling frequencies ±25 kHz
+            - name: EXTRA_SSTV_RANGES
+              value: "14205000:14255000:20m,21315000:21365000:15m,28655000:28705000:10m,7146000:7196000:40m"
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: artifacts-hf
+              mountPath: /data/hf
+              readOnly: true
+            - name: scripts
+              mountPath: /sstv-entrypoint.py
+              subPath: sstv-entrypoint.py
+              readOnly: true
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -Eq 'python3|slowrx'"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -Eq 'python3|slowrx'"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: artifacts-hf
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-hf
+        - name: scripts
+          configMap:
+            name: sstv-decoder-scripts
+            defaultMode: 0755

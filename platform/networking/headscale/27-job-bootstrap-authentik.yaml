@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: headscale-authentik-bootstrap
+  namespace: headscale
+  annotations:
+    # Run on every ArgoCD sync; replace prior Job before recreating.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      name: headscale-authentik-bootstrap
+    spec:
+      serviceAccountName: headscale-authentik-bootstrap
+      restartPolicy: OnFailure
+      # node-14 has a known flannel VTEP / DNS issue (see memory) — pods
+      # scheduled there can't resolve docker.io. Pin away from it.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
+      containers:
+        - name: bootstrap
+          image: alpine/k8s:1.30.2
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "/scripts/bootstrap.sh"]
+          env:
+            - name: AUTHENTIK_URL
+              value: "https://auth.white.fm"
+            - name: AUTHENTIK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-bootstrap-token
+                  key: token
+            - name: APP_NAME
+              value: "Headscale"
+            - name: APP_SLUG
+              value: "headscale"
+            - name: PROVIDER_NAME
+              value: "headscale"
+            - name: REDIRECT_URI
+              value: "https://headscale.white.fm/oidc/callback"
+            - name: LAUNCH_URL
+              value: "https://headscale.white.fm"
+            - name: GROUP_NAME
+              value: "headscale-users"
+            - name: HEADSCALE_NAMESPACE
+              value: "headscale"
+            - name: HEADSCALE_SECRET_NAME
+              value: "headscale-oidc"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+      volumes:
+        - name: script
+          configMap:
+            name: headscale-authentik-bootstrap
+            defaultMode: 0755

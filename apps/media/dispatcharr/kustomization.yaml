@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - 10-pvc.yaml
+  - 20-deployment-postgres.yaml
+  - 25-service-postgres.yaml
+  - 30-deployment-redis.yaml
+  - 35-service-redis.yaml
+  - 40-deployment-web.yaml
+  - 45-service-web.yaml
+  - 50-deployment-celery.yaml
+  - 21-postgres-exporter.yaml
+  - 31-redis-exporter.yaml
+  - 70-metallb.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: postgres
+    newTag: "14"
+    digest: "sha256:a209aced4fa19381231fae4d9a4c5816f7691294f13572f8bddc082ba32e1c7c"
+  - name: redis
+    newTag: "8.6.3"
+    digest: "sha256:4d25e2fe601f7ffaeb4437cb6ced3518bc36edf34ebe98863c80836943d94529"
+  - name: ghcr.io/dispatcharr/dispatcharr
+    newTag: "0.18.1-20260206020542"
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.19.1"
+  - name: oliver006/redis_exporter
+    newTag: "v1.86.0"

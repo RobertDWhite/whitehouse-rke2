@@ -1,0 +1,86 @@
+# RX888 MkII SoapySDR remote server.
+# Disabled by default because the always-on SoapyRemote server keeps the RX888
+# busy and prevents local decoders (ft8-wspr-decoder, hfdl-decoder) from
+# opening the radio.  Enable ONLY when a remote Soapy client is needed AND
+# all local decoders are scaled to 0.
+#
+# To enable:
+#   kubectl label node rke2-node-12 sdr.white.fm/rx888-remote-enabled=true
+# To disable again:
+#   kubectl label node rke2-node-12 sdr.white.fm/rx888-remote-enabled-
+#
+# Build and push the image before deploying:
+#   docker buildx build --platform linux/amd64 --push \
+#     -t registry.internal.white.fm/soapy-rx888-server:1.0.5-amd64 \
+#     -f sdr-research/Dockerfile.soapy-rx888 sdr-research/
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rx888-soapy
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: rx888-soapy
+  template:
+    metadata:
+      labels:
+        app: rx888-soapy
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-12
+        sdr.white.fm/rx888-remote-enabled: "true"
+      containers:
+        - name: rx888-soapy
+          image: registry.internal.white.fm/soapy-rx888-server:1.0.7-amd64
+          securityContext:
+            privileged: true
+          env:
+            - name: SDR_USB_PROBE_REGEX
+              value: "RX888|RX-888|RX999|RXLucy|HF103|BBRF103|FX3|Cypress|SDDC"
+          ports:
+            - containerPort: 55132
+              name: soapy
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  found_proc=0
+                  for f in /proc/[0-9]*/comm; do
+                    [ "$(cat "$f")" = "SoapySDRServer" ] && found_proc=1 && break
+                  done
+                  [ "$found_proc" -eq 1 ] || exit 1
+                  for d in /sys/bus/usb/devices/*; do
+                    [ -f "$d/idVendor" ] || continue
+                    dev="$(cat "$d/manufacturer" 2>/dev/null) $(cat "$d/product" 2>/dev/null) $(cat "$d/idVendor" 2>/dev/null):$(cat "$d/idProduct" 2>/dev/null)"
+                    printf '%s\n' "$dev" | grep -Eiq "${SDR_USB_PROBE_REGEX}" && exit 0
+                  done
+                  exit 1
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"SoapySDRServer\" ] && exit 0; done; exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

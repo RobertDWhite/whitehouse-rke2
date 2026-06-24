@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: codex-refresh
+  namespace: codex-refresh
+spec:
+  # Refresh every 6 days at 03:00 UTC. Access tokens are valid ~10 days so this
+  # leaves headroom; refresh tokens have a sliding expiration that requires
+  # periodic use to stay alive.
+  schedule: "0 3 */6 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          serviceAccountName: codex-refresh
+          restartPolicy: OnFailure
+          containers:
+            - name: refresh
+              image: alpine/k8s:1.31.1
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/refresh.sh"]
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          volumes:
+            - name: script
+              configMap:
+                name: codex-refresh-script
+                defaultMode: 0555

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intelowl-uwsgi-conf
+data:
+  intel_owl.ini: |
+    [uwsgi]
+    chdir = /opt/deploy/intel_owl
+    module = intel_owl.wsgi:application
+    master = true
+    processes = 4
+    threads = 2
+    socket = :8001
+    http-timeout = 300
+    harakiri = 300
+    buffer-size = 65535
+    vacuum = true
+    die-on-term = true
+    enable-threads = true
+    lazy-apps = true
+    stats = 127.0.0.1:1717
+    stats-http = true
+    max-requests = 5000
+    max-worker-lifetime = 3600
+    reload-on-rss = 2048
+    worker-reload-mercy = 60
+    static-map = /static=/opt/deploy/intel_owl/static

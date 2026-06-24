@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lazylibrarian
+  namespace: calibre
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: lazylibrarian
+  template:
+    metadata:
+      labels:
+        app: lazylibrarian
+      annotations:
+        backup.velero.io/backup-volumes-excludes: downloads
+    spec:
+      containers:
+        - name: lazylibrarian
+          image: lscr.io/linuxserver/lazylibrarian:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5299
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5299
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5299
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 5
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: "America/New_York"
+            - name: HTTP_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: HTTPS_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,.cluster.local,.svc,.local,.white.fm"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: books
+              mountPath: /books
+            - name: downloads
+              mountPath: /downloads
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: lazylibrarian-config
+        - name: books
+          persistentVolumeClaim:
+            claimName: calibre-books
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: lazylibrarian-downloads

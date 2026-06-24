@@ -1,0 +1,147 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ultrafeeder
+  namespace: adsb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ultrafeeder
+  template:
+    metadata:
+      labels:
+        app: ultrafeeder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-15
+
+      containers:
+      - name: ultrafeeder
+        image: ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-adsb-ultrafeeder
+        ports:
+        - name: http
+          containerPort: 80
+        - name: beast
+          containerPort: 30005
+
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+
+        env:
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_TZ
+
+        - name: DEVICE_TYPE
+          value: "rtlsdr"
+        - name: READSB_DEVICE_TYPE
+          value: "rtlsdr"
+
+        - name: DEVICE
+          value: "1090"
+        - name: READSB_RTLSDR_DEVICE
+          value: "1090"
+        - name: READSB_RTLSDR_PPM
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: ADSB_SDR_PPM
+
+        - name: GAIN
+          value: "49.6"
+        - name: READSB_GAIN
+          value: "49.6"
+
+        - name: LAT
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LAT
+        - name: READSB_LAT
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LAT
+
+        - name: LON
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LONG
+        - name: READSB_LON
+          valueFrom:
+            configMapKeyRef:
+              name: feeder-config
+              key: FEEDER_LONG
+
+        - name: RX_LOCATION_ACCURACY
+          value: "2"
+
+        - name: TAR1090
+          value: "true"
+        - name: GRAPHS1090
+          value: "true"
+        - name: ENABLE_MLAT
+          value: "true"
+        - name: MLATHUB_DISABLE
+          value: "false"
+
+        - name: READSB_AUTOGAIN_INITIAL_INTERVAL
+          value: "0"
+        - name: READSB_AUTOGAIN_SUBSEQUENT_INTERVAL
+          value: "0"
+        - name: GRAPHS1090_REDUCE_IO
+          value: "true"
+
+        volumeMounts:
+        - name: dev-usb
+          mountPath: /dev/bus/usb
+        - name: rrd
+          mountPath: /run/collectd
+        - name: autogain
+          mountPath: /run/autogain
+        - name: globe-history
+          mountPath: /var/globe_history
+        - name: varlog
+          mountPath: /var/log
+        - name: ultrafeeder-run
+          mountPath: /run/ultrafeeder
+
+        securityContext:
+          privileged: true
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+
+      volumes:
+      - name: dev-usb
+        hostPath:
+          path: /dev/bus/usb
+          type: Directory
+      - name: rrd
+        emptyDir: {}
+      - name: autogain
+        emptyDir: {}
+      - name: globe-history
+        emptyDir: {}
+      - name: varlog
+        emptyDir:
+          medium: Memory
+      - name: ultrafeeder-run
+        emptyDir:
+          medium: Memory

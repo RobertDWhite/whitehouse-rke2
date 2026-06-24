@@ -1,0 +1,15 @@
+apiVersion: viaduct.ai/v1
+kind: Ksops
+metadata:
+  name: technitium-secret-generator
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - 30-secret.sops.yaml
+  - 35-zones-secret.sops.yaml
+  - 45-blocklists-secret.sops.yaml
+  - 46-unifi-creds-secret.sops.yaml
+  - 60-secret-dnscrypt-proxy.sops.yaml
+  - 70-networkpolicy.sops.yaml

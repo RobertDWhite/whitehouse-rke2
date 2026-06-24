@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: technitium-web
+  namespace: technitium
+spec:
+  type: ClusterIP
+  selector:
+    app: technitium
+    statefulset.kubernetes.io/pod-name: technitium-0
+  ports:
+    - name: http
+      port: 5380
+      protocol: TCP
+      targetPort: 5380

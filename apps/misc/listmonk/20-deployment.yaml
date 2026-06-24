@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: listmonk
+  namespace: listmonk
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  # Recreate (not RollingUpdate): the entrypoint runs DB --install/--upgrade migrations
+  # against a single shared DB, so two pods must never run concurrently.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: listmonk
+  template:
+    metadata:
+      labels:
+        app: listmonk
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14]
+      initContainers:
+        # Block startup until Postgres accepts connections so --install doesn't crashloop.
+        - name: wait-for-db
+          image: postgres
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U listmonk; do
+                echo "waiting for postgres..."; sleep 2
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+      containers:
+        - name: listmonk
+          image: listmonk/listmonk
+          # Canonical listmonk entrypoint: idempotent schema install, then migrate, then serve.
+          # --config '' makes it ignore any config.toml and read configuration from env only.
+          command:
+            - sh
+            - -c
+            - "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"
+          ports:
+            - containerPort: 9000
+          env:
+            - name: TZ
+              value: America/New_York
+            - name: LISTMONK_app__address
+              value: "0.0.0.0:9000"
+            - name: LISTMONK_db__host
+              value: postgres
+            - name: LISTMONK_db__port
+              value: "5432"
+            - name: LISTMONK_db__user
+              value: listmonk
+            - name: LISTMONK_db__database
+              value: listmonk
+            - name: LISTMONK_db__ssl_mode
+              value: disable
+            - name: LISTMONK_db__max_open
+              value: "25"
+            - name: LISTMONK_db__max_idle
+              value: "25"
+            - name: LISTMONK_db__max_lifetime
+              value: "300s"
+            - name: LISTMONK_db__password
+              valueFrom:
+                secretKeyRef:
+                  name: listmonk-secrets
+                  key: db-password
+            # Creates/maintains the Super Admin on --install (listmonk v3+).
+            - name: LISTMONK_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: listmonk-secrets
+                  key: admin-user
+            - name: LISTMONK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: listmonk-secrets
+                  key: admin-password
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: uploads
+              mountPath: /listmonk/uploads
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: listmonk-uploads

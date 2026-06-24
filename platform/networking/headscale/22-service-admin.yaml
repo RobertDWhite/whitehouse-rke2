@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: headscale-admin
+  namespace: headscale
+  labels:
+    app: headscale-admin
+spec:
+  type: ClusterIP
+  selector:
+    app: headscale-admin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ollama-exporter-script
+  namespace: ai-stack
+data:
+  exporter.py: |
+    #!/usr/bin/env python3
+    """Prometheus exporter for Ollama — polls /api/ps, /api/tags, /api/version."""
+    import json
+    import logging
+    import os
+    import time
+    import urllib.error
+    import urllib.request
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from threading import Lock, Thread
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger(__name__)
+
+    POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "15"))
+    LISTEN_PORT = int(os.getenv("LISTEN_PORT", "9401"))
+    RAW_INSTANCES = os.getenv(
+        "OLLAMA_INSTANCES",
+        "http://ollama.ai-stack.svc.cluster.local:11434,"
+        "http://ollama-5090.ai-stack.svc.cluster.local:11434",
+    )
+    INSTANCES = [u.strip() for u in RAW_INSTANCES.split(",") if u.strip()]
+
+    _lock = Lock()
+    _state: dict = {}
+
+
+    def _fetch(url: str, timeout: int = 5):
+        """Return (data_dict_or_none, latency_seconds)."""
+        t0 = time.monotonic()
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read()), time.monotonic() - t0
+        except Exception:
+            return None, time.monotonic() - t0
+
+
+    def _instance_label(url: str) -> str:
+        # "http://ollama.ai-stack.svc.cluster.local:11434" → "ollama"
+        host = url.replace("http://", "").replace("https://", "").split(":")[0]
+        return host.split(".")[0]
+
+
+    def _collect_one(url: str) -> dict:
+        label = _instance_label(url)
+
+        ver, lat_ver = _fetch(f"{url}/api/version")
+        up = 1 if ver else 0
+
+        if not up:
+            return {
+                "instance": label, "url": url, "up": 0,
+                "version": "unknown",
+                "lat_ver": lat_ver, "lat_ps": 0.0, "lat_tags": 0.0,
+                "ps": [], "tags": [],
+            }
+
+        ps, lat_ps = _fetch(f"{url}/api/ps")
+        tags, lat_tags = _fetch(f"{url}/api/tags")
+
+        return {
+            "instance": label, "url": url, "up": 1,
+            "version": (ver or {}).get("version", "unknown"),
+            "lat_ver": lat_ver, "lat_ps": lat_ps, "lat_tags": lat_tags,
+            "ps": (ps or {}).get("models", []),
+            "tags": (tags or {}).get("models", []),
+        }
+
+
+    def collect_all():
+        fresh = {}
+        for url in INSTANCES:
+            try:
+                m = _collect_one(url)
+                fresh[m["instance"]] = m
+            except Exception as exc:
+                log.warning("collect %s: %s", url, exc)
+        with _lock:
+            _state.clear()
+            _state.update(fresh)
+
+
+    def _q(s: str) -> str:
+        """Escape label value."""
+        return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+    def render() -> str:
+        with _lock:
+            snap = {k: dict(v) for k, v in _state.items()}
+
+        lines: list[str] = []
+
+        def hdr(name, help_text, typ="gauge"):
+            lines.append(f"# HELP {name} {help_text}")
+            lines.append(f"# TYPE {name} {typ}")
+
+        # ── up ──────────────────────────────────────────────────────────────
+        hdr("ollama_up", "1 if Ollama instance is reachable")
+        for m in snap.values():
+            lines.append(f'ollama_up{{instance="{_q(m["instance"])}"}} {m["up"]}')
+
+        # ── version info ────────────────────────────────────────────────────
+        hdr("ollama_build_info", "Ollama version (always 1; use labels for version)")
+        for m in snap.values():
+            if m["up"]:
+                lines.append(
+                    f'ollama_build_info{{instance="{_q(m["instance"])}",version="{_q(m["version"])}"}} 1'
+                )
+
+        # ── model counts ────────────────────────────────────────────────────
+        hdr("ollama_models_loaded_total", "Models currently loaded in GPU/CPU memory")
+        for m in snap.values():
+            lines.append(
+                f'ollama_models_loaded_total{{instance="{_q(m["instance"])}"}} {len(m["ps"])}'
+            )
+
+        hdr("ollama_models_available_total", "Models downloaded and available on disk")
+        for m in snap.values():
+            lines.append(
+                f'ollama_models_available_total{{instance="{_q(m["instance"])}"}} {len(m["tags"])}'
+            )
+
+        # ── loaded model details ─────────────────────────────────────────────
+        hdr("ollama_model_vram_bytes", "VRAM bytes consumed by a loaded model")
+        for m in snap.values():
+            for mdl in m["ps"]:
+                name = mdl.get("name") or mdl.get("model", "unknown")
+                det = mdl.get("details") or {}
+                quant = det.get("quantization_level", "unknown")
+                family = det.get("family", "unknown")
+                params = det.get("parameter_size", "unknown")
+                lines.append(
+                    f'ollama_model_vram_bytes{{instance="{_q(m["instance"])}",'
+                    f'model="{_q(name)}",family="{_q(family)}",'
+                    f'quantization="{_q(quant)}",parameters="{_q(params)}"}} {mdl.get("size_vram", 0)}'
+                )
+
+        hdr("ollama_model_size_bytes", "Total size bytes of a loaded model")
+        for m in snap.values():
+            for mdl in m["ps"]:
+                name = mdl.get("name") or mdl.get("model", "unknown")
+                det = mdl.get("details") or {}
+                quant = det.get("quantization_level", "unknown")
+                lines.append(
+                    f'ollama_model_size_bytes{{instance="{_q(m["instance"])}",'
+                    f'model="{_q(name)}",quantization="{_q(quant)}"}} {mdl.get("size", 0)}'
+                )
+
+        # ── available model catalogue ────────────────────────────────────────
+        hdr("ollama_available_model_size_bytes", "Disk size of each downloaded model")
+        for m in snap.values():
+            seen: set[str] = set()
+            for mdl in m["tags"]:
+                name = mdl.get("name") or mdl.get("model", "unknown")
+                if name in seen:
+                    continue
+                seen.add(name)
+                det = mdl.get("details") or {}
+                quant = det.get("quantization_level", "unknown")
+                family = det.get("family", "unknown")
+                params = det.get("parameter_size", "unknown")
+                lines.append(
+                    f'ollama_available_model_size_bytes{{instance="{_q(m["instance"])}",'
+                    f'model="{_q(name)}",family="{_q(family)}",'
+                    f'quantization="{_q(quant)}",parameters="{_q(params)}"}} {mdl.get("size", 0)}'
+                )
+
+        # ── API response latency ─────────────────────────────────────────────
+        hdr("ollama_api_response_seconds", "Latency of Ollama REST API endpoint (seconds)")
+        for m in snap.values():
+            for ep, key in [("version", "lat_ver"), ("ps", "lat_ps"), ("tags", "lat_tags")]:
+                lines.append(
+                    f'ollama_api_response_seconds{{instance="{_q(m["instance"])}",'
+                    f'endpoint="{ep}"}} {m[key]:.4f}'
+                )
+
+        lines.append("")
+        return "\n".join(lines)
+
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            if self.path.rstrip("/") in ("/metrics", ""):
+                body = render().encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+
+    def _poll_loop():
+        collect_all()
+        while True:
+            time.sleep(POLL_INTERVAL)
+            try:
+                collect_all()
+            except Exception as exc:
+                log.error("poll error: %s", exc)
+
+
+    if __name__ == "__main__":
+        log.info("ollama-exporter starting on :%d, instances: %s", LISTEN_PORT, INSTANCES)
+        Thread(target=_poll_loop, daemon=True).start()
+        HTTPServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()

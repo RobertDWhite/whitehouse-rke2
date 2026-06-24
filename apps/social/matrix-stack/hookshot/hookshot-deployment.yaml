@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-hookshot
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matrix-hookshot
+  template:
+    metadata:
+      labels:
+        app: matrix-hookshot
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-05-04T00:00:00Z"
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: hookshot
+          image: halfshot/matrix-hookshot
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 9993
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 9993
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          command: ["node"]
+          args:
+            - "--require"
+            - "source-map-support/register"
+            - "/usr/bin/matrix-hookshot/App/BridgeApp.js"
+            - "/data/config.yml"
+            - "/data/registration.yml"
+          ports:
+            - containerPort: 9000
+              name: webhooks
+            - containerPort: 9993
+              name: appservice
+            - containerPort: 5065
+              name: widgets
+          volumeMounts:
+            - name: config
+              mountPath: /data/config.yml
+              subPath: config.yml
+            - name: secrets
+              mountPath: /data/registration.yml
+              subPath: registration.yaml
+            - name: secrets
+              mountPath: /secrets/passkey.pem
+              subPath: passkey.pem
+            - name: data
+              mountPath: /data/encryption
+      volumes:
+        - name: config
+          configMap:
+            name: hookshot-config
+        - name: secrets
+          secret:
+            secretName: hookshot-secrets
+        - name: data
+          persistentVolumeClaim:
+            claimName: hookshot-data

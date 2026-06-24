@@ -1,0 +1,114 @@
+# Second RTL-SDR dongle for 70cm (432 MHz band)
+# Requires a second USB RTL-SDR dongle with serial "00000002" on rke2-node-13.
+# To set the serial on the dongle: rtl_eeprom -d <index> -s 00000002
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rtl-sdr-tcp-70cm
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: rtl-sdr-tcp-70cm
+  template:
+    metadata:
+      labels:
+        app: rtl-sdr-tcp-70cm
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      containers:
+        - name: rtl-tcp-70cm
+          image: legacycode/rtlsdr
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          ports:
+            - containerPort: 1235
+              name: rtl-tcp-70cm
+          env:
+            - name: RTL_DEVICE_SERIAL
+              value: "00000002"
+            - name: RTL_SAMPLE_RATE
+              value: "2400000"
+            - name: RTL_GAIN
+              value: "auto"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
+              echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
+
+              # Unbind dvb_usb_rtl28xxu from all RTL-SDR devices — the kernel
+              # DVB driver claims generic RTL2838 dongles, blocking librtlsdr.
+              DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
+              if [ -d "$DVB_DRV" ]; then
+                for dev in "$DVB_DRV"/*/; do
+                  devid=$(basename "$dev")
+                  case "$devid" in
+                    *:*) echo -n "$devid" > "$DVB_DRV/unbind" 2>/dev/null && \
+                         echo "Unbound $devid from dvb_usb_rtl28xxu" || true ;;
+                  esac
+                done
+              fi
+
+              echo "Starting rtl_tcp for 70cm UHF band (serial ${RTL_DEVICE_SERIAL})"
+              # Resolve serial to device index via rtl_tcp enumeration.
+              # rtl_eeprom is unreliable on hot-plugged devices; rtl_tcp -d 99
+              # always prints the full device list before failing on the invalid index.
+              ENUM=$(rtl_tcp -d 99 2>&1 || true)
+              DEV_INDEX=$(echo "$ENUM" | grep "SN:.*${RTL_DEVICE_SERIAL}" | sed 's/^ *\([0-9]*\):.*/\1/')
+              if [ -z "$DEV_INDEX" ]; then
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found via enumeration"
+                echo "$ENUM"
+                echo "Defaulting to device index 0"
+                DEV_INDEX=0
+              fi
+              echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
+              while true; do
+                # -n 500 = max queued linked-list buffers (rtl_tcp default).
+                # Was -n 32, which starved the gnuradio osmosdr consumer on any
+                # network/USB jitter -> "worker cond timeout" -> client SIGPIPE
+                # -> flowgraph "socket error" -> CrashLoopBackOff. 500 gives
+                # ~16x headroom at trivial RAM cost (~2 MB extra).
+                rtl_tcp \
+                  -d ${DEV_INDEX} \
+                  -a 0.0.0.0 \
+                  -p 1235 \
+                  -s ${RTL_SAMPLE_RATE} \
+                  -n 500
+                echo "rtl_tcp exited, restarting in 2s..."
+                sleep 2
+              done
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

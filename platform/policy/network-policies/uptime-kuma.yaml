@@ -1,0 +1,39 @@
+# =============================================================
+# uptime-kuma namespace — Status monitoring
+# =============================================================
+# Like observability, this is a monitoring system that needs to reach
+# everything. Restricting egress ports just breaks monitors silently.
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-ingress
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: uptime-kuma
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}

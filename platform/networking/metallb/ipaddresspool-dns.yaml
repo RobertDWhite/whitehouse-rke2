@@ -1,0 +1,10 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: dns-pool
+  namespace: metallb-system
+spec:
+  # .50/.51 = Technitium DNS LB; .52-.55 = per-pod; .56-.59 spare
+  addresses:
+    - 10.99.5.50-10.99.5.59
+  autoAssign: false

@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ai-stack
+
+resources:
+  - 00-namespace.yaml
+  - 05-priorityclass-gpu.yaml
+  - 06-priorityclass-cpu.yaml
+  - 10-ollama-deployment.yaml
+  - 12-ollama-5090-deployment.yaml
+#  - 15-ollama-deployment-cpu.yaml
+  - 20-openwebui-deployment.yaml
+  - 21-sd-deployment.yaml
+  - 30-ollama-svc.yaml
+  - 31-ollama-metallb.yaml
+  - 32-ollama-5090-svc.yaml
+  - 34-authentik-proxy.yaml
+  - 35-openwebui-svc.yaml
+  - 36-sd-svc.yaml
+#  - 40-ollama-pvc.yaml
+  - 41-storageclass.yaml
+#  - 45-openwebui-pvc.yaml
+#  - 46-sd-pvc.yaml
+  - 95-ollama-exporter-configmap.yaml
+  - 96-ollama-exporter-deployment.yaml
+  - 97-ollama-exporter-service.yaml
+  - 98-ollama-router-configmap.yaml
+  - 99-ollama-router-deployment.yaml
+  - 99b-ollama-router-svc.yaml
+
+commonLabels:
+  managed-by: argocd
+  app.kubernetes.io/part-of: ai-stack
+
+images:
+  - name: ollama/ollama
+    newTag: "0.24.0"
+    digest: "sha256:a6149234667efc71d37766d61c1a16f24c33e4cd7a0bf4125c44a7e47e2419c4"
+
+  - name: quay.io/go-skynet/local-ai
+    newTag: "master-nvidia-l4t-arm64-cuda-13"
+
+  - name: ghcr.io/open-webui/open-webui
+    newTag: "main"
+
+  - name: nginx
+    newTag: "1.31-alpine"
+
+  - name: python
+    newTag: "3.14-alpine"

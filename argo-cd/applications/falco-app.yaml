@@ -1,0 +1,81 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: falco
+  namespace: argocd
+spec:
+  project: security
+  source:
+    chart: falco
+    repoURL: https://falcosecurity.github.io/charts
+    targetRevision: 8.0.1
+    helm:
+      values: |
+        driver:
+          kind: modern_ebpf
+
+        metrics:
+          enabled: true
+          interval: 5m
+
+        falco:
+          webserver:
+            prometheus_metrics_enabled: true
+
+        services:
+          - name: falco-metrics
+            type: ClusterIP
+            ports:
+              - port: 8765
+                targetPort: 8765
+                protocol: TCP
+                name: metrics
+
+        falcosidekick:
+          enabled: true
+          config:
+            loki:
+              hostport: "http://loki.observability.svc.cluster.local:3100"
+              extralabels: "from:falcosidekick"
+            webhook:
+              # Posts to a Matrix room (!jwEzzWQBepIokbJtfX:white.fm) via hookshot.
+              # The state event in that room carries a transformationFunction
+              # that formats this JSON into readable text/HTML.
+              address: "https://webhooks.white.fm/webhook/f8cb8268-2ce1-4a57-8aac-617db41695d2"
+              minimumpriority: "error"
+            # Re-export falco events as Prometheus metrics on the falcosidekick :2801
+            # /metrics endpoint (falcosecurity_falcosidekick_falco_events_total{priority,
+            # priority_raw,rule,source,...}), scraped for the Glance Falco tile. No
+            # extralabels: falcosidekick treats that as a list of event FIELDS to promote,
+            # and a "key:value" string becomes an invalid label name (colon) that makes
+            # the whole /metrics page unparseable for Prometheus (up=0).
+            prometheus: {}
+          webui:
+            enabled: true
+            replicaCount: 1
+            ttl: 604800
+            redis:
+              storageSize: "5Gi"
+
+        tolerations:
+          - effect: NoSchedule
+            operator: Exists
+
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/arch
+                      operator: In
+                      values:
+                        - amd64
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: falco
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

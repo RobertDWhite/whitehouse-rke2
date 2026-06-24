@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: politics
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment-api.yaml
+  - 11-deployment-ui.yaml
+  - 20-service-api.yaml
+  - 21-service-ui.yaml
+  - 30-configmap-config.yaml
+  - 52-httproute-public.yaml
+  - 53-httproute-internal.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/politics-api
+    newName: registry.internal.white.fm/politics-api
+    newTag: "2.0.0"
+  - name: registry.internal.white.fm/politics-ui
+    newName: registry.internal.white.fm/politics-ui
+    newTag: "2.0.4"

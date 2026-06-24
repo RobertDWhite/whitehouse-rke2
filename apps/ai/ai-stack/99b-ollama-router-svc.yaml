@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama-router
+  namespace: ai-stack
+spec:
+  selector:
+    app: ollama-router
+  ports:
+    - port: 11434
+      targetPort: 11434
+      name: ollama

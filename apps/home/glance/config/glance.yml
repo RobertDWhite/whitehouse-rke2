@@ -1,0 +1,3082 @@
+pages:
+- name: Home
+  columns:
+  - size: small
+    widgets:
+    - type: search
+      search-engine: duckduckgo
+      new-tab: true
+      bangs:
+        - title: YouTube
+          shortcut: '!yt'
+          url: https://www.youtube.com/results?search_query={QUERY}
+        - title: GitHub
+          shortcut: '!gh'
+          url: https://github.com/search?q={QUERY}&type=repositories
+        - title: Plex
+          shortcut: '!plex'
+          url: https://app.plex.tv/desktop/#!/search?query={QUERY}
+        - title: Immich
+          shortcut: '!photos'
+          url: https://photos.internal.white.fm/search?q={QUERY}
+        - title: Wikipedia
+          shortcut: '!w'
+          url: https://en.wikipedia.org/w/index.php?search={QUERY}
+    - type: clock
+      hour-format: 24h
+    - type: calendar
+      first-day-of-week: sunday
+    - type: custom-api
+      title: Weather Forecast
+      body-type: string
+      cache: 1h
+      options:
+        location: ${WEATHER_LOCATION}
+        temp_unit: fahrenheit
+      template: |-
+        {{/* THESE VALUES CAN BE CHANGED BY ADDING AN ENTRY TO THE OPTIONS SECTION */}}
+          {{ $temp_unit := .Options.StringOr "temp_unit" "celsius" }}
+          {{ $weekend_color := .Options.StringOr "weekend_color" "var(--color-separator)" }}
+          {{ $overlay_color := .Options.StringOr "overlay_color" "hsl(var(--bghs), var(--bgl), 50%)" }}
+          {{/* the following variables define the coloring of the sunny/cloudy/etc. weather icons*/}}
+            {{ $color_clear := .Options.StringOr "color_clear" "var(--color-text-highlight)" }}
+            {{ $color_partly := .Options.StringOr "color_partly" "var(--color-text-highlight)"}}
+            {{ $color_cloud := .Options.StringOr "color_cloud" "var(--color-text-highlight)"}}
+            {{ $color_smog := .Options.StringOr "color_smog" "var(--color-text-highlight)"}}
+            {{ $color_drizzle := .Options.StringOr "color_drizzle" "var(--color-text-highlight)"}}
+            {{ $color_rain := .Options.StringOr "color_rain" "var(--color-text-highlight)"}}
+            {{ $color_freezing_rain := .Options.StringOr "color_freezing_rain" "var(--color-text-highlight)"}}
+            {{ $color_snow := .Options.StringOr "color_snow" "var(--color-text-highlight)"}}
+            {{ $color_thunderstorm := .Options.StringOr "color_thunderstorm" "var(--color-text-highlight)"}}
+            {{ $color_other := .Options.StringOr "color_other" "var(--color-text-highlight)"}}
+          {{/* the following variables define the temperature gradient coloring for the daily rectangles */}}
+          {{ $color_red := .Options.StringOr "color_red" "var(--color-negative)" }}
+          {{ $color_yellow := .Options.StringOr "color_yellow" "var(--color-text-subdue)" }}
+          {{ $color_blue := .Options.StringOr "color_blue" "var(--color-positive)" }}
+          {{ $color_white := .Options.StringOr "color_white" "var(--color-text-highlight)" }}
+          {{ $temp_red := .Options.FloatOr "temp_red" 27 }}
+          {{ $temp_yellow := .Options.FloatOr "temp_yellow" 20 }}
+          {{ $temp_blue := .Options.FloatOr "temp_blue" 10.0 }}
+          {{ $temp_white := .Options.FloatOr "temp_white" 0 }}
+          {{ if eq $temp_unit "fahrenheit" }}
+            {{ $temp_red = .Options.FloatOr "temp_red" 80.0 }}
+            {{ $temp_yellow = .Options.FloatOr "temp_yellow" 70.0 }}
+            {{ $temp_blue = .Options.FloatOr "temp_blue" 50.0 }}
+            {{ $temp_white = .Options.FloatOr "temp_white" 30.0 }}
+          {{end}}
+
+        {{/* Coordinates hardcoded for Middletown, OH — Open-Meteo geocoding resolves "Middletown" to the wrong city */}}
+        {{ $latitude := "39.51506" }}
+        {{ $longitude := "-84.39828" }}
+
+        {{/* Request 2: get daily weather forecast based on latitude and longitude */}}
+        {{ $url2 := printf "https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s&temperature_unit=%s&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=America/New_York" $latitude $longitude $temp_unit}}
+        {{ $req2 := newRequest $url2 | getResponse }}
+
+        <div style="display: flex; justify-content: center; align-items: center; flex-direction: column;">
+
+          {{/* Show abbreivated day of week */}}
+          {{ $dates := $req2.JSON.Array "daily.time" }}
+          <div style="position: relative; width: 100%; height: 25px;">
+            {{ range $index, $date := $dates }}
+
+              {{/* prepare to print M Tu W Th F Sa Su */}}
+              {{ $dateString := .String "" }}
+              {{ $parsedDate := $dateString | parseTime "DateOnly" }}
+              {{ $dayOfWeek := $parsedDate.Format "Monday" | trimSuffix "day" | trimSuffix "on" | trimSuffix "es" | trimSuffix "edn" |
+                  trimSuffix "urs" | trimSuffix "ri" | trimSuffix "tur" | trimSuffix "n" }}
+
+              {{/* highlight weekends (Sa Su) */}}
+              {{ $day_color := "" }}
+              {{ if eq $dayOfWeek "Sa" "Su" }}
+                {{ $day_color = $weekend_color }}
+              {{ end }}
+
+              <div style="text-align: center; width: 10%; height: 25px; line-height: 25px; margin: 0 10% 0 3%; left: {{ mul $index 14 }}%; position: absolute; background-color: {{ $day_color | safeCSS }} ">
+                <p class="size-h4 color-paragraph">{{ $dayOfWeek }}</p>
+              </div>
+            {{ end }}
+          </div>
+
+          {{/* Show numeric day of month */}}
+          <div style="position: relative; width: 100%; height: 25px;">
+            {{ range $index, $date := $dates }}
+              {{ $dateString := .String "" }}
+              {{ $trimmedDate := replaceMatches "[0-9]+-[0-9]+-" "" $dateString }}
+              <div style="text-align: center; width: 10%; height: 25px; line-height: 25px; margin: 0 10% 0 3%; left: {{ mul $index 14 }}%; position: absolute;">
+                <p class="size-h4 color-paragraph">{{ $trimmedDate }}</p>
+              </div>
+            {{ end }}
+          </div>
+
+          {{/* Show weather conditions using fontawesome icons */}}
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+          {{ $codes := $req2.JSON.Array "daily.weathercode" }}
+
+          <div style="position: relative; width: 100%; height: 30px;">
+            {{ range $index, $thiscode := $codes }}
+              {{ $code := .Int "" }}
+
+              <div style="text-align: center; width: 10%; height: 25px; line-height: 25px; margin: 0 10% 0 3%; left: {{ mul $index 14 }}% ; position: absolute;">
+              {{ $wtype := "" }}
+              {{ $wicon := "" }}
+              {{ $wcolor := "" }}
+              {{ if eq $code 0 }}
+                {{ $wtype = "Clear" }}
+                {{ $wicon = "fas fa-sun" }}
+                {{ $wcolor = $color_clear }}
+              {{ else if eq $code 1 2 }}
+                {{ $wtype = "Part Clear" }}
+                {{ $wicon = "fas fa-cloud-sun" }}
+                {{ $wcolor = $color_partly }}
+              {{ else if eq $code 3 }}
+                {{ $wtype = "Cloudy" }}
+                {{ $wicon = "fas fa-cloud" }}
+                {{ $wcolor = $color_cloud }}
+              {{ else if eq $code 45 48 }}
+                {{ $wtype = "Fog" }}
+                {{ $wicon = "fas fa-smog" }}
+                {{ $wcolor = $color_smog }}
+              {{ else if eq $code 51 53 55 56 57 }}
+                {{ $wtype = "Drizzle" }}
+                {{ $wicon = "fas fa-cloud-rain" }}
+                {{ $wcolor = $color_drizzle }}
+              {{ else if eq $code 61 63 65 80 81 82 }}
+                {{ $wtype = "Rain" }}
+                {{ $wicon = "fas fa-cloud-showers-heavy" }}
+                {{ $wcolor = $color_rain }}
+              {{ else if eq $code 66 67 }}
+                {{ $wtype = "Freezing Rain" }}
+                {{ $wicon = "fas fa-snowflake" }}
+                {{ $wcolor = $color_freezing_rain }}
+              {{ else if eq $code 71 73 75 77 85 86 }}
+                {{ $wtype = "Snow" }}
+                {{ $wicon = "fas fa-snowman" }}
+                {{ $wcolor = $color_snow }}
+              {{ else if eq $code 95 96 99 }}
+                {{ $wtype = "Thunderstorm" }}
+                {{ $wicon = "fas fa-bolt" }}
+                {{ $wcolor = $color_thunderstorm }}
+              {{ else }}
+                {{ $wtype = "Other" }}
+                {{ $wicon = "fa-solid fa-question" }}
+                {{ $wcolor = $color_other }}
+              {{ end }}
+              <i class={{ $wicon }} style="font-size: 20px; color: {{ $wcolor | safeCSS }};", title = {{$wtype }}></i>
+              </div>
+            {{ end }}
+          </div>
+        </div>
+
+        {{/* ===== show daily min and max temperatures ===== */}}
+        {{ $maxTemps := $req2.JSON.Array "daily.temperature_2m_max" }}
+        {{ $minTemps := $req2.JSON.Array "daily.temperature_2m_min" }}
+
+        {{/* get overall max and min temp over week's range */}}
+        {{/* to determine vertical scale */}}
+        <div style="display: flex; justify-content: flex-start; align-items: center;">
+
+          {{ $max_max := 0 }}
+          {{ range $maxTemps }}
+              {{ if gt (.Int "") $max_max }}
+                {{ $max_max = (.Int "") }}
+              {{ end }}
+          {{ end }}
+          {{ $min_min := 999 }}
+          {{ range $minTemps }}
+              {{ if lt (.Int "") $min_min }}
+                {{ $min_min = (.Int "") }}
+              {{ end }}
+          {{ end }}
+
+          {{/* add a small buffer */}}
+          {{ $max_max = add $max_max 1 }}
+          {{ $min_min = sub $min_min 1 }}
+
+          {{/* outer div to contain the temp chart */}}
+          <div style="position: relative; width: 100%; height: 75px;">
+            {{/* get relative % heights for each daily max and min */}}
+            {{ $temp_range := sub $max_max $min_min }}
+
+            {{ range $index, $thisHigh := $maxTemps }}
+                {{ $thisLow := index $minTemps $index }}
+                {{ $thisHigh = $thisHigh.Float "" }}
+                {{ $thisLow = $thisLow.Float "" }}
+
+                {{ $thisHighPct := sub 1 (div (sub $max_max $thisHigh) $temp_range) }}
+                {{ $thisLowPct := div (sub $thisLow $min_min) $temp_range }}
+
+                {{/* define color gradient per. values between $temp_red and $temp_yellow are shown as a color gradient from $color_red to $color_yellow */}}
+                {{/* for colors partially in range, can represent as negative percent */}}
+                {{ $thisTempRange := sub $thisHigh $thisLow }}
+                {{ $red_pos := mul 100 (div (sub $thisHigh $temp_red) $thisTempRange) | toInt }}
+                {{ $yel_pos := mul 100 (div (sub $thisHigh $temp_yellow) $thisTempRange) | toInt }}
+                {{ $blu_pos := mul 100 (div (sub $thisHigh $temp_blue) $thisTempRange) | toInt }}
+                {{ $whi_pos := mul 100 (div (sub $thisHigh $temp_white) $thisTempRange) | toInt }}
+                {{ $gradient_string := printf "%s %d%%, %s %d%%, %s %d%%, %s %d%%" $color_red $red_pos $color_yellow $yel_pos $color_blue $blu_pos $color_white $whi_pos }}
+
+                {{/* output daily div */}}
+                <div style="left: {{ mul $index 14 | add 3 }}%; bottom: {{ mul $thisLowPct 100 | toInt }}%;
+                  height: {{ mul (sub $thisHighPct $thisLowPct) 100 | toInt }}%; position: absolute;
+                  background:linear-gradient({{ $gradient_string | safeCSS }}); width: 10%; text-align: center; border-radius: 10px;">
+
+                  {{/* Based on rectangle height & position, print high and low temperatures either inside or outside the rectangle. */}}
+                  {{ $top_pos := -2 }}
+                  {{ $bot_pos := -2 }}
+                  {{ $pos_thresh := 0.20 }}
+                  {{ if lt (div $thisTempRange $temp_range) $pos_thresh }}
+                    {{ $top_pos = -17 }}
+                    {{ $bot_pos = -19 }}
+                  {{ else if and (lt (div $thisTempRange $temp_range) (mul $pos_thresh 2)) (lt (sub 1 $thisHighPct) $thisLowPct) }}
+                    {{ $bot_pos = -19 }}
+                  {{ else if and (lt (div $thisTempRange $temp_range) (mul $pos_thresh 2)) (gt (sub 1 $thisHighPct) $thisLowPct) }}
+                    {{ $top_pos = -17 }}
+                  {{ end }}
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: {{ $overlay_color | safeCSS }}; z-index: 1;  border-radius: 10px;">
+                      <p style='color: #F0F0F0; position: absolute; top: {{ $top_pos }}px; left: 0px; right: 0px'>{{ $thisHigh | toInt }}</p>
+                      <p style='color: #F0F0F0; position: absolute; bottom: {{ $bot_pos }}px; left: 0px; right:0px'>{{ $thisLow | toInt }}</p>
+                    </div>
+                  </div>
+            {{ end }}
+
+          </div>
+        </div>
+    - type: custom-api
+      title: Air Quality
+      cache: 10m
+      url: https://api.waqi.info/feed/geo:${WAQI_LAT};${WAQI_LON}/?token=${WAQI_TOKEN}
+      template: |-
+        {{ $aqi := printf "%03s" (.JSON.String "data.aqi") }}
+        {{ $aqiraw := .JSON.String "data.aqi" }}
+        {{ $updated := .JSON.String "data.time.iso" }}
+        {{ $humidity := .JSON.String "data.iaqi.h.v" }}
+        {{ $ozone := .JSON.String "data.iaqi.o3.v" }}
+        {{ $pm25 := .JSON.String "data.iaqi.pm25.v" }}
+        {{ $pressure := .JSON.String "data.iaqi.p.v" }}
+
+        <div class="flex justify-between">
+          <div class="size-h5">
+            {{ if le $aqi "050" }}
+              <div class="color-positive">Good air quality</div>
+            {{ else if le $aqi "100" }}
+              <div class="color-primary">Moderate air quality</div>
+            {{ else }}
+              <div class="color-negative">Bad air quality</div>
+            {{ end }}
+          </div>
+        </div>
+
+        <div class="color-highlight size-h2">AQI: {{ $aqiraw }}</div>
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+
+        <div class="margin-block-2">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+
+            <div>
+              <div class="size-h3 color-highlight">{{ $humidity }}%</div>
+              <div class="size-h6">HUMIDITY</div>
+            </div>
+
+            <div>
+              <div class="size-h3 color-highlight">{{ $ozone }} μg/m³</div>
+              <div class="size-h6">OZONE</div>
+            </div>
+
+            <div>
+              <div class="size-h3 color-highlight">{{ $pm25 }} μg/m³</div>
+              <div class="size-h6">PM2.5</div>
+            </div>
+
+            <div>
+              <div class="size-h3 color-highlight">{{ $pressure }} hPa</div>
+              <div class="size-h6">PRESSURE</div>
+            </div>
+
+          </div>
+
+          <div class="size-h6" style="margin-top: 10px;">Last Updated at {{ slice $updated 11 16 }}</div>
+        </div>
+    - type: markets
+      title: Stocks
+      cache: 30m
+      markets:
+        - symbol: PE0W
+        - symbol: ARM
+        - symbol: NVDA
+        - symbol: SPCX
+        - symbol: QACDS
+        - symbol: AMD
+        - symbol: CUBE
+        - symbol: GEV
+        - symbol: WM
+        - symbol: VSMAC
+        - symbol: CVX
+        - symbol: INTX
+        - symbol: AAPL
+        - symbol: CRWV
+        - symbol: WFC
+        - symbol: UPS
+        - symbol: RIVN
+        - symbol: VZ
+        - symbol: NTSK
+        - symbol: CMCSA
+        - symbol: GE
+        - symbol: VSNT
+        - symbol: AITX
+    - type: markets
+      title: Mutual Funds
+      cache: 6h
+      markets:
+        - symbol: FXAIX
+        - symbol: FSPGX
+        - symbol: FSKAX
+        - symbol: VFTAX
+        - symbol: VTTSX
+        - symbol: PGOYX
+        - symbol: OIERX
+        - symbol: ARTKX
+        - symbol: RNWGX
+        - symbol: VWILX
+        - symbol: DODIX
+        - symbol: PIREX
+        - symbol: VEVIX
+        - symbol: PJGQX
+        - symbol: VFIJX
+        - symbol: BSIIX
+        - symbol: FIHBX
+        - symbol: FGCIX
+        - symbol: PFORX
+        - symbol: FDRXX
+        - symbol: SPAXX
+    - type: markets
+      title: Crypto
+      cache: 15m
+      markets:
+        - symbol: BTC-USD
+        - symbol: ETH-USD
+        - symbol: XRP-USD
+        - symbol: SHIB-USD
+        - symbol: BTT-USD
+        - symbol: TRX-USD
+        - symbol: BABYDOGE-USD
+  - size: full
+    widgets:
+    - type: search
+      search-engine: https://searxng.internal.white.fm/search?q={QUERY}
+      new-tab: true
+      autofocus: true
+    - type: bookmarks
+      title: White House
+      groups:
+      - title: System Monitoring
+        links:
+        - title: Portainer
+          url: https://portainer.internal.white.fm
+          icon: di:portainer
+        - title: Uptime Kuma
+          url: https://status.internal.white.fm
+          icon: di:uptime-kuma
+        - title: Authentik
+          url: https://auth.internal.white.fm
+          icon: di:authentik
+        - title: ArgoCD
+          url: https://argo.internal.white.fm
+          icon: di:argo-cd
+        - title: Grafana
+          url: https://grafana.internal.white.fm
+          icon: di:grafana
+        - title: Longhorn
+          url: https://longhorn.internal.white.fm
+          icon: di:longhorn
+        - title: Rancher
+          url: https://rancher.white.fm
+          icon: di:rancher
+        - title: Falco
+          url: https://falco.internal.white.fm
+          icon: di:falco
+      - title: Networking
+        links:
+        - title: Technitium
+          url: https://technitium.internal.white.fm
+          icon: di:technitium
+        - title: Cloudflare
+          url: https://dash.cloudflare.com/
+          icon: di:cloudflare
+        - title: Headplane
+          url: https://headplane.internal.white.fm
+          icon: di:headscale
+      - title: Media
+        links:
+        - title: Tautulli
+          url: https://tautulli.internal.white.fm
+          icon: di:tautulli
+        - title: HDHomeRun
+          url: http://10.100.7.30
+        - title: Dispatcharr
+          url: https://tv.internal.white.fm
+        - title: Ombi
+          url: https://ombi.internal.white.fm
+          icon: di:ombi
+      - title: Media Management
+        links:
+        - title: Radarr
+          url: https://radarr.internal.white.fm
+          icon: di:radarr
+        - title: Sonarr
+          url: https://sonarr.internal.white.fm
+          icon: di:sonarr
+        - title: Readarr
+          url: https://readarr.internal.white.fm
+          icon: di:readarr
+        - title: Bazarr
+          url: https://bazarr.internal.white.fm
+          icon: di:bazarr
+        - title: Lazylibrarian
+          url: https://lazylibrarian.internal.white.fm
+          icon: di:lazylibrarian
+        - title: Filebot
+          url: https://filebot.internal.white.fm
+          icon: di:filebot
+      - title: Books & Reading
+        links:
+        - title: Kavita
+          url: https://kavita.internal.white.fm
+          icon: di:kavita
+        - title: Audiobookshelf
+          url: https://abs.internal.white.fm
+          icon: di:audiobookshelf
+        - title: Calibre Web
+          url: https://books.internal.white.fm
+          icon: di:calibre-web
+        - title: Shelfmark
+          url: https://shelfmark.internal.white.fm
+        - title: Wallabag
+          url: https://wallabag.internal.white.fm
+          icon: di:wallabag
+      - title: Photos
+        links:
+        - title: Immich
+          url: https://photos.internal.white.fm
+          icon: di:immich
+      - title: Communication
+        links:
+        - title: Element
+          url: https://element.internal.white.fm
+          icon: di:element
+        - title: Mastodon
+          url: https://mastodon.internal.whitematter.tech
+          icon: di:mastodon
+        - title: Ntfy
+          url: https://ntfy.internal.white.fm
+          icon: di:ntfy
+        - title: FreshRSS
+          url: https://rss.internal.white.fm
+          icon: di:freshrss
+        - title: ZNC
+          url: https://znc.white.fm
+      - title: AI & Research
+        links:
+        - title: Open WebUI
+          url: https://openwebui.internal.white.fm
+          icon: di:open-webui
+        - title: Ollama
+          url: https://ollama.internal.white.fm
+          icon: di:ollama
+        - title: SDR Research
+          url: https://sdr.internal.white.fm
+        - title: RStudio
+          url: https://rstudio.white.fm
+          icon: di:rstudio
+        - title: SearXNG
+          url: https://searxng.internal.white.fm
+          icon: di:searxng
+        - title: Odysseus
+          url: https://odysseus.internal.white.fm
+      - title: Intelligence & Security
+        links:
+        - title: MISP
+          url: https://intel.internal.white.fm
+        - title: IntelOwl
+          url: https://intelowl.internal.white.fm
+        - title: OpenCTI
+          url: https://opencti.internal.white.fm
+        - title: Raven
+          url: https://raven.internal.white.fm
+        - title: Yeti
+          url: https://yeti.internal.white.fm
+        - title: OpenClaw
+          url: https://openclaw.internal.white.fm
+      - title: Radio & Tracking
+        links:
+        - title: ADS-B
+          url: https://adsb.internal.w3rdw.radio
+        - title: FlightRadar24
+          url: https://fr24.internal.w3rdw.radio
+        - title: Jetlog
+          url: https://jetlog.internal.white.fm
+        - title: Keeptrack
+          url: https://satellites.white.fm
+        - title: Ground Station
+          url: https://sat.internal.white.fm
+        - title: OpenHamClock
+          url: https://hamclock.internal.w3rdw.radio
+      - title: Smart Home
+        links:
+        - title: Home Assistant
+          url: https://homeassistant.internal.white.fm
+          icon: di:home-assistant
+        - title: Homebridge
+          url: https://homebridge.internal.white.fm
+          icon: di:homebridge
+        - title: Scrypted
+          url: https://scrypted.internal.white.fm
+          icon: di:scrypted
+      - title: Apps
+        links:
+        - title: Weather
+          url: https://weather.internal.white.fm
+        - title: Astronomy
+          url: https://astronomy.internal.white.fm
+        - title: Politics
+          url: https://politics.internal.white.fm
+        - title: World Monitor
+          url: https://worldmonitor.internal.white.fm
+        - title: Hub
+          url: https://hub.internal.white.fm
+        - title: Backoffice
+          url: https://backoffice.internal.white.fm
+        - title: Homeschool
+          url: https://homeschool.internal.white.fm
+        - title: MySpeed
+          url: https://speed.internal.white.fm
+        - title: CyberChef
+          url: https://cyberchef.internal.white.fm
+        - title: Congress Trades
+          url: https://congress.internal.white.fm
+        - title: App Store Reviews
+          url: https://appstore.internal.white.fm
+        - title: Badges
+          url: https://badges.internal.white.fm
+        - title: Listmonk
+          url: https://listmonk.internal.white.fm
+          icon: di:listmonk
+        - title: Homarr
+          url: https://homarr.internal.white.fm
+          icon: di:homarr
+        - title: Wallabag
+          url: https://wallabag.internal.white.fm
+          icon: di:wallabag
+        - title: Monica
+          url: https://monica.internal.white.fm
+          icon: di:monica
+        - title: Ancestry (Gramps)
+          url: https://ancestry.internal.white.fm
+        - title: EveryDocs
+          url: https://everydocs.internal.white.fm
+        - title: Fleet
+          url: https://fleet.internal.white.fm
+          icon: di:fleet
+        - title: Headplane
+          url: https://headplane.internal.white.fm
+          icon: di:headscale
+        - title: Nitter
+          url: https://nitter.internal.white.fm
+          icon: di:nitter
+      - title: Downloads
+        links:
+        - title: Prowlarr
+          url: https://prowlarr.internal.white.fm
+          icon: di:prowlarr
+        - title: SABnzbd
+          url: https://sabnzbd.white.fm
+          icon: di:sabnzbd
+        - title: YT-DLP
+          url: https://ytdl.internal.white.fm
+        - title: qBittorrent
+          url: https://qbit.internal.white.fm
+          icon: di:qbittorrent
+    - type: bookmarks
+      title: Personal
+      groups:
+      - title: Social
+        links:
+        - title: Facebook
+          url: https://facebook.white.fm
+          icon: si:facebook
+        - title: X
+          url: https://x.white.fm
+          icon: si:x
+        - title: Nitter
+          url: https://nitter.white.fm
+        - title: Scholar
+          url: https://scholar.white.fm
+          icon: si:googlescholar
+        - title: LinkedIn
+          url: https://linkedin.white.fm
+          icon: si:linkedin
+      - title: Blogs
+        links:
+        - title: WhiteMatter
+          url: https://whitematter.tech
+        - title: W3RDW Radio
+          url: https://w3rdw.radio
+      - title: Developer
+        links:
+        - title: GitHub
+          url: https://github.com
+          icon: si:github
+      - title: Tools
+        links:
+        - title: Synology
+          url: https://synology.internal.white.fm
+          icon: di:synology
+      - title: Finance
+        links:
+        - title: Chase
+          url: https://www.chase.com
+        - title: Amex
+          url: https://www.amex.com
+        - title: Capital One
+          url: https://myaccounts.capitalone.com
+        - title: Citi
+          url: https://citi.com
+        - title: PNC
+          url: https://pnc.com
+        - title: US Bank
+          url: https://usbank.com
+  - size: small
+    widgets:
+    - type: custom-api
+      title: Immich Stats
+      hide-header: true
+      cache: 10m
+      url: ${IMMICH_URL}/api/server/statistics
+      headers:
+        x-api-key: ${IMMICH_KEY}
+      subrequests:
+        storage:
+          url: ${IMMICH_URL}/api/server/storage
+          headers:
+            x-api-key: ${IMMICH_KEY}
+      options:
+        show-cards: true
+        show-storage-bar: true
+      template: |-
+        {{ $photos := .JSON.Int "photos" }}
+        {{ $videos := .JSON.Int "videos" }}
+        {{ $usageBytes := .JSON.Int "usage" }}
+        {{ $usageGiB := div (toFloat $usageBytes) 1073741824.0 }}
+        {{ $storage := .Subrequest "storage" }}
+        {{ $storage_ok := and (ge $storage.Response.StatusCode 200) (le $storage.Response.StatusCode 299) }}
+        {{ $totalGiB := 0.0 }}
+        {{ $percentage := 0.0 }}
+        {{ $storageError := "" }}
+        {{ if $storage_ok }}
+          {{ $totalGiB = div (toFloat ($storage.JSON.Int "diskSizeRaw")) 1073741824.0 }}
+          {{ $percentage = $storage.JSON.Float "diskUsagePercentage" }}
+        {{ else }}
+          {{ $storageError = printf "%d %s" $storage.Response.StatusCode $storage.Response.Status }}
+        {{ end }}
+        {{ $showCards := .Options.BoolOr "show-cards" true }}
+        {{ $showStorageBar := .Options.BoolOr "show-storage-bar" true }}
+
+        {{ if $showCards }}
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;{{ if $showStorageBar }} margin-bottom: 16px;{{ end }}">
+          <!-- Photos Card -->
+          <div style="display: flex; flex-direction: column; justify-content: space-between; background-color: var(--color-widget-background-highlight); border-radius: 12px; padding: 20px; flex: 1; min-width: 200px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <svg style="width: 40px; height: 40px; color: var(--color-primary); flex-shrink: 0;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13.73,15L9.83,21.76C10.53,21.91 11.25,22 12,22C14.4,22 16.6,21.15 18.32,19.75L14.66,13.4M2.46,15C3.38,17.92 5.61,20.26 8.45,21.34L12.12,15M8.54,12L4.64,5.25C3,7 2,9.39 2,12C2,12.68 2.07,13.35 2.2,14H9.69M21.8,10H14.31L14.6,10.5L19.36,18.75C21,16.97 22,14.6 22,12C22,11.31 21.93,10.64 21.8,10M21.54,9C20.62,6.07 18.39,3.74 15.55,2.66L11.88,9M9.4,10.5L14.17,2.24C13.47,2.09 12.75,2 12,2C9.6,2 7.4,2.84 5.68,4.25L9.34,10.6L9.4,10.5Z"/>
+              </svg>
+              <span style="font-weight: 600; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-highlight);">Photos</span>
+            </div>
+            <div style="font-family: ui-monospace, monospace; font-size: 1.85rem; font-weight: 700; color: var(--color-text-highlight); word-break: break-all;">
+              {{ if lt $photos 10 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">000000000</span>{{ else if lt $photos 100 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">00000000</span>{{ else if lt $photos 1000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">0000000</span>{{ else if lt $photos 10000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">000000</span>{{ else if lt $photos 100000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">00000</span>{{ else if lt $photos 1000000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">0000</span>{{ end }}{{ $photos }}
+            </div>
+          </div>
+
+          <!-- Videos Card -->
+          <div style="display: flex; flex-direction: column; justify-content: space-between; background-color: var(--color-widget-background-highlight); border-radius: 12px; padding: 20px; flex: 1; min-width: 200px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <svg style="width: 40px; height: 40px; color: var(--color-primary); flex-shrink: 0;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10,16.5V7.5L16,12M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
+              </svg>
+              <span style="font-weight: 600; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-highlight);">Videos</span>
+            </div>
+            <div style="font-family: ui-monospace, monospace; font-size: 1.85rem; font-weight: 700; color: var(--color-text-highlight); word-break: break-all;">
+              {{ if lt $videos 10 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">000000000</span>{{ else if lt $videos 100 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">00000000</span>{{ else if lt $videos 1000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">0000000</span>{{ else if lt $videos 10000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">000000</span>{{ else if lt $videos 100000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">00000</span>{{ else if lt $videos 1000000 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">0000</span>{{ end }}{{ $videos }}
+            </div>
+          </div>
+
+          <!-- Storage GiB Card -->
+          <div style="display: flex; flex-direction: column; justify-content: space-between; background-color: var(--color-widget-background-highlight); border-radius: 12px; padding: 20px; flex: 1; min-width: 200px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+              <svg style="width: 40px; height: 40px; color: var(--color-primary); flex-shrink: 0;" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11,2V22C5.9,21.5 2,17.2 2,12C2,6.8 5.9,2.5 11,2M13,2V11H22C21.5,6.2 17.8,2.5 13,2M13,13V22C17.7,21.5 21.5,17.8 22,13H13Z"/>
+              </svg>
+              <span style="font-weight: 600; font-size: 1.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-highlight);">Storage</span>
+            </div>
+          <div style="font-family: ui-monospace, monospace; font-size: 1.85rem; font-weight: 700; color: var(--color-text-highlight); word-break: break-all;">
+            {{ $gib := printf "%.0f" $usageGiB }}
+            {{ if lt $usageGiB 10.0 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">000000000</span>{{ else if lt $usageGiB 100.0 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">00000000</span>{{ else if lt $usageGiB 1000.0 }}<span style="color: var(--color-text-subdue); font-weight: 400; opacity: 0.6;">0000000</span>{{ end }}{{ $gib }}<span style="font-size: 1.5rem; font-weight: 500; color: var(--color-text-subdue); margin-left: 8px;">GiB</span>
+          </div>
+          </div>
+        </div>
+        {{ end }}
+
+        {{ if $showStorageBar }}
+        <!-- Progress Bar Section -->
+        <div style="background-color: var(--color-widget-background-highlight); border-radius: 12px; padding: 20px;">
+          <div style="font-weight: 600; color: var(--color-text-highlight); margin-bottom: 8px; font-size: 1.6rem;">Storage space</div>
+          {{ if gt $totalGiB 0.0 }}
+            <div style="color: var(--color-text-highlight); font-size: 1.4rem; margin-bottom: 12px; font-weight: 500;">{{ printf "%.1f" $usageGiB }} GiB of {{ printf "%.1f" $totalGiB }} GiB used</div>
+            <div style="color: var(--color-text-subdue); font-size: 1.35rem; margin-bottom: 12px;">{{ printf "%.1f" $percentage }}% full</div>
+          {{ else }}
+            <div style="color: var(--color-text-highlight); font-size: 1.4rem; margin-bottom: 12px; font-weight: 500;">{{ printf "%.1f" $usageGiB }} GiB used</div>
+            <div style="color: var(--color-text-negative); font-size: 1.35rem; margin-bottom: 12px;">Total storage unavailable ({{ $storageError }}). Ensure API key has permissions for /api/server/storage.</div>
+          {{ end }}
+          <div style="height: 12px; width: 100%; background-color: var(--color-text-subdue); border-radius: 6px; overflow: hidden; opacity: 0.2;">
+            <div style="height: 100%; background-color: var(--color-primary); border-radius: 6px; transition: width 0.3s ease; width: {{ if gt $totalGiB 0.0 }}{{ printf "%.1f" $percentage }}%{{ else }}0%{{ end }};"></div>
+          </div>
+        </div>
+        {{ end }}
+    - type: custom-api
+      title: Immich — On This Day
+      title-url: https://photos.internal.white.fm
+      cache: 6h
+      template: |-
+        {{ $for := offsetNow "0h" | formatTime "rfc3339" }}
+        {{ $resp := newRequest "${IMMICH_URL}/api/memories" | withParameter "for" $for | withHeader "x-api-key" "${IMMICH_KEY}" | getResponse }}
+        {{ if ne $resp.Response.StatusCode 200 }}
+        <p class="size-h6 color-negative" style="text-align: center;">Immich unavailable ({{ $resp.Response.StatusCode }})</p>
+        {{ else }}
+        {{ $mems := $resp.JSON.Array "@this" }}
+        {{ if eq (len $mems) 0 }}
+        <p class="size-h6 color-positive" style="text-align: center;">No memories from this day.</p>
+        {{ else }}
+        {{ $total := 0 }}
+        {{ range $mems }}{{ $total = add $total (.Int "assets.#") }}{{ end }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ $total }}</div><div class="size-h6">PHOTOS</div></div>
+          <div><div class="size-h2 color-highlight">{{ len $mems }}</div><div class="size-h6">YEARS</div></div>
+        </div>
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $mems }}
+          {{ $n := .Int "assets.#" }}
+          <li class="flex justify-between size-h6">
+            <span>{{ .Int "data.year" }}</span>
+            <span class="shrink-0">{{ $n }} photo{{ if ne $n 1 }}s{{ end }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+        {{ end }}
+    - type: custom-api
+      title: Astronomy Picture of the Day
+      cache: 1d
+      url: https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}
+      headers:
+        Accept: application/json
+      template: |-
+        {{- if eq (.JSON.String "media_type") "image" -}}
+          <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; height:100%;">
+            <p class="color-primary" style="margin-bottom:8px; font-weight:bold; text-align:center;">
+              <a
+                href="https://apod.nasa.gov/apod/astropix.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="color: inherit; text-decoration: none;"
+              >
+                {{ .JSON.String "title" }}
+              </a>
+            </p>
+            <img
+              src="{{ .JSON.String "url" }}"
+              alt="{{ .JSON.String "title" }}"
+              style="max-width:100%; height:auto; display:block; border-radius:4px;"
+            />
+          </div>
+        {{- else -}}
+          <p class="color-negative" style="text-align:center;">No image available today.</p>
+        {{- end }}
+    - type: custom-api
+      title: Random Bible Verse
+      cache: 3h
+      url: https://bible-api.com/data/web/random
+      template: |-
+        <p class="size-h2 color-highlight">{{ .JSON.String "random_verse.book" }} {{ .JSON.String "random_verse.chapter" }}:{{ .JSON.String "random_verse.verse" }}</p>
+        <p class="size-h4 color-paragraph">{{ .JSON.String "random_verse.text" }}</p>
+    - type: custom-api
+      title: Headscale Devices
+      title-url: https://headscale.internal.white.fm
+      cache: 5m
+      url: https://headscale.internal.white.fm/api/v1/node
+      headers:
+        Authorization: Bearer ${HEADSCALE_API_KEY}
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+          {{ range .JSON.Array "nodes" }}
+          <li>
+            <div class="flex items-center gap-10">
+              <span class="size-h4 block text-truncate color-highlight grow">{{ .String "givenName" }}</span>
+              {{ if .Bool "online" }}
+              <span style="width:8px;height:8px;border-radius:50%;background-color:var(--color-positive);display:inline-block;" data-popover-type="text" data-popover-text="Online"></span>
+              {{ else }}
+              <span style="width:8px;height:8px;border-radius:50%;background-color:var(--color-negative);display:inline-block;" data-popover-type="text" data-popover-text="Offline - last seen {{ .String "lastSeen" | parseTime "rfc3339" | toRelativeTime }}"></span>
+              {{ end }}
+            </div>
+            <ul class="list-horizontal-text">
+              <li>{{ .String "user.name" }}</li>
+              <li>{{ .String "ipAddresses.0" }}</li>
+            </ul>
+          </li>
+          {{ end }}
+        </ul>
+    - type: custom-api
+      title: Home Assistant
+      title-url: https://homeassistant.internal.white.fm
+      cache: 1m
+      url: ${HA_URL}/api/states
+      headers:
+        Authorization: Bearer ${HA_TOKEN}
+      template: |-
+        {{ $d := .JSON }}
+        {{/* A row renders only if the entity exists. Each block shows
+             current_temperature for climate entities, else state + unit for
+             sensors. Add/swap entity_ids freely. */}}
+
+        <div class="size-h5 color-highlight" style="margin-bottom: 5px;">Climate</div>
+        <ul class="list list-gap-5">
+          {{ $id := "climate.thermostat_1_nativezone" }}
+          {{ $name := $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $t := $d.String (printf "#(entity_id==%q).attributes.current_temperature" $id) }}{{ $u := $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}{{ if $t }}{{ $t }}°{{ else }}{{ $d.String (printf "#(entity_id==%q).state" $id) }}{{ if $u }} {{ $u }}{{ end }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "climate.jacuzzi_j_475_thermostat" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $t := $d.String (printf "#(entity_id==%q).attributes.current_temperature" $id) }}{{ $u := $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}{{ if $t }}{{ $t }}°{{ else }}{{ $d.String (printf "#(entity_id==%q).state" $id) }}{{ if $u }} {{ $u }}{{ end }}{{ end }}</span>
+          </li>
+          {{ end }}
+
+          {{ $id = "sensor.temperature" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span>
+          </li>
+          {{ end }}
+        </ul>
+
+        <div class="size-h5 color-highlight" style="margin: 10px 0 5px;">Energy</div>
+        <ul class="list list-gap-5">
+          {{ $id = "sensor.refrigerator_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+          {{ $id = "sensor.washer_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+          {{ $id = "sensor.dryer_power" }}
+          {{ $name = $d.String (printf "#(entity_id==%q).attributes.friendly_name" $id) }}
+          {{ if $name }}<li class="flex justify-between items-center"><span class="text-truncate">{{ $name }}</span><span class="color-highlight shrink-0">{{ $d.String (printf "#(entity_id==%q).state" $id) }} {{ $d.String (printf "#(entity_id==%q).attributes.unit_of_measurement" $id) }}</span></li>{{ end }}
+        </ul>
+    # FreshRSS category feeds via token-authed RSS export (get=c_<id>).
+    # Category IDs: 3=News, 2=NYM Customers, 4=U.S. Government, 5=U.S. State Government.
+    - type: rss
+      title: News
+      title-url: ${FRESHRSS_URL}/i/?get=c_3
+      style: vertical-list
+      limit: 15
+      collapse-after: 5
+      cache: 30m
+      feeds:
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_3&token=${FRESHRSS_TOKEN}&nb=15
+          title: News
+    - type: rss
+      title: NYM Customers
+      title-url: ${FRESHRSS_URL}/i/?get=c_2
+      style: vertical-list
+      limit: 15
+      collapse-after: 5
+      cache: 30m
+      feeds:
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_2&token=${FRESHRSS_TOKEN}&nb=15
+          title: NYM Customers
+    - type: rss
+      title: U.S. & State Gov
+      title-url: ${FRESHRSS_URL}
+      style: vertical-list
+      limit: 15
+      collapse-after: 6
+      cache: 30m
+      feeds:
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_4&token=${FRESHRSS_TOKEN}&nb=15
+          title: U.S. Gov
+        - url: ${FRESHRSS_URL}/i/?a=rss&get=c_5&token=${FRESHRSS_TOKEN}&nb=15
+          title: State Gov
+    - type: custom-api
+      title: Monica Contacts
+      title-url: https://monica.internal.white.fm
+      cache: 1h
+      # Monica v5 has no reminders API; show recent contacts from the vault instead.
+      url: ${MONICA_URL}/api/vaults/019dc2ab-e6bc-70c8-a9ae-a911a9b9ea29/contacts?limit=15
+      headers:
+        Authorization: Bearer ${MONICA_TOKEN}
+        Accept: application/json
+      template: |-
+        {{ $c := .JSON.Array "data" }}
+        {{ if eq (len $c) 0 }}
+          <p class="color-subdue">No contacts (or MONICA_TOKEN unset).</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+          {{ range $c }}
+          {{ $fn := .String "first_name" }}{{ $ln := .String "last_name" }}{{ $nick := .String "nickname" }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate">{{ if or $fn $ln }}{{ $fn }} {{ $ln }}{{ else }}{{ $nick }}{{ end }}</span>
+            {{ if $nick }}<span class="shrink-0 size-h6 color-subdue">{{ $nick }}</span>{{ end }}
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+- name: Media
+  columns:
+  - size: small
+    widgets:
+    - type: custom-api
+      title: Audiobookshelf
+      title-url: ${AUDIOBOOKSHELF_URL}
+      options:
+        base-url: ${AUDIOBOOKSHELF_URL}
+        api-key: ${AUDIOBOOKSHELF_KEY}
+      cache: 5m
+      template: |-
+        {{ $baseURL := .Options.StringOr "base-url" "" }}
+        {{ $apiKey := .Options.StringOr "api-key" "" }}
+
+        {{ define "errorMsg" }}
+          <div class="widget-error-header">
+            <div class="color-negative size-h3">ERROR</div>
+            <svg class="widget-error-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"></path>
+            </svg>
+          </div>
+          <p class="break-all">{{ . }}</p>
+        {{ end }}
+
+        {{ $bearer := printf "Bearer %s" $apiKey }}
+        {{ $librariesRequestURL := concat $baseURL "/api/libraries" }}
+        {{ $librariesResponse := newRequest $librariesRequestURL
+          | withHeader "Content-Type" "application/json"
+          | withHeader "Authorization" $bearer
+          | getResponse }}
+
+        {{ if $librariesResponse.JSON.Exists "libraries" }}
+          {{ $all_libraries := $librariesResponse.JSON.Array "libraries" }}
+
+          {{ $books_count := 0 }}
+          {{ $books_duration := 0 }}
+          {{ $podcasts_count := 0 }}
+          {{ $podcasts_duration := 0 }}
+
+          {{ range $library := $all_libraries }}
+            {{ $lib_id := $library.String "id" }}
+            {{ $lib_request_url := concat $baseURL "/api/libraries/" $lib_id "/stats"}}
+            {{ $lib_stats := newRequest $lib_request_url
+              | withHeader "Content-Type" "application/json"
+              | withHeader "Authorization" $bearer
+              | getResponse }}
+            {{ $lib_type := $library.String "mediaType" }}
+            {{ $lib_item_count := $lib_stats.JSON.Int "totalItems" }}
+            {{ $lib_total_duration := $lib_stats.JSON.Int "totalDuration" }}
+            {{ if eq $lib_type "book" }}
+              {{ $books_count = add $books_count $lib_item_count }}
+              {{ $books_duration = add $books_duration $lib_total_duration }}
+            {{ else if eq $lib_type "podcast" }}
+              {{ $podcasts_count = add $podcasts_count $lib_item_count }}
+              {{ $podcasts_duration = add $podcasts_duration $lib_total_duration }}
+            {{ end }}
+          {{ end }}
+
+          {{ $books_duration = duration (concat (printf "%d" $books_duration) "s") }}
+          {{ $podcasts_duration = duration (concat (printf "%d" $podcasts_duration) "s") }}
+
+          <div class="flex flex-column gap-5">
+            <div class="flex justify-between text-center">
+              <div>
+                <div class="color-highlight size-h3">{{ $books_count }}</div>
+                <div class="size-h5 uppercase">Books</div>
+              </div>
+              <div>
+                <div class="color-highlight size-h3">{{ $books_duration }}</div>
+                <div class="size-h5 uppercase">Duration</div>
+              </div>
+              <div>
+                <div class="color-highlight size-h3">{{ $podcasts_count }}</div>
+                <div class="size-h5 uppercase">Podcasts</div>
+              </div>
+              <div>
+                <div class="color-highlight size-h3">{{ $podcasts_duration }}</div>
+                <div class="size-h5 uppercase">Duration</div>
+              </div>
+            </div>
+          </div>
+        {{ else }}
+          {{ template "errorMsg" "Could not fetch data from API!" }}
+        {{ end }}
+    - type: rss
+      title: Recently Added Books
+      title-url: https://calibre.white.fm
+      style: vertical-list
+      limit: 10
+      collapse-after: 6
+      cache: 1h
+      feeds:
+        - url: ${CALIBRE_OPDS_URL}/opds/new
+          title: Calibre
+          headers:
+            Authorization: Basic ${CALIBRE_OPDS_B64}
+    - type: custom-api
+      title: Library Health
+      cache: 10m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: '{__name__=~"radarr_movie_missing_total|radarr_movie_total|radarr_system_health_issues|sonarr_episode_missing_total|sonarr_series_total|sonarr_system_health_issues|readarr_book_missing_total|readarr_book_total|readarr_system_health_issues|bazarr_subtitles_missing_total|bazarr_subtitles_wanted_total|bazarr_system_health_issues"}'
+      template: |-
+        {{ $d := .JSON }}
+        {{ if eq (len ($d.Array "data.result")) 0 }}
+          <p class="color-negative text-center">No exportarr metrics in Prometheus.</p>
+        {{ else }}
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--color-separator);">
+              <th style="text-align: left; padding: 6px;">App</th>
+              <th style="text-align: right; padding: 6px;">Missing</th>
+              <th style="text-align: right; padding: 6px;">Library</th>
+              <th style="text-align: right; padding: 6px;">Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 6px;"><a href="https://radarr.internal.white.fm" class="color-highlight">Radarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"radarr_movie_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"radarr_movie_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"radarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://sonarr.internal.white.fm" class="color-highlight">Sonarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"sonarr_episode_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"sonarr_series_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"sonarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://readarr.internal.white.fm" class="color-highlight">Readarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"readarr_book_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"readarr_book_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"readarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px;"><a href="https://bazarr.internal.white.fm" class="color-highlight">Bazarr</a></td>
+              {{ $m := $d.Int "data.result.#(metric.__name__==\"bazarr_subtitles_missing_total\").value.1" }}
+              <td style="padding: 6px; text-align: right;" class="{{ if gt $m 0 }}color-negative{{ end }}">{{ $m }}</td>
+              <td style="padding: 6px; text-align: right;">{{ $d.Int "data.result.#(metric.__name__==\"bazarr_subtitles_wanted_total\").value.1" }}</td>
+              {{ $h := $d.Int "data.result.#(metric.__name__==\"bazarr_system_health_issues\").value.1" }}
+              <td style="padding: 6px; text-align: right;">{{ if gt $h 0 }}<span class="color-negative">⚠ {{ $h }}</span>{{ else }}<span class="color-positive">✓</span>{{ end }}</td>
+            </tr>
+          </tbody>
+        </table>
+        {{ end }}
+    - type: custom-api
+      title: Upcoming
+      cache: 30m
+      url: ${SONARR_URL}/api/v3/calendar
+      headers:
+        X-Api-Key: ${SONARR_API_KEY}
+      subrequests:
+        movies:
+          url: ${RADARR_URL}/api/v3/calendar
+          headers:
+            X-Api-Key: ${RADARR_API_KEY}
+      template: |-
+        {{ $eps := .JSON.Array "" }}
+        {{ $movies := (.Subrequest "movies").JSON.Array "" }}
+        {{ if and (eq (len $eps) 0) (eq (len $movies) 0) }}
+          <p class="color-subdue">Nothing scheduled (set SONARR_API_KEY / RADARR_API_KEY).</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
+          {{ range $eps }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate"><span class="color-primary">TV</span> {{ .String "series.title" }} S{{ .Int "seasonNumber" }}E{{ .Int "episodeNumber" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "airDate" }}</span>
+          </li>
+          {{ end }}
+          {{ range $movies }}
+          <li class="flex justify-between gap-10">
+            <span class="text-truncate"><span class="color-primary">Movie</span> {{ .String "title" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "inCinemas" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: qBittorrent
+      cache: 10s
+      options:
+        view: detailed
+        mode: default
+      subrequests:
+        transfer:
+          url: http://${QBITTORRENT_IP}/api/v2/transfer/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
+        seeding:
+          url: http://${QBITTORRENT_IP}/api/v2/torrents/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
+          parameters:
+            filter: seeding
+        leeching:
+          url: http://${QBITTORRENT_IP}/api/v2/torrents/info
+          headers:
+            Authorization: Bearer ${QBITTORRENT_KEY}
+          parameters:
+            filter: downloading
+      template: |-
+        {{ $transfer := .Subrequest "transfer" }}
+        {{ $seeding := .Subrequest "seeding" }}
+        {{ $leeching := .Subrequest "leeching" }}
+
+        {{ if and (eq $transfer.Response.StatusCode 200) (eq $seeding.Response.StatusCode 200) (eq $leeching.Response.StatusCode 200) }}
+
+          {{ $isDetailed := eq (.Options.StringOr "view" "detailed") "detailed" }}
+          {{ $mode := .Options.StringOr "mode" "default" }}
+
+          {{ if $isDetailed }}
+          <!-- Detailed View -->
+          <div class="list" style="--list-gap: 15px;">
+            <div class="flex justify-between text-center">
+              <div>
+                {{ $dlSpeed := $transfer.JSON.Float "dl_info_speed" }}
+                {{ if eq $mode "upload" }}
+                  <div class="color-highlight size-h3">{{ printf "%.1f MB/s" (div $dlSpeed 1000000.0) }}</div>
+                {{ else }}
+                  {{ if lt $dlSpeed 1048576.0 }}
+                    <div class="color-highlight size-h3">{{ printf "%.0f KiB/s" (div $dlSpeed 1024.0) }}</div>
+                  {{ else }}
+                    <div class="color-highlight size-h3">{{ printf "%.1f MiB/s" (div $dlSpeed 1048576.0) }}</div>
+                  {{ end }}
+                {{ end }}
+                <div class="size-h6">DOWNLOADING</div>
+              </div>
+
+              {{ if eq $mode "upload" }}
+              <div>
+                {{ $ulSpeed := $transfer.JSON.Float "up_info_speed" }}
+                <div class="color-highlight size-h3">{{ printf "%.1f MB/s" (div $ulSpeed 1000000.0) }}</div>
+                <div class="size-h6">UPLOADING</div>
+              </div>
+              {{ end }}
+
+              <div>
+                <div class="color-highlight size-h3">{{ len ($seeding.JSON.Array "") }}</div>
+                <div class="size-h6">SEEDING</div>
+              </div>
+
+              {{ if eq $mode "default" }}
+              <div>
+                <div class="color-highlight size-h3">{{ len ($leeching.JSON.Array "") }}</div>
+                <div class="size-h6">LEECHING</div>
+              </div>
+              {{ end }}
+            </div>
+
+            <!-- Downloading list -->
+            {{ $downloadingTorrents := $leeching.JSON.Array "" }}
+            {{ if gt (len $downloadingTorrents) 0 }}
+              <div style="margin-top: 15px;">
+                <ul class="list collapsible-container" data-collapse-after="0" style="--list-gap: 15px;">
+                  {{ range $t := $downloadingTorrents }}
+                    {{ $state := $t.String "state" }}
+                    {{ $icon := "?" }}
+                    {{ if ge ($t.Int "completed") ($t.Int "size") }}{{ $icon = "✔" }}
+                    {{ else if eq $state "downloading" "forcedDL" }}{{ $icon = "↓" }}
+                    {{ else if eq $state "pausedDL" "stoppedDL" "pausedUP" "stalledDL" "stalledUP" "queuedDL" "queuedUP" }}{{ $icon = "❚❚" }}
+                    {{ else if eq $state "error" "missingFiles" }}{{ $icon = "!" }}
+                    {{ else if eq $state "checkingDL" "checkingUP" "allocating" }}{{ $icon = "…" }}
+                    {{ else if eq $state "checkingResumeData" }}{{ $icon = "⟳" }}
+                    {{ end }}
+
+                    <li class="flex items-center" style="gap: 10px;">
+                      <div class="size-h4" style="flex-shrink: 0;">{{ $icon }}</div>
+                      <div style="flex-grow: 1; min-width: 0;">
+                        <div class="text-truncate color-highlight">{{ $t.String "name" }}</div>
+                        <div title="{{ $t.Float "progress" | mul 100 | printf "%.1f" }}%" style="background: rgba(128, 128, 128, 0.2); border-radius: 5px; height: 6px; margin-top: 5px; overflow: hidden;">
+                          <div style="width: {{ $t.Float "progress" | mul 100 }}%; background-color: var(--color-positive); height: 100%; border-radius: 5px;"></div>
+                        </div>
+                      </div>
+                      <div style="flex-shrink: 0; text-align: right; width: 80px;">
+                        {{ $dlSpeed := $t.Float "dlspeed" }}
+                        <div class="size-sm color-paragraph">
+                          {{ if eq $mode "upload" }}
+                            {{ if lt $dlSpeed 1000.0 }}--{{ else }}{{ printf "%.1f MB/s" (div $dlSpeed 1000000.0) }}{{ end }}
+                          {{ else }}
+                            {{ if lt $dlSpeed 1024.0 }}--{{ else if lt $dlSpeed 1048576.0 }}{{ printf "%.0f KiB/s" (div $dlSpeed 1024.0) }}{{ else }}{{ printf "%.1f MiB/s" (div $dlSpeed 1048576.0) }}{{ end }}
+                          {{ end }}
+                        </div>
+                        {{ $eta := $t.Int "eta" }}
+                        <div class="size-sm color-paragraph">
+                          {{ if eq $eta 8640000 }}∞
+                          {{ else if gt $eta 3600 }}{{ printf "%dh %dm" (div $eta 3600) (mod (div $eta 60) 60) }}
+                          {{ else if gt $eta 0 }}{{ printf "%dm" (div $eta 60) }}
+                          {{ else }}--{{ end }}
+                        </div>
+                      </div>
+                    </li>
+                  {{ end }}
+                </ul>
+              </div>
+            {{ end }}
+
+            <!-- Seeding list -->
+            {{ if eq $mode "upload" }}
+              {{ $seedingTorrents := $seeding.JSON.Array "" }}
+              {{ if gt (len $seedingTorrents) 0 }}
+                <div style="margin-top: 20px;">
+                  <ul class="list collapsible-container" data-collapse-after="0" style="--list-gap: 15px;">
+                    {{ range $t := $seedingTorrents }}
+                      {{ $state := $t.String "state" }}
+                      {{ $icon := "↑" }}
+                      {{ if eq $state "pausedUP" "stoppedUP" "stalledUP" "queuedUP" }}{{ $icon = "❚❚" }}
+                      {{ else if eq $state "error" "missingFiles" }}{{ $icon = "!" }}
+                      {{ else if eq $state "checkingUP" }}{{ $icon = "…" }}
+                      {{ else if eq $state "checkingResumeData" }}{{ $icon = "⟳" }}
+                      {{ end }}
+
+                      <li class="flex items-center" style="gap: 10px;">
+                        <div class="size-h4" style="flex-shrink: 0;">{{ $icon }}</div>
+                        <div style="flex-grow: 1; min-width: 0;">
+                          <div class="text-truncate color-highlight">{{ $t.String "name" }}</div>
+                          <div class="size-sm color-paragraph">
+                            Ratio: {{ printf "%.2f" ($t.Float "ratio") }} |
+                            Size: {{ printf "%.1f GB" (div ($t.Float "size") 1073741824.0) }}
+                          </div>
+                        </div>
+                        <div style="flex-shrink: 0; text-align: right; width: 80px;">
+                          {{ $ulSpeed := $t.Float "upspeed" }}
+                          <div class="size-sm color-paragraph">
+                            {{ if lt $ulSpeed 1000.0 }}--{{ else }}{{ printf "%.1f MB/s" (div $ulSpeed 1000000.0) }}{{ end }}
+                          </div>
+                          <div class="size-sm color-paragraph">Upload</div>
+                        </div>
+                      </li>
+                    {{ end }}
+                  </ul>
+                </div>
+              {{ end }}
+            {{ end }}
+
+          </div>
+
+          {{ else }}
+          <!-- Basic View -->
+          <div class="flex justify-between text-center">
+            <div>
+              {{ $dlSpeed := $transfer.JSON.Float "dl_info_speed" }}
+              <div class="color-highlight size-h3">{{ printf "%.1f MB/s" (div $dlSpeed 1000000.0) }}</div>
+              <div class="size-h6">DOWNLOADING</div>
+            </div>
+            {{ if eq $mode "upload" }}
+            <div>
+              {{ $ulSpeed := $transfer.JSON.Float "up_info_speed" }}
+              <div class="color-highlight size-h3">{{ printf "%.1f MB/s" (div $ulSpeed 1000000.0) }}</div>
+              <div class="size-h6">UPLOADING</div>
+            </div>
+            {{ end }}
+            <div>
+              <div class="color-highlight size-h3">{{ len ($seeding.JSON.Array "") }}</div>
+              <div class="size-h6">SEEDING</div>
+            </div>
+            {{ if eq $mode "default" }}
+            <div>
+              <div class="color-highlight size-h3">{{ len ($leeching.JSON.Array "") }}</div>
+              <div class="size-h6">LEECHING</div>
+            </div>
+            {{ end }}
+          </div>
+          {{ end }}
+
+        {{ else }}
+          <div class="color-negative text-center">
+            <p>Error fetching qBittorrent data.</p>
+            <p class="size-sm">Check URL and authentication bypass settings.</p>
+          </div>
+        {{ end }}
+    - type: custom-api
+      title: Users
+      cache: 60m
+      url: ${TAUTULLI_URL}/api/v2?
+      allow-potentially-dangerous-html: true
+      parameters:
+        time_range: 90
+        apikey: ${TAUTULLI_API_KEY}
+        cmd: get_home_stats
+        stat_id: top_users
+        stats_type: duration
+      options:
+        size: small
+        collapse: 5
+      template: |-
+        {{ $isLarge := eq (.Options.StringOr "size" "large") "large" }}
+        {{ $uniqueID := "top_users" }}
+        {{ $collapse := .Options.IntOr "collapse" 5 }}
+        {{ $rows := .JSON.Array "response.data.rows" }}
+
+        {{ if $isLarge }}
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+
+            <!-- Left Arrow -->
+            <div id="scrollLeft-{{ $uniqueID }}" title="Scroll left"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: -150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer; user-select: none;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">◀</span>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div id="scrollContainer-{{ $uniqueID }}"
+              style="display: flex; overflow-x: auto; gap: 1rem; padding-block: 0.5rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+              {{ range $v := $rows }}
+                {{ $name := $v.String "friendly_name" }}
+                {{ $userimg := $v.String "user_thumb" }}
+                {{ $seconds := $v.Int "total_duration" }}
+                {{ $hours := div $seconds 3600 }}
+                {{ $minutes := mod (div $seconds 60) 60 }}
+
+                <div style="min-width: 160px; text-align: center;">
+                  <div style="max-height: 275px; overflow: hidden; border-radius: 6px;" class="color-primary">
+                    <img src="{{ $userimg }}"
+                      alt="thumb"
+                      title="{{ $name }}"
+                      style="width: 100%; height: auto; object-fit: cover;" />
+                  </div>
+                  <div class="color-highlight"
+                    style="margin-top: 1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $name }}">
+                    {{ $name }}
+                  </div>
+                  <div class="color-primary">
+                    <span>
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span><br />
+                    <span>{{ $v.String "total_plays" }} Plays</span>
+                  </div>
+                </div>
+              {{ end }}
+            </div>
+
+            <!-- Right Arrow -->
+            <div id="scrollRight-{{ $uniqueID }}" title="Scroll right"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: 150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer; user-select: none;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">▶</span>
+            </div>
+          </div>
+
+        {{ else }}
+          <!-- Small Widget -->
+          <ul class="list collapsible-container" data-collapse-after="{{ $collapse }}">
+            {{ range $v := $rows }}
+              {{ $name := $v.String "friendly_name" }}
+              {{ $userimg := $v.String "user_thumb" }}
+              {{ $seconds := $v.Int "total_duration" }}
+              {{ $hours := div $seconds 3600 }}
+              {{ $minutes := mod (div $seconds 60) 60 }}
+
+              <li class="flex items-center gap-2" style="padding: 0.5rem 0; border-bottom: 1px solid var(--color-border);">
+                <img src="{{ $userimg }}"
+                  alt="thumb"
+                  title="{{ $name }}"
+                  style="width: 50px; margin-right: 1.5rem;"
+                  class="rounded w-10 h-10 object-cover" />
+                <div class="min-width-0 grow">
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $name }}">
+                    {{ $name }}
+                  </div>
+                  <div class="color-primary">
+                    <span>
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span> •
+                    <span>{{ $v.String "total_plays" }} Plays</span>
+                  </div>
+                </div>
+              </li>
+            {{ end }}
+          </ul>
+        {{ end }}
+  - size: full
+    widgets:
+    - type: custom-api
+      title: Media Server
+      cache: 5m
+      options:
+        media-server: tautulli
+        base-url: ${TAUTULLI_URL}
+        api-key: ${TAUTULLI_API_KEY}
+        small-column: false
+        compact: true
+        play-state: indicator
+        show-thumbnail: false
+        full-thumbnail: false
+        show-paused: false
+        show-progress-bar: false
+        show-progress-info: true
+        time-format: '15:04'
+      template: |-
+        {{ $mediaServer := .Options.StringOr "media-server" "" }}
+        {{ $baseURL := .Options.StringOr "base-url" "" }}
+        {{ $apiKey := .Options.StringOr "api-key" "" }}
+
+        {{ define "errorMsg" }}
+          <div class="widget-error-header">
+            <div class="color-negative size-h3">ERROR</div>
+            <svg class="widget-error-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"></path>
+            </svg>
+          </div>
+          <p class="break-all">{{ . }}</p>
+        {{ end }}
+
+        {{ if or
+          (eq $mediaServer "")
+          (eq $baseURL "")
+          (eq $apiKey "")
+        }}
+          {{ template "errorMsg" "Some required options are not set" }}
+        {{ else }}
+
+        {{ $isSmallColumn := .Options.BoolOr "small-column" false }}
+        {{ $isCompact := .Options.BoolOr "compact" true }}
+        {{ $playState := .Options.StringOr "play-state" "indicator" }}
+        {{ $showThumbnail := .Options.BoolOr "show-thumbnail" false }}
+        {{ $fullThumbnail := .Options.BoolOr "full-thumbnail" false }}
+        {{ $showPaused := .Options.BoolOr "show-paused" false }}
+        {{ $showProgressBar := .Options.BoolOr "show-progress-bar" false }}
+        {{ $showProgressInfo := .Options.BoolOr "show-progress-info" true }}
+        {{ $timeFormat := .Options.StringOr "time-format" "15:04" }}
+
+        {{ $userID := "" }}
+        {{ $sessionsRequestURL := "" }}
+        {{ $sessionsCall := "" }}
+        {{ $sessions := "" }}
+        {{ $activeSessions := 0 }}
+
+        {{ if eq $mediaServer "plex" }}
+          {{ $sessionsRequestURL = concat $baseURL "/status/sessions" }}
+          {{ $sessionsCall = newRequest $sessionsRequestURL
+            | withHeader "Accept" "application/json"
+            | withHeader "X-Plex-Token" $apiKey
+            | getResponse }}
+
+          {{ if $sessionsCall.JSON.Exists "MediaContainer" }}
+            {{ $sessions = $sessionsCall.JSON.Array "MediaContainer.Metadata" }}
+            {{ $activeSessions = len $sessions }}
+          {{ else }}
+            {{ template "errorMsg" (concat "Could not fetch " $mediaServer " API.") }}
+          {{ end }}
+
+        {{ else if eq $mediaServer "tautulli" }}
+          {{ $sessionsRequestURL = concat $baseURL "/api/v2" }}
+          {{ $sessionsCall = newRequest $sessionsRequestURL
+            | withParameter "apikey" $apiKey
+            | withParameter "cmd" "get_activity"
+            | withHeader "Accept" "application/json"
+            | getResponse }}
+
+          {{ if eq $sessionsCall.Response.StatusCode 200 }}
+            {{ $sessions = $sessionsCall.JSON.Array "response.data.sessions" }}
+            {{ $activeSessions = len $sessions }}
+          {{ else }}
+            {{ template "errorMsg" (concat "Could not fetch " $mediaServer " API.") }}
+          {{ end }}
+
+        {{ else if or (eq $mediaServer "jellyfin") (eq $mediaServer "emby") }}
+          {{ $sessionsRequestURL = concat $baseURL "/Sessions" }}
+          {{ $sessionsCall = newRequest $sessionsRequestURL
+            | withParameter "api_key" $apiKey
+            | withParameter "activeWithinSeconds" "30"
+            | withHeader "Accept" "application/json"
+            | getResponse }}
+
+          {{ if eq $sessionsCall.Response.StatusCode 200 }}
+            {{ $sessions = $sessionsCall.JSON.Array "" }}
+            {{ if eq $mediaServer "emby" }}
+              {{ range $session := $sessions }}
+                {{ if $session.Bool "PlayState.CanSeek" }}
+                  {{ $activeSessions = 1 }}
+                  {{ break }}
+                {{ end }}
+              {{ end }}
+            {{ else }}
+              {{ $activeSessions = len $sessions }}
+            {{ end }}
+          {{ else }}
+            {{ template "errorMsg" (concat "Could not fetch " $mediaServer " API.") }}
+          {{ end }}
+        {{ end }}
+
+        {{ if and (eq $sessionsCall.Response.StatusCode 200) (eq $activeSessions 0) }}
+          <p>Nothing is playing right now.</p>
+        {{ else }}
+
+          <style>
+            .media-server-session-container--grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+            }
+            @media (max-width: 768px) {
+              .media-server-session-container--grid {
+                display: flex;
+                flex-direction: column;
+              }
+            }
+            .media-server-progress-container {
+              height: 1rem;
+              max-width: 32rem;
+              border: 1px solid var(--color-text-base);
+              border-radius: var(--border-radius);
+              overflow: hidden;
+            }
+            .media-server-progress-bar {
+              height: 100%;
+              background: var(--color-primary);
+              border-radius: 3px;
+              transition: width 1s linear;
+            }
+            @keyframes progress-animation { to { width: 100%; } }
+          </style>
+
+          <div class="gap-10 {{ if $isSmallColumn }}flex flex-column{{ else }}media-server-session-container--grid{{ end }}">
+          {{ range $i, $session := $sessions }}
+            {{ $isClient := true }}
+            {{ $isPlaying := false }}
+            {{ $state := "playing" }}
+            {{ $isMovie := false }}
+            {{ $isShows := false }}
+            {{ $isMusic := false }}
+            {{ $userName := "" }}
+            {{ $title := "" }}
+            {{ $showTitle := "" }}
+            {{ $showSeason := "" }}
+            {{ $showEpisode := "" }}
+            {{ $artist := "" }}
+            {{ $albumTitle := "" }}
+            {{ $thumbURL := "" }}
+            {{ $now := now | formatTime "15:04:05" | parseLocalTime "15:04:05" }}
+            {{ $duration := 0 }}
+            {{ $offset := 0 }}
+            {{ $remainingSeconds := 0 }}
+
+            {{ if eq $mediaServer "plex" }}
+              {{ $isPlaying = eq ($session.String "Player.state") "playing" }}
+              {{ if not $isPlaying }}
+                {{ $state = "paused"}}
+              {{ end }}
+
+              {{ $mediaType := $session.String "type" }}
+              {{ $isMovie = eq $mediaType "movie" }}
+              {{ $isShows = eq $mediaType "episode" }}
+              {{ $isMusic = eq $mediaType "track" }}
+
+              {{ $userName = $session.String "User.title" }}
+              {{ $title = $session.String "title" }}
+              {{ $showTitle = $session.String "grandparentTitle" }}
+              {{ $showSeason = $session.String "parentIndex" }}
+              {{ $showEpisode = $session.String "index" }}
+              {{ $artist = $session.String "grandparentTitle" }}
+              {{ $albumTitle = $session.String "parentTitle" }}
+
+              {{ $thumbID := $session.String "thumb" }}
+              {{ if or $isShows $isMusic }}
+                {{ $thumbID = $session.String "parentThumb" }}
+              {{ end }}
+              {{ $thumbURL = concat $baseURL $thumbID "?X-Plex-Token=" $apiKey }}
+
+              {{ $duration = $session.Float "duration" }}
+              {{ $offset = $session.Float "viewOffset" }}
+              {{ $remainingSeconds = div (sub $duration $offset) 1000 | toInt }}
+            {{ else if eq $mediaServer "tautulli" }}
+              {{ $isPlaying = eq ($session.String "state") "playing" }}
+              {{ if not $isPlaying }}
+                {{ $state = "paused"}}
+              {{ end }}
+
+              {{ $mediaType := $session.String "media_type" }}
+              {{ $isMovie = eq $mediaType "movie" }}
+              {{ $isShows = eq $mediaType "episode" }}
+              {{ $isMusic = eq $mediaType "track" }}
+
+              {{ $userName = $session.String "user" }}
+              {{ $title = $session.String "title" }}
+              {{ $showTitle = $session.String "grandparent_title" }}
+              {{ $showSeason = $session.String "parent_media_index" }}
+              {{ $showEpisode = $session.String "media_index" }}
+              {{ $artist = $session.String "grandparent_title" }}
+              {{ $albumTitle = $session.String "parent_title" }}
+
+              {{ $thumbID := $session.String "thumb" }}
+              {{ if or $isShows $isMusic }}
+                {{ $thumbID = $session.String "parent_thumb" }}
+              {{ end }}
+              {{ $thumbURL = concat $baseURL "/api/v2?apikey=" $apiKey "&cmd=pms_image_proxy&img=" $thumbID }}
+
+              {{ $duration = $session.Float "duration" }}
+              {{ $offset = $session.Float "view_offset" }}
+              {{ $remainingSeconds = div (sub $duration $offset) 1000 | toInt }}
+            {{ else if or (eq $mediaServer "jellyfin") (eq $mediaServer "emby") }}
+              {{ if eq $mediaServer "emby" }}
+                {{ $isClient = $session.Bool "PlayState.CanSeek" }}
+              {{ end }}
+              {{ $isPlaying = and ($session.Exists "NowPlayingItem") (not ($session.Bool "PlayState.IsPaused")) }}
+              {{ if not $isPlaying }}
+                {{ $state = "paused"}}
+              {{ end }}
+
+              {{ $mediaType := $session.String "NowPlayingItem.Type" }}
+              {{ $isMovie = eq $mediaType "Movie" }}
+              {{ $isShows = eq $mediaType "Episode" }}
+              {{ $isMusic = eq $mediaType "Audio" }}
+
+              {{ $userName = $session.String "UserName" }}
+              {{ $title = $session.String "NowPlayingItem.Name" }}
+              {{ $showTitle = $session.String "NowPlayingItem.SeriesName" }}
+              {{ $showSeason = $session.String "NowPlayingItem.ParentIndexNumber" }}
+              {{ $showEpisode = $session.String "NowPlayingItem.IndexNumber" }}
+              {{ $artist = $session.String "NowPlayingItem.AlbumArtist" }}
+              {{ $albumTitle = $session.String "NowPlayingItem.Album" }}
+
+              {{ $thumbID := $session.String "NowPlayingItem.Id" }}
+              {{ if $isShows }}
+                {{ $thumbID = $session.String "NowPlayingItem.ParentId" }}
+              {{ end }}
+              {{ $thumbURL = concat $baseURL "/Items/" $thumbID "/Images/Primary?api_key=" $apiKey }}
+
+              {{ $duration = $session.Float "NowPlayingItem.RunTimeTicks" }}
+              {{ $offset = $session.Float "PlayState.PositionTicks" }}
+              {{ $remainingSeconds = div (sub $duration $offset) 10000000 | toInt }}
+            {{ end }}
+
+            {{ $progress := mul 100 (div $offset $duration) | toInt }}
+            {{ $endTime := $now.Add (duration (printf "%ds" $remainingSeconds)) | formatTime $timeFormat }}
+
+            {{ $showInfoFormat := concat "Season " $showSeason " Episode " $showEpisode}}
+            {{ if $isCompact }}
+              {{ $showInfoFormat = concat "S" $showSeason "E" $showEpisode}}
+            {{ end }}
+
+            {{ if and $isClient (or $isPlaying $showPaused) }}
+            <div class="card gap-5">
+              <div class="flex items-center gap-10 size-h3">
+                <span class="color-primary">{{ $userName }}</span>
+                {{ if eq $playState "text" }}
+                  <span {{ if $isPlaying }}class="color-primary"{{ end }}>
+                    [{{ $state }}]
+                  </span>
+                {{ else if eq $playState "indicator" }}
+                  <style>
+                    .media-server-indicator {
+                      height: .7rem;
+                      width: .7rem;
+                      border-radius: 100%;
+                      {{ if $isPlaying }}
+                        animation: pulse 5s infinite;
+                        background: var(--color-primary);
+                      {{ else }}
+                        background: var(--color-text-base-muted);
+                      {{ end }}
+                    }
+                    @keyframes pulse {
+                      0% { box-shadow: 0 0 0 0 var(--color-text-base); }
+                      40% { box-shadow: 0 0 0 4px transparent; }
+                      100% { box-shadow: 0 0 0 4px transparent; }
+                    }
+                  </style>
+                  <div class="media-server-indicator"></div>
+                {{ end }}
+              </div>
+
+              <hr class="margin-bottom-5" />
+
+              <div class="flex items-center gap-10" style="align-items: stretch;">
+                {{ if $showThumbnail }}
+                  <img src="{{ $thumbURL | safeURL }}"
+                    alt="{{ $title }} thumbnail"
+                    class="shrink-0"
+                    loading="lazy"
+                    style="
+                      max-width: 7.5rem;
+                      border: 2px solid var(--color-primary);
+                      border-radius: var(--border-radius);
+                      object-fit: cover;
+                      {{ if and $isCompact (not $fullThumbnail) }} aspect-ratio: 1; {{ end }} "
+                  />
+                {{ end }}
+                <ul class="flex flex-column grow justify-evenly" style="width: 0;">
+                  {{ if $isCompact }}
+                    {{ if $isShows }}
+                      <ul class="list-horizontal-text flex-nowrap">
+                        <li class="shrink-0">{{ concat "S" $showSeason "E" $showEpisode }}</li>
+                        <li class="text-truncate">{{ $showTitle }}</li>
+                      </ul>
+                    {{ else if $isMusic }}
+                      <ul class="list-horizontal-text flex-nowrap">
+                        <li class="shrink-0">{{ $artist }}</li>
+                        <li class="text-truncate">{{ $albumTitle }}</li>
+                      </ul>
+                    {{ end }}
+                    <li class="text-truncate">{{ $title }}</li>
+                  {{ else }}
+                    {{ if $isShows }}
+                      <li>{{ $showTitle }}</li>
+                      <li>{{ concat "S" $showSeason "E" $showEpisode }}</li>
+                    {{ else if $isMusic }}
+                      <li>{{ $artist }}</li>
+                      <li>{{ $albumTitle }}</li>
+                    {{ end }}
+                    <li>{{ $title }}</li>
+                  {{ end }}
+
+                  <li>
+                    {{ if and $isPlaying $showProgressBar }}
+                      <div class="flex gap-10 items-center">
+                        <div class="media-server-progress-container grow">
+                          <div
+                            class ="media-server-progress-bar"
+                            data-progress="{{ $progress }}"
+                            data-remaining="{{ $remainingSeconds }}"
+                            style="
+                              width: {{ $progress }}%;
+                              animation: progress-animation {{ $remainingSeconds }}s linear forwards;"
+                          >
+                          </div>
+                        </div>
+                        {{ if $showProgressInfo }}
+                          <p>
+                            {{ if and (not $isCompact) (not $isSmallColumn) }}
+                              ends at
+                            {{ end }}
+                            {{ $endTime }}
+                          </p>
+                        {{ end }}
+                      </div>
+                    {{ end }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+            {{ end }}
+          {{ end }}
+        </div>
+        {{ end }}
+        {{ end }}
+    - type: custom-api
+      title: Recently Added
+      cache: 5m
+      url: ${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=get_recently_added&count=10
+      options:
+        size: small
+        collapse: 5
+      template: |-
+        {{ $isLarge := eq (.Options.StringOr "size" "large") "large" }}
+        {{ $serverID := "${PLEX_SERVER_ID}" }}
+        {{ $uniqueID := "recently_added" }}
+        {{ $collapse := .Options.IntOr "collapse" 5 }}
+        {{ $rows := .JSON.Array "response.data.recently_added" }}
+
+        {{ if $isLarge }}
+          <!-- Large View -->
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Left Arrow -->
+            <div id="scrollLeft-{{ $uniqueID }}" onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: -150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">◀</span>
+            </div>
+
+            <!-- Scroll Content -->
+            <div id="scrollContainer-{{ $uniqueID }}"
+              style="display: flex; overflow-x: auto; gap: 1rem; padding-block: 0.5rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+              {{ range $i, $v := $rows }}
+                {{ $type := $v.String "media_type" }}
+                {{ $isEpisode := eq $type "episode" }}
+                {{ $isMovie := eq $type "movie" }}
+                {{ $isSeason := eq $type "season" }}
+                {{ $isShow := eq $type "show" }}
+                {{ $ratingKey := $v.String "rating_key" }}
+                {{ $lastWatch := printf "%d" ($v.Int "added_at") }}
+
+                {{ $img := "" }}
+                {{ $title := "" }}
+                {{ $sub := "" }}
+
+                {{ if $isEpisode }}
+                  {{ $img = $v.String "grandparent_thumb" }}
+                  {{ $title = $v.String "grandparent_title" }}
+                  {{ $sub = printf "S%d · E%d" ($v.Int "parent_media_index") ($v.Int "media_index") }}
+                {{ else if $isMovie }}
+                  {{ $img = $v.String "thumb" }}
+                  {{ $title = $v.String "title" }}
+                  {{ $sub = printf "%d" ($v.Int "year") }}
+                {{ else if $isSeason }}
+                  {{ $img = $v.String "parent_thumb" }}
+                  {{ $title = $v.String "parent_title" }}
+                  {{ $sub = $v.String "title" }}
+                {{ else if $isShow }}
+                  {{ $img = $v.String "thumb" }}
+                  {{ $title = $v.String "title" }}
+                  {{ $sub = printf "%d" ($v.Int "year") }}
+                {{ end }}
+
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}" target="_blank"
+                  style="min-width: 160px; text-align: center; text-decoration: none;">
+                  <div style="max-height: 225px; overflow: hidden; border-radius: 6px;">
+                    <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $img }}"
+                      alt="thumb" title="{{ $title }}"
+                      style="width: 100%; height: auto; object-fit: cover;" />
+                  </div>
+                  <div class="color-highlight" style="margin-top: 1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;" title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight" style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $sub }}
+                  </div>
+                  <div class="color-primary" style="font-size: 0.9em;">
+                    <span {{ parseRelativeTime "unix" $lastWatch }}></span> ago
+                  </div>
+                </a>
+              {{ end }}
+            </div>
+
+            <!-- Right Arrow -->
+            <div id="scrollRight-{{ $uniqueID }}"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: 150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">▶</span>
+            </div>
+          </div>
+        {{ else }}
+          <!-- Small View -->
+          <ul class="list collapsible-container" data-collapse-after="{{ $collapse }}">
+            {{ range $i, $v := $rows }}
+              {{ $type := $v.String "media_type" }}
+              {{ $isEpisode := eq $type "episode" }}
+              {{ $isMovie := eq $type "movie" }}
+              {{ $isSeason := eq $type "season" }}
+              {{ $isShow := eq $type "show" }}
+              {{ $ratingKey := $v.String "rating_key" }}
+              {{ $lastWatch := printf "%d" ($v.Int "added_at") }}
+
+              {{ $img := "" }}
+              {{ $title := "" }}
+              {{ $sub := "" }}
+
+              {{ if $isEpisode }}
+                {{ $img = $v.String "grandparent_thumb" }}
+                {{ $title = $v.String "grandparent_title" }}
+                {{ $sub = printf "S%d · E%d" ($v.Int "parent_media_index") ($v.Int "media_index") }}
+              {{ else if $isMovie }}
+                {{ $img = $v.String "thumb" }}
+                {{ $title = $v.String "title" }}
+                {{ $sub = printf "%d" ($v.Int "year") }}
+              {{ else if $isSeason }}
+                {{ $img = $v.String "parent_thumb" }}
+                {{ $title = $v.String "parent_title" }}
+                {{ $sub = $v.String "title" }}
+              {{ else if $isShow }}
+                {{ $img = $v.String "thumb" }}
+                {{ $title = $v.String "title" }}
+                {{ $sub = printf "%d" ($v.Int "year") }}
+              {{ end }}
+
+              <li class="flex items-center gap-2" style="padding: 0.5rem 0; border-bottom: 1px solid var(--color-border);">
+                <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $img }}"
+                  alt="thumb" style="width: 50px; margin-right: 1.5rem;" class="rounded w-10 h-10 object-cover" />
+                <div class="min-width-0 grow">
+                  <div class="color-highlight" style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;" title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight" style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $sub }}
+                  </div>
+                  <div class="color-primary">
+                    <span {{ parseRelativeTime "unix" $lastWatch }}></span> ago
+                  </div>
+                </div>
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}" target="_blank"
+                  class="color-primary">▶</a>
+              </li>
+            {{ end }}
+          </ul>
+        {{ end }}
+    - type: custom-api
+      title: Movies
+      cache: 60m
+      url: ${TAUTULLI_URL}/api/v2?
+      allow-potentially-dangerous-html: true
+      options:
+        size: small
+        collapse: 5
+      parameters:
+        time_range: 90
+        apikey: ${TAUTULLI_API_KEY}
+        cmd: get_home_stats
+        stat_id: top_movies
+        stats_type: duration
+      template: |-
+        {{ $isLarge := eq (.Options.StringOr "size" "large") "large" }}
+        {{ $serverID := "${PLEX_SERVER_ID}" }}
+        {{ $uniqueID := "top_movies" }}
+        {{ $collapse := .Options.IntOr "collapse" 5 }}
+        {{ $rows := .JSON.Array "response.data.rows" }}
+
+        {{ if $isLarge }}
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Left scroll arrow -->
+            <div id="scrollLeft-{{ $uniqueID }}" title="Scroll left"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: -150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer; user-select: none;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">◀</span>
+            </div>
+
+            <!-- Scrollable movie list -->
+            <div id="scrollContainer-{{ $uniqueID }}"
+              style="display: flex; overflow-x: auto; gap: 1rem; padding-block: 0.5rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+              {{ range $v := $rows }}
+                {{ $title := $v.String "title" }}
+                {{ $thumb := $v.String "thumb" }}
+                {{ $year := $v.Int "year" }}
+                {{ $plays := $v.Int "total_plays" }}
+                {{ $duration := $v.Int "total_duration" }}
+                {{ $hours := div $duration 3600 }}
+                {{ $minutes := mod (div $duration 60) 60 }}
+                {{ $ratingKey := $v.String "rating_key" }}
+
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}"
+                  target="_blank"
+                  style="min-width: 160px; text-align: center; text-decoration: none;">
+                  <div style="max-height: 250px; overflow: hidden; border-radius: 6px;">
+                    <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $thumb }}"
+                      alt="thumb"
+                      title="{{ $title }}"
+                      style="width: 100%; height: auto; object-fit: cover;" />
+                  </div>
+                  <div class="color-highlight"
+                    style="margin-top: 1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $year }}
+                  </div>
+                  <div class="color-primary">
+                    <span>
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span><br>
+                    <span>
+                      {{ if eq $plays 1 }}1 Play{{ else }}{{ $plays }} Plays{{ end }}
+                    </span>
+                  </div>
+                </a>
+              {{ end }}
+            </div>
+
+            <!-- Right scroll arrow -->
+            <div id="scrollRight-{{ $uniqueID }}" title="Scroll right"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: 150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer; user-select: none;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">▶</span>
+            </div>
+          </div>
+
+        {{ else }}
+          <!-- Small widget version -->
+          <ul class="list collapsible-container" data-collapse-after="{{ $collapse }}">
+            {{ range $v := $rows }}
+              {{ $title := $v.String "title" }}
+              {{ $thumb := $v.String "thumb" }}
+              {{ $year := $v.Int "year" }}
+              {{ $plays := $v.Int "total_plays" }}
+              {{ $duration := $v.Int "total_duration" }}
+              {{ $hours := div $duration 3600 }}
+              {{ $minutes := mod (div $duration 60) 60 }}
+              {{ $ratingKey := $v.String "rating_key" }}
+
+              <li class="flex items-center gap-2" style="padding: 0.5rem 0; border-bottom: 1px solid var(--color-border);">
+                <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $thumb }}"
+                  alt="thumb"
+                  style="width: 50px; margin-right: 1.5rem;"
+                  class="rounded w-10 h-10 object-cover" />
+                <div class="min-width-0 grow">
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $year }}
+                  </div>
+                  <div class="color-primary">
+                    <span>
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span> •
+                    <span>
+                      {{ if eq $plays 1 }}1 Play{{ else }}{{ $plays }} Plays{{ end }}
+                    </span>
+                  </div>
+                </div>
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}"
+                  target="_blank"
+                  class="color-primary">▶</a>
+              </li>
+            {{ end }}
+          </ul>
+        {{ end }}
+    - type: custom-api
+      title: TV
+      cache: 60m
+      url: ${TAUTULLI_URL}/api/v2?
+      parameters:
+        time_range: 90
+        apikey: ${TAUTULLI_API_KEY}
+        cmd: get_home_stats
+        stat_id: top_tv
+        stats_type: duration
+      options:
+        size: small
+        collapse: 5
+      template: |-
+        {{ $isLarge := eq (.Options.StringOr "size" "large") "large" }}
+        {{ $serverID := "${PLEX_SERVER_ID}" }}
+        {{ $uniqueID := "top_shows" }}
+        {{ $collapse := .Options.IntOr "collapse" 5 }}
+        {{ $rows := .JSON.Array "response.data.rows" }}
+
+        {{ if $isLarge }}
+          <!-- Large View -->
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <!-- Left Arrow -->
+            <div id="scrollLeft-{{ $uniqueID }}" onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: -150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">◀</span>
+            </div>
+
+            <!-- Scrollable Items -->
+            <div id="scrollContainer-{{ $uniqueID }}"
+              style="display: flex; overflow-x: auto; gap: 1rem; padding-block: 0.5rem; scroll-behavior: smooth; scrollbar-width: none; -ms-overflow-style: none;">
+              {{ range $i, $v := $rows }}
+                {{ $ratingKey := $v.String "rating_key" }}
+                {{ $seconds := $v.Int "total_duration" }}
+                {{ $hours := div $seconds 3600 }}
+                {{ $minutes := mod (div $seconds 60) 60 }}
+                {{ $plays := $v.Int "total_plays" }}
+                {{ $thumb := $v.String "thumb" }}
+                {{ $title := $v.String "title" }}
+                {{ $year := $v.Int "year" }}
+                {{ $hover := $v.String "grandchild_title" }}
+
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}" target="_blank"
+                  style="min-width: 160px; text-align: center; text-decoration: none;">
+                  <div style="max-height: 250px; overflow: hidden; border-radius: 6px;">
+                    <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $thumb }}"
+                      alt="thumb" title="{{ $hover }}" style="width: 100%; height: auto; object-fit: cover;" />
+                  </div>
+                  <div class="color-highlight"
+                    style="margin-top: 1rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $year }}
+                  </div>
+                  <div class="color-primary">
+                    <span title="{{ $v.String "player" }}">
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span>
+                    <br>
+                    <span>
+                      {{ if gt $plays 1 }}
+                        {{ $plays }} Plays
+                      {{ else }}
+                        {{ $plays }} Play
+                      {{ end }}
+                    </span>
+                  </div>
+                </a>
+              {{ end }}
+            </div>
+
+            <!-- Right Arrow -->
+            <div id="scrollRight-{{ $uniqueID }}"
+              onclick='document.getElementById("scrollContainer-{{ $uniqueID }}").scrollBy({ left: 150, behavior: "smooth" })'
+              style="flex: 0 0 2.5rem; height: 100px; display: flex; align-items: center; justify-content: center; background: var(--color-surface); cursor: pointer;">
+              <span class="color-primary" style="font-size: 1.5rem; opacity: 0.7;">▶</span>
+            </div>
+          </div>
+
+        {{ else }}
+          <!-- Small View -->
+          <ul class="list collapsible-container" data-collapse-after="{{ $collapse }}">
+            {{ range $i, $v := $rows }}
+              {{ $ratingKey := $v.String "rating_key" }}
+              {{ $seconds := $v.Int "total_duration" }}
+              {{ $hours := div $seconds 3600 }}
+              {{ $minutes := mod (div $seconds 60) 60 }}
+              {{ $plays := $v.Int "total_plays" }}
+              {{ $thumb := $v.String "thumb" }}
+              {{ $title := $v.String "title" }}
+              {{ $year := $v.Int "year" }}
+
+              <li class="flex items-center gap-2" style="padding: 0.5rem 0; border-bottom: 1px solid var(--color-border);">
+                <img src="${TAUTULLI_URL}/api/v2?apikey=${TAUTULLI_API_KEY}&cmd=pms_image_proxy&img={{ $thumb }}"
+                  alt="thumb" style="width: 50px; margin-right: 1.5rem;" class="rounded w-10 h-10 object-cover" />
+                <div class="min-width-0 grow">
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;"
+                    title="{{ $title }}">
+                    {{ $title }}
+                  </div>
+                  <div class="color-highlight"
+                    style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">
+                    {{ $year }}
+                  </div>
+                  <div class="color-primary">
+                    <span title="{{ $v.String "player" }}">
+                      {{ if gt $hours 0 }}
+                        {{ printf "%dh %dm" $hours $minutes }}
+                      {{ else }}
+                        {{ printf "%dm" $minutes }}
+                      {{ end }}
+                    </span> •
+                    <span>
+                      {{ if gt $plays 1 }}
+                        {{ $plays }} Plays
+                      {{ else }}
+                        {{ $plays }} Play
+                      {{ end }}
+                    </span>
+                  </div>
+                </div>
+                <a href="https://app.plex.tv/desktop/#!/server/{{ $serverID }}/details?key=%2Flibrary%2Fmetadata%2F{{ $ratingKey }}" target="_blank"
+                   class="color-primary">▶</a>
+              </li>
+            {{ end }}
+          </ul>
+        {{ end }}
+- name: Infra
+  columns:
+  - size: small
+    widgets:
+    - type: custom-api
+      title: Cluster Health
+      title-url: https://grafana.internal.white.fm
+      cache: 1m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sum(kube_node_status_condition{condition="Ready",status="true"})
+      subrequests:
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(kube_node_status_condition{condition="Ready",status="true"})
+        notready:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: kube_node_status_condition{condition="Ready",status="true"} == 0
+        alerts:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: sort_desc(count by (alertname, severity) (ALERTS{alertstate="firing"}))
+      template: |-
+        {{ $ready := .JSON.Int "data.result.0.value.1" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+        {{ $notready := (.Subrequest "notready").JSON.Array "data.result" }}
+        {{ $alerts := (.Subrequest "alerts").JSON.Array "data.result" }}
+
+        {{ $firing := 0 }}
+        {{ $crit := 0 }}
+        {{ range $alerts }}
+          {{ $c := .Int "value.1" }}
+          {{ $firing = add $firing $c }}
+          {{ if eq (.String "metric.severity") "critical" }}{{ $crit = add $crit $c }}{{ end }}
+        {{ end }}
+
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 {{ if lt $ready $total }}color-negative{{ else }}color-positive{{ end }}">{{ $ready }}/{{ $total }}</div>
+            <div class="size-h6">NODES READY</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt $firing 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $firing }}</div>
+            <div class="size-h6">ALERTS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt $crit 0 }}color-negative{{ else }}color-highlight{{ end }}">{{ $crit }}</div>
+            <div class="size-h6">CRITICAL</div>
+          </div>
+        </div>
+
+        {{ if gt (len $notready) 0 }}
+        <div style="margin-top: 10px;">
+          <div class="size-h5 color-negative">NotReady nodes</div>
+          <ul class="list-horizontal-text">
+            {{ range $notready }}<li>{{ .String "metric.node" }}</li>{{ end }}
+          </ul>
+        </div>
+        {{ end }}
+
+        {{ if gt (len $alerts) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+          {{ range $alerts }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate {{ if eq (.String "metric.severity") "critical" }}color-negative{{ else }}color-highlight{{ end }}">{{ .String "metric.alertname" }}</span>
+            <span class="shrink-0 size-h6">{{ .String "metric.severity" }} · {{ .Int "value.1" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: ArgoCD
+      title-url: https://argo.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: argocd_app_info{health_status=~"Degraded|Missing"}
+      subrequests:
+        outofsync:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: argocd_app_info{sync_status="OutOfSync"}
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(argocd_app_info)
+      template: |-
+        {{ $unhealthy := .JSON.Array "data.result" }}
+        {{ $oos := (.Subrequest "outofsync").JSON.Array "data.result" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $total }}</div>
+            <div class="size-h6">APPS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $oos) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $oos }}</div>
+            <div class="size-h6">OUT OF SYNC</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $unhealthy) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $unhealthy }}</div>
+            <div class="size-h6">UNHEALTHY</div>
+          </div>
+        </div>
+
+        {{ if gt (len $unhealthy) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+          {{ range $unhealthy }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate color-highlight">{{ .String "metric.name" }}</span>
+            <span class="shrink-0 color-negative size-h6">{{ .String "metric.health_status" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+
+        {{ if gt (len $oos) 0 }}
+        <div class="size-h5" style="margin-top: 10px;">Out of sync</div>
+        <ul class="list-horizontal-text collapsible-container" data-collapse-after="8">
+          {{ range $oos }}<li>{{ .String "metric.name" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Technitium DNS Stats
+      cache: 1h
+      url: ${TECHNITIUM_URL}/api/dashboard/stats/get?token=${TECHNITIUM_TOKEN}&type=LastDay&utc=true
+      subrequests:
+        update-check:
+          url: ${TECHNITIUM_URL}/api/user/checkForUpdate?token=${TECHNITIUM_TOKEN}
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="3">
+          {{ $updateCheck := .Subrequest "update-check" }}
+          <li>
+            <strong class="color-highlight">Version:</strong>
+            {{ $updateCheck.JSON.String "response.currentVersion" }}
+            {{ if ($updateCheck.JSON.Bool "response.updateAvailable") }}
+            <a href="https://github.com/TechnitiumSoftware/DnsServer/blob/master/CHANGELOG.md"><strong><span class="color-positive"> Update Available: {{ $updateCheck.JSON.String "response.updateVersion" }}</span></strong></a>
+            {{ end }}
+          </li>
+          <li>
+            <strong class="color-highlight">Total Queries:</strong>
+            {{ .JSON.String "response.stats.totalQueries" }}
+          </li>
+          <li>
+            <strong class="color-highlight">Blocked Queries:</strong>
+            {{ .JSON.String "response.stats.totalBlocked" }}
+          </li>
+          <li>
+            <h4 class="size-h5 color-highlight">Top Clients</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <thead>
+                <tr style="border-bottom: 1px solid #ccc;">
+                  <th style="text-align: left; padding: 8px;">Name</th>
+                  <th style="text-align: left; padding: 8px;">Hits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{ range $index, $client := .JSON.Array "response.topClients" }}
+                  <tr>
+                    <td style="padding: 8px;">{{ $client.String "name" }}</td>
+                    <td style="padding: 8px;">{{ $client.String "hits" }}</td>
+                  </tr>
+                {{ end }}
+              </tbody>
+            </table>
+          </li>
+          <li>
+            <h4 class="size-h5 color-highlight">Top Domains</h4>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+              <thead>
+                <tr style="border-bottom: 1px solid #ccc;">
+                  <th style="text-align: left; padding: 8px;">Domain</th>
+                  <th style="text-align: left; padding: 8px;">Hits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{ range $index, $domain := .JSON.Array "response.topDomains" }}
+                  <tr>
+                    <td style="padding: 8px;">{{ $domain.String "name" }}</td>
+                    <td style="padding: 8px;">{{ $domain.String "hits" }}</td>
+                  </tr>
+                {{ end }}
+              </tbody>
+            </table>
+          </li>
+          <li>
+            <h4 class="size-h5 color-highlight">Top Blocked Domains</h4>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid #ccc;">
+                  <th style="text-align: left; padding: 8px;">Domain</th>
+                  <th style="text-align: left; padding: 8px;">Hits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{ range $index, $blocked := .JSON.Array "response.topBlockedDomains" }}
+                  <tr>
+                    <td style="padding: 8px;">{{ $blocked.String "name" }}</td>
+                    <td style="padding: 8px;">{{ $blocked.String "hits" }}</td>
+                  </tr>
+                {{ end }}
+              </tbody>
+            </table>
+          </li>
+        </ul>
+    - type: custom-api
+      title: Unifi
+      cache: 1m
+      allow-insecure: true
+      url: https://${UNIFI_CONSOLE_IP}/proxy/network/api/stat/sites
+      headers:
+        X-API-KEY: ${UNIFI_API_KEY}
+        Accept: application/json
+      template: |-
+        <style>
+          .list-horizontal-text.no-bullets-unifi > *:not(:last-child)::after {
+              content: none !important;
+          }
+          .list-horizontal-text.no-bullets-unifi > *:not(:last-child) {
+            margin-right: 1em;
+          }
+        </style>
+        {{ range .JSON.Array "data" }}
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:40px; height:40px; flex-shrink:0; display:flex; justify-content:center; align-items:center; overflow:hidden;">
+              <img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/ubiquiti-unifi-light.svg" width="24" height="24" style="object-fit:contain;">
+            </div>
+            <div style="flex-grow:1; min-width:0;">
+              <a class="size-h4 block text-truncate color-highlight">
+                {{ .String "health.#(subsystem=\"wan\").gw_name" }}
+                {{ if eq (.String "health.#(subsystem=\"wan\").status") "ok" }}
+                <span
+                  style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-positive); display: inline-block; vertical-align: middle;"
+                  data-popover-type="text"
+                  data-popover-text="WAN Connected"
+                ></span>
+                {{ else }}
+                <span
+                  style="width: 8px; height: 8px; border-radius: 50%; background-color: var(--color-negative); display: inline-block; vertical-align: middle;"
+                  data-popover-type="text"
+                  data-popover-text="WAN Disconnected"
+                ></span>
+                {{ end }}
+              </a>
+              <ul class="list-horizontal-text no-bullets-unifi">
+                <li data-popover-type="text" data-popover-text="Uptime: {{ printf "%.1f" (div (.Float "health.#(subsystem=\"wan\").gw_system-stats.uptime") 86400) }} Days">
+                  <p style="display:inline-flex;align-items:center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 122.88 99.54" fill="currentColor" stroke="currentColor" stroke-width="0"  class="size-6" style="height:1em;vertical-align:middle;margin-right:0.5em;">
+                        <path d="M73.12,0c6.73,0,13.16,1.34,19.03,3.77c6.09,2.52,11.57,6.22,16.16,10.81l0,0c4.58,4.58,8.28,10.06,10.8,16.17 c2.43,5.87,3.77,12.3,3.77,19.02c0,6.73-1.34,13.16-3.77,19.03c-2.52,6.09-6.22,11.57-10.81,16.16l0,0 c-4.58,4.58-10.06,8.28-16.17,10.8c-5.87,2.43-12.3,3.77-19.02,3.77c-6.73,0-13.16-1.34-19.03-3.77 c-6.09-2.52-11.57-6.22-16.15-10.8l-0.01-0.01c-4.59-4.59-8.28-10.07-10.8-16.15c-0.78-1.89-1.45-3.83-2-5.82 c1.04,0.1,2.1,0.15,3.17,0.15c2.03,0,4.01-0.18,5.94-0.53c0.32,0.96,0.67,1.91,1.05,2.84c2.07,5,5.11,9.5,8.89,13.28 c3.78,3.78,8.29,6.82,13.28,8.89c4.81,1.99,10.1,3.1,15.66,3.1s10.84-1.1,15.66-3.1c5-2.07,9.5-5.11,13.28-8.89 c3.78-3.78,6.82-8.29,8.89-13.28c1.99-4.81,3.1-10.1,3.1-15.66s-1.1-10.84-3.1-15.66c-2.07-5-5.11-9.5-8.89-13.28 s-8.29-6.82-13.28-8.89c-4.81-1.99-10.1-3.1-15.66-3.1s-10.84,1.1-15.66,3.1c-0.43,0.18-0.86,0.37-1.28,0.56 c-1.64-2.58-3.62-4.92-5.89-6.95c1.24-0.64,2.51-1.23,3.8-1.77C59.97,1.34,66.39,0,73.12,0L73.12,0L73.12,0z M67.41,26.11 c0-1.22,0.5-2.32,1.29-3.12c0.8-0.8,1.9-1.29,3.12-1.29c1.22,0,2.32,0.49,3.12,1.29c0.8,0.8,1.29,1.9,1.29,3.12v23.22l17.35,10.29 c1.04,0.62,1.74,1.61,2.02,2.7c0.28,1.09,0.15,2.29-0.47,3.33v0.01l0,0c-0.62,1.04-1.61,1.74-2.7,2.02s-2.29,0.15-3.33-0.47h-0.01 l0,0L69.68,55.7c-0.67-0.37-1.22-0.91-1.62-1.55c-0.41-0.67-0.65-1.46-0.65-2.3V26.11L67.41,26.11L67.41,26.11z"/>
+                        <path style="fill-rule:evenodd; clip-rule:evenodd;" d="M26.98,2.64c14.9,0,26.98,12.08,26.98,26.98c0,14.9-12.08,26.98-26.98,26.98S0,44.52,0,29.62 C0,14.72,12.08,2.64,26.98,2.64L26.98,2.64L26.98,2.64z M26.98,13.72l14.48,17.9h-8.99v9.52H21.49v-9.52H12.5L26.98,13.72 L26.98,13.72z"/>
+                    </svg>
+                    {{ printf "%.1f" (div (.Float "health.#(subsystem=\"wan\").gw_system-stats.uptime") 86400) }}
+                  </p>
+                </li>
+                <li data-popover-type="text" data-popover-text="Wired clients: {{ .Int "health.#(subsystem=\"lan\").num_user" }}">
+                  <p style="display:inline-flex;align-items:center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0"  class="size-6" style="height:1em;vertical-align:middle;margin-right:0.5em;">
+                      <path fill="none" d="M0 0h24v24H0z"></path><path d="M7.77 6.76 6.23 5.48.82 12l5.41 6.52 1.54-1.28L3.42 12l4.35-5.24zM7 13h2v-2H7v2zm10-2h-2v2h2v-2zm-6 2h2v-2h-2v2zm6.77-7.52-1.54 1.28L20.58 12l-4.35 5.24 1.54 1.28L23.18 12l-5.41-6.52z"></path>
+                    </svg>
+                    {{ .Int "health.#(subsystem=\"lan\").num_user" }}
+                  </p>
+                </li>
+                <li data-popover-type="text" data-popover-text="Wireless clients: {{ .Int "health.#(subsystem=\"wlan\").num_user" }}">
+                  <p style="display:inline-flex;align-items:center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0"  class="size-6" style="height:1em;vertical-align:middle;margin-right:0.5em;">
+                      <path d="M12 6c3.537 0 6.837 1.353 9.293 3.809l1.414-1.414C19.874 5.561 16.071 4 12 4c-4.071.001-7.874 1.561-10.707 4.395l1.414 1.414C5.163 7.353 8.463 6 12 6zm5.671 8.307c-3.074-3.074-8.268-3.074-11.342 0l1.414 1.414c2.307-2.307 6.207-2.307 8.514 0l1.414-1.414z"></path><path d="M20.437 11.293c-4.572-4.574-12.301-4.574-16.873 0l1.414 1.414c3.807-3.807 10.238-3.807 14.045 0l1.414-1.414z"></path><circle cx="12" cy="18" r="2"></circle>
+                    </svg>
+                    {{ .Int "health.#(subsystem=\"wlan\").num_user"  }}
+                  </p>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="margin-block-2" style="margin-top: 1em">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div data-popover-type="html">
+                <div data-popover-html>
+                  <div>
+                    {{ range .Array "health.#(subsystem=\"wan\").uptime_stats.WAN.monitors" }}
+                    <div class="flex">
+                      <div class="size-h5">{{ .String "target" }}</div>
+                      <div class="value-separator"></div>
+                      <div class="color-highlight text-very-compact"><span>{{ .Int "latency_average" }}</span> <span class="color-base size-h5">ms</span></div>
+                    </div>
+                    {{ end }}
+                  </div>
+                </div>
+                <div class="size-h5">Latency</div>
+                <div class="size-h3 color-highlight">{{ .Int "health.#(subsystem=\"wan\").uptime_stats.WAN.latency_average" }}<span class="color-base"> ms</span></div>
+              </div>
+              <div>
+                <div class="size-h5">WAN IP</div>
+                <div class="size-h3 color-highlight">{{ .String "health.#(subsystem=\"wan\").wan_ip" }}</div>
+              </div>
+              <div>
+                <div class="size-h5">Gateway CPU</div>
+                <div class="size-h3 color-highlight">{{ .String "health.#(subsystem=\"wan\").gw_system-stats.cpu" }}<span class="color-base"> %</span></div>
+              </div>
+              <div>
+                <div class="size-h5">Gateway RAM</div>
+                <div class="size-h3 color-highlight">{{ .String "health.#(subsystem=\"wan\").gw_system-stats.mem" }}<span class="color-base"> %</span></div>
+              </div>
+            </div>
+          </div>
+        {{ end }}
+    - type: custom-api
+      title: Uptime Kumas
+      title-url: ${UPTIME_KUMA_URL}
+      url: ${UPTIME_KUMA_URL}/api/status-page/${UPTIME_KUMA_STATUS_SLUG}
+      subrequests:
+        heartbeats:
+          url: ${UPTIME_KUMA_URL}/api/status-page/heartbeat/${UPTIME_KUMA_STATUS_SLUG}
+      cache: 10m
+      template: |
+        {{ $hb := .Subrequest "heartbeats" }}
+
+        {{ if not (.JSON.Exists "publicGroupList") }}
+        <p class="color-negative">Error reading response</p>
+        {{ else if eq (len (.JSON.Array "publicGroupList")) 0 }}
+        <p>No monitors found</p>
+        {{ else }}
+
+        <ul class="dynamic-columns list-gap-8">
+          {{ range .JSON.Array "publicGroupList" }}
+          {{ range .Array "monitorList" }}
+          {{ $id := .String "id" }}
+          {{ $hbArray := $hb.JSON.Array (print "heartbeatList." $id) }}
+          <div class="flex items-center gap-12">
+            <a class="size-title-dynamic color-highlight text-truncate block grow" href="${UPTIME_KUMA_URL}/dashboard/{{ $id }}"
+              target="_blank" rel="noreferrer">
+              {{ .String "name" }} </a>
+
+            {{ if gt (len $hbArray) 0 }}
+              {{ $latest := index $hbArray (sub (len $hbArray) 1) }}
+              {{ if eq ($latest.Int "status") 1 }}
+              <div>{{ $latest.Int "ping" }}ms</div>
+              <div class="monitor-site-status-icon-compact" title="OK">
+                <svg fill="var(--color-positive)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd"
+                    d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"
+                    clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              {{ else }}
+              <div><span class="color-negative">DOWN</span></div>
+              <div class="monitor-site-status-icon-compact" title="{{ if $latest.Exists "msg" }}{{ $latest.String "msg" }}{{ else
+                }}Error{{ end }}">
+                <svg fill="var(--color-negative)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd"
+                    d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                    clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              {{ end }}
+            {{ else }}
+              <div><span class="color-negative">No data</span></div>
+              <div class="monitor-site-status-icon-compact" title="No data available">
+                <svg fill="var(--color-negative)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm0-2a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm-.75-8a.75.75 0 0 1 1.5 0v3a.75.75 0 0 1-1.5 0V8zm.75 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+              </div>
+            {{ end }}
+          </div>
+          {{ end }}
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Cloudflared Tunnels
+      css-class: widget-type-cloudflared
+      cache: 4h
+      url: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${CLOUDFLARE_TUNNEL_ID}/configurations
+      headers:
+        Authorization: Bearer ${CLOUDFLARE_API_KEY}
+      template: |-
+        {{ $domain_name := ".white.fm" }}  {{/* Set your domain name */}}
+
+        <style>
+          .widget-type-cloudflared li {
+            margin-top: var(--list-half-gap);
+            border-top: 1px solid var(--color-separator);
+            padding-top: var(--list-half-gap);
+          }
+        </style>
+        <ul class="dynamic-columns list-gap-15 list-with-separator">
+        {{ range .JSON.Array "result.config.ingress" }}
+          {{ if (.String "hostname") }}
+          <li class="flex items-center gap-20">
+              <div class="shrink-0">
+                  <img class="docker-container-icon" src="https://developers.cloudflare.com/logo.svg" alt="" loading="lazy">
+              </div>
+              <div class="min-width-0 grow">
+                <a href='https://{{ .String "hostname" }}' class="color-highlight size-title-dynamic block text-truncate" target="_blank" rel="noreferrer">{{ .String "hostname" | trimSuffix $domain_name }}</a>
+                {{ if (.String "service") }}
+                <div class="flex items-center gap-10" style="margin-bottom: 5px">
+                  <div class="text-left">
+                    <span class="color-subdue">&#8627;</span>
+                  </div>
+                  <div class="size-h6 flex-1 text-left">
+                    <a href='{{ .String "service" | replaceAll "localhost" "192.168.0.150" }}' target="_blank" rel="noreferrer">{{ .String "service" }}</a>
+                  </div>
+                </div>
+                {{ end}}
+              </div>
+          </li>
+          {{ end }}
+        {{ end }}
+        </ul>
+    - type: releases
+      title: App Updates
+      cache: 6h
+      show-source-icon: true
+      token: ${GITHUB_TOKEN}
+      collapse-after: 8
+      repositories:
+        - glanceapp/glance
+        - immich-app/immich
+        - TechnitiumSoftware/DnsServer
+        - goauthentik/authentik
+        - longhorn/longhorn
+        - argoproj/argo-cd
+        - Radarr/Radarr
+        - Sonarr/Sonarr
+        - Readarr/Readarr
+        - morpheus65535/bazarr
+        - Prowlarr/Prowlarr
+        - advplyr/audiobookshelf
+        - Kareadita/Kavita
+        - louislam/uptime-kuma
+        - open-webui/open-webui
+        - ollama/ollama
+  - size: full
+    widgets:
+    - type: custom-api
+      title: Cluster CPU / Memory
+      title-url: https://grafana.internal.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sort_desc(100 * container_memory_working_set_bytes{id="/"} / on(instance) group_left machine_memory_bytes)
+      subrequests:
+        ncpu:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * rate(container_cpu_usage_seconds_total{id="/"}[5m]) / on(instance) group_left machine_cpu_cores
+        ccpu:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * sum(rate(container_cpu_usage_seconds_total{id="/"}[5m])) / sum(machine_cpu_cores)
+        cmem:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: 100 * sum(container_memory_working_set_bytes{id="/"}) / sum(machine_memory_bytes)
+      template: |-
+        {{ $nodes := .JSON.Array "data.result" }}
+        {{ $ncpu := .Subrequest "ncpu" }}
+        {{ $ccpu := .Subrequest "ccpu" }}
+        {{ $cmem := .Subrequest "cmem" }}
+        {{ if eq (len $nodes) 0 }}
+          <p class="color-negative">No node metrics reporting.</p>
+        {{ else }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ printf "%.0f" ($ccpu.JSON.Float "data.result.0.value.1") }}%</div><div class="size-h6">CLUSTER CPU</div></div>
+          <div><div class="size-h2 color-highlight">{{ printf "%.0f" ($cmem.JSON.Float "data.result.0.value.1") }}%</div><div class="size-h6">CLUSTER MEM</div></div>
+        </div>
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $nodes }}
+          {{ $mem := .Float "value.1" }}
+          {{ $node := .String "metric.instance" }}
+          {{ $cpu := $ncpu.JSON.Float (printf "data.result.#(metric.instance==%q).value.1" $node) }}
+          {{ $color := "var(--color-positive)" }}
+          {{ if gt $mem 85.0 }}{{ $color = "var(--color-negative)" }}{{ else if gt $mem 70.0 }}{{ $color = "var(--color-primary)" }}{{ end }}
+          <li>
+            <div class="flex justify-between size-h6">
+              <span class="text-truncate">{{ $node }}</span>
+              <span class="shrink-0">cpu {{ printf "%.0f" $cpu }}% · mem {{ printf "%.0f" $mem }}%</span>
+            </div>
+            <div style="background: rgba(128,128,128,0.2); border-radius: 4px; height: 6px; margin-top: 4px; overflow: hidden;">
+              <div style="width: {{ printf "%.0f" $mem }}%; background: {{ $color | safeCSS }}; height: 100%;"></div>
+            </div>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: GitHub Actions
+      url: https://api.github.com/repos/RobertDWhite/whitehouse-rke2/actions/runs
+      cache: 5m
+      parameters:
+        branch: main
+        exclude_pull_requests: true
+        per_page: 6
+      headers:
+        Authorization: Bearer ${GITHUB_TOKEN}
+        Accept: application/vnd.github.v3+json
+        User-Agent: Glance-Dashboard
+      template: |-
+        <div class="github-repos">
+          <ul class="list list-gap-14 collapsible-container" data-collapse-after="2">
+
+            {{ range .JSON.Array "workflow_runs" }}
+              {{ $rzt := .String "conclusion" }}
+              <li>
+                <a class="size-h3 color-primary-if-not-visited" href="{{ .String "html_url" }}">{{ .String "display_title" }}</a>
+                <h3><a href="" target=""></a></h3>
+                <p>{{ .String "description" }}</p>
+                <ul class="list-horizontal-text">
+                  <li data-popover-type="html" {{ .String "updated_at" | parseTime "rfc3339" | toRelativeTime }}></li>
+                  <li data-popover-type="html"><div data-popover-html="">{{ .String "actor.login" }}</div>{{ .String "name" }}</li>
+                  <li data-popover-type="html"><div data-popover-html="">{{ .String "status" }}</div>
+                  {{ if eq $rzt "success" }}
+                    <svg width="20" height="20" fill="var(--color-positive)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                    </svg>
+                  {{ else }}
+                    <svg width="20" height="20" fill="var(--color-negative)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                    </svg>
+                  {{ end }}
+                  </li>
+                </ul>
+              </li>
+            {{ end }}
+          </ul>
+        </div>
+    - type: custom-api
+      title: GitHub Notifications
+      url: https://api.github.com/notifications?all=true&per_page=20
+      headers:
+        Authorization: Bearer ${GITHUB_TOKEN}
+        Accept: application/vnd.github+json
+      template: |-
+        <ul class="list list-gap-14 collapsible-container" data-collapse-after="6">
+        {{ range .JSON.Array "" }}
+          {{ $url := concat (.String "repository.html_url") "/actions" }}
+          {{ if ne (.String "subject.url") "" }}
+            {{
+              $notification := newRequest (.String "subject.url")
+                | withHeader "Authorization" "Bearer ${GITHUB_TOKEN}"
+                | getResponse
+            }}
+            {{ if eq $notification.Response.StatusCode 200 }}
+              {{ $url = $notification.JSON.String "html_url" }}
+            {{ else }}
+              {{ $url = (.String "subject.url") | replaceMatches "repos\\/" "" | replaceMatches "api\\." "" | replaceAll "pulls" "pull" }}
+            {{ end }}
+          {{ end }}
+          <li>
+            <a href="{{ $url }}" class="size-title-dynamic {{ if .Bool "unread" }}color-primary-if-not-visited{{ else }}negative-color{{ end }}" target="_blank" rel="noreferrer">{{ .String "subject.title" }}</a>
+            <ul class="list-horizontal-text flex-nowrap">
+              <li class="min-width-0" {{ .String "updated_at" | parseTime "rfc3339" | toRelativeTime }}></li>
+              <li class="min-width-0"><a target="_blank" href="{{ $url }}">{{ .String "repository.full_name" }}</a></li>
+            </ul>
+          </li>
+        {{ end }}
+        </ul>
+      cache: 30m
+    - type: custom-api
+      title: GitHub Repositories
+      url: https://api.github.com/user/repos
+      cache: 30m
+      parameters:
+        affiliation: owner
+        sort: updated
+        visibility: all
+      headers:
+        Authorization: Bearer ${GITHUB_TOKEN}
+        Accept: application/vnd.github.v3+json
+        User-Agent: Glance-Dashboard
+      template: |-
+        <div class="github-repos">
+          <ul class="list list-gap-14 collapsible-container" data-collapse-after="5">
+            {{ range .JSON.Array "" }}
+              <li>
+                <a class="size-h3 color-primary" href="{{ .String "html_url" }}">{{ .String "full_name" }}</a>
+                <h3><a href="" target="_blank"></a></h3>
+                <p>{{ .String "description" }}</p>
+                <ul class="list-horizontal-text device-info">
+                  <li data-popover-type="html"><div data-popover-html="">Last Update</div>{{ formatTime "DateOnly" ( parseTime "RFC3339" (.String "updated_at") ) }}</li>
+                  <li data-popover-type="html"><div data-popover-html="">Visibility</div>{{ .String "visibility" }}</li>
+                  <li data-popover-type="html"><div data-popover-html="">Stars</div>{{ .Int "stargazers_count" }}✩</li>
+                  {{ if .String "language" }}
+                  <li data-popover-type="html"><div data-popover-html="">Language</div>{{ .String "language" }}</li>
+                  {{ end }}
+                </ul>
+              </li>
+            {{ end }}
+          </ul>
+        </div>
+    - type: custom-api
+      title: Trending Repositories
+      cache: 24h
+      url: https://api.ossinsight.io/v1/trends/repos/?period=past_week&language=All
+      template: |
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="3">
+          {{ range .JSON.Array "data.rows" }}
+            <li>
+              <a class="color-primary-if-not-visited" href="https://github.com/{{ .String "repo_name" }}">{{ .String "repo_name" }}</a>
+              <ul class="list-horizontal-text">
+                <li class="color-highlight">{{ .String "primary_language" }}</li>
+                <li>{{ .Int "stars" }} &#9733;</li>
+                <li>{{ .Int "forks" }} forks</li>
+              </ul>
+              <ul class="list">
+                <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ .String "description" }}</li>
+              </ul>
+            </li>
+          {{ end }}
+        </ul>
+- name: Ops
+  columns:
+  - size: small
+    widgets:
+    - type: custom-api
+      title: Velero Backups
+      title-url: https://grafana.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: velero_backup_last_status{schedule!=""}
+      subrequests:
+        fails:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: velero_backup_failure_total{schedule!=""}
+        succ:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: velero_backup_success_total{schedule!=""}
+      template: |-
+        {{ $sch := .JSON.Array "data.result" }}
+        {{ $f := .Subrequest "fails" }}
+        {{ $s := .Subrequest "succ" }}
+        {{ if eq (len $sch) 0 }}
+          <p class="color-negative">No Velero schedules reporting.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $sch }}
+          {{ $name := .String "metric.schedule" }}
+          {{ $ok := eq (.Int "value.1") 1 }}
+          {{ $fc := $f.JSON.Int (printf "data.result.#(metric.schedule==%q).value.1" $name) }}
+          {{ $sc := $s.JSON.Int (printf "data.result.#(metric.schedule==%q).value.1" $name) }}
+          <li class="flex items-center justify-between gap-10">
+            <span class="text-truncate">{{ $name }}</span>
+            <span class="shrink-0 size-h6">
+              <span class="{{ if $ok }}color-positive{{ else }}color-negative{{ end }}">{{ if $ok }}OK{{ else }}FAIL{{ end }}</span>
+              · <span class="color-positive">{{ $sc }}✓</span> <span class="{{ if gt $fc 0 }}color-negative{{ end }}">{{ $fc }}✗</span>
+            </span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Prowlarr Indexers
+      title-url: https://prowlarr.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: prowlarr_indexer_unavailable == 1
+      subrequests:
+        total:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: prowlarr_indexer_total
+      template: |-
+        {{ $down := .JSON.Array "data.result" }}
+        {{ $total := (.Subrequest "total").JSON.Int "data.result.0.value.1" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $total }}</div>
+            <div class="size-h6">INDEXERS</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt (len $down) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $down }}</div>
+            <div class="size-h6">UNAVAILABLE</div>
+          </div>
+        </div>
+        {{ if gt (len $down) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 10px;"></div>
+        <ul class="list-horizontal-text collapsible-container" data-collapse-after="8">
+          {{ range $down }}<li class="color-negative">{{ .String "metric.indexer" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Internet Speed
+      title-url: https://speed.internal.white.fm
+      cache: 10m
+      url: ${MYSPEED_URL}/api/speedtests
+      template: |-
+        {{ $tests := .JSON.Array "" }}
+        {{ if eq (len $tests) 0 }}
+          <p class="color-subdue">No recent speedtests recorded.</p>
+        {{ else }}
+        {{ $t := index $tests (sub (len $tests) 1) }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h3 color-highlight">{{ $t.String "ping" }}</div><div class="size-h6">PING ms</div></div>
+          <div><div class="size-h3 color-positive">{{ $t.String "download" }}</div><div class="size-h6">DOWN</div></div>
+          <div><div class="size-h3 color-primary">{{ $t.String "upload" }}</div><div class="size-h6">UP</div></div>
+        </div>
+        {{ end }}
+    - type: custom-api
+      title: Falco
+      title-url: https://falco.internal.white.fm
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: sum(falcosecurity_falcosidekick_falco_events_total)
+      subrequests:
+        pri:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: sum by (priority_raw) (falcosecurity_falcosidekick_falco_events_total)
+      template: |-
+        {{ $events := .JSON.Int "data.result.0.value.1" }}
+        {{ $pri := (.Subrequest "pri").JSON.Array "data.result" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 color-highlight">{{ $events }}</div>
+            <div class="size-h6">EVENTS SEEN</div>
+          </div>
+        </div>
+        {{ if gt (len $pri) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list-horizontal-text">
+          {{ range $pri }}<li class="{{ if eq (.String "metric.priority_raw") "critical" "error" "warning" "emergency" "alert" }}color-negative{{ end }}">{{ .String "metric.priority_raw" }}: {{ .Int "value.1" }}</li>{{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Crowdsec — Security
+      cache: 2m
+      url: ${CROWDSEC_URL}/v1/decisions
+      headers:
+        X-Api-Key: ${CROWDSEC_BOUNCER_KEY}
+      subrequests:
+        mach:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: count(cs_info)
+      template: |-
+        {{ $bans := .JSON.Array "@this" }}
+        {{ $mach := (.Subrequest "mach").JSON.Int "data.result.0.value.1" }}
+        <div class="flex justify-between text-center">
+          <div>
+            <div class="size-h2 {{ if gt (len $bans) 0 }}color-negative{{ else }}color-positive{{ end }}">{{ len $bans }}</div>
+            <div class="size-h6">ACTIVE BANS</div>
+          </div>
+          <div>
+            <div class="size-h2 color-highlight">{{ $mach }}</div>
+            <div class="size-h6">ENGINES</div>
+          </div>
+        </div>
+        {{ if gt (len $bans) 0 }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        <ul class="list list-gap-10">
+          {{ range $bans }}
+          <li class="flex justify-between size-h6">
+            <span class="color-negative shrink-0">{{ .String "value" }}</span>
+            <span class="text-truncate" style="margin: 0 8px;">{{ .String "scenario" }}</span>
+            <span class="shrink-0">{{ .String "duration" }}</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ else }}
+        <p class="size-h6 color-positive" style="margin-top: 6px; text-align: center;">No active decisions — nothing currently blocked.</p>
+        {{ end }}
+    - type: custom-api
+      title: Fleet — Devices
+      title-url: https://fleet.internal.white.fm
+      cache: 5m
+      url: ${FLEET_URL}/api/v1/fleet/host_summary
+      headers:
+        Authorization: Bearer ${FLEET_TOKEN}
+      subrequests:
+        pol:
+          url: ${FLEET_URL}/api/v1/fleet/global/policies
+          headers:
+            Authorization: Bearer ${FLEET_TOKEN}
+      template: |-
+        {{ $total := .JSON.Int "totals_hosts_count" }}
+        {{ $online := .JSON.Int "online_count" }}
+        {{ $offline := .JSON.Int "offline_count" }}
+        {{ $pols := (.Subrequest "pol").JSON.Array "policies" }}
+        <div class="flex justify-between text-center">
+          <div><div class="size-h2 color-highlight">{{ $total }}</div><div class="size-h6">HOSTS</div></div>
+          <div><div class="size-h2 color-positive">{{ $online }}</div><div class="size-h6">ONLINE</div></div>
+          <div><div class="size-h2 {{ if gt $offline 0 }}color-negative{{ else }}color-highlight{{ end }}">{{ $offline }}</div><div class="size-h6">OFFLINE</div></div>
+        </div>
+        {{ $failing := 0 }}
+        {{ range $pols }}{{ if gt (.Int "failing_host_count") 0 }}{{ $failing = add $failing 1 }}{{ end }}{{ end }}
+        <div style="border-bottom: 1px solid; margin-block: 8px;"></div>
+        {{ if eq $failing 0 }}
+        <p class="size-h6 color-positive" style="text-align: center;">All policies passing.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $pols }}{{ $f := .Int "failing_host_count" }}{{ if gt $f 0 }}
+          <li class="flex justify-between size-h6">
+            <span class="text-truncate">{{ .String "name" }}</span>
+            <span class="color-negative shrink-0">{{ $f }} failing</span>
+          </li>
+          {{ end }}{{ end }}
+        </ul>
+        {{ end }}
+  - size: full
+    widgets:
+    - type: custom-api
+      title: Storage / PVC Capacity
+      title-url: https://longhorn.internal.white.fm
+      cache: 5m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: topk(15, 100 * kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)
+      subrequests:
+        cap:
+          url: ${PROMETHEUS_URL}/api/v1/query
+          parameters:
+            query: kubelet_volume_stats_capacity_bytes
+      template: |-
+        {{ $pvcs := .JSON.Array "data.result" }}
+        {{ $cap := .Subrequest "cap" }}
+        {{ if eq (len $pvcs) 0 }}
+          <p class="color-negative">No PVC stats reporting.</p>
+        {{ else }}
+        <ul class="list list-gap-10">
+          {{ range $pvcs }}
+          {{ $pct := .Float "value.1" }}
+          {{ $pvc := .String "metric.persistentvolumeclaim" }}
+          {{ $ns := .String "metric.namespace" }}
+          {{ $capb := $cap.JSON.Float (printf "data.result.#(metric.persistentvolumeclaim==%q).value.1" $pvc) }}
+          {{ $capg := printf "%.0f" (div $capb 1073741824.0) }}
+          {{ $color := "var(--color-positive)" }}
+          {{ if gt $pct 85.0 }}{{ $color = "var(--color-negative)" }}{{ else if gt $pct 70.0 }}{{ $color = "var(--color-primary)" }}{{ end }}
+          <li>
+            <div class="flex justify-between size-h6">
+              <span class="text-truncate">{{ $ns }}/{{ $pvc }}</span>
+              <span class="shrink-0">{{ printf "%.0f" $pct }}% · {{ $capg }}G</span>
+            </div>
+            <div style="background: rgba(128,128,128,0.2); border-radius: 4px; height: 6px; margin-top: 4px; overflow: hidden;">
+              <div style="width: {{ printf "%.0f" $pct }}%; background: {{ $color | safeCSS }}; height: 100%;"></div>
+            </div>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}
+    - type: custom-api
+      title: Crashlooping Pods (last 1h)
+      cache: 2m
+      url: ${PROMETHEUS_URL}/api/v1/query
+      parameters:
+        query: topk(15, sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[1h])) > 0)
+      template: |-
+        {{ $rows := .JSON.Array "data.result" }}
+        {{ if eq (len $rows) 0 }}
+          <p class="color-positive">No pods restarting in the last hour.</p>
+        {{ else }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+          {{ range $rows }}
+          {{ $n := .Int "value.1" }}
+          <li class="flex items-center justify-between gap-10">
+            <div class="min-width-0">
+              <span class="color-highlight text-truncate block">{{ .String "metric.pod" }}</span>
+              <span class="size-h6 color-subdue">{{ .String "metric.namespace" }}</span>
+            </div>
+            <span class="shrink-0 {{ if gt $n 5 }}color-negative{{ else }}color-primary{{ end }}">{{ $n }} restarts</span>
+          </li>
+          {{ end }}
+        </ul>
+        {{ end }}

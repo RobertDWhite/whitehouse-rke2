@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai-stack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      priorityClassName: high-priority
+      runtimeClassName: nvidia
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - rke2-node-10
+
+      tolerations: []
+
+      containers:
+        - name: ollama
+          image: ollama/ollama
+          ports:
+            - containerPort: 11434
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: OLLAMA_OPENAI_COMPAT
+              value: "1"
+            - name: OLLAMA_API_KEY
+              value: "dummy"
+            - name: OLLAMA_DEBUG
+              value: "1"
+            - name: OLLAMA_KEEP_ALIVE
+              value: "2h"
+            - name: OLLAMA_NUM_PARALLEL
+              value: "4"
+            # node-10 GB10 has ~80Gi available unified memory — hold several
+            # models at once so heavy consumers (sdr-viewer-api → deepseek-r1:14b)
+            # don't pin the single slot and starve politics' llama3.2:3b.
+            # Context is capped at 16384, so 3 models stay well under the limit.
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "3"
+            # GB10 is a unified-memory iGPU, so KV cache counts against the
+            # container cgroup limit. ollama 0.24 defaults to a 256K VRAM-based
+            # context which, x4 parallel, OOMs the pod. Cap context so we keep
+            # parallelism (politics fires ~25 concurrent summary calls) without OOM.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "16384"
+          resources:
+            requests:
+              cpu: "1"
+              memory: "4Gi"
+            limits:
+              cpu: "8"
+              memory: "80Gi"
+              nvidia.com/gpu: 1
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-pvc

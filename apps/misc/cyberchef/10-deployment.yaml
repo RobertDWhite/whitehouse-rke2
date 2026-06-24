@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cyberchef
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cyberchef
+  template:
+    metadata:
+      labels:
+        app: cyberchef
+    spec:
+      containers:
+        - name: cyberchef
+          image: ghcr.io/gchq/cyberchef
+          ports:
+            - containerPort: 8080
+          # cyberchef 11.x serves on 8080 (not 80) — targeting :80 caused
+          # connection-refused crashloops. startupProbe also gives nginx time
+          # to come up before liveness/readiness engage.
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

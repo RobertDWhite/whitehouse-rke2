@@ -1,0 +1,17 @@
+apiVersion: viaduct.ai/v1
+kind: ksops
+metadata:
+  name: observability-secrets
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - 08-secret-grafana.sops.yaml
+  - 40-secret-unifi-poller.sops.yaml
+  - 51-secret-influxdb.sops.yaml
+  - 55-influxdb-unpoller.sops.yaml
+  - 57-secret-grafana-ha-dashboard.sops.yaml
+  - 100-secret-pihole-exporter-a.sops.yaml
+  - 102-secret-pihole-exporter-b.sops.yaml
+  - 103-secret-pihole-exporter-c.sops.yaml

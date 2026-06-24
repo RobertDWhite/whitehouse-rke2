@@ -1,0 +1,68 @@
+# Keeps host network socket buffers large enough for SoapyRemote on the
+# Airspy node and the RX888 node.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: soapy-sysctl
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: soapy-sysctl
+  template:
+    metadata:
+      labels:
+        app: soapy-sysctl
+    spec:
+      hostNetwork: true
+      hostPID: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - rke2-node-10
+                      - rke2-node-12
+      containers:
+        - name: soapy-sysctl
+          image: debian:stable-slim   # multi-arch; soapy-sysctl only needs a shell (node-10 is arm64)
+          command:
+            - /bin/sh
+            - -lc
+            - |
+              set -eu
+              while true; do
+                echo 1024 > /host/sys/module/usbcore/parameters/usbfs_memory_mb || true
+                for key in wmem_max rmem_max wmem_default rmem_default; do
+                  echo 44040192 > "/host/proc/sys/net/core/${key}"
+                done
+                echo 1024 > /host/proc/sys/fs/inotify/max_user_instances
+                sleep 300
+              done
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -lc
+                - '[ "$(cat /host/proc/sys/net/core/wmem_max)" = "44040192" ] && [ "$(cat /host/sys/module/usbcore/parameters/usbfs_memory_mb)" = "1024" ] && [ "$(cat /host/proc/sys/fs/inotify/max_user_instances)" = "1024" ]'
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /

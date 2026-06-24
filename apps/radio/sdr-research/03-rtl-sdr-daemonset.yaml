@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rtl-sdr-tcp
+  namespace: sdr-research
+spec:
+  selector:
+    matchLabels:
+      app: rtl-sdr-tcp
+  template:
+    metadata:
+      labels:
+        app: rtl-sdr-tcp
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+        sdr.white.fm/pager-present: "true"
+      containers:
+        - name: rtl-tcp
+          image: legacycode/rtlsdr
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          ports:
+            - containerPort: 1234
+              name: rtl-tcp
+          env:
+            - name: RTL_DEVICE_SERIAL
+              value: "00000001"
+            - name: RTL_SAMPLE_RATE
+              value: "2400000"
+            - name: RTL_GAIN
+              value: "auto"
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "for f in /proc/[0-9]*/comm; do [ \"$(cat \"$f\")\" = \"rtl_tcp\" ] && exit 0; done; exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: usb
+              mountPath: /dev/bus/usb
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Avoid USB transfer starvation under sustained rtl_tcp load.
+              echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
+              echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
+
+              # Unbind dvb_usb_rtl28xxu from all RTL-SDR devices — the kernel
+              # DVB driver claims generic RTL2838 dongles, blocking librtlsdr.
+              # Container is privileged so we can write to sysfs.
+              DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
+              if [ -d "$DVB_DRV" ]; then
+                for dev in "$DVB_DRV"/*/; do
+                  devid=$(basename "$dev")
+                  case "$devid" in
+                    *:*) echo -n "$devid" > "$DVB_DRV/unbind" 2>/dev/null && \
+                         echo "Unbound $devid from dvb_usb_rtl28xxu" || true ;;
+                  esac
+                done
+              fi
+
+              echo "Starting rtl_tcp for pager (serial ${RTL_DEVICE_SERIAL})"
+              # Workaround: rtl_tcp -d treats "00000001" as octal → int 1,
+              # selecting device index 1 (wrong device) instead of doing a
+              # serial lookup. Find the correct index by parsing enumeration.
+              DEV_INDEX=""
+              for i in 0 1 2 3; do
+                INFO=$(rtl_eeprom -d $i 2>&1) || continue
+                if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
+                  DEV_INDEX=$i
+                  break
+                fi
+              done
+              if [ -z "$DEV_INDEX" ]; then
+                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found; waiting for the correct pager dongle"
+                sleep 10
+                exit 1
+              fi
+              echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
+              while true; do
+                rtl_tcp \
+                  -d ${DEV_INDEX} \
+                  -a 0.0.0.0 \
+                  -p 1234 \
+                  -s ${RTL_SAMPLE_RATE} \
+                  -n 32
+                echo "rtl_tcp exited, restarting in 2s..."
+                sleep 2
+              done
+      volumes:
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

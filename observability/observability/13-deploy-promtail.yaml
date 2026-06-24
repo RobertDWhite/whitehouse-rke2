@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: observability
+spec:
+  selector:
+    matchLabels:
+      app: promtail
+  template:
+    metadata:
+      labels:
+        app: promtail
+    spec:
+
+      serviceAccountName: promtail
+
+      containers:
+        - name: promtail
+          image: grafana/promtail
+          args:
+            - -config.file=/etc/promtail/promtail.yaml
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: syslog-tcp
+              containerPort: 1514
+              protocol: TCP
+            - name: syslog-udp
+              containerPort: 1514
+              protocol: UDP
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail
+              readOnly: true
+
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+
+            - name: containers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+
+            # RKE2 kube-apiserver audit log. Server nodes only — on agent
+            # nodes the host path doesn't exist; HostPathType "" (default,
+            # no type-check) lets the kubelet create the mount as an
+            # empty dir if missing, so the DaemonSet still schedules. The
+            # tail target inside Promtail just stays empty on agents.
+            - name: rke2-audit
+              mountPath: /var/lib/rancher/rke2/server/logs
+              readOnly: true
+
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+
+        - name: varlog
+          hostPath:
+            path: /var/log
+
+        - name: containers
+          hostPath:
+            path: /var/lib/docker/containers
+
+        - name: rke2-audit
+          hostPath:
+            path: /var/lib/rancher/rke2/server/logs
+            type: DirectoryOrCreate

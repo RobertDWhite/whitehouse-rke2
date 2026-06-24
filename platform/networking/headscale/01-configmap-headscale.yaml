@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-config
+  namespace: headscale
+data:
+  config.yaml: |
+    server_url: https://headscale.white.fm
+    listen_addr: 0.0.0.0:8080
+    metrics_listen_addr: 0.0.0.0:9090
+    grpc_listen_addr: 0.0.0.0:50443
+    grpc_allow_insecure: false
+
+    noise:
+      private_key_path: /var/lib/headscale/noise_private.key
+
+    prefixes:
+      v4: 100.64.0.0/10
+      v6: fd7a:115c:a1e0::/48
+      allocation: sequential
+
+    derp:
+      # Self-hosted DERP only — no fallback to Tailscale Inc.'s public
+      # relays. The DERP map is loaded from a file so we never call out
+      # to controlplane.tailscale.com.
+      urls: []
+      paths:
+        - /etc/headscale-derp/derp-map.yaml
+      auto_update_enabled: false
+      update_frequency: 24h
+
+    disable_check_updates: true
+
+    # v0.29: node-key expiry and ephemeral-node inactivity moved under a unified
+    # `node:` block. `oidc.expiry` was removed (use node.expiry) and
+    # `ephemeral_node_inactivity_timeout` relocated to node.ephemeral.inactivity_timeout.
+    node:
+      expiry: 720h  # node key lifetime before forced re-auth (was oidc.expiry.node_expiry); 0 = never
+      ephemeral:
+        inactivity_timeout: 30m
+
+    database:
+      type: sqlite
+      sqlite:
+        path: /var/lib/headscale/db.sqlite
+
+    log:
+      level: info
+      format: text
+
+    policy:
+      mode: database
+
+    dns:
+      magic_dns: true
+      base_domain: ts.white.fm
+      override_local_dns: true
+      nameservers:
+        global:
+          - 10.99.5.50
+          - 10.99.5.51
+        split:
+          # Force the whole public zones through Technitium too, so that
+          # grafana.white.fm etc. resolve to the internal gateway VIP and
+          # ride the tailnet instead of egressing to Cloudflare.
+          white.fm:
+            - 10.99.5.50
+            - 10.99.5.51
+          w3rdw.radio:
+            - 10.99.5.50
+            - 10.99.5.51
+          whitematter.tech:
+            - 10.99.5.50
+            - 10.99.5.51
+          internal.white.fm:
+            - 10.99.5.50
+            - 10.99.5.51
+          internal.w3rdw.radio:
+            - 10.99.5.50
+            - 10.99.5.51
+          internal.whitematter.tech:
+            - 10.99.5.50
+            - 10.99.5.51
+      search_domains:
+        - internal.white.fm
+
+    unix_socket: /var/run/headscale/headscale.sock
+    unix_socket_permission: "0770"
+
+    oidc:
+      only_start_if_oidc_is_available: true
+      issuer: https://auth.white.fm/application/o/headscale/
+      client_id: headscale
+      client_secret_path: /etc/headscale-oidc/client-secret
+      scope:
+        - openid
+        - profile
+        - email
+        - groups
+      pkce:
+        enabled: true
+        method: S256
+      # Restrict logins to specific Authentik groups (optional).
+      # Create a group in Authentik (e.g. "headscale-users") and bind it
+      # to the Headscale application, then set the matching groups here.
+      # allowed_groups:
+      #   - headscale-users

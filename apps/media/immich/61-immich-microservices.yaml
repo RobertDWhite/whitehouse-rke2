@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-microservices
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: immich-microservices
+  template:
+    metadata:
+      labels:
+        app: immich-microservices
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+      containers:
+        - name: immich-microservices
+          image: ghcr.io/immich-app/immich-server:v2.5.6
+          env:
+            - name: DB_HOSTNAME
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: DB_HOSTNAME }
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: DB_PORT }
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_USERNAME }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_PASSWORD }
+            - name: DB_DATABASE_NAME
+              valueFrom:
+                secretKeyRef: { name: immich-db, key: DB_DATABASE_NAME }
+
+            - name: REDIS_HOSTNAME
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: REDIS_HOSTNAME }
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: REDIS_PORT }
+
+            - name: MACHINE_LEARNING_URL
+              value: "http://immich-machine-learning.immich.svc.cluster.local:3003"
+
+            - name: UPLOAD_LOCATION
+              valueFrom:
+                configMapKeyRef: { name: immich-config, key: UPLOAD_LOCATION }
+
+            - name: IMMICH_WORKERS_INCLUDE
+              value: "microservices"
+          volumeMounts:
+            - name: upload
+              mountPath: /usr/src/app/upload
+              subPath: library
+            - name: photos
+              mountPath: /photos
+      volumes:
+        - name: upload
+          persistentVolumeClaim:
+            claimName: immich-upload
+        - name: photos
+          persistentVolumeClaim:
+            claimName: immich-photos

@@ -1,0 +1,145 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: sdr-research
+
+resources:
+  # Core infrastructure
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 02-pvc-artifacts.yaml
+  - 02b-pvc-artifacts-rwx.yaml
+  - 02c-pvc-artifacts-hf.yaml
+
+  # SDR capture pipeline
+  # Pager — RTL-SDR serial 00000001 on rke2-node-13
+  - 03-rtl-sdr-daemonset.yaml
+  - 03b-rtl-tcp-service.yaml
+  # 70cm — RTL-SDR serial 00000002 on rke2-node-13
+  - 03c-rtl-sdr-70cm-daemonset.yaml
+  - 03d-rtl-tcp-70cm-service.yaml
+  # Airspy Mini — SoapyRemote server for 2m (replaces RTL-SDR on 2m)
+  - 03e-airspy-soapy-daemonset.yaml
+  - 03f-airspy-soapy-service.yaml
+  - 03g-soapy-sysctl-daemonset.yaml
+  - 04-unified-sdr-configmap.yaml
+  - 05-unified-sdr-deployment.yaml
+  - 05b-unified-sdr-70cm-deployment.yaml
+  - 05c-unified-sdr-pager-deployment.yaml
+  - 08-cw-decoder-configmap.yaml
+  - 09-cw-decoder-deployment.yaml
+  - 10-aprs-decoder-configmap.yaml
+  - 11-aprs-decoder-deployment.yaml
+  - 12-pager-decoder-configmap.yaml
+  - 13-pager-decoder-deployment.yaml
+  - 14-eas-decoder-configmap.yaml
+  - 15-eas-decoder-deployment.yaml
+  # 16-acars-decoder-configmap.yaml no longer needed — acarsdec image has its own entrypoint
+  - 17-acars-decoder-deployment.yaml
+  - 24-ais-deployment.yaml
+  - 25-ais-service.yaml
+  - 26-vdl2-configmap.yaml
+  - 27-vdl2-deployment.yaml
+  - 18-spectrum-exporter-configmap.yaml
+  - 19-spectrum-exporter-deployment.yaml
+  - 19b-spectrum-exporter-service.yaml
+  - 10a-voice-decoder-configmap.yaml
+  - 10b-voice-decoder-deployment.yaml
+  - 11-pvc-whisper-cache.yaml
+  # Web viewer
+  - 20-pvc-cache.yaml
+  - 21-postgres-statefulset.yaml
+  - 22b-postgres-exporter.yaml
+  # 22-secret.sops.yaml - handled by ksops generator
+  - 23-externalsecret-repeaterbook.yaml
+  - 30b-api-rbac.yaml
+  - 30-deployment-api.yaml
+  - 31-service-api.yaml
+  - 32-deployment-ui.yaml
+  - 33-service-ui.yaml
+  # MCP server — exposes the read-only API as MCP tools for Claude
+  - 60-mcp-deployment.yaml
+  - 61-mcp-service.yaml
+  - 35-pdb.yaml
+  - 36-network-policies.yaml
+  - 41-authentik-service.yaml
+  # HF stack — RX888 MkII via SoapyRemote
+  - 28-rx888-soapy-daemonset.yaml
+  - 29-rx888-soapy-service.yaml
+  # HFDL decoder — aviation HF datalink
+  - 55-hfdl-decoder-deployment.yaml
+  # FT8/WSPR decoder — HF digital mode spots
+  - 58-ft8-wspr-decoder-deployment.yaml
+  # SSTV decoders
+  - 55-sstv-decoder-configmap.yaml
+  - 56-sstv-decoder-deployment.yaml        # VHF/UHF: watches WAV files (always on)
+  - 57-sstv-hf-decoder-deployment.yaml     # HF: standalone fallback (replicas=0)
+  # Combined HF decoder — time-shares RX888 between HFDL + SSTV
+  - 59-hf-combined-deployment.yaml
+  # Stability watchdog — auto-restarts stalled decoders, alerts on hardware failures
+  - 95-watchdog-rbac.yaml
+  - 96-watchdog-deployment.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: registry.internal.white.fm/sdr-mcp
+    newName: ghcr.io/w3rdw/sdr-research-mcp
+    newTag: "0.2.1"
+  - name: librespace/gnuradio
+    newTag: "3.10.5.1"
+  # NOT migrated: OSS sdr-research-voice-cuda is amd64-only, but this runs on
+  # the arm64 DGX Spark (rke2-node-10). Needs an arm64/sbsa CUDA build matching
+  # the Spark GPU before it can replace whisper-cuda. Stays on the internal build.
+  - name: registry.internal.white.fm/sdr-whisper-cuda
+    newTag: "0.1.1"
+  - name: postgres
+    newTag: "15"
+    digest: "sha256:1b92e7a80c021647bf70f5d3eb66066a998e4f5cf43c07bb9dc9f729782cf88e"
+  # Migrating to OSS images at ghcr.io/w3rdw/sdr-research-* (see commit history).
+  # Stage 1: remap to OSS image; configmap-override mounts still win at runtime.
+  # Stage 2: unmount overrides — image's baked code becomes authoritative.
+  # Stage 3: delete 30a-configmap-api-overrides.yaml entirely.
+  - name: registry.internal.white.fm/sdr-viewer-api
+    newName: ghcr.io/w3rdw/sdr-research-api
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/sdr-viewer-ui
+    newName: ghcr.io/w3rdw/sdr-research-ui
+    newTag: "0.2.1"
+  - name: legacycode/rtlsdr
+    newTag: "latest"
+  - name: ghcr.io/jvde-github/ais-catcher
+    newTag: "v0.70"
+  - name: registry.internal.white.fm/soapy-airspy-server
+    newName: ghcr.io/w3rdw/sdr-research-soapy-airspy
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/soapy-rx888-server
+    newName: ghcr.io/w3rdw/sdr-research-soapy-rx888
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/hfdl-decoder
+    newName: ghcr.io/w3rdw/sdr-research-hfdl
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/sstv-decoder
+    newName: ghcr.io/w3rdw/sdr-research-sstv
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/hf-combined-decoder
+    newName: ghcr.io/w3rdw/sdr-research-hf-combined
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/ft8-wspr-decoder
+    newName: ghcr.io/w3rdw/sdr-research-ft8-wspr
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/unified-hf-decoder
+    newName: ghcr.io/w3rdw/sdr-research-ft8-wspr
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/vdl2-decoder
+    newName: ghcr.io/w3rdw/sdr-research-vdl2
+    newTag: "0.2.1"
+  - name: registry.internal.white.fm/acars-decoder
+    newName: ghcr.io/w3rdw/sdr-research-acars
+    newTag: "0.2.1"
+  - name: quay.io/prometheuscommunity/postgres-exporter
+    newTag: "v0.19.1"
+  - name: registry.internal.white.fm/sdr-watchdog
+    newName: ghcr.io/w3rdw/sdr-research-watchdog
+    newTag: "0.2.1"

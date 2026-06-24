@@ -1,0 +1,212 @@
+# =============================================================
+# ai-stack namespace — Ollama, Open WebUI, Stable Diffusion
+# =============================================================
+# Ollama receives requests from: sdr-research, freshrss, openclaw
+# Also exposed via MetalLB + ingress.
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: ai-stack
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+  namespace: ai-stack
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - {}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: ai-stack
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {}}]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx
+  namespace: ai-stack
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+
+---
+# Ollama ← sdr-research, freshrss, openclaw, politics
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-consumers
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sdr-research
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: freshrss
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
+      ports:
+        - {protocol: TCP, port: 11434}
+
+---
+# MetalLB / LAN → Ollama
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-ollama
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+        - ipBlock:
+            cidr: 192.168.0.0/16
+      ports:
+        - {protocol: TCP, port: 11434}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-uptime-kuma
+  namespace: ai-stack
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+
+---
+# Prometheus → ollama-exporter metrics scrape
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama-exporter
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {protocol: TCP, port: 9401}
+
+---
+# ollama-router ← all Ollama consumers (with failover to Spark)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-router-consumers
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama-router
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sdr-research
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: freshrss
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: weather
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: worldmonitor
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: congress-trades
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: appstore-reviews
+      ports:
+        - {protocol: TCP, port: 11434}
+
+---
+# Allow default-namespace ad-hoc Jobs to reach ollama-5090 (qwen3:30b for translation work)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ollama-5090-consumers
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama-5090
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sdr-research
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+      ports:
+        - {protocol: TCP, port: 11434}

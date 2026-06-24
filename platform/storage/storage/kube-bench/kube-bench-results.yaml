@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kube-bench-results
+  namespace: kube-bench
+spec:
+  # RWX so the CronJob writer and the exporter reader can land on different nodes.
+  # Kept small (1Gi, ~30 JSON snapshots) to avoid the large-RWX share-manager
+  # wedge pattern called out in tasks/lessons.md.
+  accessModes:
+    - ReadWriteMany
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi

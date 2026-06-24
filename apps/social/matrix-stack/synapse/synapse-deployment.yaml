@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synapse
+  namespace: matrix
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: synapse
+  template:
+    metadata:
+      labels:
+        app: synapse
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 991
+        runAsGroup: 991
+        fsGroup: 991
+      volumes:
+        - name: config-raw
+          configMap:
+            name: synapse-config
+        - name: config-rendered
+          emptyDir: {}
+        - name: synapse-data
+          persistentVolumeClaim:
+            claimName: synapse-data
+        - name: synapse-secrets
+          secret:
+            secretName: synapse-secrets
+        - name: hookshot-registration
+          secret:
+            secretName: hookshot-secrets
+      initContainers:
+        - name: render-config
+          image: bitnami/kubectl:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Rendering homeserver.yaml with envsubst..."
+              envsubst < /config/homeserver.yaml > /rendered/homeserver.yaml
+          env:
+            - name: POSTGRES_HOST
+              value: matrix-postgresql
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: config-raw
+              mountPath: /config
+            - name: config-rendered
+              mountPath: /rendered
+      containers:
+        - name: synapse
+          image: matrixdotorg/synapse
+          securityContext:
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          command: ["python"]
+          args:
+            - "-m"
+            - "synapse.app.homeserver"
+            - "--config-path"
+            - "/config-rendered/homeserver.yaml"
+          ports:
+            - containerPort: 8008
+          env:
+            - name: SYNAPSE_SERVER_NAME
+              value: "white.fm"
+            - name: SYNAPSE_REPORT_STATS
+              value: "no"
+            - name: POSTGRES_HOST
+              value: matrix-postgresql
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-postgresql-secret
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: config-rendered
+              mountPath: /config-rendered
+            - name: synapse-data
+              mountPath: /data
+            - name: synapse-secrets
+              mountPath: /secrets
+              readOnly: true
+            - name: hookshot-registration
+              mountPath: /hookshot-registration
+              readOnly: true

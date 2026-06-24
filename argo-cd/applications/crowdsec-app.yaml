@@ -1,0 +1,119 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crowdsec
+  namespace: argocd
+spec:
+  project: security
+  sources:
+    - repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+      targetRevision: main
+      path: security/crowdsec
+      kustomize: {}
+    - chart: crowdsec
+      repoURL: https://crowdsecurity.github.io/helm-charts
+      targetRevision: 0.16.0
+      helm:
+        values: |
+          container_runtime: containerd
+
+          config:
+            config.yaml.local: |
+              api:
+                server:
+                  auto_registration:
+                    enabled: true
+                    token: $CS_LAPI_REGISTRATION_TOKEN
+                    allowed_ranges:
+                      - 10.42.0.0/16
+                      - 10.43.0.0/16
+                      - 10.99.5.0/24
+            notifications/http.yaml: |
+              type: http
+              name: http_default
+              log_level: info
+              format: |
+                {{- range $Alert := . -}}
+                {{- range .Decisions -}}
+                {"streams":[{"stream":{"job":"crowdsec_decisions","source":"rke2-whitehouse"},"values":[[  "{{ now | unixEpoch }}000000000","country={{ $Alert.Source.Cn }} asname={{ $Alert.Source.AsName }} asnumber={{ $Alert.Source.AsNumber }} lat={{ $Alert.Source.Latitude }} lon={{ $Alert.Source.Longitude }} iprange={{ $Alert.Source.Range }} scenario={{ .Scenario }} type={{ .Type }} duration={{ .Duration }} scope={{ .Scope }} ip={{ .Value }}"]]}]}
+                {{ end -}}
+                {{- end -}}
+              url: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+              method: POST
+              headers:
+                Content-Type: application/json
+            profiles.yaml: |
+              name: default_ip_remediation
+              filters:
+                - Alert.Remediation == true && Alert.GetScope() == "Ip"
+              decisions:
+                - type: ban
+                  duration: 4h
+              notifications:
+                - http_default
+              on_success: break
+
+          agent:
+            acquisition:
+              - namespace: kube-system
+                podName: rke2-ingress-nginx-controller-*
+                program: nginx
+            # Hub items are reinstalled on every pod start by the chart entrypoint
+            # (docker_start.sh) based on these env vars; current snapshot of what's
+            # actually installed is vendored under crowdsec/hub/ for audit.
+            env:
+              - name: COLLECTIONS
+                value: "crowdsecurity/linux crowdsecurity/nginx crowdsecurity/base-http-scenarios crowdsecurity/http-cve"
+              # Agent's /etc/crowdsec is emptyDir, so listing parsers explicitly
+              # protects against the chart entrypoint omitting them on a restart.
+              - name: PARSERS
+                value: "crowdsecurity/cri-logs crowdsecurity/dateparse-enrich crowdsecurity/docker-logs crowdsecurity/geoip-enrich crowdsecurity/http-logs crowdsecurity/nginx-logs crowdsecurity/sshd-logs crowdsecurity/syslog-logs crowdsecurity/whitelists"
+
+          lapi:
+            # LAPI hub state lives on the longhorn config PVC, so installs persist —
+            # but pinning here keeps git as the source of truth for a fresh PVC.
+            env:
+              - name: COLLECTIONS
+                value: "crowdsecurity/linux crowdsecurity/sshd"
+              - name: POSTOVERFLOWS
+                value: "crowdsecurity/cdn-whitelist crowdsecurity/rdns crowdsecurity/seo-bots-whitelist"
+              - name: ENROLL_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: crowdsec-enroll
+                    key: ENROLL_KEY
+              - name: ENROLL_INSTANCE_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: crowdsec-enroll
+                    key: ENROLL_INSTANCE_NAME
+              - name: CS_LAPI_REGISTRATION_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: crowdsec-lapi-secrets
+                    key: registrationToken
+            persistentVolume:
+              data:
+                enabled: true
+                storageClassName: longhorn
+                size: 2Gi
+              config:
+                enabled: true
+                storageClassName: longhorn
+                size: 100Mi
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: false
+
+            dashboard:
+              enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crowdsec
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fr24
+  namespace: adsb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fr24
+  template:
+    metadata:
+      labels:
+        app: fr24
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-15
+
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: ultrafeeder
+                topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: fr24
+          image: ghcr.io/sdr-enthusiasts/docker-flightradar24 # renovate: datasource=docker depName=ghcr.io/sdr-enthusiasts/docker-flightradar24
+          ports:
+            - containerPort: 8754
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8754
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          livenessProbe:
+            tcpSocket:
+              port: 8754
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: BEASTHOST
+              value: "ultrafeeder"
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: feeder-config
+                  key: FEEDER_TZ
+            - name: FR24KEY
+              valueFrom:
+                secretKeyRef:
+                  name: feeder-secrets
+                  key: FR24_SHARING_KEY
+
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+
+      volumes:
+        - name: varlog
+          emptyDir:
+            medium: Memory

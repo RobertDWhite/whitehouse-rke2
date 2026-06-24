@@ -1,0 +1,118 @@
+extraObjects:
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: argocd
+    namespace: argocd
+    annotations:
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-dns
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+  spec:
+    ingressClassName: nginx
+    tls:
+    - hosts:
+      - argo.internal.white.fm
+      secretName: argo-white-fm-tls
+    rules:
+    - host: argo.internal.white.fm
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: argocd-server
+              port:
+                number: 443
+
+global:
+  image:
+    tag: v3.2.3
+
+configs:
+  cm:
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+    accounts.api-bot: apiKey
+    accounts.api-bot.enabled: "true"
+    admin.enabled: "true"
+  rbac:
+    policy.csv: |
+      g, api-bot, role:admin
+
+repoServer:
+  replicas: 2
+
+  metrics:
+    enabled: true
+
+  env:
+  - name: SOPS_AGE_KEY_FILE
+    value: /etc/sops/age/key.txt
+  - name: ARGOCD_KUBECTL_IMAGE
+    value: docker.io/bitnami/kubectl:1.30.5
+  # Retry git fetches. The SSH transport intermittently throws
+  # 'SSH agent requested but SSH_AUTH_SOCK not-specified' (argoproj/argo-cd#8084,
+  # #884, #6000) -- fetches succeed most of the time and randomly fail. The
+  # default is a single attempt, so one flaky fetch surfaces as a hard
+  # ComparisonError (apps stuck "Unknown"). Retrying with backoff masks it.
+  - name: ARGOCD_GIT_ATTEMPTS_COUNT
+    value: "5"
+  - name: ARGOCD_GIT_RETRY_DURATION
+    value: "1s"
+  - name: ARGOCD_GIT_RETRY_MAX_DURATION
+    value: "10s"
+  - name: ARGOCD_GIT_RETRY_FACTOR
+    value: "2"
+  volumes:
+  - name: custom-tools
+    emptyDir: {}
+  - name: sops-age
+    secret:
+      secretName: sops-age
+
+  initContainers:
+  - name: install-ksops
+    image: viaductoss/ksops:v4.3.3
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      set -e
+      echo "[INIT] Installing ksops + kustomize"
+      cp /usr/local/bin/ksops /custom-tools/ksops
+      cp /usr/local/bin/kustomize /custom-tools/kustomize
+      chmod +x /custom-tools/*
+    volumeMounts:
+    - mountPath: /custom-tools
+      name: custom-tools
+
+  volumeMounts:
+  - mountPath: /usr/local/bin/ksops
+    name: custom-tools
+    subPath: ksops
+  - mountPath: /usr/local/bin/kustomize
+    name: custom-tools
+    subPath: kustomize
+  - mountPath: /etc/sops/age
+    name: sops-age
+    readOnly: true
+server:
+  replicas: 2
+
+  metrics:
+    enabled: true
+
+  certificate:
+    enabled: false
+
+  service:
+    type: ClusterIP
+    ports:
+      http: 80
+      https: 443
+
+controller:
+  replicas: 2
+
+  metrics:
+    enabled: true

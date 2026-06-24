@@ -1,0 +1,275 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-decoder-scripts
+  namespace: sdr-research
+data:
+  transcribe.py: |
+    import io
+    import os
+    import re
+    import time
+    import wave
+    from faster_whisper import WhisperModel
+
+    AUDIO_DIRS = tuple(
+        path.strip()
+        for path in os.getenv(
+            "TRANSCRIBE_AUDIO_DIRS",
+            "/data/audio/voice,/data/audio/pager",
+        ).split(",")
+        if path.strip()
+    )
+    TEXT_DIR = "/data/text/voice"
+    MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
+    WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
+    WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
+    WHISPER_ENFORCE_GPU = os.getenv("WHISPER_ENFORCE_GPU", "true").lower() in ("1", "true", "yes", "on")
+    MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "120"))
+    MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
+    CHUNK_SEC = int(os.getenv("CHUNK_SEC", "30"))
+    RETRY_EMPTY_TRANSCRIPTS = os.getenv("RETRY_EMPTY_TRANSCRIPTS", "true").lower() in ("1", "true", "yes", "on")
+    # Whisper segment-level noise rejection. Raise no_speech_threshold to discard
+    # more uncertain segments; lower compression_ratio_threshold to drop repetitive
+    # hallucinated output.
+    NO_SPEECH_THRESHOLD = float(os.getenv("NO_SPEECH_THRESHOLD", "0.7"))
+    COMPRESSION_RATIO_THRESHOLD = float(os.getenv("COMPRESSION_RATIO_THRESHOLD", "2.0"))
+    LOG_PROB_THRESHOLD = float(os.getenv("LOG_PROB_THRESHOLD", "-1.0"))
+
+    # Whisper hallucinates these phrases from silence/noise. Any segment whose
+    # entire text matches is treated as non-speech and discarded.
+    _HALLUCINATION_RE = re.compile(
+        r"^\s*(?:"
+        r"[^\w]+"                                            # only punctuation / symbols
+        r"|thanks?\s+(?:for\s+)?(?:watching|listening)\.?"  # sign-off filler
+        r"|(?:thank\s+you|bye|goodbye|see\s+you)\.?"        # common filler
+        r"|\[(?:music|applause|laughter|silence|noise|inaudible)[^\]]*\]"  # sound tags
+        r")\s*$",
+        re.IGNORECASE,
+    )
+
+    for audio_dir in AUDIO_DIRS:
+        os.makedirs(audio_dir, exist_ok=True)
+    os.makedirs(TEXT_DIR, exist_ok=True)
+
+    try:
+        model = WhisperModel(
+            MODEL_NAME,
+            device=WHISPER_DEVICE,
+            compute_type=WHISPER_COMPUTE_TYPE,
+        )
+    except Exception as e:
+        if WHISPER_DEVICE == "cuda" and not WHISPER_ENFORCE_GPU:
+            print(f"CUDA Whisper init failed ({e}); falling back to CPU")
+            model = WhisperModel(MODEL_NAME, device="cpu", compute_type="int8")
+        else:
+            raise
+    file_state = {}
+    APRS_BANDS_HZ = (
+        (144370000, 144410000),
+        (145805000, 145845000),
+    )
+
+    print(
+        "Voice decoder started "
+        f"(model={MODEL_NAME}, device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE}, "
+        f"audio_dirs={','.join(AUDIO_DIRS)})"
+    )
+
+
+    def parse_voice_frequency_hz(filename):
+        match = re.match(r"(\d+)_(\d+)\.wav$", filename)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+
+    def is_aprs_frequency_hz(freq_hz):
+        if freq_hz is None:
+            return False
+        return any(lo <= freq_hz <= hi for (lo, hi) in APRS_BANDS_HZ)
+
+
+    # Only scan files from the last N seconds to avoid NFS stalls on 30k+ file dirs.
+    _SCAN_WINDOW_SEC = int(os.getenv("SCAN_WINDOW_SEC", "7200"))  # 2 hours
+
+    def iter_wav_candidates():
+        current_paths = set()
+        candidates = []
+        now = time.time()
+        cutoff_ts = now - _SCAN_WINDOW_SEC
+        for audio_dir in AUDIO_DIRS:
+            try:
+                wav_names = [f for f in os.listdir(audio_dir) if f.endswith(".wav")]
+            except FileNotFoundError:
+                continue
+            for fname in wav_names:
+                # Use the embedded timestamp in the filename ({freq}_{epoch}.wav)
+                # to skip old files without stat() calls.
+                parts = fname.replace(".wav", "").split("_")
+                if len(parts) >= 2:
+                    try:
+                        file_epoch = int(parts[-1])
+                        if file_epoch < cutoff_ts:
+                            continue
+                    except ValueError:
+                        pass
+                wav_path = os.path.join(audio_dir, fname)
+                txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
+                current_paths.add(wav_path)
+                try:
+                    mtime = os.path.getmtime(wav_path)
+                except OSError:
+                    continue
+                has_text = os.path.exists(txt_path) and os.path.getsize(txt_path) > 0
+                candidates.append((has_text, -mtime, audio_dir, fname))
+        candidates.sort()
+        return current_paths, [(audio_dir, fname) for _, _, audio_dir, fname in candidates]
+
+
+    def wav_bytes_for_frames(wf, start_frame, num_frames):
+        """Return an in-memory WAV file (bytes) for a slice of an open wave file."""
+        wf.setpos(start_frame)
+        pcm = wf.readframes(num_frames)
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as out:
+            out.setnchannels(wf.getnchannels())
+            out.setsampwidth(wf.getsampwidth())
+            out.setframerate(wf.getframerate())
+            out.writeframes(pcm)
+        return buf.getvalue()
+
+
+    def transcribe_file(wav_path, duration_sec):
+        """Transcribe a WAV file, chunking into CHUNK_SEC segments if needed."""
+        lines = []
+        with wave.open(wav_path, "rb") as wf:
+            fr = wf.getframerate()
+            total_frames = wf.getnframes()
+            chunk_frames = fr * CHUNK_SEC
+
+            if duration_sec <= CHUNK_SEC:
+                # Short enough — transcribe directly from path (avoids copy overhead).
+                chunks = [(wav_path, None, None)]
+            else:
+                # Split into CHUNK_SEC-second segments.
+                chunks = []
+                start = 0
+                while start < total_frames:
+                    end = min(start + chunk_frames, total_frames)
+                    chunks.append((wav_path, start, end - start))
+                    start = end
+
+            for (path, start_frame, num_frames) in chunks:
+                if start_frame is None:
+                    audio_input = path
+                else:
+                    audio_input = io.BytesIO(wav_bytes_for_frames(wf, start_frame, num_frames))
+
+                try:
+                    segments, _ = model.transcribe(
+                        audio_input,
+                        language="en",
+                        vad_filter=True,
+                        condition_on_previous_text=False,
+                        no_speech_threshold=NO_SPEECH_THRESHOLD,
+                        compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
+                    )
+                    for seg in segments:
+                        if seg.avg_logprob < LOG_PROB_THRESHOLD:
+                            continue
+                        line = seg.text.strip()
+                        if line and not _HALLUCINATION_RE.match(line):
+                            lines.append(line)
+                except Exception as e:
+                    print(f"Transcribe chunk failed for {path}: {e}")
+
+        return lines
+
+
+    while True:
+        now = time.time()
+
+        # Cleanup state for files that no longer exist.
+        current_wavs, wav_entries = iter_wav_candidates()
+        stale_paths = [p for p in file_state.keys() if p not in current_wavs]
+        for p in stale_paths:
+            file_state.pop(p, None)
+
+        for audio_dir, fname in wav_entries:
+            wav_path = os.path.join(audio_dir, fname)
+            txt_path = os.path.join(TEXT_DIR, fname.replace(".wav", ".txt"))
+            freq_hz = parse_voice_frequency_hz(fname)
+
+            # APRS-band audio is handled by the APRS decoder/indexer path.
+            if is_aprs_frequency_hz(freq_hz):
+                continue
+
+            if not os.path.isfile(wav_path):
+                continue
+            if now - os.path.getmtime(wav_path) < MIN_FILE_AGE_SEC:
+                # Skip files that may still be actively written by recorder.
+                continue
+
+            if os.path.exists(txt_path):
+                if os.path.getsize(txt_path) > 0:
+                    # Remove stale "too long" stubs so they get retranscribed.
+                    try:
+                        with open(txt_path, "r") as f:
+                            content = f.read(80)
+                        if "recording too long for auto-transcribe" in content:
+                            os.remove(txt_path)
+                        else:
+                            continue
+                    except OSError:
+                        continue
+                if not RETRY_EMPTY_TRANSCRIPTS:
+                    continue
+                try:
+                    os.remove(txt_path)
+                except OSError:
+                    pass
+
+            st = os.stat(wav_path)
+            if st.st_size == 0:
+                continue
+            sig = (st.st_size, int(st.st_mtime))
+            prev = file_state.get(wav_path)
+            if prev is None or prev["sig"] != sig:
+                file_state[wav_path] = {"sig": sig, "since": now}
+                continue
+            if now - prev["since"] < MIN_STABLE_SEC:
+                continue
+
+            try:
+                with wave.open(wav_path, "rb") as wf:
+                    fr = wf.getframerate()
+                    frames = wf.getnframes()
+                    duration_sec = (frames / fr) if fr > 0 else 0.0
+            except Exception as e:
+                print(f"Duration probe failed for {wav_path}: {e}")
+                continue
+
+            num_chunks = max(1, int(duration_sec / CHUNK_SEC + 0.5))
+            print(f"Transcribing {wav_path} ({duration_sec:.1f}s, {num_chunks} chunk(s))")
+            lines = transcribe_file(wav_path, duration_sec)
+
+            tmp_path = txt_path + ".tmp"
+            with open(tmp_path, "w") as f:
+                if lines:
+                    f.write("\n".join(lines) + "\n")
+                else:
+                    f.write("[no speech detected]\n")
+            os.replace(tmp_path, txt_path)
+            # Touch the WAV so the API indexer's incremental mtime window
+            # re-visits this file and picks up the new transcript.
+            try:
+                os.utime(wav_path, None)
+            except OSError:
+                pass
+            print(f"Wrote transcript ({len(lines)} lines) for {wav_path}")
+
+        time.sleep(5)

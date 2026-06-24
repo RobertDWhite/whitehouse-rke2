@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: localai
+  namespace: ai-stack
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: localai
+  template:
+    metadata:
+      labels:
+        app: localai
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        gpu: "true"
+      tolerations:
+        - key: "node-role.kubernetes.io/control-plane"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: localai
+          image: quay.io/go-skynet/local-ai
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: models
+              mountPath: /models
+          env:
+            - name: LOCALAI_MODEL_DIR
+              value: "/models"
+            # optional: enable CUDA
+            - name: LOCALAI_OPENCL
+              value: "false"
+            - name: LOCALAI_CUDA
+              value: "true"
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: localai-models

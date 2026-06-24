@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelowl-daphne
+  labels:
+    app.kubernetes.io/name: intelowl-daphne
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-daphne
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: intelowl-daphne
+    spec:
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: create-log-dirs
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /var/log/intel_owl/asgi /var/log/intel_owl/django /var/log/intel_owl/celery
+              touch /var/log/intel_owl/django/api_app.log \
+                    /var/log/intel_owl/django/api_app_errors.log \
+                    /var/log/intel_owl/django/intel_owl.log \
+                    /var/log/intel_owl/django/intel_owl_errors.log \
+                    /var/log/intel_owl/django/celery.log \
+                    /var/log/intel_owl/django/celery_errors.log \
+                    /var/log/intel_owl/django/django_auth_ldap.log \
+                    /var/log/intel_owl/django/django_errors.log \
+                    /var/log/intel_owl/django/certego_saas.log \
+                    /var/log/intel_owl/django/certego_saas_errors.log \
+                    /var/log/intel_owl/django/authentication.log \
+                    /var/log/intel_owl/django/authentication_errors.log
+              chmod -R 750 /var/log/intel_owl
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
+        - name: wait-uwsgi
+          image: busybox
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until nc -z intelowl-web 8001; do
+                echo "waiting for uwsgi..."
+                sleep 2
+              done
+      containers:
+        - name: daphne
+          image: intelowlproject/intelowl
+          command: ["./docker/entrypoints/daphne.sh"]
+          ports:
+            - name: http
+              containerPort: 8011
+          envFrom:
+            - configMapRef:
+                name: intelowl-env
+          env:
+            - name: DJANGO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DJANGO_SECRET
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: intelowl-secrets
+                  key: DB_PASSWORD
+          readinessProbe:
+            tcpSocket:
+              port: 8011
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/intel_owl
+            - name: shared-files
+              mountPath: /opt/deploy/files_required
+      volumes:
+        - name: logs
+          emptyDir: {}
+        - name: shared-files
+          emptyDir:
+            sizeLimit: 5Gi

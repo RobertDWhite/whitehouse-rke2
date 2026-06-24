@@ -1,0 +1,235 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: technitium
+  namespace: technitium
+spec:
+  serviceName: technitium-headless
+  replicas: 4
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: technitium
+  template:
+    metadata:
+      labels:
+        app: technitium
+    spec:
+      terminationGracePeriodSeconds: 30
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-50]
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: network
+                    operator: In
+                    values: ["10g"]
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: technitium
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: technitium
+      containers:
+        - name: technitium
+          image: technitium/dns-server
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DNS_SERVER_DOMAIN
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DNS_SERVER_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: DNS_SERVER_WEB_SERVICE_HTTP_PORT
+              value: "5380"
+            - name: DNS_SERVER_ENABLE_BLOCKING
+              value: "true"
+            - name: DNS_SERVER_PREFER_IPV6
+              value: "false"
+            - name: DNS_SERVER_LOG_USING_LOCAL_TIME
+              value: "true"
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+            - name: web
+              containerPort: 5380
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5380
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5380
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /etc/dns
+
+        - name: zone-importer
+          image: python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir requests urllib3 PyYAML
+              exec python /scripts/import.py
+          env:
+            # pip startup install + any outbound HTTP must go through the
+            # VPN proxy in the media namespace; netpol denies direct egress.
+            - name: HTTPS_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: HTTP_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: TECHNITIUM_USER
+              value: "admin"
+            - name: TECHNITIUM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: ZONES_DIR
+              value: "/zones"
+            # Cluster topology — must match Services in 23-services-per-pod.yaml
+            - name: CLUSTER_DOMAIN
+              value: "dns-cluster.internal.white.fm"
+            - name: NODE_IP_PREFIX
+              value: "10.99.5."
+            - name: NODE_BASE_OCTET
+              value: "52"
+            - name: FORWARDERS
+              value: "10.43.6.253"
+            - name: FORWARDER_PROTOCOL
+              value: "Udp"
+            - name: BLOCK_LISTS
+              value: "https://big.oisd.nl/"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          volumeMounts:
+            - name: import-script
+              mountPath: /scripts
+            - name: zones
+              mountPath: /zones
+            - name: blocklists
+              mountPath: /blocklists
+              readOnly: true
+
+        - name: metrics-exporter
+          image: python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              pip install --quiet --no-cache-dir requests urllib3
+              exec python /scripts/exporter.py
+          env:
+            - name: HTTPS_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: HTTP_PROXY
+              value: "http://vpn-proxy.media.svc.cluster.local:8888"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: TECHNITIUM_USER
+              value: "admin"
+            - name: TECHNITIUM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: technitium-credentials
+                  key: admin-password
+            - name: METRICS_PORT
+              value: "9180"
+            - name: STATS_WINDOW
+              value: "lastHour"
+          ports:
+            - name: metrics
+              containerPort: 9180
+              protocol: TCP
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 96Mi }
+          readinessProbe:
+            httpGet: { path: /metrics, port: 9180 }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: metrics-script
+              mountPath: /scripts
+              readOnly: true
+
+      volumes:
+        - name: import-script
+          configMap:
+            name: technitium-import-script
+            defaultMode: 0555
+        - name: metrics-script
+          configMap:
+            name: technitium-metrics-exporter
+            defaultMode: 0555
+        - name: zones
+          secret:
+            secretName: technitium-zones
+        - name: blocklists
+          secret:
+            secretName: technitium-blocklists
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 2Gi

@@ -1,0 +1,103 @@
+# Belt-and-suspenders: liveness probe should catch a wedged Tinyproxy in 3min,
+# but if the probe itself hangs or the pod can't restart cleanly, this CronJob
+# tests the proxy from outside the pod and forces a rollout-restart.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [vpn-proxy]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+subjects:
+  - kind: ServiceAccount
+    name: vpn-proxy-watchdog
+    namespace: media
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: vpn-proxy-watchdog
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vpn-proxy-watchdog
+  namespace: media
+spec:
+  schedule: "*/3 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: vpn-proxy-watchdog
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: [rke2-node-50]
+          containers:
+            - name: watchdog
+              image: python:3.14-alpine
+              command: ["/usr/local/bin/python", "-c"]
+              args:
+                - |
+                  import datetime, json, ssl, sys, time, urllib.request
+                  PROXY = "http://vpn-proxy.media.svc.cluster.local:8888"
+
+                  def probe():
+                      try:
+                          op = urllib.request.build_opener(urllib.request.ProxyHandler({"https": PROXY}))
+                          r = op.open("https://www.google.com/generate_204", timeout=8)
+                          return r.status == 204
+                      except Exception:
+                          return False
+
+                  ok = fail = 0
+                  for i in range(3):
+                      if probe(): ok += 1
+                      else:       fail += 1
+                      if i < 2:   time.sleep(5)
+                  print(f"watchdog: ok={ok} fail={fail}", flush=True)
+                  if fail < 2: sys.exit(0)
+
+                  print("watchdog: 2+ probes failed — restarting vpn-proxy via k8s API", flush=True)
+                  token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read()
+                  ctx = ssl.create_default_context(cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+                  body = json.dumps({"spec":{"template":{"metadata":{"annotations":{
+                      "watchdog.media/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                  }}}}}).encode()
+                  req = urllib.request.Request(
+                      "https://kubernetes.default.svc/apis/apps/v1/namespaces/media/deployments/vpn-proxy",
+                      data=body, method="PATCH",
+                      headers={
+                          "Authorization": f"Bearer {token}",
+                          "Content-Type": "application/strategic-merge-patch+json",
+                      })
+                  with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
+                      print(f"k8s API: HTTP {r.status} — rollout-restart triggered", flush=True)
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits:   {cpu: 100m, memory: 64Mi}

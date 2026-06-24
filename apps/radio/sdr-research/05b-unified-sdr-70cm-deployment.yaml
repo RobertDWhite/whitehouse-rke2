@@ -1,0 +1,139 @@
+# Second unified-sdr instance for 70cm (432 MHz band).
+# Connects to the rtl-tcp-70cm service (second RTL-SDR dongle).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr-70cm
+  namespace: sdr-research
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr-70cm
+  template:
+    metadata:
+      labels:
+        app: unified-sdr-70cm
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-13
+      initContainers:
+        - name: wait-for-rtl-tcp
+          image: busybox:stable
+          command: ["/bin/sh", "-c",
+            "until nc -z rtl-tcp-70cm.sdr-research.svc.cluster.local 1235; do echo 'waiting for rtl_tcp...'; sleep 3; done"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+      containers:
+        - name: unified-sdr-70cm
+          image: librespace/gnuradio
+          securityContext:
+            allowPrivilegeEscalation: false
+          command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
+          env:
+            - name: RTL_TCP_HOST
+              value: "rtl-tcp-70cm.sdr-research.svc.cluster.local"
+            - name: RTL_TCP_PORT
+              value: "1235"
+            - name: CAPTURE_ID
+              value: "70cm"
+            - name: FIXED_MONITOR_HZ
+              value: "433920000"
+            - name: SAMPLE_RATE
+              value: "2400000"
+            - name: DWELL_CENTER_HZ
+              # 432 MHz = center of 70cm amateur band (430-440 MHz)
+              value: "432000000"
+            - name: SCAN_CENTERS
+              # Scanning disabled — retune causes GNURadio SIGSEGV (graph thread race).
+              # 432 MHz center + 2.4 MHz BW covers 430.8–433.2 MHz (simplex + repeater inputs).
+              value: "[]"
+            - name: DWELL_SEC
+              value: "45"
+            - name: SCAN_SEC
+              value: "5"
+            - name: NUM_DYN_FM
+              value: "8"
+            - name: NUM_DYN_CW
+              value: "4"
+            - name: SLOT_RECYCLE_SEC
+              value: "300"
+            - name: CLEAR_SLOTS_ON_RETUNE
+              value: "false"
+            - name: SQUELCH_OPEN_DB
+              value: "-55"
+            - name: SQUELCH_CLOSE_DB
+              value: "-60"
+            - name: RF_SQUELCH_DB
+              value: "-55"
+            - name: TAIL_SEC
+              value: "1.5"
+            - name: MIN_REC_SEC
+              value: "0.5"
+            - name: MAX_REC_SEC
+              value: "120"
+            - name: FFT_SIZE
+              value: "4096"
+            - name: FFT_INTERVAL
+              value: "1.0"
+            - name: ENERGY_THRESH_DB
+              value: "10"
+            - name: RF_GAIN
+              # 40 dB for 70cm: compensates for RTL-SDR's ~4 dB worse noise figure at 432 vs 145 MHz
+              value: "40"
+            - name: PPM_CORRECTION
+              # Measured 2026-02-28 via rtl_test -p; Blog V4 R828D cumulative converged to 30 PPM
+              value: "30"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - >-
+                  python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json'; ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts < 90 else 1)"
+            initialDelaySeconds: 45
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 2
+          volumeMounts:
+            - name: artifacts
+              mountPath: /data
+            - name: scripts
+              mountPath: /scripts
+            - name: dshm
+              mountPath: /dev/shm
+      terminationGracePeriodSeconds: 20
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-rwx
+        - name: scripts
+          configMap:
+            name: unified-sdr-scripts
+            defaultMode: 0755
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi

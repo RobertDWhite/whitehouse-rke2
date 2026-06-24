@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: element-web
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: element-web
+  template:
+    metadata:
+      labels:
+        app: element-web
+    spec:
+      containers:
+      - name: element-web
+        image: vectorim/element-web
+        env:
+          - name: NGINX_ENTRYPOINT_QUIET_LOGS
+            value: "true"
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+          - mountPath: /app/config.json
+            subPath: config.json
+            name: config
+          - mountPath: /etc/nginx/templates/default.conf.template
+            subPath: default.conf.template
+            name: config
+      volumes:
+        - name: config
+          configMap:
+            name: element-web-config

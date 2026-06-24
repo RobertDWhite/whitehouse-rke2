@@ -1,0 +1,86 @@
+# HFDL decoder — prefers direct RX888 access on rke2-node-12 and falls back
+# to rx888-soapy if needed. Decodes HFDL aviation HF datalink frames and
+# writes one JSON file per frame to /data/text/hfdl/.
+# The API indexer picks these up as mode="hfdl" recordings in sdr.white.fm.
+#
+# IMPORTANT: The RX888 can only be opened by one workload at a time.
+# Scale other RX888 consumers to 0 while running this decoder.
+#   kubectl scale deploy hfdl-decoder   -n sdr-research --replicas=1
+#
+# Build the image first:
+#   docker buildx build --platform linux/amd64 --load \
+#     -t registry.internal.white.fm/hfdl-decoder:1.0.0 \
+#     -f sdr-research/Dockerfile.hfdl sdr-research/
+#   docker push registry.internal.white.fm/hfdl-decoder:1.0.0
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hfdl-decoder
+  namespace: sdr-research
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hfdl-decoder
+  template:
+    metadata:
+      labels:
+        app: hfdl-decoder
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-12
+      containers:
+        - name: hfdl-decoder
+          image: registry.internal.white.fm/hfdl-decoder
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: SOAPY_REMOTE
+              value: "rx888-soapy.sdr-research.svc.cluster.local:55132"
+            - name: SOAPY_DEVICE_STRING
+              value: "driver=SDDC"
+            - name: HFDL_OUTPUT_DIR
+              value: "/data/text/hfdl"
+            # HFDL frequencies (kHz — dumphfdl expects kHz)
+            # New York GS: 8912, 8927, 10081, 11384, 13303 kHz
+            - name: HFDL_FREQUENCIES
+              value: "8912 8927 10081 11384 13303"
+          volumeMounts:
+            - name: sdr-artifacts
+              mountPath: /data
+            - name: usb
+              mountPath: /dev/bus/usb
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -Eq 'hfdl-entrypoint|dumphfdl'"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "tr '\\000' ' ' </proc/1/cmdline | grep -Eq 'hfdl-entrypoint|dumphfdl'"
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+      volumes:
+        - name: sdr-artifacts
+          persistentVolumeClaim:
+            claimName: sdr-artifacts-hf
+        - name: usb
+          hostPath:
+            path: /dev/bus/usb

@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autokuma
+  namespace: uptime-kuma
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: autokuma
+  template:
+    metadata:
+      labels:
+        app: autokuma
+    spec:
+      # Pin to a node that holds a Longhorn replica of autokuma-pvc so the RWO
+      # volume attaches locally and fast (cross-node attach to a replica-less
+      # node times out and churns). Mirrors the uptime-kuma pod's node pin.
+      nodeName: rke2-node-10
+      containers:
+        - name: autokuma
+          image: ghcr.io/bigboot/autokuma
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          env:
+            - name: AUTOKUMA__KUMA__URL
+              value: http://uptime-kuma.uptime-kuma.svc.cluster.local:80
+            - name: AUTOKUMA__KUMA__USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: autokuma-auth
+                  key: username
+            - name: AUTOKUMA__KUMA__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: autokuma-auth
+                  key: password
+            - name: AUTOKUMA__STATIC_MONITORS
+              value: /config/monitors
+            - name: AUTOKUMA__DOCKER__ENABLED
+              value: "false"
+            - name: AUTOKUMA__FILES__ENABLED
+              value: "true"
+            - name: AUTOKUMA__FILES__FOLLOW_SYMLINKS
+              value: "true"
+            - name: AUTOKUMA__DEFAULT_SETTINGS
+              value: |-
+                *.interval: 30
+                *.max_retries: 6
+                *.retry_interval: 10
+          volumeMounts:
+            - name: autokuma-data
+              mountPath: /data
+            - name: static-monitors
+              mountPath: /config/monitors
+              readOnly: true
+      volumes:
+        - name: autokuma-data
+          persistentVolumeClaim:
+            claimName: autokuma-pvc
+        - name: static-monitors
+          configMap:
+            name: autokuma-static-monitors
