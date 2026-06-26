@@ -2,9 +2,11 @@
 
 A single-cluster, GitOps-managed [RKE2](https://docs.rke2.io/) Kubernetes homelab. Everything in this repository is the source of truth: [Argo CD](https://argo-cd.readthedocs.io/) continuously reconciles the live cluster against `main`, so the cluster *is* whatever this repo says it is. There is no manual `kubectl apply` workflow — you edit manifests, commit, push, and Argo CD does the rest.
 
-The cluster hosts a broad mix of self-hosted services: a local LLM/AI stack on two NVIDIA GPUs, a software-defined-radio (SDR) capture-and-decode pipeline, media automation, social/fediverse apps, data-collection apps (congressional trades, politics, weather, app-store reviews), a fleet of custom Model Context Protocol (MCP) servers, plus the platform plumbing (DNS, identity, ingress, mesh, storage, backup, and observability) that ties it all together.
+The cluster hosts a broad mix of self-hosted services: a local LLM/AI stack on two NVIDIA GPUs, a software-defined-radio (SDR) capture-and-decode pipeline, social/fediverse apps, data-collection apps (congressional trades, politics, weather, app-store reviews), a fleet of custom Model Context Protocol (MCP) servers, plus the platform plumbing (DNS, identity, ingress, mesh, storage, backup, and observability) that ties it all together.
 
-> **Cluster version:** RKE2 `v1.35.3+rke2r1` (node-50 trails at `v1.34.2+rke2r1`). Control plane is **3-node HA etcd** across nodes 10, 11, and 14.
+> **Cluster version:** RKE2 `v1.35.x` (one transient node trails a minor version). Control plane is **3-node HA etcd**.
+>
+> Hostnames, IP addressing, tunnel IDs, keys, and other environment-specific identifiers are intentionally omitted from this document. They live (encrypted where sensitive) in the manifests and are not duplicated here.
 
 ---
 
@@ -33,9 +35,9 @@ The cluster hosts a broad mix of self-hosted services: a local LLM/AI stack on t
                             │
                             ▼
                      Cloudflare DNS  ◄── external-dns syncs from HTTPRoutes
-                            │           zones: white.fm, w3rdw.radio, whitematter.tech
+                            │
                             ▼
-              Cloudflared tunnel (5 replicas, ns: cloudflared)
+              Cloudflared tunnel (ns: cloudflared)
                             │
                             ▼
                   Envoy Gateway  ── HTTPRoutes per app, TLS terminated here
@@ -43,17 +45,17 @@ The cluster hosts a broad mix of self-hosted services: a local LLM/AI stack on t
         ┌───────────────────┼─────────────────────────┐
         ▼                   ▼                         ▼
     Authentik           Technitium DNS            Workloads
-   (SSO / OIDC)     (internal.white.fm,           sdr-research, ai-stack,
+   (SSO / OIDC)     (internal zone,               sdr-research, ai-stack,
                      ODoH upstream via VPN)        media, social, data, MCP…
         │
-   Headscale mesh (ts.white.fm) ── private tailnet for internal.* access
+   Headscale mesh ── private tailnet for internal access
 ```
 
 Three DNS planes coexist:
 
-- **Public** — `white.fm`, `w3rdw.radio`, `whitematter.tech` are Cloudflare-managed. `external-dns` watches `HTTPRoute`s and publishes CNAMEs pointing at the Cloudflared tunnel `221e59d6-9538-4e44-bdaa-a89b5020f7cf.cfargotunnel.com`.
-- **Internal** — `*.internal.white.fm` is served authoritatively by **Technitium**, mostly pointing at the gateway VIP `10.99.5.110`. Reachable over the Headscale tailnet.
-- **Cluster** — CoreDNS (`10.43.0.10`) resolves `*.svc.cluster.local`; Technitium forwards cluster names back to CoreDNS.
+- **Public** — the public zones are Cloudflare-managed. `external-dns` watches `HTTPRoute`s and publishes records pointing at the Cloudflared tunnel.
+- **Internal** — the internal zone is served authoritatively by **Technitium**, pointing at the gateway VIP. Reachable over the Headscale tailnet.
+- **Cluster** — CoreDNS resolves `*.svc.cluster.local`; Technitium forwards cluster names back to CoreDNS.
 
 The control-plane API is fronted by a **kube-vip** virtual IP (DaemonSet in `kube-system`) so the API server has a stable address independent of any single control-plane node.
 
@@ -61,7 +63,7 @@ The control-plane API is fronted by a **kube-vip** virtual IP (DaemonSet in `kub
 
 ## GitOps model (Argo CD)
 
-Argo CD watches the GitHub repo `RobertDWhite/whitehouse-rke2` and auto-syncs. The bootstrap is an **app-of-apps** pattern:
+Argo CD watches the GitHub repository and auto-syncs. The bootstrap is an **app-of-apps** pattern:
 
 - `bootstrap/app-of-crds.yaml` — installs CRDs first (cert-manager, Gateway API, Argo, etc.).
 - `bootstrap/app-of-repos.yaml` — registers Helm/Git repositories.
@@ -73,7 +75,7 @@ Most Applications run with `automated: { prune: true, selfHeal: true }`. **Conse
 - To preview what will apply: `kubectl kustomize --enable-alpha-plugins <dir>/`.
 - For emergency live debugging you temporarily strip an Application's `syncPolicy`, then restore it before ending the session (a suspended app silently diverges from git).
 
-Renovate (`.github/renovate.json`) opens grouped PRs for image/chart version bumps. Image tags live in each namespace's `kustomization.yaml` `images:` block (never hardcoded in Deployments), which is what wires them into Renovate automatically. The internal `registry.white.fm` images are **not** Renovate-covered (the registry isn't internet-reachable) and are bumped manually after a `docker push`.
+Renovate (`.github/renovate.json`) opens grouped PRs for image/chart version bumps. Image tags live in each namespace's `kustomization.yaml` `images:` block (never hardcoded in Deployments), which is what wires them into Renovate automatically. Images served from the internal registry are **not** Renovate-covered (the registry isn't internet-reachable) and are bumped manually.
 
 ---
 
@@ -81,13 +83,12 @@ Renovate (`.github/renovate.json`) opens grouped PRs for image/chart version bum
 
 Two complementary secret systems are in play.
 
-**SOPS + ksops (secrets-in-git).** Every namespace that needs secrets ships a `ksops.yaml` generator plus one or more `*.sops.yaml` files, encrypted at rest with [SOPS](https://github.com/getsops/sops) and decrypted at apply-time by the ksops kustomize plugin.
+**SOPS + ksops (secrets-in-git).** Every namespace that needs secrets ships a `ksops.yaml` generator plus one or more `*.sops.yaml` files, encrypted at rest with [SOPS](https://github.com/getsops/sops) (age recipient) and decrypted at apply-time by the ksops kustomize plugin.
 
-- **Age recipient:** `age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p`
 - Encryption rules live in `.sops.yaml` (per-path `encrypted_regex` so only `data` / `stringData` / `spec` blocks are encrypted, never the whole manifest where structure matters).
 - Edit with `sops <file>.sops.yaml`; read one value with `sops --decrypt <file> | yq '.stringData.KEY'`. Never decrypt to disk — a pre-commit hook blocks plaintext siblings.
 
-**External Secrets + 1Password (secrets-from-vault).** `platform/controllers/external-secrets-config` defines a `ClusterSecretStore` named `onepassword-shared` backed by a 1Password Connect token (`01-onepassword-token-secret.sops.yaml`, itself SOPS-encrypted). Apps that prefer pulling live from 1Password reference it via an `ExternalSecret`:
+**External Secrets + 1Password (secrets-from-vault).** `platform/controllers/external-secrets-config` defines a `ClusterSecretStore` named `onepassword-shared` backed by a 1Password Connect token (itself SOPS-encrypted). Apps that prefer pulling live from 1Password reference it via an `ExternalSecret`:
 
 ```yaml
 spec:
@@ -98,7 +99,7 @@ spec:
 
 This gives a clean split: bootstrap/identity material lives encrypted in git (SOPS), while rotatable app credentials can be sourced from 1Password without ever touching the repo.
 
-**Git push identity** uses a dedicated on-disk deploy key (`github-whitehouse-rke2` host alias, `IdentityAgent none`) so unattended pushes work even when the 1Password SSH agent is locked; the user's other repos still use the 1Password agent.
+**Git push identity** uses a dedicated, isolated deploy key so unattended pushes work without depending on an interactive agent.
 
 ---
 
@@ -106,25 +107,25 @@ This gives a clean split: bootstrap/identity material lives encrypted in git (SO
 
 RKE2 nodes are named `rke2-node-NN`. The cluster mixes one always-on arm64 GPU host, a transient high-end GPU host, and a set of amd64 nodes — several of which have USB SDR radios physically attached, which is why those workloads are pinned by `kubernetes.io/hostname`.
 
-| Node | Role | Arch | Cores | RAM | GPU | Internal IP | Attached radios / function |
-|------|------|------|-------|-----|-----|-------------|----------------------------|
-| **rke2-node-10** | control-plane, etcd | arm64 | 20 | ~128 GB | 4× NVIDIA Spark (`nvidia` kernel) — **always on** | 10.99.5.10 | Airspy SDR, VHF unified-SDR pipeline, **primary 24/7 AI inference** (Ollama, Immich ML) |
-| **rke2-node-11** | control-plane, etcd | amd64 | 12 | ~48 GB | — | 10.99.5.11 | Utility node — Authentik replica, Uptime-Kuma |
-| **rke2-node-12** | worker | amd64 | 8 | ~24 GB | — | 10.99.5.12 | **RX888** wideband HF SDR, HF decode chain (HFDL/FT8/WSPR/SSTV) |
-| **rke2-node-13** | worker | amd64 | 8 | ~32 GB | — | 10.99.5.13 | **RTL-SDR** dongles (VHF + 70 cm + pager), AIS, VDL2 — busiest radio node; also congress-trades |
-| **rke2-node-14** | control-plane, etcd | amd64 | 44 | ~48 GB | — | 10.99.5.14 | Data apps (congress-trades, politics, app-store-reviews, listmonk), Headscale, Postgres |
-| **rke2-node-15** | worker | amd64 | 6 | ~8 GB | — | 10.99.5.15 | **ADS-B** feeder (ultrafeeder, FR24), Nitter, Authentik replica |
-| **rke2-node-50** | worker | amd64 | 32 | ~48 GB | **4× RTX 5090** — **transient** (dual-boots Windows, may be offline) | 10.100.0.50 | Larger-model inference, image generation, batch GPU jobs |
+| Node | Role | Arch | Cores | RAM | GPU | Attached radios / function |
+|------|------|------|-------|-----|-----|----------------------------|
+| **rke2-node-10** | control-plane, etcd | arm64 | 20 | ~128 GB | 4× NVIDIA Spark — **always on** | Airspy SDR, VHF unified-SDR pipeline, **primary 24/7 AI inference** (Ollama, Immich ML) |
+| **rke2-node-11** | control-plane, etcd | amd64 | 12 | ~48 GB | — | Utility node — Authentik replica, Uptime-Kuma |
+| **rke2-node-12** | worker | amd64 | 8 | ~24 GB | — | **RX888** wideband HF SDR, HF decode chain (HFDL/FT8/WSPR/SSTV) |
+| **rke2-node-13** | worker | amd64 | 8 | ~32 GB | — | **RTL-SDR** dongles (VHF + 70 cm + pager), AIS, VDL2 — busiest radio node; also congress-trades |
+| **rke2-node-14** | control-plane, etcd | amd64 | 44 | ~48 GB | — | Data apps (congress-trades, politics, app-store-reviews, listmonk), Headscale, Postgres |
+| **rke2-node-15** | worker | amd64 | 6 | ~8 GB | — | **ADS-B** feeder, Nitter, Authentik replica |
+| **rke2-node-50** | worker | amd64 | 32 | ~48 GB | **4× RTX 5090** — **transient** (dual-boots, may be offline) | Larger-model inference, image generation, batch GPU jobs |
 
-**GPU details.** Both GPU hosts run the `nvidia-device-plugin` (v0.19.1) with **separate ConfigMaps per node** for time-slicing. Cluster-wide:
+**GPU details.** Both GPU hosts run the `nvidia-device-plugin` with **separate ConfigMaps per node** for time-slicing. Cluster-wide:
 
 - `RuntimeClass: nvidia` — every GPU pod must set `runtimeClassName: nvidia`.
 - `PriorityClass: high-priority` (value 1000) so GPU workloads preempt CPU-only pods.
 - `migStrategy: none` — time-slicing, not hardware MIG partitioning.
 
-node-10 runs the NVIDIA-flavored kernel (`6.17.0-1018-nvidia`) confirming the DGX Spark / Grace platform; node-50 (`10.100.0.x`, a separate subnet) is the off-cluster GPU box that comes and goes.
+node-10 runs the NVIDIA-flavored kernel (DGX Spark / Grace platform); node-50 is an off-cluster GPU box that comes and goes.
 
-**node-50 is treated as transient:** GPU pods pinned to it carry `node.kubernetes.io/not-ready` tolerations so they stay scheduled (rather than evicted to a non-GPU node) when the box reboots into Windows. The Ollama router (below) falls back to the always-on node-10 automatically.
+**node-50 is treated as transient:** GPU pods pinned to it carry `node.kubernetes.io/not-ready` tolerations so they stay scheduled (rather than evicted to a non-GPU node) when the box reboots. The Ollama router (below) falls back to the always-on node-10 automatically.
 
 **Build architecture:** most nodes are amd64 (`docker buildx --platform linux/amd64`); **node-10 is the lone arm64 host** — workloads pinned there are built `--platform linux/arm64` and tagged with an `-arm64` suffix.
 
@@ -134,36 +135,36 @@ node-10 runs the NVIDIA-flavored kernel (`6.17.0-1018-nvidia`) confirming the DG
 
 **Envoy Gateway** (`platform/networking/envoy-gateway`) is the in-cluster ingress. It owns a single `Gateway` with HTTPS listeners per domain; each app contributes an `HTTPRoute` in its own namespace. TLS is terminated at the gateway.
 
-**cert-manager** issues certificates via the `letsencrypt-dns` `ClusterIssuer` (production Let's Encrypt, DNS-01 over Cloudflare). The pattern is moving toward **one Certificate per service** (covering both `foo.white.fm` and `foo.internal.white.fm`) and away from legacy wildcards — smaller blast radius and cleaner Certificate Transparency entries.
+**cert-manager** issues certificates via a `letsencrypt-dns` `ClusterIssuer` (production Let's Encrypt, DNS-01 over Cloudflare). The pattern is moving toward **one Certificate per service** (covering both the public and internal hostname) and away from legacy wildcards — smaller blast radius and cleaner Certificate Transparency entries.
 
 **Technitium DNS** (`platform/networking/technitium`) is the internal authoritative resolver:
 
-- 4-pod StatefulSet with anti-affinity, avoids the transient node-50, prefers 10 GbE nodes. VIP `10.99.5.50` (`dns.internal.white.fm`).
-- Zone source of truth is a single SOPS-encrypted secret (`35-zones-secret.sops.yaml`); a sidecar hot-reloads records via the Technitium API ~60 s after the secret changes. **Records are edited in git, not the web UI.**
-- Web UI behind Authentik OIDC; metrics on `:9180`.
-- **Upstream privacy:** uncached queries forward to an in-cluster `dnscrypt-proxy`, which makes **ODoH (Oblivious DNS-over-HTTPS)** queries *through the VPN egress proxy* — so external resolvers never see the home IP. Falls back to `9.9.9.9` / `8.8.8.8` (direct) if the ODoH path fails.
-- A UniFi cron job syncs DHCP leases into DNS.
+- Multi-pod StatefulSet with anti-affinity, avoids the transient GPU node, prefers 10 GbE nodes. Fronted by a VIP.
+- Zone source of truth is a single SOPS-encrypted secret; a sidecar hot-reloads records via the Technitium API shortly after the secret changes. **Records are edited in git, not the web UI.**
+- Web UI behind Authentik OIDC.
+- **Upstream privacy:** uncached queries forward to an in-cluster `dnscrypt-proxy`, which makes **ODoH (Oblivious DNS-over-HTTPS)** queries *through the VPN egress proxy* — so external resolvers never see the home IP. Falls back to public resolvers only if the ODoH path fails.
+- A cron job syncs DHCP leases from the router into DNS.
 
-**Cloudflared** runs a 5-replica tunnel for public ingress; new public hostnames are normally added via an `HTTPRoute` (external-dns publishes the CNAME) rather than editing the tunnel config.
+**Cloudflared** runs the public-ingress tunnel; new public hostnames are normally added via an `HTTPRoute` (external-dns publishes the record) rather than editing the tunnel config.
 
-**VPN egress proxy** (`media` namespace, Gluetun) gives any workload anonymous, non-home-IP egress on `:8888` (HTTP CONNECT) / `:1080` (SOCKS5) — used by DNS upstream, scrapers, indexers, and threat-intel feeds. A watchdog CronJob restarts it if it wedges.
+**VPN egress proxy** (`media` namespace, Gluetun) gives any workload a non-home-IP egress path (HTTP CONNECT + SOCKS5) — used by the DNS upstream (ODoH) and threat-intel feeds. A watchdog CronJob restarts it if it wedges.
 
 ---
 
 ## Identity & mesh
 
-**Authentik** (`authentik` namespace) is the single sign-on / OIDC provider for everything — Grafana, Technitium, Headscale, and many apps either speak OIDC natively or sit behind the Authentik embedded outpost. Public at `auth.white.fm`, internal at `auth.internal.white.fm`. New OIDC clients are provisioned through the Authentik API (Grafana's provider is the canonical template) and the client credentials are persisted into the consuming namespace's SOPS secret.
+**Authentik** (`authentik` namespace) is the single sign-on / OIDC provider for everything — Grafana, Technitium, Headscale, and many apps either speak OIDC natively or sit behind the Authentik embedded outpost. New OIDC clients are provisioned through the Authentik API (Grafana's provider is the canonical template) and the client credentials are persisted into the consuming namespace's SOPS secret.
 
-**Headscale** (`headscale` namespace) is a self-hosted Tailscale control server providing the private mesh (`ts.white.fm`) used to reach `*.internal.white.fm` services. It authenticates users via Authentik OIDC, runs MagicDNS with split-DNS for the internal zone, and ships its own DERP relay.
+**Headscale** (`headscale` namespace) is a self-hosted Tailscale control server providing the private mesh used to reach internal services. It authenticates users via Authentik OIDC, runs MagicDNS with split-DNS for the internal zone, and ships its own DERP relay.
 
 ---
 
 ## Storage & backup
 
 - **Longhorn** — primary distributed block storage (replicated volumes).
-- **Synology CSI** — NAS-backed volumes / snapshots for larger media datasets.
+- **Synology CSI** — NAS-backed volumes / snapshots for larger datasets.
 - **snapshot-controller** — CSI volume snapshot support.
-- **Velero** (`velero` namespace) — scheduled backups to a MinIO bucket (`velero-backup`), using CSI snapshots with data movement. A `daily-critical` schedule (`0 3 * * *`, 7-day TTL) covers the stateful namespaces (authentik, matrix, immich-adjacent media, sdr-research, ai-stack, registry, and ~25 more); a weekly schedule sweeps lower-churn namespaces. Velero does **not** back up the control plane, node OS, or git (Argo CD is git's source of truth). The `velero/recovery.md` runbook documents restore scenarios.
+- **Velero** (`velero` namespace) — scheduled backups to a MinIO bucket, using CSI snapshots with data movement. A `daily-critical` schedule (7-day TTL) covers the stateful namespaces; a weekly schedule sweeps lower-churn namespaces. Velero does **not** back up the control plane, node OS, or git (Argo CD is git's source of truth). The `velero/recovery.md` runbook documents restore scenarios.
 
 ---
 
@@ -171,11 +172,11 @@ node-10 runs the NVIDIA-flavored kernel (`6.17.0-1018-nvidia`) confirming the DG
 
 Namespace `observability` (plus `uptime-kuma` and `myspeed` siblings). The stack:
 
-- **Prometheus** — 15 s scrape interval; static jobs for unifi-poller, Velero, MinIO, Argo CD, CoreDNS, the weather API, and more, plus annotation-based discovery. Alertmanager routes notifications to **ntfy**.
-- **Grafana** — OIDC via Authentik. Dashboards are version-controlled as JSON in `observability/observability/grafana_dashboards/` (a sidecar imports them on commit). The catalog includes dashboards for the SDR pipeline & station health, Technitium fleet, Envoy gateway ingress, Argo CD, cert-manager, Velero, MinIO, UniFi, Ollama, Claude Code usage, database health, and per-app `*arr` dashboards.
+- **Prometheus** — short scrape interval; static jobs for network polling, Velero, MinIO, Argo CD, CoreDNS, the weather API, and more, plus annotation-based discovery. Alertmanager routes notifications to **ntfy**.
+- **Grafana** — OIDC via Authentik. Dashboards are version-controlled as JSON in `observability/observability/grafana_dashboards/` (a sidecar imports them on commit). The catalog includes dashboards for the SDR pipeline & station health, Technitium fleet, Envoy gateway ingress, Argo CD, cert-manager, Velero, MinIO, networking, Ollama, database health, and per-app dashboards.
 - **Loki + Promtail** — log aggregation, including an RKE2 kube-audit pipeline.
-- **InfluxDB** — time-series for UniFi / network metrics (unpoller).
-- **Uptime-Kuma** with **AutoKuma** — synthetic uptime monitoring, monitors declared as config (`autokuma-static-monitors`).
+- **InfluxDB** — time-series for network metrics.
+- **Uptime-Kuma** with **AutoKuma** — synthetic uptime monitoring, monitors declared as config.
 - **MySpeed** — periodic internet speed-test tracking.
 
 ---
@@ -184,28 +185,27 @@ Namespace `observability` (plus `uptime-kuma` and `myspeed` siblings). The stack
 
 Namespace `ai-stack`. A local, OpenAI-compatible LLM platform spanning both GPUs with automatic failover.
 
-- **Ollama (node-10)** — `10-ollama-deployment.yaml`, the always-on backend on the arm64 GPU host. 4-way GPU time-slicing; good for chat-sized models 24/7.
-- **Ollama-5090 (node-50)** — `12-ollama-5090-deployment.yaml`, the high-VRAM RTX 5090 backend for larger models, kept scheduled across node-50's reboots via not-ready tolerations.
-- **Ollama router** — an nginx reverse proxy (`98-ollama-router-configmap.yaml`) presenting one `ollama:11434` endpoint. The **5090 is primary** (fast GDDR7); **node-10 is the always-on backup** (`max_fails=0` so a cold-model load never ejects it). `proxy_next_upstream` retries to the backup on 502/503/504, so clients see a single stable endpoint regardless of whether the 5090 is powered on.
-- **Open WebUI** — the chat UI (`20-openwebui-deployment.yaml`), wired to both Ollama backends and to LocalAI for image generation; behind Authentik.
+- **Ollama (node-10)** — the always-on backend on the arm64 GPU host. GPU time-slicing; good for chat-sized models 24/7.
+- **Ollama-5090 (node-50)** — the high-VRAM RTX 5090 backend for larger models, kept scheduled across node-50's reboots via not-ready tolerations.
+- **Ollama router** — an nginx reverse proxy presenting one Ollama endpoint. The **5090 is primary** (fast GDDR7); **node-10 is the always-on backup** (`max_fails=0` so a cold-model load never ejects it). `proxy_next_upstream` retries to the backup on upstream errors, so clients see a single stable endpoint regardless of whether the 5090 is powered on.
+- **Open WebUI** — the chat UI, wired to both Ollama backends and to LocalAI for image generation; behind Authentik.
 - **LocalAI / Stable Diffusion** — image-generation backend (currently scaled to 0; enabled on the 5090 when needed).
 - **Ollama exporter** — Prometheus metrics for model load/latency, feeding the Ollama Grafana dashboard.
 
-Local inference is also consumed *inside* the cluster — e.g. the SDR pipeline tags radio transcripts via Ollama, and the MCP servers below let external LLM clients reach self-hosted data.
+Local inference is also consumed *inside* the cluster — e.g. the SDR pipeline tags radio transcripts via Ollama, and the MCP servers below let LLM clients reach self-hosted data.
 
 ---
 
 ## Custom MCP servers
 
-A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/) servers (FastMCP, streamable-HTTP) exposes self-hosted services to LLM clients. All are **internal-only** (tailnet), served under `*.internal.white.fm/mcp`, and gated by `Authorization: Bearer <MCP_TOKEN>` with secrets in each app's `11-secret.sops.yaml`.
+A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/) servers (FastMCP, streamable-HTTP) exposes self-hosted services to LLM clients. All are **internal-only** (tailnet) and gated by a bearer token, with secrets held per-app in SOPS.
 
-| MCP server | Endpoint | Wraps | What it does |
-|------------|----------|-------|--------------|
-| **congress-mcp** | `congress-mcp.internal.white.fm/mcp` | `congress-trades` API | Query congressional stock trades, member track records, leaderboards, signals, backtested follow-strategies, portfolio overlap |
-| **jetlog-mcp** | `jetlog-mcp.internal.white.fm/mcp` | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
-| **media-mcp** | `media-mcp.internal.white.fm/mcp` | Radarr, Sonarr, Prowlarr, Readarr, Plex, Tautulli | One bearer-gated endpoint over the whole media stack for cross-tool workflows (look up → add → force search → scan → confirm) |
-| **monica-mcp** | `monica-mcp.internal.white.fm/mcp` | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
-| **sdr-research MCP** | in-cluster (`sdr-research` ns) | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
+| MCP server | Wraps | What it does |
+|------------|-------|--------------|
+| **congress-mcp** | `congress-trades` API | Query congressional stock trades, member track records, leaderboards, signals, backtested follow-strategies, portfolio overlap |
+| **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
+| **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
+| **sdr-research MCP** | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
 
 Each MCP ships a `NetworkPolicy` restricting it to just its upstream service.
 
@@ -215,9 +215,9 @@ Each MCP ships a `NetworkPolicy` restricting it to just its upstream service.
 
 Beyond off-the-shelf charts, several apps are bespoke, built and (mostly) hosted from the internal registry:
 
-- **sdr-research** (`apps/radio/sdr-research`) — the flagship custom system: a software-defined-radio capture/decode/transcribe/search pipeline. RTL-SDR / Airspy / RX888 radios run as DaemonSets pinned to the nodes they're physically plugged into (node-10, -12, -13), feeding decoders for FM/AM voice, CW, APRS, pager (POCSAG/FLEX), EAS, ACARS, VDL2, AIS, HFDL, FT8/WSPR, and SSTV. Voice clips are Whisper-transcribed and AI-tagged via the local Ollama, with a React web UI, Postgres store, Prometheus metrics, and an MCP server. A scrubbed open-source extraction lives in `sdr-research-oss/` (published as `w3rdw/sdr-research-oss`).
-- **weather** (`apps/data/weather`) — a custom weather dashboard (`ghcr.io/robertdwhite/weather-dashboard-api` + UI) that ingests APRS weather data from the SDR pipeline; public + internal HTTPRoutes, with a "time machine" PVC for history.
-- **astronomy** (`apps/radio/astronomy`) — a custom astronomy dashboard (`registry.internal.white.fm/astronomy-api` + UI) served on the tailnet.
+- **sdr-research** (`apps/radio/sdr-research`) — the flagship custom system: a software-defined-radio capture/decode/transcribe/search pipeline. RTL-SDR / Airspy / RX888 radios run as DaemonSets pinned to the nodes they're physically plugged into (node-10, -12, -13), feeding decoders for FM/AM voice, CW, APRS, pager (POCSAG/FLEX), EAS, ACARS, VDL2, AIS, HFDL, FT8/WSPR, and SSTV. Voice clips are Whisper-transcribed and AI-tagged via the local Ollama, with a React web UI, Postgres store, Prometheus metrics, and an MCP server. A scrubbed open-source extraction lives in `sdr-research-oss/`.
+- **weather** (`apps/data/weather`) — a custom weather dashboard (API + UI) that ingests APRS weather data from the SDR pipeline, with a "time machine" PVC for history.
+- **astronomy** (`apps/radio/astronomy`) — a custom astronomy dashboard (API + UI) served on the tailnet.
 - Plus other in-house data apps: **congress-trades** (the congressional trading tracker behind congress-mcp), **politics**, **appstore-reviews**, **jetlog**, **worldmonitor**, and **odysseus** (a ChromaDB-backed retrieval service).
 
 ---
@@ -228,7 +228,7 @@ Apps are grouped under `apps/` by domain. A non-exhaustive map:
 
 - **ai/** — ai-stack (Ollama/OpenWebUI), the MCP servers, odysseus, openclaw, codex-refresh, pages
 - **data/** — congress-trades, politics, appstore-reviews, jetlog, weather, worldmonitor
-- **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated, Tautulli, Dispatcharr, the `*arr` suite, MinIO / VPN egress
+- **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated, MinIO / VPN egress
 - **social/** — Matrix stack, Mastodon stack, Nitter, Convos
 - **radio/** — sdr-research, adsb-stack, astronomy, ground-station, keeptrack, openhamclock
 - **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, homeschool, backoffice, hub
