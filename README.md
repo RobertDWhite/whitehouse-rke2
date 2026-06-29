@@ -203,6 +203,7 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 | MCP server | Wraps | What it does |
 |------------|-------|--------------|
 | **congress-mcp** | `congress-trades` API | Query congressional stock trades, member track records, leaderboards, signals, backtested follow-strategies, portfolio overlap |
+| **freshrss-mcp** | FreshRSS (Google Reader API) | List feeds/categories, browse unread/starred articles, read full content, mark read/unread, star, mark-all-read, add subscriptions |
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
 | **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
 | **sdr-research MCP** | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
