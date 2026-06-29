@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 20-deployment.yaml
+  - 30-service.yaml
+  - 53-httproute-internal.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  # Built by github.com/RobertDWhite/freshrss-mcp CI -> ghcr.io. Pin the digest
+  # after the first build (crane digest ghcr.io/robertdwhite/freshrss-mcp:latest).
+  - name: registry.internal.white.fm/freshrss-mcp
+    newName: ghcr.io/robertdwhite/freshrss-mcp
+    digest: sha256:dcf381ff5aa27ea5c4e05b5de550cfdaef65acf8784080c4dac5ddd67f9e1ece
