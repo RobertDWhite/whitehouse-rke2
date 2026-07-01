@@ -415,6 +415,15 @@ data:
         static_configs:
           - targets:
               - 10.100.2.118:9101
+            labels:
+              host: primary
+          # Second Mac: run claude-stats-exporter.py there (launchd, :9101), join the
+          # tailnet, then uncomment and set its 10.100.x.x IP. Dashboard panels already
+          # sum across instances, so its stats fold into the combined totals.
+          # - targets:
+          #     - 10.100.X.X:9101
+          #   labels:
+          #     host: mac2
         metrics_path: /metrics
         scrape_interval: 120s
 
