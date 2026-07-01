@@ -32,23 +32,38 @@ data:
         }
     }
   internal-white-fm.conf: |
-    # *.internal.white.fm is authoritative on the Technitium pod-0
-    # LoadBalancer IP. Cluster replication only puts the zone on pod-0
-    # reliably, so we hit it directly rather than the round-robin VIP.
+    # *.internal.white.fm is authoritative on Technitium. Forward to the
+    # POOLED DNS VIPs (10.99.5.50 primary, 10.99.5.51 secondary) whose
+    # selector is every Technitium pod — they keep announcing as long as ANY
+    # pod is Ready. The old single pod-0 VIP (10.99.5.52,
+    # externalTrafficPolicy: Local) got withdrawn whenever pod-0 OR any of its
+    # throwaway sidecars (metrics-exporter) went NotReady, which took down ALL
+    # internal DNS cluster-wide roughly every other day. The zone is
+    # replicated to every pod, so the round-robin pooled VIP resolves it fine.
+    # policy sequential + health_check pins .50 and fails over to .51.
     internal.white.fm:53 {
         errors
         cache 30
-        forward . 10.99.5.52
+        forward . 10.99.5.50 10.99.5.51 {
+            policy sequential
+            health_check 5s
+        }
     }
     internal.w3rdw.radio:53 {
         errors
         cache 30
-        forward . 10.99.5.52
+        forward . 10.99.5.50 10.99.5.51 {
+            policy sequential
+            health_check 5s
+        }
     }
     internal.whitematter.tech:53 {
         errors
         cache 30
-        forward . 10.99.5.52
+        forward . 10.99.5.50 10.99.5.51 {
+            policy sequential
+            health_check 5s
+        }
     }
   amazonaws.conf: |
     # Direct AWS lookups bypass the VPN chain — high volume, low privacy value.
