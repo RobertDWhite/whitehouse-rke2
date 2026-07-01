@@ -21,9 +21,13 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
+                  # node-50 is the transient RTX-5090 host; node-15 is
+                  # memory-undersized and swap-thrashes, which crashloops the
+                  # technitium container's readiness probe there. Keep DNS off
+                  # both so a flaky node can't churn a DNS pod.
                   - key: kubernetes.io/hostname
                     operator: NotIn
-                    values: [rke2-node-50]
+                    values: [rke2-node-50, rke2-node-15]
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
               preference:
@@ -199,10 +203,12 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits:   { cpu: 100m, memory: 96Mi }
-          readinessProbe:
-            httpGet: { path: /metrics, port: 9180 }
-            initialDelaySeconds: 15
-            periodSeconds: 30
+          # NO readinessProbe on purpose. This is a throwaway metrics sidecar
+          # that runtime-pip-installs `requests` through the VPN proxy on
+          # startup; when it hung or its egress was down it flipped the pod
+          # NotReady, which withdrew the pod's MetalLB DNS VIP and killed
+          # internal DNS cluster-wide. A metrics endpoint must never gate DNS
+          # serving. Prometheus tolerates a scrape target being briefly down.
           volumeMounts:
             - name: metrics-script
               mountPath: /scripts
