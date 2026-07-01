@@ -78,7 +78,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_sessions{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -131,7 +131,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_messages{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_messages{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -184,7 +184,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_tool_calls{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -237,7 +237,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_tokens{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -290,7 +290,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_projects{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_projects{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -342,7 +342,7 @@
       },
       "targets": [
         {
-          "expr": "ai_sessions_by_tool{job=\"claude-code-stats\"}",
+          "expr": "sum by(tool) (ai_sessions_by_tool{job=\"claude-code-stats\"})",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -417,7 +417,7 @@
       },
       "targets": [
         {
-          "expr": "ai_messages_by_tool{job=\"claude-code-stats\"}",
+          "expr": "sum by(tool) (ai_messages_by_tool{job=\"claude-code-stats\"})",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -492,7 +492,7 @@
       },
       "targets": [
         {
-          "expr": "ai_tool_calls_by_tool{job=\"claude-code-stats\"}",
+          "expr": "sum by(tool) (ai_tool_calls_by_tool{job=\"claude-code-stats\"})",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -580,7 +580,7 @@
       },
       "targets": [
         {
-          "expr": "ai_tokens_by_tool{job=\"claude-code-stats\"}",
+          "expr": "sum by(tool) (ai_tokens_by_tool{job=\"claude-code-stats\"})",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -698,22 +698,22 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_daily_messages{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (claude_deep_daily_messages{job=\"claude-code-stats\"})",
           "legendFormat": "Claude Messages",
           "refId": "A"
         },
         {
-          "expr": "codex_daily_messages{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_messages{job=\"claude-code-stats\"})",
           "legendFormat": "Codex Messages",
           "refId": "B"
         },
         {
-          "expr": "claude_deep_daily_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (claude_deep_daily_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "Claude Tool Calls",
           "refId": "C"
         },
         {
-          "expr": "codex_daily_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "Codex Tool Calls",
           "refId": "D"
         }
@@ -776,7 +776,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_total_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_total_sessions{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Sessions",
           "refId": "A"
@@ -829,7 +829,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_total_messages{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_total_messages{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Messages",
           "refId": "A"
@@ -882,7 +882,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_total_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_total_tool_calls{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Tool Calls",
           "refId": "A"
@@ -935,7 +935,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_unique_files_edited{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_unique_files_edited{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Files Edited",
           "refId": "A"
@@ -988,7 +988,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_unique_files_read{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_unique_files_read{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Files Read",
           "refId": "A"
@@ -1041,7 +1041,7 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_total_projects{job=\"claude-code-stats\"}",
+          "expr": "sum(claude_deep_total_projects{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Projects",
           "refId": "A"
@@ -1103,12 +1103,12 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_model_input_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_input_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} input",
           "refId": "A"
         },
         {
-          "expr": "claude_deep_model_output_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_output_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} output",
           "refId": "B"
         }
@@ -1172,22 +1172,22 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_model_cache_read_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_cache_read_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} cache read",
           "refId": "A"
         },
         {
-          "expr": "claude_deep_model_cache_create_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_cache_create_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} cache create",
           "refId": "B"
         },
         {
-          "expr": "claude_deep_model_input_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_input_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} input",
           "refId": "C"
         },
         {
-          "expr": "claude_deep_model_output_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_deep_model_output_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}} output",
           "refId": "D"
         }
@@ -1250,7 +1250,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, claude_project_messages{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(project) (claude_project_messages{job=\"claude-code-stats\"}))",
           "legendFormat": "{{project}}",
           "refId": "A",
           "instant": true
@@ -1295,7 +1295,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, claude_project_tool_calls{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(project) (claude_project_tool_calls{job=\"claude-code-stats\"}))",
           "legendFormat": "{{project}}",
           "refId": "A",
           "instant": true
@@ -1358,35 +1358,35 @@
       },
       "targets": [
         {
-          "expr": "claude_project_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum by(project) (claude_project_sessions{job=\"claude-code-stats\"})",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "claude_project_messages{job=\"claude-code-stats\"}",
+          "expr": "sum by(project) (claude_project_messages{job=\"claude-code-stats\"})",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "claude_project_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum by(project) (claude_project_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "",
           "refId": "C",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "claude_project_files_edited{job=\"claude-code-stats\"}",
+          "expr": "sum by(project) (claude_project_files_edited{job=\"claude-code-stats\"})",
           "legendFormat": "",
           "refId": "D",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "claude_project_files_read{job=\"claude-code-stats\"}",
+          "expr": "sum by(project) (claude_project_files_read{job=\"claude-code-stats\"})",
           "legendFormat": "",
           "refId": "E",
           "instant": true,
@@ -1484,7 +1484,7 @@
       },
       "targets": [
         {
-          "expr": "topk(15, claude_tool_usage_total{job=\"claude-code-stats\"})",
+          "expr": "topk(15, sum by(tool) (claude_tool_usage_total{job=\"claude-code-stats\"}))",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -1540,7 +1540,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, claude_tool_usage_total{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(tool) (claude_tool_usage_total{job=\"claude-code-stats\"}))",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -1596,7 +1596,7 @@
       },
       "targets": [
         {
-          "expr": "topk(15, claude_file_edit_count{job=\"claude-code-stats\"})",
+          "expr": "topk(15, sum by(file) (claude_file_edit_count{job=\"claude-code-stats\"}))",
           "legendFormat": "{{file}}",
           "refId": "A",
           "instant": true
@@ -1641,7 +1641,7 @@
       },
       "targets": [
         {
-          "expr": "topk(15, claude_file_read_count{job=\"claude-code-stats\"})",
+          "expr": "topk(15, sum by(file) (claude_file_read_count{job=\"claude-code-stats\"}))",
           "legendFormat": "{{file}}",
           "refId": "A",
           "instant": true
@@ -1741,12 +1741,12 @@
       },
       "targets": [
         {
-          "expr": "claude_deep_daily_messages{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (claude_deep_daily_messages{job=\"claude-code-stats\"})",
           "legendFormat": "Messages",
           "refId": "A"
         },
         {
-          "expr": "claude_deep_daily_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (claude_deep_daily_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "Tool Calls",
           "refId": "B"
         }
@@ -1803,7 +1803,7 @@
       },
       "targets": [
         {
-          "expr": "claude_stats_hour_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum by(hour) (claude_stats_hour_sessions{job=\"claude-code-stats\"})",
           "legendFormat": "{{hour}}:00",
           "refId": "A",
           "instant": true
@@ -1856,7 +1856,7 @@
       },
       "targets": [
         {
-          "expr": "claude_stats_longest_session_duration_seconds{job=\"claude-code-stats\"}",
+          "expr": "max(claude_stats_longest_session_duration_seconds{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Duration",
           "refId": "A"
@@ -1909,7 +1909,7 @@
       },
       "targets": [
         {
-          "expr": "claude_stats_longest_session_messages{job=\"claude-code-stats\"}",
+          "expr": "max(claude_stats_longest_session_messages{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "Messages",
           "refId": "A"
@@ -2582,7 +2582,7 @@
       },
       "targets": [
         {
-          "expr": "codex_total_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum(codex_total_sessions{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -2635,7 +2635,7 @@
       },
       "targets": [
         {
-          "expr": "codex_total_messages{job=\"claude-code-stats\"}",
+          "expr": "sum(codex_total_messages{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -2688,7 +2688,7 @@
       },
       "targets": [
         {
-          "expr": "codex_total_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum(codex_total_tool_calls{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -2741,7 +2741,7 @@
       },
       "targets": [
         {
-          "expr": "codex_total_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum(codex_total_tokens{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -2793,7 +2793,7 @@
       },
       "targets": [
         {
-          "expr": "codex_sessions_by_source{job=\"claude-code-stats\"}",
+          "expr": "sum by(source) (codex_sessions_by_source{job=\"claude-code-stats\"})",
           "legendFormat": "{{source}}",
           "refId": "A",
           "instant": true
@@ -2845,7 +2845,7 @@
       },
       "targets": [
         {
-          "expr": "codex_tokens_by_source{job=\"claude-code-stats\"}",
+          "expr": "sum by(source) (codex_tokens_by_source{job=\"claude-code-stats\"})",
           "legendFormat": "{{source}}",
           "refId": "A",
           "instant": true
@@ -2901,7 +2901,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, codex_project_sessions{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(project) (codex_project_sessions{job=\"claude-code-stats\"}))",
           "legendFormat": "{{project}}",
           "refId": "A",
           "instant": true
@@ -2946,7 +2946,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, codex_project_tokens{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(project) (codex_project_tokens{job=\"claude-code-stats\"}))",
           "legendFormat": "{{project}}",
           "refId": "A",
           "instant": true
@@ -3002,7 +3002,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, codex_tool_usage_total{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(tool) (codex_tool_usage_total{job=\"claude-code-stats\"}))",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -3058,7 +3058,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, codex_tool_usage_total{job=\"claude-code-stats\"})",
+          "expr": "topk(10, sum by(tool) (codex_tool_usage_total{job=\"claude-code-stats\"}))",
           "legendFormat": "{{tool}}",
           "refId": "A",
           "instant": true
@@ -3173,17 +3173,17 @@
       },
       "targets": [
         {
-          "expr": "codex_daily_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_sessions{job=\"claude-code-stats\"})",
           "legendFormat": "Sessions",
           "refId": "A"
         },
         {
-          "expr": "codex_daily_messages{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_messages{job=\"claude-code-stats\"})",
           "legendFormat": "Messages",
           "refId": "B"
         },
         {
-          "expr": "codex_daily_tool_calls{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "Tool Calls",
           "refId": "C"
         }
@@ -3240,7 +3240,7 @@
       },
       "targets": [
         {
-          "expr": "codex_hour_sessions{job=\"claude-code-stats\"}",
+          "expr": "sum by(hour) (codex_hour_sessions{job=\"claude-code-stats\"})",
           "legendFormat": "{{hour}}:00",
           "refId": "A",
           "instant": true
@@ -3292,7 +3292,7 @@
       },
       "targets": [
         {
-          "expr": "codex_daily_tokens{job=\"claude-code-stats\"}",
+          "expr": "sum by(date) (codex_daily_tokens{job=\"claude-code-stats\"})",
           "legendFormat": "Tokens",
           "refId": "A"
         }
@@ -3366,7 +3366,7 @@
       },
       "targets": [
         {
-          "expr": "ai_total_cost_usd{job=\"claude-code-stats\"}",
+          "expr": "sum(ai_total_cost_usd{job=\"claude-code-stats\"})",
           "instant": true,
           "legendFormat": "",
           "refId": "A"
@@ -3423,7 +3423,7 @@
       },
       "targets": [
         {
-          "expr": "claude_cost_by_model_usd{job=\"claude-code-stats\"}",
+          "expr": "sum by(model) (claude_cost_by_model_usd{job=\"claude-code-stats\"})",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -3486,12 +3486,385 @@
       },
       "targets": [
         {
-          "expr": "topk(30, claude_daily_cost_usd{job=\"claude-code-stats\"})",
+          "expr": "topk(30, sum by(date) (claude_daily_cost_usd{job=\"claude-code-stats\"}))",
           "legendFormat": "{{date}}",
           "instant": true,
           "refId": "A"
         }
       ]
+    },
+    {
+      "title": "Cowork (Claude desktop app) \u2014 Activity",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 168
+      },
+      "collapsed": false,
+      "id": 1100,
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10A37F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 169
+      },
+      "id": 1101,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(cowork_total_sessions{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Cowork Sessions",
+      "type": "stat",
+      "description": "Cowork = Claude Code in the desktop app (runs in a sandboxed VM). Only host-side session metadata is available, so Cowork tracks sessions / projects / models / active-time \u2014 not tokens, messages or tool calls (those live inside the Cowork VM)."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10A37F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 169
+      },
+      "id": 1102,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(cowork_total_projects{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Cowork Projects",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10A37F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 169
+      },
+      "id": 1103,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(cowork_total_active_seconds{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Cowork Active Time",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 169
+      },
+      "id": 1104,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(model) (cowork_sessions_by_model{job=\"claude-code-stats\"})",
+          "legendFormat": "{{model}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Model",
+      "type": "piechart"
+    },
+    {
+      "title": "Cowork \u2014 Projects & Patterns",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 174
+      },
+      "collapsed": false,
+      "id": 1110,
+      "panels": []
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 175
+      },
+      "id": 1111,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(15, sum by(project) (cowork_project_sessions{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{project}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Project",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 175
+      },
+      "id": 1112,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "sum by(date) (cowork_daily_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "{{date}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Daily Sessions",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 175
+      },
+      "id": 1113,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "sum by(hour) (cowork_hour_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "{{hour}}:00",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Hour of Day",
+      "type": "bargauge"
     }
   ],
   "refresh": "30s",
