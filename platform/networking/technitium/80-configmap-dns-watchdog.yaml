@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: technitium-dns-watchdog
+  namespace: technitium
+data:
+  watchdog.py: |
+    #!/usr/bin/env python3
+    """DNS self-heal watchdog.
+
+    Probes every Technitium pod's :53 for REAL serving (not just kubelet
+    Ready) and restarts a pod that is Ready but not answering DNS — the
+    "wedged engine" / "Ready-but-empty" failure mode that a plain liveness
+    probe misses. Conservative by design so it can never cause an outage:
+      * only ever targets a pod that is Ready per kubelet but fails the DNS
+        probe (a genuine wedge, not a pod that's already restarting);
+      * never drops the serving set below MIN_SERVING — a mass failure is a
+        human problem, not a restart-storm problem (fails closed);
+      * restarts at most ONE pod per run.
+    Runs as a CronJob; the schedule is the natural rate limiter.
+    """
+    import os, sys, time
+    import requests, urllib3
+    import dns.resolver, dns.exception
+
+    urllib3.disable_warnings()
+
+    NS          = os.environ.get("NAMESPACE", "technitium")
+    LABEL       = os.environ.get("POD_LABEL", "app=technitium")
+    PROBE_ZONE  = os.environ.get("PROBE_ZONE", "internal.white.fm")
+    PROBE_TYPE  = os.environ.get("PROBE_TYPE", "SOA")
+    PROBE_TRIES = int(os.environ.get("PROBE_TRIES", "3"))
+    MIN_SERVING = int(os.environ.get("MIN_SERVING", "2"))
+    HEAL        = os.environ.get("HEAL_ENABLED", "true").lower() == "true"
+
+    KAPI  = f'https://{os.environ["KUBERNETES_SERVICE_HOST"]}:{os.environ.get("KUBERNETES_SERVICE_PORT", "443")}'
+    _SA   = "/var/run/secrets/kubernetes.io/serviceaccount"
+    TOKEN = open(f"{_SA}/token").read().strip()
+    CA    = f"{_SA}/ca.crt"
+    HDR   = {"Authorization": f"Bearer {TOKEN}"}
+
+    def log(m): print(m, flush=True)
+
+    def api_get(path):
+        r = requests.get(KAPI + path, headers=HDR, verify=CA, timeout=10)
+        r.raise_for_status()
+        return r.json()
+
+    def is_ready(pod):
+        return any(c.get("type") == "Ready" and c.get("status") == "True"
+                   for c in pod.get("status", {}).get("conditions", []))
+
+    def is_serving(ip):
+        res = dns.resolver.Resolver(configure=False)
+        res.nameservers = [ip]
+        res.timeout = 2
+        res.lifetime = 2
+        for _ in range(PROBE_TRIES):
+            try:
+                if res.resolve(PROBE_ZONE, PROBE_TYPE):
+                    return True
+            except dns.exception.DNSException:
+                time.sleep(0.5)
+        return False
+
+    def main():
+        pods = api_get(f"/api/v1/namespaces/{NS}/pods?labelSelector={LABEL}").get("items", [])
+        healthy, wedged = [], []
+        for p in pods:
+            name = p["metadata"]["name"]
+            ip   = p.get("status", {}).get("podIP")
+            rdy  = is_ready(p)
+            srv  = bool(ip) and is_serving(ip)
+            log(f"pod={name} ip={ip} ready={rdy} serving={srv}")
+            if srv:
+                healthy.append(name)
+            elif rdy:
+                wedged.append(name)   # Ready per kubelet but not answering DNS
+        log(f"summary: serving={len(healthy)}/{len(pods)} wedged={wedged}")
+
+        if not wedged:
+            log("healthy: every Ready pod is serving DNS")
+            return
+        if len(healthy) < MIN_SERVING:
+            log(f"REFUSING to act: only {len(healthy)} serving (< MIN_SERVING={MIN_SERVING}); "
+                "a mass failure is not a restart-storm problem — leaving for a human")
+            return
+
+        target = sorted(wedged)[0]
+        if not HEAL:
+            log(f"HEAL_ENABLED=false: would restart wedged pod {target}")
+            return
+        r = requests.delete(f"{KAPI}/api/v1/namespaces/{NS}/pods/{target}",
+                            headers=HDR, verify=CA, timeout=15)
+        log(f"HEAL: deleted wedged pod {target} -> HTTP {r.status_code} "
+            f"({len(healthy)} healthy pods stay up)")
+
+    if __name__ == "__main__":
+        main()
