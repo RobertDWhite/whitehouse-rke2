@@ -32,6 +32,7 @@ data:
     """
     import glob
     import os
+    import re
     import socket
     import sys
     import time
@@ -41,6 +42,11 @@ data:
     import yaml
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    def _redact(m):
+        # Never let a session token / password reach the logs (shipped to Loki):
+        # requests exceptions embed the full request URL incl. ?token=/?pass=.
+        return re.sub(r"((?:pass|token)=)[^&\s]+", r"\1***", str(m))
 
     API         = "http://localhost:5380"
     USER        = os.environ.get("TECHNITIUM_USER", "admin")
@@ -131,7 +137,7 @@ data:
             if not (r.ok and r.json().get("status") == "ok"):
                 print(f"warn: proxy set failed: {r.text[:200]}", file=sys.stderr)
         except Exception as e:
-            print(f"warn: proxy set error: {e}", file=sys.stderr)
+            print(f"warn: proxy set error: {_redact(e)}", file=sys.stderr)
 
     def list_installed_apps(token):
         r = S.get(f"{API}/api/apps/list", params={"token": token}, timeout=15)
@@ -197,7 +203,7 @@ data:
             if install_query_logs_app(token):
                 configure_query_logs_retention(token)
         except Exception as e:
-            print(f"warn: ensure_query_logs failed: {e}", file=sys.stderr)
+            print(f"warn: ensure_query_logs failed: {_redact(e)}", file=sys.stderr)
 
     # ---- blocklists (primary only, on bootstrap) ---------------------------
 
@@ -369,40 +375,61 @@ data:
             except Exception as e:
                 print(f"warn: apply_blocklists failed: {e}", file=sys.stderr)
 
+        # --- Serve zones FIRST, before the (cosmetic) cluster join ------------
+        # Every pod imports every Primary zone locally from the on-disk SOPS
+        # Secret (the source of truth). Doing this BEFORE the join makes a
+        # freshly (re)started pod authoritative within seconds instead of after
+        # the join's retry window — so a rebuilt secondary never sits Ready but
+        # empty behind the pooled DNS VIP.
+        def import_all():
+            tok, _ = login()
+            existing = set(list_zones(tok))
+            cur = snapshot()
+            for path in sorted(cur.keys()):
+                try:
+                    import_zone(tok, path, existing)
+                except Exception as e:
+                    print(f"!! {path}: {_redact(e)}", file=sys.stderr)
+            return cur
+
+        last = import_all()
+
+        # --- Cluster membership (cosmetic; must never block serving) ----------
+        # Only used for per-pod hostname registration under dns-cluster.internal.*
+        # Zone replication is handled by the per-pod import above + watch below.
         state = cluster_state(token)
         joined = state.get("clusterInitialized", False)
-
-        # Cluster membership: primary initializes, others join. This is only
-        # used for per-pod hostname registration under dns-cluster.internal.*
-        # — zone replication is handled per-pod via the watch loop below.
         if IS_PRIMARY:
             if not joined:
                 cluster_init_primary(token)
             else:
                 print(f"[primary] already initialized as {state.get('clusterDomain')}")
-        else:
-            if not joined:
-                for attempt in range(10):
-                    try:
-                        cluster_init_join(token)
+        elif not joined:
+            for attempt in range(10):
+                try:
+                    cluster_init_join(token)
+                    break
+                except Exception as e:
+                    # A stale node with this identity is already registered on
+                    # the primary (e.g. after a volume rebuild). Retrying can
+                    # never succeed and would waste ~5 min — stop immediately.
+                    # Serving is unaffected: zones were already imported above.
+                    if "already exists" in str(e):
+                        print(f"[secondary] identity {OWN_IP} already registered on "
+                              f"primary; skipping cosmetic join", file=sys.stderr)
                         break
-                    except Exception as e:
-                        print(f"join attempt {attempt+1} failed: {e}", file=sys.stderr)
-                        time.sleep(30)
-                else:
-                    print("!! gave up on joining cluster after 10 attempts", file=sys.stderr)
+                    print(f"join attempt {attempt+1} failed: {e}", file=sys.stderr)
+                    time.sleep(30)
             else:
-                print(f"[secondary] already cluster member of {state.get('clusterDomain')}")
+                print("!! gave up on joining cluster after 10 attempts", file=sys.stderr)
+        else:
+            print(f"[secondary] already cluster member of {state.get('clusterDomain')}")
 
-        # Every pod runs the zone-import watch loop independently. Each pod's
-        # PVC keeps its own copy of every Primary zone; SOPS Secret on disk
-        # is the source of truth, hot-reloaded within ~60s of mtime change.
-        last = {}
+        # --- Watch loop: re-import when the on-disk zones change ---------------
         while True:
             current = snapshot()
             if current != last:
-                if last:
-                    print("zones changed on disk, re-importing")
+                print("zones changed on disk, re-importing")
                 # Technitium session tokens expire; the startup token goes stale and every
                 # later re-import fails wholesale ("0 ok, N failed"). Refresh before each
                 # import so newly-added zone records actually get applied.
@@ -412,7 +439,7 @@ data:
                     try:
                         import_zone(token, path, existing)
                     except Exception as e:
-                        print(f"!! {path}: {e}", file=sys.stderr)
+                        print(f"!! {path}: {_redact(e)}", file=sys.stderr)
                 last = current
             time.sleep(60)
 

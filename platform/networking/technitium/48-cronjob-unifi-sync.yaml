@@ -20,22 +20,14 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: sync
-              image: python:3.13-alpine
-              command: ["/bin/sh", "-c"]
-              args:
-                - |
-                  set -eu
-                  pip install --quiet --no-cache-dir requests urllib3
-                  exec python /scripts/sync.py
+              image: registry.internal.white.fm/technitium-sidecar
+              # Deps (requests/urllib3) baked into the image — no runtime pip.
+              # Reaches only the internal UniFi controller + Technitium API, so
+              # no egress / proxy env is needed.
+              command: ["python", "/scripts/sync.py"]
               env:
                 - name: PYTHONUNBUFFERED
                   value: "1"
-                - name: HTTPS_PROXY
-                  value: "http://vpn-proxy.media.svc.cluster.local:8888"
-                - name: HTTP_PROXY
-                  value: "http://vpn-proxy.media.svc.cluster.local:8888"
-                - name: NO_PROXY
-                  value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
                 - name: UNIFI_URL
                   valueFrom: { secretKeyRef: { name: unifi-creds, key: url } }
                 - name: UNIFI_USER
