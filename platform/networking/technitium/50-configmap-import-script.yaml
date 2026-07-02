@@ -32,6 +32,7 @@ data:
     """
     import glob
     import os
+    import re
     import socket
     import sys
     import time
@@ -41,6 +42,11 @@ data:
     import yaml
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    def _redact(m):
+        # Never let a session token / password reach the logs (shipped to Loki):
+        # requests exceptions embed the full request URL incl. ?token=/?pass=.
+        return re.sub(r"((?:pass|token)=)[^&\s]+", r"\1***", str(m))
 
     API         = "http://localhost:5380"
     USER        = os.environ.get("TECHNITIUM_USER", "admin")
@@ -131,7 +137,7 @@ data:
             if not (r.ok and r.json().get("status") == "ok"):
                 print(f"warn: proxy set failed: {r.text[:200]}", file=sys.stderr)
         except Exception as e:
-            print(f"warn: proxy set error: {e}", file=sys.stderr)
+            print(f"warn: proxy set error: {_redact(e)}", file=sys.stderr)
 
     def list_installed_apps(token):
         r = S.get(f"{API}/api/apps/list", params={"token": token}, timeout=15)
@@ -197,7 +203,7 @@ data:
             if install_query_logs_app(token):
                 configure_query_logs_retention(token)
         except Exception as e:
-            print(f"warn: ensure_query_logs failed: {e}", file=sys.stderr)
+            print(f"warn: ensure_query_logs failed: {_redact(e)}", file=sys.stderr)
 
     # ---- blocklists (primary only, on bootstrap) ---------------------------
 
@@ -383,7 +389,7 @@ data:
                 try:
                     import_zone(tok, path, existing)
                 except Exception as e:
-                    print(f"!! {path}: {e}", file=sys.stderr)
+                    print(f"!! {path}: {_redact(e)}", file=sys.stderr)
             return cur
 
         last = import_all()
@@ -433,7 +439,7 @@ data:
                     try:
                         import_zone(token, path, existing)
                     except Exception as e:
-                        print(f"!! {path}: {e}", file=sys.stderr)
+                        print(f"!! {path}: {_redact(e)}", file=sys.stderr)
                 last = current
             time.sleep(60)
 
