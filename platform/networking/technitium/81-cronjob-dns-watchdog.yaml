@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dns-watchdog
+  namespace: technitium
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: dns-watchdog
+  namespace: technitium
+rules:
+  # Read pods to find them + their IPs/Ready status; delete only to restart a
+  # confirmed-wedged pod. Scoped to the technitium namespace only.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dns-watchdog
+  namespace: technitium
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: dns-watchdog
+subjects:
+  - kind: ServiceAccount
+    name: dns-watchdog
+    namespace: technitium
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dns-watchdog
+  namespace: technitium
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 900
+      template:
+        metadata:
+          labels:
+            app: dns-watchdog
+        spec:
+          serviceAccountName: dns-watchdog
+          restartPolicy: Never
+          # Egress works under the existing netpol: allow-egress-kube-apiserver
+          # (all pods) reaches the API; allow-intra-namespace (all pods) reaches
+          # the technitium pods' :53. No new NetworkPolicy needed.
+          containers:
+            - name: watchdog
+              image: registry.internal.white.fm/technitium-sidecar
+              command: ["python", "/scripts/watchdog.py"]
+              env:
+                - name: PYTHONUNBUFFERED
+                  value: "1"
+                # Never let the serving set drop below this. Fails closed.
+                - name: MIN_SERVING
+                  value: "2"
+                # Starts observe-only (logs what it WOULD restart) so the probe
+                # can be validated against live pods before it's allowed to act.
+                # Flip to "true" once a few runs confirm no false positives.
+                - name: HEAL_ENABLED
+                  value: "false"
+              resources:
+                requests: { cpu: 10m, memory: 48Mi }
+                limits:   { cpu: 100m, memory: 96Mi }
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: technitium-dns-watchdog
+                defaultMode: 0555

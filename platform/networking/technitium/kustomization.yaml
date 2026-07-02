@@ -17,6 +17,8 @@ resources:
   - 55-configmap-metrics-exporter.yaml
   - 61-deployment-dnscrypt-proxy.yaml
   - 62-service-dnscrypt-proxy.yaml
+  - 80-configmap-dns-watchdog.yaml
+  - 81-cronjob-dns-watchdog.yaml
   # Emergency-only Pi-hole runtime sync. Uncomment, push, then:
   #   kubectl -n technitium create job --from=cronjob/pihole-sync sync-now
   # Re-comment when done; ArgoCD prunes the CronJob + ConfigMap.
@@ -28,7 +30,11 @@ generators:
 images:
   - name: technitium/dns-server
     newTag: "15.2.0"
-  - name: python
-    newTag: "3.14-alpine"
+  # Custom sidecar (requests/urllib3/PyYAML baked in) for zone-importer +
+  # metrics-exporter — replaces the old python:alpine + runtime pip. Built
+  # multi-arch (amd64+arm64) from ./sidecar, pushed to the internal registry.
+  # Not Renovate-managed (internal registry); rebuild + repin digest manually.
+  - name: registry.internal.white.fm/technitium-sidecar
+    digest: sha256:4e75aa6ead666702eae45e3ccf5d8859e4b9ac7cea30271c7d3d5cb3aa212a6f
   - name: klutchell/dnscrypt-proxy
     newTag: "2.1.16"
