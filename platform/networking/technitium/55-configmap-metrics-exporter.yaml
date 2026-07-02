@@ -19,6 +19,7 @@ data:
     import http.server
     import json
     import os
+    import re
     import sys
     import threading
     import time
@@ -28,6 +29,12 @@ data:
     import urllib3
 
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    def _redact(m):
+        # requests exceptions embed the full request URL, and the login/stats
+        # calls carry ?pass= / ?token=. Never let credentials reach the logs
+        # (which are shipped to Loki).
+        return re.sub(r"((?:pass|token)=)[^&\s]+", r"\1***", str(m))
 
     API   = "http://localhost:5380"
     USER  = os.environ.get("TECHNITIUM_USER", "admin")
@@ -144,7 +151,7 @@ data:
                 with _lock:
                     _metrics = render(stats)
             except Exception as e:
-                print(f"poll error: {e}", flush=True)
+                print(f"poll error: {_redact(e)}", flush=True)
                 with _lock:
                     _metrics = "# HELP technitium_exporter_up 1 if the last poll succeeded\n# TYPE technitium_exporter_up gauge\ntechnitium_exporter_up 0\n"
             time.sleep(30)
@@ -235,7 +242,7 @@ data:
                             _emit(e)
                             last_row = max(last_row, e.get("rowNumber") or last_row)
             except Exception as e:
-                print(f"query stream error: {e}", file=sys.stderr, flush=True)
+                print(f"query stream error: {_redact(e)}", file=sys.stderr, flush=True)
                 time.sleep(5)
             time.sleep(QUERY_STREAM_INTERVAL)
 

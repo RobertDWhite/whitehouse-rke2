@@ -106,23 +106,14 @@ spec:
               mountPath: /etc/dns
 
         - name: zone-importer
-          image: python:3.13-alpine
+          image: registry.internal.white.fm/technitium-sidecar
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eu
-              pip install --quiet --no-cache-dir requests urllib3 PyYAML
-              exec python /scripts/import.py
+          # Deps (requests/urllib3/PyYAML) are baked into the image — no runtime
+          # pip. The script talks only to the local Technitium API (and the
+          # internal primary VIP for the cosmetic cluster join), so this sidecar
+          # needs no internet egress and carries no proxy env.
+          command: ["python", "/scripts/import.py"]
           env:
-            # pip startup install + any outbound HTTP must go through the
-            # VPN proxy in the media namespace; netpol denies direct egress.
-            - name: HTTPS_PROXY
-              value: "http://vpn-proxy.media.svc.cluster.local:8888"
-            - name: HTTP_PROXY
-              value: "http://vpn-proxy.media.svc.cluster.local:8888"
-            - name: NO_PROXY
-              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: POD_NAME
@@ -168,21 +159,12 @@ spec:
               readOnly: true
 
         - name: metrics-exporter
-          image: python:3.13-alpine
+          image: registry.internal.white.fm/technitium-sidecar
           imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -eu
-              pip install --quiet --no-cache-dir requests urllib3
-              exec python /scripts/exporter.py
+          # Deps baked into the image; talks only to the local Technitium API,
+          # so no runtime pip and no egress / proxy env.
+          command: ["python", "/scripts/exporter.py"]
           env:
-            - name: HTTPS_PROXY
-              value: "http://vpn-proxy.media.svc.cluster.local:8888"
-            - name: HTTP_PROXY
-              value: "http://vpn-proxy.media.svc.cluster.local:8888"
-            - name: NO_PROXY
-              value: "localhost,127.0.0.1,.svc,.svc.cluster.local,10.0.0.0/8"
             - name: PYTHONUNBUFFERED
               value: "1"
             - name: TECHNITIUM_USER
