@@ -1,0 +1,27 @@
+# Closes the auth-proxy spoofing vector: GF_AUTH_PROXY_WHITELIST is the whole
+# pod CIDR (10.42.0.0/16) because authentik-server pod IPs are dynamic, which
+# means ANY pod in the cluster could otherwise reach grafana:3000 directly and
+# forge X-authentik-username to become the named Grafana user. This policy is
+# the network enforcement referenced in 12-deploy-grafana.yaml: only the
+# Authentik outpost (authentik namespace) may reach the Grafana HTTP port.
+# Both grafana.white.fm and grafana.internal.white.fm are fronted by the
+# Authentik proxy-provider, so all legitimate ingress originates there.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-restrict-http-ingress
+  namespace: observability
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 3000
