@@ -13,6 +13,13 @@ data:
     import os, sys, json, time, wave, struct, threading, math
     import numpy as np
     from gnuradio import gr, blocks, filter, analog, fft
+    from bandplan import (
+        DEFAULT_CW_RECORD_BANDS,
+        DEFAULT_FM_RECORD_BANDS,
+        classify_peak_for_recording,
+        frequency_matches,
+        parse_frequency_ranges,
+    )
 
     # ---------------------------------------------------------------------------
     # Configuration (all overridable via environment)
@@ -24,17 +31,17 @@ data:
     #   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
     OSMOSDR_ARGS   = os.getenv("OSMOSDR_ARGS", "")
     SAMPLE_RATE    = int(os.getenv("SAMPLE_RATE", "2400000"))
-    DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "145000000"))
-    SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[147000000, 432000000]"))
-    DWELL_SEC      = float(os.getenv("DWELL_SEC", "55"))
-    SCAN_SEC       = float(os.getenv("SCAN_SEC", "2"))
+    DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "146000000"))
+    SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[]"))
+    DWELL_SEC      = float(os.getenv("DWELL_SEC", "60"))
+    SCAN_SEC       = float(os.getenv("SCAN_SEC", "5"))
 
-    SQUELCH_OPEN   = float(os.getenv("SQUELCH_OPEN_DB", "-35"))
-    SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-40"))
+    SQUELCH_OPEN   = float(os.getenv("SQUELCH_OPEN_DB", "-50"))
+    SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-55"))
     TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
     MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
     MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
-    RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-20"))
+    RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-50"))
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
     FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
@@ -49,10 +56,17 @@ data:
     PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
     CW_BW          = 200
     FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
+    FM_RECORD_BANDS = parse_frequency_ranges(
+        os.getenv("FM_RECORD_BANDS_HZ"), DEFAULT_FM_RECORD_BANDS
+    )
+    CW_RECORD_BANDS = parse_frequency_ranges(
+        os.getenv("CW_RECORD_BANDS_HZ"), DEFAULT_CW_RECORD_BANDS
+    )
 
     NUM_DYN_FM     = int(os.getenv("NUM_DYN_FM", "8"))
     NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
-    SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "10"))
+    DYN_SLOT_FREQ_TOLERANCE_HZ = int(os.getenv("DYN_SLOT_FREQ_TOLERANCE_HZ", "2500"))
+    SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "300"))
     # IMPORTANT: clearing slots on retune calls lock()/disconnect()/connect()/unlock() per slot.
     # GNURadio 3.10 connect()/disconnect() are NOT safe for concurrent calls from multiple threads
     # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
@@ -63,13 +77,19 @@ data:
     ACARS_FREQ_MIN = 128_000_000
     ACARS_FREQ_MAX = 132_000_000
     ACARS_AUDIO_BW = 8000    # passband Hz; covers 1200/2400 Hz AFSK tones with headroom
-    NUM_DYN_ACARS  = int(os.getenv("NUM_DYN_ACARS", "4"))
+    NUM_DYN_ACARS  = int(os.getenv("NUM_DYN_ACARS", "0"))
     # Time to suppress squelch-open after a retune, allowing the RTL-SDR PLL to settle.
     # Without this, synthesizer noise during frequency switching triggers all squelch gates
     # simultaneously, producing a cluster of fake ~2s recordings at every retune.
     RF_SETTLE_SEC  = float(os.getenv("RF_SETTLE_SEC", "0.3"))
+    # Noise guard: a real transmission has squelch drops between overs, so a slot
+    # that hits N consecutive max-duration rollovers is recording a spur or an
+    # open-squelch noise floor, not traffic. Deactivate it and blocklist the
+    # frequency for a cooldown. 0 rollovers disables the guard.
+    NOISE_GUARD_ROLLOVERS    = int(os.getenv("NOISE_GUARD_ROLLOVERS", "3"))
+    NOISE_GUARD_COOLDOWN_SEC = float(os.getenv("NOISE_GUARD_COOLDOWN_SEC", "1800"))
     CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
-    FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "145500000"))
+    FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "146520000"))
 
     VOICE_DIR      = "/data/audio/voice"
     CW_DIR         = "/data/audio/cw"
@@ -124,6 +144,9 @@ data:
             self.tail_counter  = 0
             self._lock         = threading.Lock()
             self._inhibit_until = float('inf') if inhibited else 0.0
+            # Consecutive max-duration rollovers; read by the noise guard.
+            self.consecutive_rollovers = 0
+            self._sumsq = 0.0
 
         def _open_wav(self):
             if self.is_cw:
@@ -137,6 +160,7 @@ data:
             self.wf.setsampwidth(2)
             self.wf.setframerate(self.audio_rate)
             self.samples_written = 0
+            self._sumsq = 0.0
             self.current_path = path
             print(f"[REC] Opened {path}", flush=True)
 
@@ -151,8 +175,10 @@ data:
                 except OSError:
                     pass
             else:
+                rms_db = 10.0 * math.log10(self._sumsq / self.samples_written + 1e-30) \
+                    if self.samples_written else -300.0
                 print(f"[REC] Closed {self.current_path} "
-                      f"({self.samples_written / self.audio_rate:.1f}s)", flush=True)
+                      f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
             self.wf = None
 
         def close_if_recording(self):
@@ -177,6 +203,7 @@ data:
                 if out_dir is not None:
                     self.out_dir = out_dir
                 self._inhibit_until = 0.0
+                self.consecutive_rollovers = 0
 
         def deactivate(self):
             """Inhibit forever and close any open recording."""
@@ -203,6 +230,8 @@ data:
                         if self.tail_counter >= self.tail_samples:
                             self._close_wav()
                             self.state = self.IDLE
+                            # A squelch-close means real inter-transmission silence.
+                            self.consecutive_rollovers = 0
                             return n
                     else:
                         self.tail_counter = 0
@@ -211,9 +240,11 @@ data:
                     pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
                     self.wf.writeframes(pcm.tobytes())
                     self.samples_written += n
+                    self._sumsq += rms * rms * n
                     # Roll over when the recording hits the max duration.
                     if self.samples_written >= self.max_samples:
                         print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)
+                        self.consecutive_rollovers += 1
                         self._close_wav()
                         self._open_wav()
 
@@ -382,7 +413,7 @@ data:
         def _assign_fm_slot(self, freq_hz):
             """Assign a detected FM frequency to an available dynamic slot."""
             for slot in self.dyn_fm:
-                if slot["freq"] == freq_hz:
+                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
                     slot["assigned_at"] = time.time()  # refresh
                     return  # already assigned
             # Find a free slot, or evict the oldest idle one
@@ -406,7 +437,7 @@ data:
         def _assign_cw_slot(self, freq_hz):
             """Assign a detected CW frequency to an available dynamic slot."""
             for slot in self.dyn_cw:
-                if slot["freq"] == freq_hz:
+                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
                     slot["assigned_at"] = time.time()
                     return
             target = None
@@ -434,7 +465,7 @@ data:
         def _assign_acars_slot(self, freq_hz):
             """Assign a detected ACARS frequency to an AM-demodulation slot."""
             for slot in self.dyn_acars:
-                if slot["freq"] == freq_hz:
+                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
                     slot["assigned_at"] = time.time()
                     return
             target = None
@@ -495,14 +526,43 @@ data:
             super().__init__(daemon=True)
             self.tb = tb
             self.detections = []
+            # freq_hz -> blocklist expiry time (noise guard)
+            self.noise_blocklist = {}
 
         def run(self):
             while True:
                 time.sleep(FFT_INTERVAL)
                 try:
+                    self._noise_guard()
                     self._scan_fft()
                 except Exception as e:
                     print(f"[FFT] Error: {e}", flush=True)
+
+        def _noise_guard(self):
+            """Blocklist frequencies whose recorder only produces max-duration rollovers."""
+            if NOISE_GUARD_ROLLOVERS <= 0:
+                return
+            now = time.time()
+            for f, expiry in list(self.noise_blocklist.items()):
+                if now >= expiry:
+                    del self.noise_blocklist[f]
+            for slots, free in ((self.tb.dyn_fm, self.tb._free_fm_slot),
+                                (self.tb.dyn_cw, self.tb._free_cw_slot),
+                                (self.tb.dyn_acars, self.tb._free_acars_slot)):
+                for slot in slots:
+                    freq = slot["freq"]
+                    if freq is None:
+                        continue
+                    if slot["recorder"].consecutive_rollovers >= NOISE_GUARD_ROLLOVERS:
+                        self.noise_blocklist[freq] = now + NOISE_GUARD_COOLDOWN_SEC
+                        print(f"[GUARD] {freq/1e6:.4f} MHz produced "
+                              f"{NOISE_GUARD_ROLLOVERS} consecutive max-duration recordings — "
+                              f"blocklisted for {NOISE_GUARD_COOLDOWN_SEC:.0f}s", flush=True)
+                        free(slot)
+
+        def _is_blocklisted(self, freq_hz):
+            return any(abs(freq_hz - f) <= DYN_SLOT_FREQ_TOLERANCE_HZ
+                       for f in self.noise_blocklist)
 
         _fft_empty_count = 0
 
@@ -558,10 +618,16 @@ data:
                 peak_power = float(power_db[peak_idx])
                 bw = float(freqs[min(e, FFT_SIZE - 1)] - freqs[s])
 
-                if bw > FM_BW_THRESH:
-                    mode = "FM"
-                else:
-                    mode = "CW"
+                slot_mode = classify_peak_for_recording(
+                    peak_freq,
+                    fm_record_bands=FM_RECORD_BANDS,
+                    cw_record_bands=CW_RECORD_BANDS,
+                    acars_min_hz=ACARS_FREQ_MIN,
+                    acars_max_hz=ACARS_FREQ_MAX,
+                )
+                # Detection metadata still exposes the raw bandwidth guess for
+                # peaks outside configured recording bands.
+                mode = slot_mode or ("FM" if bw > FM_BW_THRESH else "CW")
 
                 detections.append({
                     "frequency_hz": float(peak_freq),
@@ -570,21 +636,18 @@ data:
                     "mode": mode
                 })
 
-                # Assign to dynamic slot — ACARS frequencies use AM, not FM
-                if ACARS_FREQ_MIN <= peak_freq <= ACARS_FREQ_MAX:
+                # Assign to dynamic slot. Band-plan routing prevents quiet FM
+                # repeater carriers from being misclassified into CW recorders.
+                if self._is_blocklisted(peak_freq):
+                    continue
+                if slot_mode == "ACARS":
                     self.tb._assign_acars_slot(int(round(peak_freq)))
-                elif mode == "FM":
+                elif slot_mode == "FM":
                     # Do not mirror the fixed monitor channel into a dynamic slot.
                     if abs(peak_freq - self.tb.fixed_freq) <= 15000:
                         continue
-                    # Ignore band-edge noise outside 2m ham band (144–148 MHz)
-                    if not (144_000_000 <= peak_freq <= 148_000_000):
-                        continue
                     self.tb._assign_fm_slot(int(round(peak_freq)))
-                elif mode == "CW":
-                    # Ignore band-edge noise outside 2m ham band (144–148 MHz)
-                    if not (144_000_000 <= peak_freq <= 148_000_000):
-                        continue
+                elif slot_mode == "CW":
                     self.tb._assign_cw_slot(int(round(peak_freq)))
 
             self.detections = detections
@@ -682,6 +745,9 @@ data:
         print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
         print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
         print(f"  Dynamic ACARS:  {NUM_DYN_ACARS} slots (AM envelope)", flush=True)
+        print(f"  Slot tolerance: {DYN_SLOT_FREQ_TOLERANCE_HZ} Hz", flush=True)
+        print(f"  FM bands:       {FM_RECORD_BANDS}", flush=True)
+        print(f"  CW bands:       {CW_RECORD_BANDS}", flush=True)
         print(f"  RF squelch:     {RF_SQUELCH_DB} dB", flush=True)
         print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
         print("=" * 60, flush=True)
@@ -718,3 +784,107 @@ data:
         except Exception as e:
             print(f"[MAIN] Fatal error: {e}; exiting for container restart", flush=True)
             sys.exit(1)
+  bandplan.py: |
+    """Frequency-band helpers for unified-sdr peak routing.
+
+    The FFT detector sees occupied RF peaks, not modulation intent. A quiet FM
+    repeater carrier can look spectrally narrow enough to be mistaken for CW, so
+    we route by band plan first and only allow CW in explicit CW subbands.
+    """
+
+    from __future__ import annotations
+
+    from typing import Iterable
+
+    FrequencyRange = tuple[int, int]
+
+
+    # Defaults are intentionally conservative for a VHF/UHF voice recorder:
+    # - 2 m FM voice/APRS/repeater space
+    # - VHF pager/public-safety data that is routed to the pager decoder
+    # - 1.25 m and 70 cm amateur FM/repeater space
+    DEFAULT_FM_RECORD_BANDS = (
+        "144300000-148000000,"
+        "150000000-162000000,"
+        "222000000-225000000,"
+        "433000000-450000000"
+    )
+
+    # CW is narrow by nature, but "narrow" alone is not enough. Limit dynamic CW
+    # to weak-signal/CW slices so quiet FM repeaters do not become CW noise files.
+    DEFAULT_CW_RECORD_BANDS = "144000000-144150000,432000000-432100000"
+
+
+    def _parse_hz(value: str) -> int:
+        cleaned = value.strip().lower().replace("_", "").replace(" ", "")
+        if cleaned.endswith("mhz"):
+            return int(float(cleaned[:-3]) * 1_000_000)
+        if cleaned.endswith("hz"):
+            return int(float(cleaned[:-2]))
+        parsed = float(cleaned)
+        # Friendly shorthand: values under 1000 are treated as MHz.
+        if parsed < 1000:
+            parsed *= 1_000_000
+        return int(parsed)
+
+
+    def parse_frequency_ranges(raw: str | None, default: str) -> tuple[FrequencyRange, ...]:
+        """Parse comma-separated frequency ranges.
+
+        Accepted examples:
+        - "144300000-148000000,433000000-450000000"
+        - "144.3MHz-148MHz,420-450"
+
+        Passing an empty string intentionally disables that band list.
+        """
+        value = default if raw is None else raw
+        if not value.strip():
+            return ()
+
+        ranges: list[FrequencyRange] = []
+        for part in value.split(","):
+            item = part.strip()
+            if not item:
+                continue
+            if "-" not in item:
+                center = _parse_hz(item)
+                ranges.append((center, center))
+                continue
+            low_raw, high_raw = item.split("-", 1)
+            low = _parse_hz(low_raw)
+            high = _parse_hz(high_raw)
+            if high < low:
+                low, high = high, low
+            ranges.append((low, high))
+        return tuple(ranges)
+
+
+    def in_frequency_ranges(freq_hz: float, ranges: Iterable[FrequencyRange]) -> bool:
+        hz = int(round(freq_hz))
+        return any(low <= hz <= high for low, high in ranges)
+
+
+    def frequency_matches(left_hz: float | None, right_hz: float, tolerance_hz: float) -> bool:
+        return left_hz is not None and abs(left_hz - right_hz) <= tolerance_hz
+
+
+    def classify_peak_for_recording(
+        freq_hz: float,
+        *,
+        fm_record_bands: Iterable[FrequencyRange],
+        cw_record_bands: Iterable[FrequencyRange],
+        acars_min_hz: int,
+        acars_max_hz: int,
+    ) -> str | None:
+        """Return the recorder family for a detected FFT peak.
+
+        Returns "ACARS", "FM", "CW", or None when the peak should be shown in
+        detections but not assigned to a recorder slot.
+        """
+        if acars_min_hz <= freq_hz <= acars_max_hz:
+            return "ACARS"
+        if in_frequency_ranges(freq_hz, fm_record_bands):
+            return "FM"
+        if in_frequency_ranges(freq_hz, cw_record_bands):
+            return "CW"
+        return None
