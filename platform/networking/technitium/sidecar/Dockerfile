@@ -3,7 +3,7 @@
 # VPN proxy on startup (that hang used to flip pods NotReady and withdraw the
 # DNS VIP). The scripts talk only to the local Technitium API, so this image
 # needs no network at all once built.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # requests/urllib3/PyYAML: zone-importer, metrics-exporter, unifi-sync.
 # dnspython: the DNS self-heal watchdog probes each pod's :53 for real serving.
