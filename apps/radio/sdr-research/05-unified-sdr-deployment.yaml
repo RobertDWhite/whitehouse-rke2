@@ -71,7 +71,16 @@ spec:
             - name: SQUELCH_CLOSE_DB
               value: "-55"
             - name: RF_SQUELCH_DB
-              value: "-50"
+              # Measured channel noise floor at RF_GAIN=18 is ~-49 dBFS, so -50
+              # never closed and every spur recorded 120 s noise files forever.
+              # Real NBFM traffic sits at -35 dBFS and above.
+              value: "-40"
+            - name: NOISE_GUARD_ROLLOVERS
+              # Deactivate + blocklist a channel after this many consecutive
+              # max-duration rollovers (spur signature: squelch never drops).
+              value: "3"
+            - name: NOISE_GUARD_COOLDOWN_SEC
+              value: "1800"
             - name: TAIL_SEC
               value: "1.5"
             - name: MIN_REC_SEC
@@ -86,7 +95,7 @@ spec:
               value: "10"
             - name: RF_GAIN
               # Airspy Mini gain index (0–21); 18 provides sufficient signal
-              # to exceed RF squelch -50 dBFS in narrowband channels.
+              # to exceed RF squelch -40 dBFS in narrowband channels.
               value: "18"
             - name: PPM_CORRECTION
               # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
