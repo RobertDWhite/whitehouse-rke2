@@ -42,6 +42,21 @@ data:
     MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
     MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
     RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-50"))
+    # Adaptive RF squelch: track each channel's noise floor and hold the squelch
+    # threshold a fixed margin above it. Static thresholds have failed in both
+    # directions here (below the floor → records noise 24/7; above real traffic →
+    # records nothing), because the floor moves with gain, hardware, and band
+    # conditions. RF_SQUELCH_DB is the initial threshold until the first
+    # measurement. Set AUTO_SQUELCH=0 to keep a fixed threshold.
+    AUTO_SQUELCH            = os.getenv("AUTO_SQUELCH", "1") not in ("0", "false", "no")
+    AUTO_SQUELCH_MARGIN_DB  = float(os.getenv("AUTO_SQUELCH_MARGIN_DB", "6"))
+    AUTO_SQUELCH_INTERVAL   = float(os.getenv("AUTO_SQUELCH_INTERVAL_SEC", "2"))
+    # Floor estimate follows drops immediately, rises slowly (dB per interval) so a
+    # transmission does not drag the floor up; it never rises while recording.
+    AUTO_SQUELCH_RISE_DB    = float(os.getenv("AUTO_SQUELCH_RISE_DB", "0.1"))
+    AUTO_SQUELCH_MIN_DB     = float(os.getenv("AUTO_SQUELCH_MIN_DB", "-70"))
+    AUTO_SQUELCH_MAX_DB     = float(os.getenv("AUTO_SQUELCH_MAX_DB", "-25"))
+    AUTO_SQUELCH_LOG_SEC    = float(os.getenv("AUTO_SQUELCH_LOG_SEC", "60"))
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
     FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
@@ -305,9 +320,10 @@ data:
             self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
                          self.nbfm_fixed, self.rec_fixed)
 
-            # --- RF power probe on fixed channel (for threshold tuning) ---
-            self.rf_probe_fixed = blocks.probe_signal_c()
-            self.connect(self.xlate_fixed, self.rf_probe_fixed)
+            # --- RF power probe on fixed channel (feeds AutoSquelch) ---
+            self.probe_fixed = analog.probe_avg_mag_sqrd_c(0, 0.001)
+            self.connect(self.xlate_fixed, self.probe_fixed)
+            self.fixed_sq_state = {}
 
             # --- Dynamic FM slots (pre-wired with inhibited recorders) ---
             self.dyn_fm = []
@@ -318,10 +334,13 @@ data:
                     RF_SQUELCH_DB, 0.001, 10, False)
                 nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
                 rec = SquelchRecorder(0, AUDIO_RATE_FM, VOICE_DIR, inhibited=True)
+                probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
                 self.connect(self.src, xlate, rf_squelch, nbfm, rec)
+                self.connect(xlate, probe)
                 self.dyn_fm.append({
                     "xlate": xlate, "rf_squelch": rf_squelch,
-                    "nbfm": nbfm, "recorder": rec,
+                    "nbfm": nbfm, "recorder": rec, "probe": probe,
+                    "sq_state": {},
                     "freq": None, "assigned_at": None, "idx": i
                 })
 
@@ -430,6 +449,7 @@ data:
             out_dir = route_voice_dir(freq_hz)
             target["xlate"].set_center_freq(offset)
             target["recorder"].activate(freq_hz, out_dir)
+            target["sq_state"].clear()  # re-learn the noise floor at the new offset
             target["freq"] = freq_hz
             target["assigned_at"] = time.time()
             print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz ({os.path.basename(out_dir)})", flush=True)
@@ -517,6 +537,10 @@ data:
             self.src.set_center_freq(center_hz)
             with self._state_lock:
                 self.current_center_hz = center_hz
+            # Channel offsets now point at different spectrum — re-learn floors.
+            self.fixed_sq_state.clear()
+            for slot in self.dyn_fm:
+                slot["sq_state"].clear()
 
     # ---------------------------------------------------------------------------
     # FFT energy detector (background thread)
@@ -705,6 +729,68 @@ data:
                 self.tb.inhibit_recordings(RF_SETTLE_SEC)
 
     # ---------------------------------------------------------------------------
+    # Adaptive RF squelch (background thread)
+    # ---------------------------------------------------------------------------
+    class AutoSquelch(threading.Thread):
+        """Hold each FM channel's RF squelch a fixed margin above its measured noise floor.
+
+        The floor estimate follows level drops immediately and rises slowly
+        (AUTO_SQUELCH_RISE_DB per interval) while the channel is idle; it never
+        rises during a recording, so a long transmission cannot drag the
+        threshold up into itself. A steady spur becomes its channel's "floor",
+        which keeps the squelch shut on it — only power rising above the steady
+        state opens the gate.
+        """
+
+        def __init__(self, tb):
+            super().__init__(daemon=True)
+            self.tb = tb
+            self._last_log = 0.0
+            # Prior for a channel's first measurement: assume the static threshold
+            # was a sane margin above the true floor, so a channel assigned
+            # mid-transmission still opens for the in-progress signal.
+            self._floor_prior = RF_SQUELCH_DB - AUTO_SQUELCH_MARGIN_DB
+
+        def _update(self, name, probe, squelch, recorder, state):
+            level = 10.0 * math.log10(probe.level() + 1e-30)
+            floor = state.get("floor")
+            if floor is None:
+                floor = min(level, self._floor_prior)
+            elif level < floor:
+                floor = level
+            elif recorder.state != SquelchRecorder.RECORDING:
+                floor = min(floor + AUTO_SQUELCH_RISE_DB, level)
+            state["floor"] = floor
+            thr = min(max(floor + AUTO_SQUELCH_MARGIN_DB, AUTO_SQUELCH_MIN_DB),
+                      AUTO_SQUELCH_MAX_DB)
+            if state.get("thr") != thr:
+                squelch.set_threshold(thr)
+                state["thr"] = thr
+            return f"{name} lvl={level:.1f} floor={floor:.1f} thr={thr:.1f}"
+
+        def run(self):
+            time.sleep(5)  # let the flowgraph settle
+            while True:
+                try:
+                    lines = [self._update(
+                        f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
+                        self.tb.rf_squelch_fixed, self.tb.rec_fixed,
+                        self.tb.fixed_sq_state)]
+                    for slot in self.tb.dyn_fm:
+                        if slot["freq"] is None:
+                            continue
+                        lines.append(self._update(
+                            f"{slot['freq']/1e6:.4f}", slot["probe"],
+                            slot["rf_squelch"], slot["recorder"],
+                            slot["sq_state"]))
+                    if time.time() - self._last_log >= AUTO_SQUELCH_LOG_SEC:
+                        print(f"[SQL] {' | '.join(lines)}", flush=True)
+                        self._last_log = time.time()
+                except Exception as e:
+                    print(f"[SQL] Error: {e}", flush=True)
+                time.sleep(AUTO_SQUELCH_INTERVAL)
+
+    # ---------------------------------------------------------------------------
     # RF power monitor (background thread — logs noise floor for squelch tuning)
     # ---------------------------------------------------------------------------
     class RFPowerMonitor(threading.Thread):
@@ -748,7 +834,8 @@ data:
         print(f"  Slot tolerance: {DYN_SLOT_FREQ_TOLERANCE_HZ} Hz", flush=True)
         print(f"  FM bands:       {FM_RECORD_BANDS}", flush=True)
         print(f"  CW bands:       {CW_RECORD_BANDS}", flush=True)
-        print(f"  RF squelch:     {RF_SQUELCH_DB} dB", flush=True)
+        print(f"  RF squelch:     {RF_SQUELCH_DB} dB "
+              f"({'auto: floor+' + str(AUTO_SQUELCH_MARGIN_DB) + ' dB' if AUTO_SQUELCH else 'static'})", flush=True)
         print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
         print("=" * 60, flush=True)
 
@@ -765,6 +852,10 @@ data:
 
         rf_mon = RFPowerMonitor(tb)
         rf_mon.start()
+
+        if AUTO_SQUELCH:
+            auto_squelch = AutoSquelch(tb)
+            auto_squelch.start()
 
         try:
             tb.wait()
