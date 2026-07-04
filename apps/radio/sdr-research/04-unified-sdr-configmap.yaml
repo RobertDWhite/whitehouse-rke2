@@ -118,6 +118,15 @@ data:
     HEARTBEAT_PATH = os.path.join(DET_DIR, f"sdr_heartbeat_{CAPTURE_ID}.json")
     for d in (VOICE_DIR, CW_DIR, PAGER_DIR, DET_DIR):
         os.makedirs(d, exist_ok=True)
+        # Clear this capture's own orphaned in-progress files from a prior crash.
+        # The suffix is capture-scoped so parallel captures never touch each
+        # other's live .part files.
+        for stale in os.listdir(d):
+            if stale.endswith(f".{CAPTURE_ID}.part"):
+                try:
+                    os.remove(os.path.join(d, stale))
+                except OSError:
+                    pass
 
     # Frequency-based output routing — directs recordings to mode-specific
     # subdirectories so downstream decoders process only relevant files.
@@ -169,13 +178,15 @@ data:
             self._sumsq = 0.0
 
         def _open_wav(self):
-            if self.is_cw:
-                ts = int(time.time())
-                path = os.path.join(self.out_dir, f"cw_{self.freq_hz}_{ts}.wav")
-            else:
-                ts = int(time.time())
-                path = os.path.join(self.out_dir, f"{self.freq_hz}_{ts}.wav")
-            self.wf = wave.open(path, "wb")
+            ts = int(time.time())
+            prefix = "cw_" if self.is_cw else ""
+            path = os.path.join(self.out_dir, f"{prefix}{self.freq_hz}_{ts}.wav")
+            # Write under a temp name and rename on close: the indexer and the
+            # decoders glob *.wav, so they must never see an in-progress file —
+            # indexing one that is later discarded leaves an orphan DB row whose
+            # stream 404s in the UI.
+            self._tmp_path = f"{path}.{CAPTURE_ID}.part"
+            self.wf = wave.open(self._tmp_path, "wb")
             self.wf.setnchannels(1)
             self.wf.setsampwidth(2)
             self.wf.setframerate(self.audio_rate)
@@ -190,7 +201,7 @@ data:
             self.wf.close()
             if self.samples_written < self.min_samples:
                 try:
-                    os.remove(self.current_path)
+                    os.remove(self._tmp_path)
                     print(f"[REC] Discarded short recording {self.current_path}", flush=True)
                 except OSError:
                     pass
@@ -199,14 +210,18 @@ data:
                     if self.samples_written else -300.0
                 if not self.is_cw and rms_db >= NOISE_DISCARD_RMS_DB:
                     try:
-                        os.remove(self.current_path)
+                        os.remove(self._tmp_path)
                         print(f"[REC] Discarded noise recording {self.current_path} "
                               f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
                     except OSError:
                         pass
                 else:
-                    print(f"[REC] Closed {self.current_path} "
-                          f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
+                    try:
+                        os.rename(self._tmp_path, self.current_path)
+                        print(f"[REC] Closed {self.current_path} "
+                              f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
+                    except OSError as e:
+                        print(f"[REC] Rename failed for {self.current_path}: {e}", flush=True)
             self.wf = None
 
         def close_if_recording(self):
@@ -365,12 +380,20 @@ data:
             for i in range(NUM_DYN_CW):
                 xlate = filter.freq_xlating_fir_filter_ccf(
                     decim_cw, taps_cw, 0, SAMPLE_RATE)
+                # CW slots need an RF gate just like FM: without one, every noise
+                # blip in the CW subbands opens the envelope recorder and floods
+                # the cw decoder with undecodable files.
+                rf_squelch = analog.pwr_squelch_cc(
+                    RF_SQUELCH_DB, 0.001, 10, False)
                 c2mag = blocks.complex_to_mag()
                 rec = SquelchRecorder(0, AUDIO_RATE_CW, CW_DIR, is_cw=True, inhibited=True)
-                self.connect(self.src, xlate, c2mag, rec)
+                probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
+                self.connect(self.src, xlate, rf_squelch, c2mag, rec)
+                self.connect(xlate, probe)
                 self.dyn_cw.append({
-                    "xlate": xlate, "c2mag": c2mag,
-                    "recorder": rec,
+                    "xlate": xlate, "rf_squelch": rf_squelch, "c2mag": c2mag,
+                    "recorder": rec, "probe": probe,
+                    "sq_state": {},
                     "freq": None, "assigned_at": None, "idx": i
                 })
 
@@ -485,6 +508,7 @@ data:
             offset = freq_hz - self.get_center_hz()
             target["xlate"].set_center_freq(offset)
             target["recorder"].activate(freq_hz)
+            target["sq_state"].clear()  # re-learn the noise floor at the new offset
             target["freq"] = freq_hz
             target["assigned_at"] = time.time()
             print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
@@ -553,6 +577,8 @@ data:
             # Channel offsets now point at different spectrum — re-learn floors.
             self.fixed_sq_state.clear()
             for slot in self.dyn_fm:
+                slot["sq_state"].clear()
+            for slot in self.dyn_cw:
                 slot["sq_state"].clear()
 
     # ---------------------------------------------------------------------------
@@ -794,7 +820,7 @@ data:
                         f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
                         self.tb.rf_squelch_fixed, self.tb.rec_fixed,
                         self.tb.fixed_sq_state)]
-                    for slot in self.tb.dyn_fm:
+                    for slot in self.tb.dyn_fm + self.tb.dyn_cw:
                         if slot["freq"] is None:
                             continue
                         lines.append(self._update(
