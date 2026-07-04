@@ -22,6 +22,18 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
+      # rke2-node-15 has a recurring kubelet stale-mount wedge on Longhorn RWO
+      # globalmounts ("already mounted or mount point busy"); keep jetlog off it
+      # so Recreate rollouts always land on a healthy node.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-15
       securityContext:
         fsGroup: 1000
         seccompProfile:

@@ -11,7 +11,7 @@ metadata:
   name: hf-combined-decoder
   namespace: sdr-research
 spec:
-  replicas: 0   # keep disabled by default; enable only for dedicated HFDL/SSTV runs
+  replicas: 1   # time-shares the RX888 between HFDL + SSTV-HF (ft8-wspr parked; one Soapy client at a time)
   strategy:
     type: Recreate
   selector:
