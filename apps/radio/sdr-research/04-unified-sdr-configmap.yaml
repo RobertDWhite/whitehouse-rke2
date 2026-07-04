@@ -57,11 +57,14 @@ data:
     AUTO_SQUELCH_MIN_DB     = float(os.getenv("AUTO_SQUELCH_MIN_DB", "-70"))
     AUTO_SQUELCH_MAX_DB     = float(os.getenv("AUTO_SQUELCH_MAX_DB", "-25"))
     AUTO_SQUELCH_LOG_SEC    = float(os.getenv("AUTO_SQUELCH_LOG_SEC", "60"))
-    # Demodulated FM noise is full-scale (measured ~+2.5 dB mean RMS); real voice
-    # averages well below (speech duty cycle keeps it under ~-10 dB). Discard any
-    # FM/AM recording whose whole-file mean RMS lands above this — it is
-    # guaranteed noise regardless of what the squelch thought. 100 disables.
-    NOISE_DISCARD_RMS_DB    = float(os.getenv("NOISE_DISCARD_RMS_DB", "-3"))
+    # Demodulated FM noise is near full-scale while real voice averages ~-15 dB,
+    # but a squelch-gated file is mostly zeros, so the metric must be computed
+    # over ACTIVE samples only (a 33 s file of noise pops measured -11.5 dB whole
+    # -file vs -7.0 dB active). Discard any FM/AM recording whose active RMS
+    # lands at or above this. 100 disables.
+    NOISE_DISCARD_RMS_DB    = float(os.getenv("NOISE_DISCARD_RMS_DB", "-9"))
+    # Chunks below this RMS count as squelch-gated silence, not programme.
+    ACTIVE_AUDIO_RMS        = 10 ** (-60 / 20.0)
 
     FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
     FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
@@ -176,6 +179,7 @@ data:
             # Consecutive max-duration rollovers; read by the noise guard.
             self.consecutive_rollovers = 0
             self._sumsq = 0.0
+            self._nactive = 0
 
         def _open_wav(self):
             ts = int(time.time())
@@ -192,6 +196,7 @@ data:
             self.wf.setframerate(self.audio_rate)
             self.samples_written = 0
             self._sumsq = 0.0
+            self._nactive = 0
             self.current_path = path
             print(f"[REC] Opened {path}", flush=True)
 
@@ -206,8 +211,8 @@ data:
                 except OSError:
                     pass
             else:
-                rms_db = 10.0 * math.log10(self._sumsq / self.samples_written + 1e-30) \
-                    if self.samples_written else -300.0
+                rms_db = 10.0 * math.log10(self._sumsq / self._nactive + 1e-30) \
+                    if self._nactive else -300.0
                 if not self.is_cw and rms_db >= NOISE_DISCARD_RMS_DB:
                     try:
                         os.remove(self._tmp_path)
@@ -283,7 +288,9 @@ data:
                     pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
                     self.wf.writeframes(pcm.tobytes())
                     self.samples_written += n
-                    self._sumsq += rms * rms * n
+                    if rms > ACTIVE_AUDIO_RMS:
+                        self._sumsq += rms * rms * n
+                        self._nactive += n
                     # Roll over when the recording hits the max duration.
                     if self.samples_written >= self.max_samples:
                         print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)

@@ -79,12 +79,12 @@ spec:
             - name: AUTO_SQUELCH_MARGIN_DB
               # Raise if noise blips open the gate; lower if weak stations are missed.
               # Watch the [SQL] lvl/floor/thr telemetry lines to tune from data.
-              value: "6"
+              value: "8"
             - name: NOISE_DISCARD_RMS_DB
-              # Demodulated FM noise is full-scale audio (~+2.5 dB mean RMS);
-              # real voice averages far below. Anything at/above this is
-              # discarded on close — deterministic noise backstop.
-              value: "-3"
+              # Measured over ACTIVE (non-squelch-gated) samples: noise bursts
+              # ~-7 dB, real voice ~-15 dB. Anything at/above this is discarded
+              # on close — deterministic noise backstop.
+              value: "-9"
             - name: FM_RECORD_BANDS_HZ
               # Bandplan-true 2m FM voice only: APRS slice + repeater outputs
               # + simplex/repeaters. The Airspy's spur forest lives at
