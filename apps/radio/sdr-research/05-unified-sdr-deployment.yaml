@@ -80,6 +80,16 @@ spec:
               # Raise if noise blips open the gate; lower if weak stations are missed.
               # Watch the [SQL] lvl/floor/thr telemetry lines to tune from data.
               value: "6"
+            - name: NOISE_DISCARD_RMS_DB
+              # Demodulated FM noise is full-scale audio (~+2.5 dB mean RMS);
+              # real voice averages far below. Anything at/above this is
+              # discarded on close — deterministic noise backstop.
+              value: "-3"
+            - name: FM_RECORD_BANDS_HZ
+              # Bandplan-true 2m FM voice only: APRS slice + repeater outputs
+              # + simplex/repeaters. The Airspy's spur forest lives at
+              # 144.4-145.1 and 145.5-146.0 where no US FM voice exists.
+              value: "144380000-144400000,145100000-145500000,146000000-148000000"
             - name: NOISE_GUARD_ROLLOVERS
               # Deactivate + blocklist a channel after this many consecutive
               # max-duration rollovers (spur signature: squelch never drops).
