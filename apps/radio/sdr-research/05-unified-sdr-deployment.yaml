@@ -71,10 +71,15 @@ spec:
             - name: SQUELCH_CLOSE_DB
               value: "-55"
             - name: RF_SQUELCH_DB
-              # Measured channel noise floor at RF_GAIN=18 is ~-49 dBFS, so -50
-              # never closed and every spur recorded 120 s noise files forever.
-              # Real NBFM traffic sits at -35 dBFS and above.
-              value: "-40"
+              # Initial threshold + floor prior only: AUTO_SQUELCH measures each
+              # channel's real noise floor and holds the squelch
+              # AUTO_SQUELCH_MARGIN_DB above it. Static values failed both ways
+              # here (-50 recorded noise 24/7; -40 recorded nothing for hours).
+              value: "-45"
+            - name: AUTO_SQUELCH_MARGIN_DB
+              # Raise if noise blips open the gate; lower if weak stations are missed.
+              # Watch the [SQL] lvl/floor/thr telemetry lines to tune from data.
+              value: "6"
             - name: NOISE_GUARD_ROLLOVERS
               # Deactivate + blocklist a channel after this many consecutive
               # max-duration rollovers (spur signature: squelch never drops).
