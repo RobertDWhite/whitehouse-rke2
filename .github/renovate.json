@@ -200,6 +200,25 @@
       ],
       "groupName": "congress-trades dependencies",
       "automerge": false
+    },
+    {
+      "description": "Internal-registry images: registry.white.fm / registry.internal.white.fm are unreachable from hosted Renovate. Built and repinned manually.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.white.fm/**",
+        "registry.internal.white.fm/**"
+      ],
+      "enabled": false
+    }
+  ],
+  "hostRules": [
+    {
+      "hostType": "docker",
+      "matchHost": "ghcr.io",
+      "username": "robertdwhite",
+      "password": "{{ secrets.GHCR_READ_TOKEN }}"
     }
   ]
 }
