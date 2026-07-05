@@ -647,6 +647,38 @@ pages:
   - size: small
     widgets:
     - type: custom-api
+      title: Upcoming Flights
+      title-url: https://jetlog.internal.white.fm
+      cache: 1h
+      url: http://jetlog.jetlog.svc.cluster.local:3000/api/flights
+      headers:
+        X-Authentik-Username: robert
+      parameters:
+        order: ASC
+        limit: 1000
+      template: |-
+        {{ $today := now | formatTime "dateonly" }}
+        {{ $shown := 0 }}
+        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
+        {{ range $f := .JSON.Array "" }}
+          {{ $date := $f.String "date" }}
+          {{ if ge $date $today }}
+            {{ $shown = add $shown 1 }}
+            <li class="flex justify-between items-center gap-10">
+              <div style="min-width: 0;">
+                <div class="color-highlight text-truncate">{{ $f.String "origin.iata" }} &rarr; {{ $f.String "destination.iata" }}</div>
+                <div class="size-h6 color-subdue text-truncate">{{ $f.String "flightNumber" }}{{ $al := $f.String "airline.name" }}{{ if $al }} &middot; {{ $al }}{{ end }}</div>
+              </div>
+              <div class="shrink-0" style="text-align: right;">
+                <div>{{ $f.String "date" | parseTime "dateonly" | formatTime "Mon Jan 2" }}</div>
+                <div class="size-h6 color-subdue">{{ $f.String "departureTime" }}</div>
+              </div>
+            </li>
+          {{ end }}
+        {{ end }}
+        </ul>
+        {{ if eq $shown 0 }}<p class="color-subdue">No upcoming flights.</p>{{ end }}
+    - type: custom-api
       title: Immich Stats
       hide-header: true
       cache: 10m
