@@ -842,6 +842,65 @@ data:
                 time.sleep(AUTO_SQUELCH_INTERVAL)
 
     # ---------------------------------------------------------------------------
+    # Satellite pass windows (background thread)
+    # ---------------------------------------------------------------------------
+    class SatWindowMonitor(threading.Thread):
+        """Arm an FM slot on satellite downlinks during predicted passes.
+
+        The API indexer writes /data/detections/sat_windows.json (sgp4 pass
+        prediction). During an active window whose downlink falls inside this
+        capture's span, keep a dynamic FM slot assigned to it — bypassing the
+        FFT detector and band-plan routing, since a pass is expected signal.
+        The adaptive squelch still gates actual recording, so a silent pass
+        costs nothing.
+        """
+
+        WINDOWS_PATH = os.path.join(DET_DIR, "sat_windows.json")
+
+        def __init__(self, tb):
+            super().__init__(daemon=True)
+            self.tb = tb
+            self._active: set[int] = set()
+
+        def _in_span(self, freq_hz: int) -> bool:
+            center = self.tb.get_center_hz()
+            return abs(freq_hz - center) < (SAMPLE_RATE / 2) * 0.95
+
+        def run(self):
+            time.sleep(10)
+            while True:
+                try:
+                    self._tick()
+                except Exception as e:
+                    print(f"[SAT] Error: {e}", flush=True)
+                time.sleep(30)
+
+        def _tick(self):
+            try:
+                with open(self.WINDOWS_PATH) as f:
+                    data = json.load(f)
+            except (OSError, ValueError):
+                return
+            now = time.time()
+            current: set[int] = set()
+            for w in data.get("windows", []):
+                freq = int(w.get("freq_hz", 0))
+                if not freq or not self._in_span(freq):
+                    continue
+                if w.get("start_epoch", 0) <= now <= w.get("end_epoch", 0):
+                    current.add(freq)
+                    if freq not in self._active:
+                        print(f"[SAT] {w.get('satellite')} pass — arming "
+                              f"{freq/1e6:.4f} MHz ({w.get('mode')}, "
+                              f"max el {w.get('max_elevation')}°)", flush=True)
+                    # (Re)assign refreshes assigned_at so slot recycling never
+                    # takes the slot away mid-pass.
+                    self.tb._assign_fm_slot(freq)
+            for freq in self._active - current:
+                print(f"[SAT] pass over — releasing {freq/1e6:.4f} MHz", flush=True)
+            self._active = current
+
+    # ---------------------------------------------------------------------------
     # RF power monitor (background thread — logs noise floor for squelch tuning)
     # ---------------------------------------------------------------------------
     class RFPowerMonitor(threading.Thread):
@@ -907,6 +966,9 @@ data:
         if AUTO_SQUELCH:
             auto_squelch = AutoSquelch(tb)
             auto_squelch.start()
+
+        sat_monitor = SatWindowMonitor(tb)
+        sat_monitor.start()
 
         try:
             tb.wait()
