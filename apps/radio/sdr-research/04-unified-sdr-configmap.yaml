@@ -4,1029 +4,1088 @@ metadata:
   name: unified-sdr-scripts
   namespace: sdr-research
 data:
-  unified_sdr.py: |
-    #!/usr/bin/env python3
-    """
-    Unified SDR flowgraph — single rtl_tcp connection serving FFT detection,
-    fixed voice monitor, dynamic FM channels, and dynamic CW channels.
-    """
-    import os, sys, json, time, wave, struct, threading, math
-    import numpy as np
-    from gnuradio import gr, blocks, filter, analog, fft
-    from bandplan import (
-        DEFAULT_CW_RECORD_BANDS,
-        DEFAULT_FM_RECORD_BANDS,
-        classify_peak_for_recording,
-        frequency_matches,
-        parse_frequency_ranges,
-    )
+  unified_sdr.py: |\n    #!/usr/bin/env python3
+"""
+Unified SDR flowgraph — single rtl_tcp connection serving FFT detection,
+fixed voice monitor, dynamic FM channels, and dynamic CW channels.
+"""
+import os, sys, json, time, wave, struct, threading, math
+import numpy as np
+from gnuradio import gr, blocks, filter, analog, fft
+from bandplan import (
+    DEFAULT_CW_RECORD_BANDS,
+    DEFAULT_FM_RECORD_BANDS,
+    classify_peak_for_recording,
+    frequency_matches,
+    parse_frequency_ranges,
+)
 
-    # ---------------------------------------------------------------------------
-    # Configuration (all overridable via environment)
-    # ---------------------------------------------------------------------------
-    RTL_TCP_HOST   = os.getenv("RTL_TCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
-    _rtl_port_raw  = os.getenv("RTL_TCP_PORT", "1234")  # k8s injects "tcp://IP:PORT"; extract just the port
-    RTL_TCP_PORT   = int(_rtl_port_raw.rsplit(":", 1)[-1].strip("/"))
-    # If set, overrides the rtl_tcp device string entirely (e.g. SoapyRemote for Airspy):
-    #   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
-    OSMOSDR_ARGS   = os.getenv("OSMOSDR_ARGS", "")
-    SAMPLE_RATE    = int(os.getenv("SAMPLE_RATE", "2400000"))
-    DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "146000000"))
-    SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[]"))
-    DWELL_SEC      = float(os.getenv("DWELL_SEC", "60"))
-    SCAN_SEC       = float(os.getenv("SCAN_SEC", "5"))
+# ---------------------------------------------------------------------------
+# Configuration (all overridable via environment)
+# ---------------------------------------------------------------------------
+RTL_TCP_HOST   = os.getenv("RTL_TCP_HOST", "rtl-tcp.sdr-research.svc.cluster.local")
+_rtl_port_raw  = os.getenv("RTL_TCP_PORT", "1234")  # k8s injects "tcp://IP:PORT"; extract just the port
+RTL_TCP_PORT   = int(_rtl_port_raw.rsplit(":", 1)[-1].strip("/"))
+# If set, overrides the rtl_tcp device string entirely (e.g. SoapyRemote for Airspy):
+#   soapy=0,remote=airspy-soapy.sdr-research.svc.cluster.local:55132,driver=airspy
+OSMOSDR_ARGS   = os.getenv("OSMOSDR_ARGS", "")
+SAMPLE_RATE    = int(os.getenv("SAMPLE_RATE", "2400000"))
+DWELL_CENTER   = int(os.getenv("DWELL_CENTER_HZ", "146000000"))
+SCAN_CENTERS   = json.loads(os.getenv("SCAN_CENTERS", "[]"))
+DWELL_SEC      = float(os.getenv("DWELL_SEC", "60"))
+SCAN_SEC       = float(os.getenv("SCAN_SEC", "5"))
 
-    SQUELCH_OPEN   = float(os.getenv("SQUELCH_OPEN_DB", "-50"))
-    SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-55"))
-    TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
-    MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
-    MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
-    RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-50"))
-    # Adaptive RF squelch: track each channel's noise floor and hold the squelch
-    # threshold a fixed margin above it. Static thresholds have failed in both
-    # directions here (below the floor → records noise 24/7; above real traffic →
-    # records nothing), because the floor moves with gain, hardware, and band
-    # conditions. RF_SQUELCH_DB is the initial threshold until the first
-    # measurement. Set AUTO_SQUELCH=0 to keep a fixed threshold.
-    AUTO_SQUELCH            = os.getenv("AUTO_SQUELCH", "1") not in ("0", "false", "no")
-    AUTO_SQUELCH_MARGIN_DB  = float(os.getenv("AUTO_SQUELCH_MARGIN_DB", "6"))
-    AUTO_SQUELCH_INTERVAL   = float(os.getenv("AUTO_SQUELCH_INTERVAL_SEC", "2"))
-    # Floor estimate follows drops immediately, rises slowly (dB per interval) so a
-    # transmission does not drag the floor up; it never rises while recording.
-    AUTO_SQUELCH_RISE_DB    = float(os.getenv("AUTO_SQUELCH_RISE_DB", "0.1"))
-    AUTO_SQUELCH_MIN_DB     = float(os.getenv("AUTO_SQUELCH_MIN_DB", "-70"))
-    AUTO_SQUELCH_MAX_DB     = float(os.getenv("AUTO_SQUELCH_MAX_DB", "-25"))
-    AUTO_SQUELCH_LOG_SEC    = float(os.getenv("AUTO_SQUELCH_LOG_SEC", "60"))
-    # Demodulated FM noise is near full-scale while real voice averages ~-15 dB,
-    # but a squelch-gated file is mostly zeros, so the metric must be computed
-    # over ACTIVE samples only (a 33 s file of noise pops measured -11.5 dB whole
-    # -file vs -7.0 dB active). Discard any FM/AM recording whose active RMS
-    # lands at or above this. 100 disables.
-    NOISE_DISCARD_RMS_DB    = float(os.getenv("NOISE_DISCARD_RMS_DB", "-9"))
-    # Chunks below this RMS count as squelch-gated silence, not programme.
-    ACTIVE_AUDIO_RMS        = 10 ** (-60 / 20.0)
+SQUELCH_OPEN   = float(os.getenv("SQUELCH_OPEN_DB", "-50"))
+SQUELCH_CLOSE  = float(os.getenv("SQUELCH_CLOSE_DB", "-55"))
+TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
+MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
+MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
+RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-50"))
+# Adaptive RF squelch: track each channel's noise floor and hold the squelch
+# threshold a fixed margin above it. Static thresholds have failed in both
+# directions here (below the floor → records noise 24/7; above real traffic →
+# records nothing), because the floor moves with gain, hardware, and band
+# conditions. RF_SQUELCH_DB is the initial threshold until the first
+# measurement. Set AUTO_SQUELCH=0 to keep a fixed threshold.
+AUTO_SQUELCH            = os.getenv("AUTO_SQUELCH", "1") not in ("0", "false", "no")
+AUTO_SQUELCH_MARGIN_DB  = float(os.getenv("AUTO_SQUELCH_MARGIN_DB", "6"))
+AUTO_SQUELCH_INTERVAL   = float(os.getenv("AUTO_SQUELCH_INTERVAL_SEC", "2"))
+# Floor estimate follows drops immediately, rises slowly (dB per interval) so a
+# transmission does not drag the floor up; it never rises while recording.
+AUTO_SQUELCH_RISE_DB    = float(os.getenv("AUTO_SQUELCH_RISE_DB", "0.1"))
+AUTO_SQUELCH_MIN_DB     = float(os.getenv("AUTO_SQUELCH_MIN_DB", "-70"))
+AUTO_SQUELCH_MAX_DB     = float(os.getenv("AUTO_SQUELCH_MAX_DB", "-25"))
+AUTO_SQUELCH_LOG_SEC    = float(os.getenv("AUTO_SQUELCH_LOG_SEC", "60"))
+# Demodulated FM noise is near full-scale while real voice averages ~-15 dB,
+# but a squelch-gated file is mostly zeros, so the metric must be computed
+# over ACTIVE samples only (a 33 s file of noise pops measured -11.5 dB whole
+# -file vs -7.0 dB active). Discard any FM/AM recording whose active RMS
+# lands at or above this. 100 disables.
+NOISE_DISCARD_RMS_DB    = float(os.getenv("NOISE_DISCARD_RMS_DB", "-9"))
+# Chunks below this RMS count as squelch-gated silence, not programme.
+ACTIVE_AUDIO_RMS        = 10 ** (-60 / 20.0)
 
-    FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
-    FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
-    ENERGY_THRESH  = float(os.getenv("ENERGY_THRESH_DB", "10"))
+FFT_SIZE       = int(os.getenv("FFT_SIZE", "4096"))
+FFT_INTERVAL   = float(os.getenv("FFT_INTERVAL", "1.0"))
+ENERGY_THRESH  = float(os.getenv("ENERGY_THRESH_DB", "10"))
 
-    AUDIO_RATE_FM  = 48000
-    AUDIO_RATE_CW  = 8000
-    NBFM_DEV       = 5000
-    # Ham NBFM uses no de-emphasis. analog.nbfm_rx(tau=0) crashes in GNURadio 3.10.5 (ZeroDivisionError in fm_deemph).
-    # Use quadrature_demod_cf directly; gain = audio_rate / (2*pi*max_dev) normalises output to ±1 at max deviation.
-    NBFM_DEMOD_GAIN = AUDIO_RATE_FM / (2 * math.pi * NBFM_DEV)
-    PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
-    CW_BW          = 200
-    FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
-    FM_RECORD_BANDS = parse_frequency_ranges(
-        os.getenv("FM_RECORD_BANDS_HZ"), DEFAULT_FM_RECORD_BANDS
-    )
-    CW_RECORD_BANDS = parse_frequency_ranges(
-        os.getenv("CW_RECORD_BANDS_HZ"), DEFAULT_CW_RECORD_BANDS
-    )
+AUDIO_RATE_FM  = 48000
+AUDIO_RATE_CW  = 8000
+NBFM_DEV       = 5000
+# Ham NBFM uses no de-emphasis. analog.nbfm_rx(tau=0) crashes in GNURadio 3.10.5 (ZeroDivisionError in fm_deemph).
+# Use quadrature_demod_cf directly; gain = audio_rate / (2*pi*max_dev) normalises output to ±1 at max deviation.
+NBFM_DEMOD_GAIN = AUDIO_RATE_FM / (2 * math.pi * NBFM_DEV)
+PPM_CORRECTION = int(os.getenv("PPM_CORRECTION", "0")) # crystal PPM error; calibrate with: rtl_test -p 100
+CW_BW          = 200
+FM_BW_THRESH   = 5000   # >5 kHz -3dB bw → FM, else CW
+FM_RECORD_BANDS = parse_frequency_ranges(
+    os.getenv("FM_RECORD_BANDS_HZ"), DEFAULT_FM_RECORD_BANDS
+)
+CW_RECORD_BANDS = parse_frequency_ranges(
+    os.getenv("CW_RECORD_BANDS_HZ"), DEFAULT_CW_RECORD_BANDS
+)
 
-    NUM_DYN_FM     = int(os.getenv("NUM_DYN_FM", "8"))
-    NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
-    DYN_SLOT_FREQ_TOLERANCE_HZ = int(os.getenv("DYN_SLOT_FREQ_TOLERANCE_HZ", "2500"))
-    SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "300"))
-    # IMPORTANT: clearing slots on retune calls lock()/disconnect()/connect()/unlock() per slot.
-    # GNURadio 3.10 connect()/disconnect() are NOT safe for concurrent calls from multiple threads
-    # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
-    # Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
-    CLEAR_SLOTS_ON_RETUNE = False
-    # VHF airband ACARS (128-132 MHz) uses AM modulation — must use envelope detection,
-    # not NBFM. Intercept these frequencies before FM/CW slot routing.
-    ACARS_FREQ_MIN = 128_000_000
-    ACARS_FREQ_MAX = 132_000_000
-    ACARS_AUDIO_BW = 8000    # passband Hz; covers 1200/2400 Hz AFSK tones with headroom
-    NUM_DYN_ACARS  = int(os.getenv("NUM_DYN_ACARS", "0"))
-    # Time to suppress squelch-open after a retune, allowing the RTL-SDR PLL to settle.
-    # Without this, synthesizer noise during frequency switching triggers all squelch gates
-    # simultaneously, producing a cluster of fake ~2s recordings at every retune.
-    RF_SETTLE_SEC  = float(os.getenv("RF_SETTLE_SEC", "0.3"))
-    # Noise guard: a real transmission has squelch drops between overs, so a slot
-    # that hits N consecutive max-duration rollovers is recording a spur or an
-    # open-squelch noise floor, not traffic. Deactivate it and blocklist the
-    # frequency for a cooldown. 0 rollovers disables the guard.
-    NOISE_GUARD_ROLLOVERS    = int(os.getenv("NOISE_GUARD_ROLLOVERS", "3"))
-    NOISE_GUARD_COOLDOWN_SEC = float(os.getenv("NOISE_GUARD_COOLDOWN_SEC", "1800"))
-    CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
-    FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "146520000"))
+NUM_DYN_FM     = int(os.getenv("NUM_DYN_FM", "8"))
+NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
+DYN_SLOT_FREQ_TOLERANCE_HZ = int(os.getenv("DYN_SLOT_FREQ_TOLERANCE_HZ", "2500"))
+SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "300"))
+# IMPORTANT: clearing slots on retune calls lock()/disconnect()/connect()/unlock() per slot.
+# GNURadio 3.10 connect()/disconnect() are NOT safe for concurrent calls from multiple threads
+# (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
+# Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
+CLEAR_SLOTS_ON_RETUNE = False
+# VHF airband ACARS (128-132 MHz) uses AM modulation — must use envelope detection,
+# not NBFM. Intercept these frequencies before FM/CW slot routing.
+ACARS_FREQ_MIN = 128_000_000
+ACARS_FREQ_MAX = 132_000_000
+ACARS_AUDIO_BW = 8000    # passband Hz; covers 1200/2400 Hz AFSK tones with headroom
+NUM_DYN_ACARS  = int(os.getenv("NUM_DYN_ACARS", "0"))
+# Time to suppress squelch-open after a retune, allowing the RTL-SDR PLL to settle.
+# Without this, synthesizer noise during frequency switching triggers all squelch gates
+# simultaneously, producing a cluster of fake ~2s recordings at every retune.
+RF_SETTLE_SEC  = float(os.getenv("RF_SETTLE_SEC", "0.3"))
+# Noise guard: a real transmission has squelch drops between overs, so a slot
+# that hits N consecutive max-duration rollovers is recording a spur or an
+# open-squelch noise floor, not traffic. Deactivate it and blocklist the
+# frequency for a cooldown. 0 rollovers disables the guard.
+NOISE_GUARD_ROLLOVERS    = int(os.getenv("NOISE_GUARD_ROLLOVERS", "3"))
+NOISE_GUARD_COOLDOWN_SEC = float(os.getenv("NOISE_GUARD_COOLDOWN_SEC", "1800"))
+CAPTURE_ID     = os.getenv("CAPTURE_ID", "default").strip() or "default"
+FIXED_MONITOR_HZ = int(os.getenv("FIXED_MONITOR_HZ", "146520000"))
 
-    VOICE_DIR      = "/data/audio/voice"
-    CW_DIR         = "/data/audio/cw"
-    PAGER_DIR      = "/data/audio/pager"
-    DET_DIR        = "/data/detections"
-    HEARTBEAT_PATH = os.path.join(DET_DIR, f"sdr_heartbeat_{CAPTURE_ID}.json")
-    for d in (VOICE_DIR, CW_DIR, PAGER_DIR, DET_DIR):
-        os.makedirs(d, exist_ok=True)
-        # Clear this capture's own orphaned in-progress files from a prior crash.
-        # The suffix is capture-scoped so parallel captures never touch each
-        # other's live .part files.
-        for stale in os.listdir(d):
-            if stale.endswith(f".{CAPTURE_ID}.part"):
-                try:
-                    os.remove(os.path.join(d, stale))
-                except OSError:
-                    pass
+VOICE_DIR      = "/data/audio/voice"
+CW_DIR         = "/data/audio/cw"
+PAGER_DIR      = "/data/audio/pager"
+DET_DIR        = "/data/detections"
+HEARTBEAT_PATH = os.path.join(DET_DIR, f"sdr_heartbeat_{CAPTURE_ID}.json")
+for d in (VOICE_DIR, CW_DIR, PAGER_DIR, DET_DIR):
+    os.makedirs(d, exist_ok=True)
+    # Clear this capture's own orphaned in-progress files from a prior crash.
+    # The suffix is capture-scoped so parallel captures never touch each
+    # other's live .part files.
+    for stale in os.listdir(d):
+        if stale.endswith(f".{CAPTURE_ID}.part"):
+            try:
+                os.remove(os.path.join(d, stale))
+            except OSError:
+                pass
 
-    # Frequency-based output routing — directs recordings to mode-specific
-    # subdirectories so downstream decoders process only relevant files.
-    _FREQ_ROUTE_TABLE = [
-        # (low_hz, high_hz, directory)
-        (150_000_000, 162_000_000, PAGER_DIR),   # VHF public safety / pager
-    ]
+# Frequency-based output routing — directs recordings to mode-specific
+# subdirectories so downstream decoders process only relevant files.
+_FREQ_ROUTE_TABLE = [
+    # (low_hz, high_hz, directory)
+    (150_000_000, 162_000_000, PAGER_DIR),   # VHF public safety / pager
+]
 
-    def route_voice_dir(freq_hz):
-        """Return the output directory for an FM voice recording based on frequency."""
-        for low, high, out_dir in _FREQ_ROUTE_TABLE:
-            if low <= freq_hz <= high:
-                return out_dir
-        return VOICE_DIR
+def route_voice_dir(freq_hz):
+    """Return the output directory for an FM voice recording based on frequency."""
+    for low, high, out_dir in _FREQ_ROUTE_TABLE:
+        if low <= freq_hz <= high:
+            return out_dir
+    return VOICE_DIR
 
-    # ---------------------------------------------------------------------------
-    # SquelchRecorder — custom sync block that opens/closes WAV per transmission
-    # ---------------------------------------------------------------------------
-    class SquelchRecorder(gr.sync_block):
-        """State-machine recorder: IDLE → RECORDING → IDLE based on RMS power."""
+# ---------------------------------------------------------------------------
+# SquelchRecorder — custom sync block that opens/closes WAV per transmission
+# ---------------------------------------------------------------------------
+class SquelchRecorder(gr.sync_block):
+    """State-machine recorder: IDLE → RECORDING → IDLE based on RMS power."""
 
-        IDLE, RECORDING = 0, 1
+    IDLE, RECORDING = 0, 1
 
-        def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
-                     open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
-                     tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC,
-                     max_seconds=MAX_REC_SEC, inhibited=False):
-            gr.sync_block.__init__(self, name="SquelchRecorder",
-                                   in_sig=[np.float32], out_sig=None)
-            self.freq_hz      = freq_hz
-            self.audio_rate   = audio_rate
-            self.out_dir      = out_dir
-            self.is_cw        = is_cw
-            self.open_thresh  = 10 ** (open_db / 20.0)
-            self.close_thresh = 10 ** (close_db / 20.0)
-            self.tail_samples = int(tail_seconds * audio_rate)
-            self.min_samples  = int(min_seconds * audio_rate)
-            self.max_samples  = int(max_seconds * audio_rate)
+    def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
+                 open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
+                 tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC,
+                 max_seconds=MAX_REC_SEC, inhibited=False):
+        gr.sync_block.__init__(self, name="SquelchRecorder",
+                               in_sig=[np.float32], out_sig=None)
+        self.freq_hz      = freq_hz
+        self.audio_rate   = audio_rate
+        self.out_dir      = out_dir
+        self.is_cw        = is_cw
+        self.open_thresh  = 10 ** (open_db / 20.0)
+        self.close_thresh = 10 ** (close_db / 20.0)
+        self.tail_samples = int(tail_seconds * audio_rate)
+        self.min_samples  = int(min_seconds * audio_rate)
+        self.max_samples  = int(max_seconds * audio_rate)
 
-            self.state         = self.IDLE
-            self.wf            = None
-            self.current_path  = None
-            self.samples_written = 0
-            self.tail_counter  = 0
-            self._lock         = threading.Lock()
-            self._inhibit_until = float('inf') if inhibited else 0.0
-            # Consecutive max-duration rollovers; read by the noise guard.
-            self.consecutive_rollovers = 0
-            self._sumsq = 0.0
-            self._nactive = 0
+        self.state         = self.IDLE
+        self.wf            = None
+        self.current_path  = None
+        self.samples_written = 0
+        self.tail_counter  = 0
+        self._lock         = threading.Lock()
+        self._inhibit_until = float('inf') if inhibited else 0.0
+        # Consecutive max-duration rollovers; read by the noise guard.
+        self.consecutive_rollovers = 0
+        self._sumsq = 0.0
+        self._nactive = 0
 
-        def _open_wav(self):
-            ts = int(time.time())
-            prefix = "cw_" if self.is_cw else ""
-            path = os.path.join(self.out_dir, f"{prefix}{self.freq_hz}_{ts}.wav")
-            # Write under a temp name and rename on close: the indexer and the
-            # decoders glob *.wav, so they must never see an in-progress file —
-            # indexing one that is later discarded leaves an orphan DB row whose
-            # stream 404s in the UI.
-            self._tmp_path = f"{path}.{CAPTURE_ID}.part"
-            self.wf = wave.open(self._tmp_path, "wb")
-            self.wf.setnchannels(1)
-            self.wf.setsampwidth(2)
-            self.wf.setframerate(self.audio_rate)
-            self.samples_written = 0
-            self._sumsq = 0.0
-            self._nactive = 0
-            self.current_path = path
-            print(f"[REC] Opened {path}", flush=True)
+    def _open_wav(self):
+        ts = int(time.time())
+        prefix = "cw_" if self.is_cw else ""
+        path = os.path.join(self.out_dir, f"{prefix}{self.freq_hz}_{ts}.wav")
+        # Write under a temp name and rename on close: the indexer and the
+        # decoders glob *.wav, so they must never see an in-progress file —
+        # indexing one that is later discarded leaves an orphan DB row whose
+        # stream 404s in the UI.
+        self._tmp_path = f"{path}.{CAPTURE_ID}.part"
+        self.wf = wave.open(self._tmp_path, "wb")
+        self.wf.setnchannels(1)
+        self.wf.setsampwidth(2)
+        self.wf.setframerate(self.audio_rate)
+        self.samples_written = 0
+        self._sumsq = 0.0
+        self._nactive = 0
+        self.current_path = path
+        print(f"[REC] Opened {path}", flush=True)
 
-        def _close_wav(self):
-            if self.wf is None:
-                return
-            self.wf.close()
-            if self.samples_written < self.min_samples:
+    def _close_wav(self):
+        if self.wf is None:
+            return
+        self.wf.close()
+        if self.samples_written < self.min_samples:
+            try:
+                os.remove(self._tmp_path)
+                print(f"[REC] Discarded short recording {self.current_path}", flush=True)
+            except OSError:
+                pass
+        else:
+            rms_db = 10.0 * math.log10(self._sumsq / self._nactive + 1e-30) \
+                if self._nactive else -300.0
+            if not self.is_cw and rms_db >= NOISE_DISCARD_RMS_DB:
                 try:
                     os.remove(self._tmp_path)
-                    print(f"[REC] Discarded short recording {self.current_path}", flush=True)
+                    print(f"[REC] Discarded noise recording {self.current_path} "
+                          f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
                 except OSError:
                     pass
             else:
-                rms_db = 10.0 * math.log10(self._sumsq / self._nactive + 1e-30) \
-                    if self._nactive else -300.0
-                if not self.is_cw and rms_db >= NOISE_DISCARD_RMS_DB:
-                    try:
-                        os.remove(self._tmp_path)
-                        print(f"[REC] Discarded noise recording {self.current_path} "
-                              f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
-                    except OSError:
-                        pass
-                else:
-                    try:
-                        os.rename(self._tmp_path, self.current_path)
-                        print(f"[REC] Closed {self.current_path} "
-                              f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
-                    except OSError as e:
-                        print(f"[REC] Rename failed for {self.current_path}: {e}", flush=True)
-            self.wf = None
+                try:
+                    os.rename(self._tmp_path, self.current_path)
+                    print(f"[REC] Closed {self.current_path} "
+                          f"({self.samples_written / self.audio_rate:.1f}s, rms={rms_db:.1f} dB)", flush=True)
+                except OSError as e:
+                    print(f"[REC] Rename failed for {self.current_path}: {e}", flush=True)
+        self.wf = None
 
-        def close_if_recording(self):
-            """Force-close for retune."""
-            with self._lock:
-                if self.state == self.RECORDING:
-                    self._close_wav()
-                    self.state = self.IDLE
+    def close_if_recording(self):
+        """Force-close for retune."""
+        with self._lock:
+            if self.state == self.RECORDING:
+                self._close_wav()
+                self.state = self.IDLE
 
-        def set_inhibit(self, duration_sec):
-            """Suppress squelch-open for duration_sec (called after retune for PLL settling)."""
-            with self._lock:
-                self._inhibit_until = time.time() + duration_sec
+    def set_inhibit(self, duration_sec):
+        """Suppress squelch-open for duration_sec (called after retune for PLL settling)."""
+        with self._lock:
+            self._inhibit_until = time.time() + duration_sec
 
-        def activate(self, freq_hz, out_dir=None):
-            """Reconfigure and un-inhibit this recorder for a new frequency."""
-            with self._lock:
-                if self.state == self.RECORDING:
-                    self._close_wav()
-                    self.state = self.IDLE
-                self.freq_hz = freq_hz
-                if out_dir is not None:
-                    self.out_dir = out_dir
-                self._inhibit_until = 0.0
-                self.consecutive_rollovers = 0
+    def activate(self, freq_hz, out_dir=None):
+        """Reconfigure and un-inhibit this recorder for a new frequency."""
+        with self._lock:
+            if self.state == self.RECORDING:
+                self._close_wav()
+                self.state = self.IDLE
+            self.freq_hz = freq_hz
+            if out_dir is not None:
+                self.out_dir = out_dir
+            self._inhibit_until = 0.0
+            self.consecutive_rollovers = 0
 
-        def deactivate(self):
-            """Inhibit forever and close any open recording."""
-            with self._lock:
-                self._inhibit_until = float('inf')
-                if self.state == self.RECORDING:
-                    self._close_wav()
-                    self.state = self.IDLE
+    def deactivate(self):
+        """Inhibit forever and close any open recording."""
+        with self._lock:
+            self._inhibit_until = float('inf')
+            if self.state == self.RECORDING:
+                self._close_wav()
+                self.state = self.IDLE
 
-        def work(self, input_items, output_items):
-            samples = input_items[0]
-            n = len(samples)
-            rms = math.sqrt(np.mean(samples ** 2) + 1e-30)
+    def work(self, input_items, output_items):
+        samples = input_items[0]
+        n = len(samples)
+        rms = math.sqrt(np.mean(samples ** 2) + 1e-30)
 
-            with self._lock:
-                if self.state == self.IDLE:
-                    if rms > self.open_thresh and time.time() >= self._inhibit_until:
-                        self._open_wav()
-                        self.state = self.RECORDING
-                        self.tail_counter = 0
-                elif self.state == self.RECORDING:
-                    if rms < self.close_thresh:
-                        self.tail_counter += n
-                        if self.tail_counter >= self.tail_samples:
-                            self._close_wav()
-                            self.state = self.IDLE
-                            # A squelch-close means real inter-transmission silence.
-                            self.consecutive_rollovers = 0
-                            return n
-                    else:
-                        self.tail_counter = 0
-
-                if self.state == self.RECORDING and self.wf is not None:
-                    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
-                    self.wf.writeframes(pcm.tobytes())
-                    self.samples_written += n
-                    if rms > ACTIVE_AUDIO_RMS:
-                        self._sumsq += rms * rms * n
-                        self._nactive += n
-                    # Roll over when the recording hits the max duration.
-                    if self.samples_written >= self.max_samples:
-                        print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)
-                        self.consecutive_rollovers += 1
+        with self._lock:
+            if self.state == self.IDLE:
+                if rms > self.open_thresh and time.time() >= self._inhibit_until:
+                    self._open_wav()
+                    self.state = self.RECORDING
+                    self.tail_counter = 0
+            elif self.state == self.RECORDING:
+                if rms < self.close_thresh:
+                    self.tail_counter += n
+                    if self.tail_counter >= self.tail_samples:
                         self._close_wav()
-                        self._open_wav()
-
-            return n
-
-    # ---------------------------------------------------------------------------
-    # Flowgraph
-    # ---------------------------------------------------------------------------
-    class UnifiedSDR(gr.top_block):
-        def __init__(self):
-            gr.top_block.__init__(self, "Unified SDR")
-            self._state_lock = threading.Lock()
-            self._gr_lock = threading.Lock()  # serialise all connect()/disconnect() across threads
-            self.current_center_hz = DWELL_CENTER
-
-            # --- Source ---
-            self.src = blocks.null_source(gr.sizeof_gr_complex)
-            try:
-                import osmosdr
-                _src_args = OSMOSDR_ARGS if OSMOSDR_ARGS else f"rtl_tcp={RTL_TCP_HOST}:{RTL_TCP_PORT}"
-                self.src = osmosdr.source(args=_src_args)
-                self.src.set_sample_rate(SAMPLE_RATE)
-                self.src.set_center_freq(DWELL_CENTER)
-                self.src.set_gain_mode(False)
-                self.src.set_gain(int(os.getenv("RF_GAIN", "30")))
-                try:
-                    self.src.set_freq_corr(PPM_CORRECTION)
-                except Exception:
-                    pass  # not supported by all backends (e.g. Airspy via SoapyRemote)
-                print(f"[INIT] osmosdr.source({_src_args!r}) "
-                      f"(gain={os.getenv('RF_GAIN','30')} dB, ppm={PPM_CORRECTION})", flush=True)
-            except Exception as e:
-                print(f"[INIT] osmosdr.source failed: {e}", flush=True)
-                sys.exit(1)
-
-            # --- FFT energy-detection path ---
-            self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
-            self.fft     = fft.fft_vcc(FFT_SIZE, True,
-                                        fft.window.blackmanharris(FFT_SIZE),
-                                        True)
-            self.fft_mag = blocks.complex_to_mag_squared(FFT_SIZE)
-            self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
-            self.connect(self.src, self.fft_s2v, self.fft, self.fft_mag, self.fft_sink)
-
-            # --- Fixed voice monitor ---
-            self.fixed_freq = FIXED_MONITOR_HZ
-            offset_fixed = self.fixed_freq - DWELL_CENTER
-            decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
-            taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
-                                             NBFM_DEV * 2, NBFM_DEV * 0.5)
-            self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
-                decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
-            self.rf_squelch_fixed = analog.pwr_squelch_cc(
-                RF_SQUELCH_DB, 0.001, 10, False)
-            self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
-            self.rec_fixed = SquelchRecorder(
-                self.fixed_freq, AUDIO_RATE_FM, route_voice_dir(self.fixed_freq))
-            self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
-                         self.nbfm_fixed, self.rec_fixed)
-
-            # --- RF power probe on fixed channel (feeds AutoSquelch) ---
-            self.probe_fixed = analog.probe_avg_mag_sqrd_c(0, 0.001)
-            self.connect(self.xlate_fixed, self.probe_fixed)
-            self.fixed_sq_state = {}
-
-            # --- Dynamic FM slots (pre-wired with inhibited recorders) ---
-            self.dyn_fm = []
-            for i in range(NUM_DYN_FM):
-                xlate = filter.freq_xlating_fir_filter_ccf(
-                    decim_fm, taps_fm, 0, SAMPLE_RATE)
-                rf_squelch = analog.pwr_squelch_cc(
-                    RF_SQUELCH_DB, 0.001, 10, False)
-                nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
-                rec = SquelchRecorder(0, AUDIO_RATE_FM, VOICE_DIR, inhibited=True)
-                probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
-                self.connect(self.src, xlate, rf_squelch, nbfm, rec)
-                self.connect(xlate, probe)
-                self.dyn_fm.append({
-                    "xlate": xlate, "rf_squelch": rf_squelch,
-                    "nbfm": nbfm, "recorder": rec, "probe": probe,
-                    "sq_state": {},
-                    "freq": None, "assigned_at": None, "idx": i
-                })
-
-            # --- Dynamic CW slots (pre-wired with inhibited recorders) ---
-            decim_cw = int(SAMPLE_RATE / AUDIO_RATE_CW)
-            taps_cw = filter.firdes.low_pass(1.0, SAMPLE_RATE,
-                                             CW_BW, 50)
-            self.dyn_cw = []
-            for i in range(NUM_DYN_CW):
-                xlate = filter.freq_xlating_fir_filter_ccf(
-                    decim_cw, taps_cw, 0, SAMPLE_RATE)
-                # CW slots need an RF gate just like FM: without one, every noise
-                # blip in the CW subbands opens the envelope recorder and floods
-                # the cw decoder with undecodable files.
-                rf_squelch = analog.pwr_squelch_cc(
-                    RF_SQUELCH_DB, 0.001, 10, False)
-                c2mag = blocks.complex_to_mag()
-                rec = SquelchRecorder(0, AUDIO_RATE_CW, CW_DIR, is_cw=True, inhibited=True)
-                probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
-                self.connect(self.src, xlate, rf_squelch, c2mag, rec)
-                self.connect(xlate, probe)
-                self.dyn_cw.append({
-                    "xlate": xlate, "rf_squelch": rf_squelch, "c2mag": c2mag,
-                    "recorder": rec, "probe": probe,
-                    "sq_state": {},
-                    "freq": None, "assigned_at": None, "idx": i
-                })
-
-            # --- Dynamic ACARS slots (AM envelope detection) ---
-            # ACARS (128-132 MHz) uses AM modulation. complex_to_mag() does envelope
-            # detection; dc_blocker_ff centres the signal for multimon-ng ACARS mode.
-            decim_acars = int(SAMPLE_RATE / AUDIO_RATE_CW)  # 300× → 8 kHz output
-            taps_acars  = filter.firdes.low_pass(1.0, SAMPLE_RATE,
-                                                 ACARS_AUDIO_BW, ACARS_AUDIO_BW * 0.25)
-            self.dyn_acars = []
-            for i in range(NUM_DYN_ACARS):
-                xlate    = filter.freq_xlating_fir_filter_ccf(
-                    decim_acars, taps_acars, 0, SAMPLE_RATE)
-                c2mag    = blocks.complex_to_mag()
-                dc_block = filter.dc_blocker_ff(32, True)
-                rec = SquelchRecorder(0, AUDIO_RATE_CW, VOICE_DIR, inhibited=True)
-                self.connect(self.src, xlate, c2mag, dc_block, rec)
-                self.dyn_acars.append({
-                    "xlate": xlate, "c2mag": c2mag, "dc_block": dc_block,
-                    "recorder": rec,
-                    "freq": None, "assigned_at": None, "idx": i
-                })
-
-            self.all_recorders = (
-                [self.rec_fixed]
-                + [s["recorder"] for s in self.dyn_fm]
-                + [s["recorder"] for s in self.dyn_cw]
-                + [s["recorder"] for s in self.dyn_acars]
-            )
-
-        # --- Dynamic channel management ---
-        def _evict_stale_slot(self, slots, mode):
-            """Evict the oldest idle slot. Returns the freed slot, or None."""
-            now = time.time()
-            best = None
-            best_age = 0
-            for slot in slots:
-                if slot["freq"] is None:
-                    continue
-                rec = slot.get("recorder")
-                # Only evict slots that are IDLE (not actively recording)
-                if rec is not None and rec.state == SquelchRecorder.RECORDING:
-                    continue
-                age = now - slot.get("assigned_at", now)
-                if age > SLOT_RECYCLE_SEC and age > best_age:
-                    best = slot
-                    best_age = age
-            if best is not None:
-                print(f"[DYN] Recycling {mode} slot {best['idx']} "
-                      f"({best['freq']/1e6:.4f} MHz, idle {best_age:.0f}s)",
-                      flush=True)
-                if mode == "FM":
-                    self._free_fm_slot(best)
-                elif mode == "ACARS":
-                    self._free_acars_slot(best)
+                        self.state = self.IDLE
+                        # A squelch-close means real inter-transmission silence.
+                        self.consecutive_rollovers = 0
+                        return n
                 else:
-                    self._free_cw_slot(best)
-            return best
+                    self.tail_counter = 0
 
-        def _free_fm_slot(self, slot):
-            """Deactivate an FM slot's recorder (no graph changes)."""
-            slot["recorder"].deactivate()
-            slot["freq"] = None
-            slot["assigned_at"] = None
+            if self.state == self.RECORDING and self.wf is not None:
+                pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
+                self.wf.writeframes(pcm.tobytes())
+                self.samples_written += n
+                if rms > ACTIVE_AUDIO_RMS:
+                    self._sumsq += rms * rms * n
+                    self._nactive += n
+                # Roll over when the recording hits the max duration.
+                if self.samples_written >= self.max_samples:
+                    print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)
+                    self.consecutive_rollovers += 1
+                    self._close_wav()
+                    self._open_wav()
 
-        def _free_cw_slot(self, slot):
-            """Deactivate a CW slot's recorder (no graph changes)."""
-            slot["recorder"].deactivate()
-            slot["freq"] = None
-            slot["assigned_at"] = None
+        return n
 
-        def _assign_fm_slot(self, freq_hz):
-            """Assign a detected FM frequency to an available dynamic slot."""
-            for slot in self.dyn_fm:
-                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
-                    slot["assigned_at"] = time.time()  # refresh
-                    return  # already assigned
-            # Find a free slot, or evict the oldest idle one
-            target = None
-            for slot in self.dyn_fm:
-                if slot["freq"] is None:
-                    target = slot
-                    break
-            if target is None:
-                target = self._evict_stale_slot(self.dyn_fm, "FM")
-            if target is None:
-                return  # all slots busy with active recordings
-            offset = freq_hz - self.get_center_hz()
-            out_dir = route_voice_dir(freq_hz)
-            target["xlate"].set_center_freq(offset)
-            target["recorder"].activate(freq_hz, out_dir)
-            target["sq_state"].clear()  # re-learn the noise floor at the new offset
-            target["freq"] = freq_hz
-            target["assigned_at"] = time.time()
-            print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz ({os.path.basename(out_dir)})", flush=True)
+# ---------------------------------------------------------------------------
+# Flowgraph
+# ---------------------------------------------------------------------------
+class UnifiedSDR(gr.top_block):
+    def __init__(self):
+        gr.top_block.__init__(self, "Unified SDR")
+        self._state_lock = threading.Lock()
+        self._gr_lock = threading.Lock()  # serialise all connect()/disconnect() across threads
+        self.current_center_hz = DWELL_CENTER
 
-        def _assign_cw_slot(self, freq_hz):
-            """Assign a detected CW frequency to an available dynamic slot."""
-            for slot in self.dyn_cw:
-                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
-                    slot["assigned_at"] = time.time()
-                    return
-            target = None
-            for slot in self.dyn_cw:
-                if slot["freq"] is None:
-                    target = slot
-                    break
-            if target is None:
-                target = self._evict_stale_slot(self.dyn_cw, "CW")
-            if target is None:
-                return
-            offset = freq_hz - self.get_center_hz()
-            target["xlate"].set_center_freq(offset)
-            target["recorder"].activate(freq_hz)
-            target["sq_state"].clear()  # re-learn the noise floor at the new offset
-            target["freq"] = freq_hz
-            target["assigned_at"] = time.time()
-            print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
-
-        def _free_acars_slot(self, slot):
-            """Deactivate an ACARS slot's recorder (no graph changes)."""
-            slot["recorder"].deactivate()
-            slot["freq"] = None
-            slot["assigned_at"] = None
-
-        def _assign_acars_slot(self, freq_hz):
-            """Assign a detected ACARS frequency to an AM-demodulation slot."""
-            for slot in self.dyn_acars:
-                if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
-                    slot["assigned_at"] = time.time()
-                    return
-            target = None
-            for slot in self.dyn_acars:
-                if slot["freq"] is None:
-                    target = slot
-                    break
-            if target is None:
-                target = self._evict_stale_slot(self.dyn_acars, "ACARS")
-            if target is None:
-                return
-            offset = freq_hz - self.get_center_hz()
-            out_dir = route_voice_dir(freq_hz)
-            target["xlate"].set_center_freq(offset)
-            target["recorder"].activate(freq_hz, out_dir)
-            target["freq"] = freq_hz
-            target["assigned_at"] = time.time()
-            print(f"[DYN] ACARS slot {target['idx']} → {freq_hz/1e6:.4f} MHz (AM)", flush=True)
-
-        def close_all_recordings(self):
-            for r in self.all_recorders:
-                r.close_if_recording()
-
-        def deactivate_all_dynamic(self):
-            """Deactivate all dynamic slots (used before retune)."""
-            for slot in self.dyn_fm:
-                if slot["freq"] is not None:
-                    self._free_fm_slot(slot)
-            for slot in self.dyn_cw:
-                if slot["freq"] is not None:
-                    self._free_cw_slot(slot)
-            for slot in self.dyn_acars:
-                if slot["freq"] is not None:
-                    self._free_acars_slot(slot)
-
-        def inhibit_recordings(self, duration_sec):
-            """Suppress squelch-open on all channels for duration_sec (PLL settle after retune)."""
-            for r in self.all_recorders:
-                r.set_inhibit(duration_sec)
-
-        def clear_dynamic_slots(self):
-            self.deactivate_all_dynamic()
-
-        def get_center_hz(self):
-            with self._state_lock:
-                return self.current_center_hz
-
-        def retune(self, center_hz):
-            self.src.set_center_freq(center_hz)
-            with self._state_lock:
-                self.current_center_hz = center_hz
-            # Channel offsets now point at different spectrum — re-learn floors.
-            self.fixed_sq_state.clear()
-            for slot in self.dyn_fm:
-                slot["sq_state"].clear()
-            for slot in self.dyn_cw:
-                slot["sq_state"].clear()
-
-    # ---------------------------------------------------------------------------
-    # FFT energy detector (background thread)
-    # ---------------------------------------------------------------------------
-    class FFTDetector(threading.Thread):
-        def __init__(self, tb):
-            super().__init__(daemon=True)
-            self.tb = tb
-            self.detections = []
-            # freq_hz -> blocklist expiry time (noise guard)
-            self.noise_blocklist = {}
-
-        def run(self):
-            while True:
-                time.sleep(FFT_INTERVAL)
-                try:
-                    self._noise_guard()
-                    self._scan_fft()
-                except Exception as e:
-                    print(f"[FFT] Error: {e}", flush=True)
-
-        def _noise_guard(self):
-            """Blocklist frequencies whose recorder only produces max-duration rollovers."""
-            if NOISE_GUARD_ROLLOVERS <= 0:
-                return
-            now = time.time()
-            for f, expiry in list(self.noise_blocklist.items()):
-                if now >= expiry:
-                    del self.noise_blocklist[f]
-            for slots, free in ((self.tb.dyn_fm, self.tb._free_fm_slot),
-                                (self.tb.dyn_cw, self.tb._free_cw_slot),
-                                (self.tb.dyn_acars, self.tb._free_acars_slot)):
-                for slot in slots:
-                    freq = slot["freq"]
-                    if freq is None:
-                        continue
-                    if slot["recorder"].consecutive_rollovers >= NOISE_GUARD_ROLLOVERS:
-                        self.noise_blocklist[freq] = now + NOISE_GUARD_COOLDOWN_SEC
-                        print(f"[GUARD] {freq/1e6:.4f} MHz produced "
-                              f"{NOISE_GUARD_ROLLOVERS} consecutive max-duration recordings — "
-                              f"blocklisted for {NOISE_GUARD_COOLDOWN_SEC:.0f}s", flush=True)
-                        free(slot)
-
-        def _is_blocklisted(self, freq_hz):
-            return any(abs(freq_hz - f) <= DYN_SLOT_FREQ_TOLERANCE_HZ
-                       for f in self.noise_blocklist)
-
-        _fft_empty_count = 0
-
-        def _scan_fft(self):
-            data = self.tb.fft_sink.data()
-            if len(data) < FFT_SIZE:
-                self._fft_empty_count = getattr(self, '_fft_empty_count', 0) + 1
-                if self._fft_empty_count % 30 == 1:
-                    print(f"[FFT] No data from sink (len={len(data)}, need={FFT_SIZE}), "
-                          f"empty_count={self._fft_empty_count}", flush=True)
-                return
-
-            # Take the last complete FFT frame
-            frame = np.array(data[-FFT_SIZE:])
-            self.tb.fft_sink.reset()
-
-            power_db = 10.0 * np.log10(frame + 1e-30)
-            # FFT bins are already shifted by fft_vcc with shift=True
-            center_hz = self.tb.get_center_hz()
-            freqs = np.linspace(
-                center_hz - SAMPLE_RATE / 2,
-                center_hz + SAMPLE_RATE / 2,
-                FFT_SIZE, endpoint=False)
-
-            # Use median noise floor as baseline; detect peaks above it
-            noise_floor = float(np.median(power_db))
-            threshold = noise_floor + ENERGY_THRESH
-            above = power_db > threshold
-
-            detections = []
-            if not np.any(above):
-                self.detections = []
-                self._write_detections()
-                return
-
-            # Group contiguous bins above threshold
-            regions = []
-            in_region = False
-            start = 0
-            for i in range(FFT_SIZE):
-                if above[i] and not in_region:
-                    start = i
-                    in_region = True
-                elif not above[i] and in_region:
-                    regions.append((start, i))
-                    in_region = False
-            if in_region:
-                regions.append((start, FFT_SIZE))
-
-            for (s, e) in regions:
-                peak_idx = s + np.argmax(power_db[s:e])
-                peak_freq = freqs[peak_idx]
-                peak_power = float(power_db[peak_idx])
-                bw = float(freqs[min(e, FFT_SIZE - 1)] - freqs[s])
-
-                slot_mode = classify_peak_for_recording(
-                    peak_freq,
-                    fm_record_bands=FM_RECORD_BANDS,
-                    cw_record_bands=CW_RECORD_BANDS,
-                    acars_min_hz=ACARS_FREQ_MIN,
-                    acars_max_hz=ACARS_FREQ_MAX,
-                )
-                # Detection metadata still exposes the raw bandwidth guess for
-                # peaks outside configured recording bands.
-                mode = slot_mode or ("FM" if bw > FM_BW_THRESH else "CW")
-
-                detections.append({
-                    "frequency_hz": float(peak_freq),
-                    "power_db": peak_power,
-                    "bandwidth_hz": bw,
-                    "mode": mode
-                })
-
-                # Assign to dynamic slot. Band-plan routing prevents quiet FM
-                # repeater carriers from being misclassified into CW recorders.
-                if self._is_blocklisted(peak_freq):
-                    continue
-                if slot_mode == "ACARS":
-                    self.tb._assign_acars_slot(int(round(peak_freq)))
-                elif slot_mode == "FM":
-                    # Do not mirror the fixed monitor channel into a dynamic slot.
-                    if abs(peak_freq - self.tb.fixed_freq) <= 15000:
-                        continue
-                    self.tb._assign_fm_slot(int(round(peak_freq)))
-                elif slot_mode == "CW":
-                    self.tb._assign_cw_slot(int(round(peak_freq)))
-
-            self.detections = detections
-            self._write_detections()
-
-        def _write_detections(self):
-            out = {
-                "source": "unified_sdr",
-                "capture_id": CAPTURE_ID,
-                "sample_rate": SAMPLE_RATE,
-                "center_freq_hz": self.tb.get_center_hz(),
-                "timestamp": time.time(),
-                "detections": self.detections
-            }
-            path = os.path.join(DET_DIR, f"detections_{CAPTURE_ID}.json")
-            tmp = path + ".tmp"
+        # --- Source ---
+        self.src = blocks.null_source(gr.sizeof_gr_complex)
+        try:
+            import osmosdr
+            _src_args = OSMOSDR_ARGS if OSMOSDR_ARGS else f"rtl_tcp={RTL_TCP_HOST}:{RTL_TCP_PORT}"
+            self.src = osmosdr.source(args=_src_args)
+            self.src.set_sample_rate(SAMPLE_RATE)
+            self.src.set_center_freq(DWELL_CENTER)
+            self.src.set_gain_mode(False)
+            self.src.set_gain(int(os.getenv("RF_GAIN", "30")))
             try:
-                with open(tmp, "w") as f:
-                    json.dump(out, f, indent=2)
-                os.replace(tmp, path)
+                self.src.set_freq_corr(PPM_CORRECTION)
+            except Exception:
+                pass  # not supported by all backends (e.g. Airspy via SoapyRemote)
+            print(f"[INIT] osmosdr.source({_src_args!r}) "
+                  f"(gain={os.getenv('RF_GAIN','30')} dB, ppm={PPM_CORRECTION})", flush=True)
+        except Exception as e:
+            print(f"[INIT] osmosdr.source failed: {e}", flush=True)
+            sys.exit(1)
+
+        # --- FFT energy-detection path ---
+        self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
+        self.fft     = fft.fft_vcc(FFT_SIZE, True,
+                                    fft.window.blackmanharris(FFT_SIZE),
+                                    True)
+        self.fft_mag = blocks.complex_to_mag_squared(FFT_SIZE)
+        self.fft_sink = blocks.vector_sink_f(FFT_SIZE)
+        self.connect(self.src, self.fft_s2v, self.fft, self.fft_mag, self.fft_sink)
+
+        # --- Fixed voice monitor ---
+        self.fixed_freq = FIXED_MONITOR_HZ
+        offset_fixed = self.fixed_freq - DWELL_CENTER
+        decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
+        taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                         NBFM_DEV * 2, NBFM_DEV * 0.5)
+        self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
+            decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
+        self.rf_squelch_fixed = analog.pwr_squelch_cc(
+            RF_SQUELCH_DB, 0.001, 10, False)
+        self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
+        self.rec_fixed = SquelchRecorder(
+            self.fixed_freq, AUDIO_RATE_FM, route_voice_dir(self.fixed_freq))
+        self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
+                     self.nbfm_fixed, self.rec_fixed)
+
+        # --- RF power probe on fixed channel (feeds AutoSquelch) ---
+        self.probe_fixed = analog.probe_avg_mag_sqrd_c(0, 0.001)
+        self.connect(self.xlate_fixed, self.probe_fixed)
+        self.fixed_sq_state = {}
+
+        # --- Dynamic FM slots (pre-wired with inhibited recorders) ---
+        self.dyn_fm = []
+        for i in range(NUM_DYN_FM):
+            xlate = filter.freq_xlating_fir_filter_ccf(
+                decim_fm, taps_fm, 0, SAMPLE_RATE)
+            rf_squelch = analog.pwr_squelch_cc(
+                RF_SQUELCH_DB, 0.001, 10, False)
+            nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
+            rec = SquelchRecorder(0, AUDIO_RATE_FM, VOICE_DIR, inhibited=True)
+            probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
+            self.connect(self.src, xlate, rf_squelch, nbfm, rec)
+            self.connect(xlate, probe)
+            self.dyn_fm.append({
+                "xlate": xlate, "rf_squelch": rf_squelch,
+                "nbfm": nbfm, "recorder": rec, "probe": probe,
+                "sq_state": {},
+                "freq": None, "assigned_at": None, "idx": i
+            })
+
+        # --- Dynamic CW slots (pre-wired with inhibited recorders) ---
+        decim_cw = int(SAMPLE_RATE / AUDIO_RATE_CW)
+        taps_cw = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                         CW_BW, 50)
+        self.dyn_cw = []
+        for i in range(NUM_DYN_CW):
+            xlate = filter.freq_xlating_fir_filter_ccf(
+                decim_cw, taps_cw, 0, SAMPLE_RATE)
+            # CW slots need an RF gate just like FM: without one, every noise
+            # blip in the CW subbands opens the envelope recorder and floods
+            # the cw decoder with undecodable files.
+            rf_squelch = analog.pwr_squelch_cc(
+                RF_SQUELCH_DB, 0.001, 10, False)
+            c2mag = blocks.complex_to_mag()
+            rec = SquelchRecorder(0, AUDIO_RATE_CW, CW_DIR, is_cw=True, inhibited=True)
+            probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
+            self.connect(self.src, xlate, rf_squelch, c2mag, rec)
+            self.connect(xlate, probe)
+            self.dyn_cw.append({
+                "xlate": xlate, "rf_squelch": rf_squelch, "c2mag": c2mag,
+                "recorder": rec, "probe": probe,
+                "sq_state": {},
+                "freq": None, "assigned_at": None, "idx": i
+            })
+
+        # --- Dynamic ACARS slots (AM envelope detection) ---
+        # ACARS (128-132 MHz) uses AM modulation. complex_to_mag() does envelope
+        # detection; dc_blocker_ff centres the signal for multimon-ng ACARS mode.
+        decim_acars = int(SAMPLE_RATE / AUDIO_RATE_CW)  # 300× → 8 kHz output
+        taps_acars  = filter.firdes.low_pass(1.0, SAMPLE_RATE,
+                                             ACARS_AUDIO_BW, ACARS_AUDIO_BW * 0.25)
+        self.dyn_acars = []
+        for i in range(NUM_DYN_ACARS):
+            xlate    = filter.freq_xlating_fir_filter_ccf(
+                decim_acars, taps_acars, 0, SAMPLE_RATE)
+            c2mag    = blocks.complex_to_mag()
+            dc_block = filter.dc_blocker_ff(32, True)
+            rec = SquelchRecorder(0, AUDIO_RATE_CW, VOICE_DIR, inhibited=True)
+            self.connect(self.src, xlate, c2mag, dc_block, rec)
+            self.dyn_acars.append({
+                "xlate": xlate, "c2mag": c2mag, "dc_block": dc_block,
+                "recorder": rec,
+                "freq": None, "assigned_at": None, "idx": i
+            })
+
+        self.all_recorders = (
+            [self.rec_fixed]
+            + [s["recorder"] for s in self.dyn_fm]
+            + [s["recorder"] for s in self.dyn_cw]
+            + [s["recorder"] for s in self.dyn_acars]
+        )
+
+    # --- Dynamic channel management ---
+    def _evict_stale_slot(self, slots, mode):
+        """Evict the oldest idle slot. Returns the freed slot, or None."""
+        now = time.time()
+        best = None
+        best_age = 0
+        for slot in slots:
+            if slot["freq"] is None:
+                continue
+            rec = slot.get("recorder")
+            # Only evict slots that are IDLE (not actively recording)
+            if rec is not None and rec.state == SquelchRecorder.RECORDING:
+                continue
+            age = now - slot.get("assigned_at", now)
+            if age > SLOT_RECYCLE_SEC and age > best_age:
+                best = slot
+                best_age = age
+        if best is not None:
+            print(f"[DYN] Recycling {mode} slot {best['idx']} "
+                  f"({best['freq']/1e6:.4f} MHz, idle {best_age:.0f}s)",
+                  flush=True)
+            if mode == "FM":
+                self._free_fm_slot(best)
+            elif mode == "ACARS":
+                self._free_acars_slot(best)
+            else:
+                self._free_cw_slot(best)
+        return best
+
+    def _free_fm_slot(self, slot):
+        """Deactivate an FM slot's recorder (no graph changes)."""
+        slot["recorder"].deactivate()
+        slot["freq"] = None
+        slot["assigned_at"] = None
+
+    def _free_cw_slot(self, slot):
+        """Deactivate a CW slot's recorder (no graph changes)."""
+        slot["recorder"].deactivate()
+        slot["freq"] = None
+        slot["assigned_at"] = None
+
+    def _assign_fm_slot(self, freq_hz):
+        """Assign a detected FM frequency to an available dynamic slot."""
+        for slot in self.dyn_fm:
+            if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
+                slot["assigned_at"] = time.time()  # refresh
+                return  # already assigned
+        # Find a free slot, or evict the oldest idle one
+        target = None
+        for slot in self.dyn_fm:
+            if slot["freq"] is None:
+                target = slot
+                break
+        if target is None:
+            target = self._evict_stale_slot(self.dyn_fm, "FM")
+        if target is None:
+            return  # all slots busy with active recordings
+        offset = freq_hz - self.get_center_hz()
+        out_dir = route_voice_dir(freq_hz)
+        target["xlate"].set_center_freq(offset)
+        target["recorder"].activate(freq_hz, out_dir)
+        target["sq_state"].clear()  # re-learn the noise floor at the new offset
+        target["freq"] = freq_hz
+        target["assigned_at"] = time.time()
+        print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz ({os.path.basename(out_dir)})", flush=True)
+
+    def _assign_cw_slot(self, freq_hz):
+        """Assign a detected CW frequency to an available dynamic slot."""
+        for slot in self.dyn_cw:
+            if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
+                slot["assigned_at"] = time.time()
+                return
+        target = None
+        for slot in self.dyn_cw:
+            if slot["freq"] is None:
+                target = slot
+                break
+        if target is None:
+            target = self._evict_stale_slot(self.dyn_cw, "CW")
+        if target is None:
+            return
+        offset = freq_hz - self.get_center_hz()
+        target["xlate"].set_center_freq(offset)
+        target["recorder"].activate(freq_hz)
+        target["sq_state"].clear()  # re-learn the noise floor at the new offset
+        target["freq"] = freq_hz
+        target["assigned_at"] = time.time()
+        print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
+
+    def _free_acars_slot(self, slot):
+        """Deactivate an ACARS slot's recorder (no graph changes)."""
+        slot["recorder"].deactivate()
+        slot["freq"] = None
+        slot["assigned_at"] = None
+
+    def _assign_acars_slot(self, freq_hz):
+        """Assign a detected ACARS frequency to an AM-demodulation slot."""
+        for slot in self.dyn_acars:
+            if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
+                slot["assigned_at"] = time.time()
+                return
+        target = None
+        for slot in self.dyn_acars:
+            if slot["freq"] is None:
+                target = slot
+                break
+        if target is None:
+            target = self._evict_stale_slot(self.dyn_acars, "ACARS")
+        if target is None:
+            return
+        offset = freq_hz - self.get_center_hz()
+        out_dir = route_voice_dir(freq_hz)
+        target["xlate"].set_center_freq(offset)
+        target["recorder"].activate(freq_hz, out_dir)
+        target["freq"] = freq_hz
+        target["assigned_at"] = time.time()
+        print(f"[DYN] ACARS slot {target['idx']} → {freq_hz/1e6:.4f} MHz (AM)", flush=True)
+
+    def close_all_recordings(self):
+        for r in self.all_recorders:
+            r.close_if_recording()
+
+    def deactivate_all_dynamic(self):
+        """Deactivate all dynamic slots (used before retune)."""
+        for slot in self.dyn_fm:
+            if slot["freq"] is not None:
+                self._free_fm_slot(slot)
+        for slot in self.dyn_cw:
+            if slot["freq"] is not None:
+                self._free_cw_slot(slot)
+        for slot in self.dyn_acars:
+            if slot["freq"] is not None:
+                self._free_acars_slot(slot)
+
+    def inhibit_recordings(self, duration_sec):
+        """Suppress squelch-open on all channels for duration_sec (PLL settle after retune)."""
+        for r in self.all_recorders:
+            r.set_inhibit(duration_sec)
+
+    def clear_dynamic_slots(self):
+        self.deactivate_all_dynamic()
+
+    def get_center_hz(self):
+        with self._state_lock:
+            return self.current_center_hz
+
+    def retune(self, center_hz):
+        self.src.set_center_freq(center_hz)
+        with self._state_lock:
+            self.current_center_hz = center_hz
+        # Channel offsets now point at different spectrum — re-learn floors.
+        self.fixed_sq_state.clear()
+        for slot in self.dyn_fm:
+            slot["sq_state"].clear()
+        for slot in self.dyn_cw:
+            slot["sq_state"].clear()
+
+# ---------------------------------------------------------------------------
+# FFT energy detector (background thread)
+# ---------------------------------------------------------------------------
+class FFTDetector(threading.Thread):
+    def __init__(self, tb):
+        super().__init__(daemon=True)
+        self.tb = tb
+        self.detections = []
+        # freq_hz -> blocklist expiry time (noise guard)
+        self.noise_blocklist = {}
+
+    def run(self):
+        while True:
+            time.sleep(FFT_INTERVAL)
+            try:
+                self._noise_guard()
+                self._scan_fft()
             except Exception as e:
-                print(f"[FFT] Write error: {e}", flush=True)
+                print(f"[FFT] Error: {e}", flush=True)
 
-    # ---------------------------------------------------------------------------
-    # Scan scheduler (background thread)
-    # ---------------------------------------------------------------------------
-    class ScanScheduler(threading.Thread):
-        def __init__(self, tb):
-            super().__init__(daemon=True)
-            self.tb = tb
-
-        def run(self):
-            while True:
-                # Dwell on primary band
-                time.sleep(DWELL_SEC)
-
-                if not SCAN_CENTERS:
+    def _noise_guard(self):
+        """Blocklist frequencies whose recorder only produces max-duration rollovers."""
+        if NOISE_GUARD_ROLLOVERS <= 0:
+            return
+        now = time.time()
+        for f, expiry in list(self.noise_blocklist.items()):
+            if now >= expiry:
+                del self.noise_blocklist[f]
+        for slots, free in ((self.tb.dyn_fm, self.tb._free_fm_slot),
+                            (self.tb.dyn_cw, self.tb._free_cw_slot),
+                            (self.tb.dyn_acars, self.tb._free_acars_slot)):
+            for slot in slots:
+                freq = slot["freq"]
+                if freq is None:
                     continue
+                if slot["recorder"].consecutive_rollovers >= NOISE_GUARD_ROLLOVERS:
+                    self.noise_blocklist[freq] = now + NOISE_GUARD_COOLDOWN_SEC
+                    print(f"[GUARD] {freq/1e6:.4f} MHz produced "
+                          f"{NOISE_GUARD_ROLLOVERS} consecutive max-duration recordings — "
+                          f"blocklisted for {NOISE_GUARD_COOLDOWN_SEC:.0f}s", flush=True)
+                    free(slot)
 
-                # Scan secondary bands
-                for center in SCAN_CENTERS:
-                    print(f"[SCAN] Retuning to {center/1e6:.1f} MHz", flush=True)
-                    self.tb.close_all_recordings()
-                    if CLEAR_SLOTS_ON_RETUNE:
-                        self.tb.clear_dynamic_slots()
-                    self.tb.retune(center)
-                    self.tb.inhibit_recordings(RF_SETTLE_SEC)
-                    time.sleep(SCAN_SEC)
+    def _is_blocklisted(self, freq_hz):
+        return any(abs(freq_hz - f) <= DYN_SLOT_FREQ_TOLERANCE_HZ
+                   for f in self.noise_blocklist)
 
-                # Return to primary
-                print(f"[SCAN] Returning to {DWELL_CENTER/1e6:.1f} MHz", flush=True)
+    _fft_empty_count = 0
+
+    def _scan_fft(self):
+        data = self.tb.fft_sink.data()
+        if len(data) < FFT_SIZE:
+            self._fft_empty_count = getattr(self, '_fft_empty_count', 0) + 1
+            if self._fft_empty_count % 30 == 1:
+                print(f"[FFT] No data from sink (len={len(data)}, need={FFT_SIZE}), "
+                      f"empty_count={self._fft_empty_count}", flush=True)
+            return
+
+        # Take the last complete FFT frame
+        frame = np.array(data[-FFT_SIZE:])
+        self.tb.fft_sink.reset()
+
+        power_db = 10.0 * np.log10(frame + 1e-30)
+        # FFT bins are already shifted by fft_vcc with shift=True
+        center_hz = self.tb.get_center_hz()
+        freqs = np.linspace(
+            center_hz - SAMPLE_RATE / 2,
+            center_hz + SAMPLE_RATE / 2,
+            FFT_SIZE, endpoint=False)
+
+        # Use median noise floor as baseline; detect peaks above it
+        noise_floor = float(np.median(power_db))
+        threshold = noise_floor + ENERGY_THRESH
+        above = power_db > threshold
+
+        detections = []
+        if not np.any(above):
+            self.detections = []
+            self._write_detections()
+            return
+
+        # Group contiguous bins above threshold
+        regions = []
+        in_region = False
+        start = 0
+        for i in range(FFT_SIZE):
+            if above[i] and not in_region:
+                start = i
+                in_region = True
+            elif not above[i] and in_region:
+                regions.append((start, i))
+                in_region = False
+        if in_region:
+            regions.append((start, FFT_SIZE))
+
+        for (s, e) in regions:
+            peak_idx = s + np.argmax(power_db[s:e])
+            peak_freq = freqs[peak_idx]
+            peak_power = float(power_db[peak_idx])
+            bw = float(freqs[min(e, FFT_SIZE - 1)] - freqs[s])
+
+            slot_mode = classify_peak_for_recording(
+                peak_freq,
+                fm_record_bands=FM_RECORD_BANDS,
+                cw_record_bands=CW_RECORD_BANDS,
+                acars_min_hz=ACARS_FREQ_MIN,
+                acars_max_hz=ACARS_FREQ_MAX,
+            )
+            # Detection metadata still exposes the raw bandwidth guess for
+            # peaks outside configured recording bands.
+            mode = slot_mode or ("FM" if bw > FM_BW_THRESH else "CW")
+
+            detections.append({
+                "frequency_hz": float(peak_freq),
+                "power_db": peak_power,
+                "bandwidth_hz": bw,
+                "mode": mode
+            })
+
+            # Assign to dynamic slot. Band-plan routing prevents quiet FM
+            # repeater carriers from being misclassified into CW recorders.
+            if self._is_blocklisted(peak_freq):
+                continue
+            if slot_mode == "ACARS":
+                self.tb._assign_acars_slot(int(round(peak_freq)))
+            elif slot_mode == "FM":
+                # Do not mirror the fixed monitor channel into a dynamic slot.
+                if abs(peak_freq - self.tb.fixed_freq) <= 15000:
+                    continue
+                self.tb._assign_fm_slot(int(round(peak_freq)))
+            elif slot_mode == "CW":
+                self.tb._assign_cw_slot(int(round(peak_freq)))
+
+        self.detections = detections
+        self._write_detections()
+
+    def _write_detections(self):
+        out = {
+            "source": "unified_sdr",
+            "capture_id": CAPTURE_ID,
+            "sample_rate": SAMPLE_RATE,
+            "center_freq_hz": self.tb.get_center_hz(),
+            "timestamp": time.time(),
+            "detections": self.detections
+        }
+        path = os.path.join(DET_DIR, f"detections_{CAPTURE_ID}.json")
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                json.dump(out, f, indent=2)
+            os.replace(tmp, path)
+        except Exception as e:
+            print(f"[FFT] Write error: {e}", flush=True)
+
+# ---------------------------------------------------------------------------
+# Scan scheduler (background thread)
+# ---------------------------------------------------------------------------
+class ScanScheduler(threading.Thread):
+    def __init__(self, tb):
+        super().__init__(daemon=True)
+        self.tb = tb
+
+    def run(self):
+        while True:
+            # Dwell on primary band
+            time.sleep(DWELL_SEC)
+
+            if not SCAN_CENTERS:
+                continue
+
+            # Scan secondary bands
+            for center in SCAN_CENTERS:
+                print(f"[SCAN] Retuning to {center/1e6:.1f} MHz", flush=True)
+                self.tb.close_all_recordings()
                 if CLEAR_SLOTS_ON_RETUNE:
                     self.tb.clear_dynamic_slots()
-                self.tb.retune(DWELL_CENTER)
+                self.tb.retune(center)
                 self.tb.inhibit_recordings(RF_SETTLE_SEC)
+                time.sleep(SCAN_SEC)
 
-    # ---------------------------------------------------------------------------
-    # Adaptive RF squelch (background thread)
-    # ---------------------------------------------------------------------------
-    class AutoSquelch(threading.Thread):
-        """Hold each FM channel's RF squelch a fixed margin above its measured noise floor.
+            # Return to primary
+            print(f"[SCAN] Returning to {DWELL_CENTER/1e6:.1f} MHz", flush=True)
+            if CLEAR_SLOTS_ON_RETUNE:
+                self.tb.clear_dynamic_slots()
+            self.tb.retune(DWELL_CENTER)
+            self.tb.inhibit_recordings(RF_SETTLE_SEC)
 
-        The floor estimate follows level drops immediately and rises slowly
-        (AUTO_SQUELCH_RISE_DB per interval) while the channel is idle; it never
-        rises during a recording, so a long transmission cannot drag the
-        threshold up into itself. A steady spur becomes its channel's "floor",
-        which keeps the squelch shut on it — only power rising above the steady
-        state opens the gate.
-        """
+# ---------------------------------------------------------------------------
+# Adaptive RF squelch (background thread)
+# ---------------------------------------------------------------------------
+class AutoSquelch(threading.Thread):
+    """Hold each FM channel's RF squelch a fixed margin above its measured noise floor.
 
-        def __init__(self, tb):
-            super().__init__(daemon=True)
-            self.tb = tb
-            self._last_log = 0.0
-            # Prior for a channel's first measurement: assume the static threshold
-            # was a sane margin above the true floor, so a channel assigned
-            # mid-transmission still opens for the in-progress signal.
-            self._floor_prior = RF_SQUELCH_DB - AUTO_SQUELCH_MARGIN_DB
-
-        def _update(self, name, probe, squelch, recorder, state):
-            level = 10.0 * math.log10(probe.level() + 1e-30)
-            floor = state.get("floor")
-            if floor is None:
-                floor = min(level, self._floor_prior)
-            elif level < floor:
-                floor = level
-            elif (recorder.state != SquelchRecorder.RECORDING
-                  or recorder.consecutive_rollovers > 0):
-                # Rise while idle — and also during a recording that has already
-                # hit max duration: a carrier that never drops is a spur, and
-                # keeping the floor frozen under it would deadlock the channel
-                # open forever (the floor could never learn the spur level).
-                floor = min(floor + AUTO_SQUELCH_RISE_DB, level)
-            state["floor"] = floor
-            thr = min(max(floor + AUTO_SQUELCH_MARGIN_DB, AUTO_SQUELCH_MIN_DB),
-                      AUTO_SQUELCH_MAX_DB)
-            if state.get("thr") != thr:
-                squelch.set_threshold(thr)
-                state["thr"] = thr
-            return f"{name} lvl={level:.1f} floor={floor:.1f} thr={thr:.1f}"
-
-        def run(self):
-            time.sleep(5)  # let the flowgraph settle
-            while True:
-                try:
-                    lines = [self._update(
-                        f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
-                        self.tb.rf_squelch_fixed, self.tb.rec_fixed,
-                        self.tb.fixed_sq_state)]
-                    for slot in self.tb.dyn_fm + self.tb.dyn_cw:
-                        if slot["freq"] is None:
-                            continue
-                        lines.append(self._update(
-                            f"{slot['freq']/1e6:.4f}", slot["probe"],
-                            slot["rf_squelch"], slot["recorder"],
-                            slot["sq_state"]))
-                    if time.time() - self._last_log >= AUTO_SQUELCH_LOG_SEC:
-                        print(f"[SQL] {' | '.join(lines)}", flush=True)
-                        self._last_log = time.time()
-                except Exception as e:
-                    print(f"[SQL] Error: {e}", flush=True)
-                time.sleep(AUTO_SQUELCH_INTERVAL)
-
-    # ---------------------------------------------------------------------------
-    # RF power monitor (background thread — logs noise floor for squelch tuning)
-    # ---------------------------------------------------------------------------
-    class RFPowerMonitor(threading.Thread):
-        def __init__(self, tb):
-            super().__init__(daemon=True)
-            self.tb = tb
-
-        def run(self):
-            time.sleep(3)  # let flowgraph settle
-            while True:
-                try:
-                    heartbeat = {
-                        "capture_id": CAPTURE_ID,
-                        "timestamp": time.time(),
-                        "center_freq_hz": self.tb.get_center_hz(),
-                        "fixed_monitor_hz": self.tb.fixed_freq,
-                    }
-                    hb_tmp = HEARTBEAT_PATH + ".tmp"
-                    with open(hb_tmp, "w") as f:
-                        json.dump(heartbeat, f)
-                    os.replace(hb_tmp, HEARTBEAT_PATH)
-                    # Avoid SDR lockups from blocking probe reads; heartbeat drives health checks.
-                    print(f"[HEARTBEAT] {CAPTURE_ID} center={self.tb.get_center_hz()/1e6:.3f} MHz", flush=True)
-                except Exception as e:
-                    print(f"[HEARTBEAT] error: {e}", flush=True)
-                time.sleep(5)
-
-    # ---------------------------------------------------------------------------
-    # Main
-    # ---------------------------------------------------------------------------
-    def main():
-        print("=" * 60, flush=True)
-        print("  Unified SDR Flowgraph", flush=True)
-        print(f"  Capture ID:      {CAPTURE_ID}", flush=True)
-        print(f"  Primary center: {DWELL_CENTER/1e6:.3f} MHz", flush=True)
-        print(f"  Sample rate:    {SAMPLE_RATE/1e6:.1f} MS/s", flush=True)
-        print(f"  Fixed monitor:  {FIXED_MONITOR_HZ/1e6:.3f} MHz (NBFM)", flush=True)
-        print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
-        print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
-        print(f"  Dynamic ACARS:  {NUM_DYN_ACARS} slots (AM envelope)", flush=True)
-        print(f"  Slot tolerance: {DYN_SLOT_FREQ_TOLERANCE_HZ} Hz", flush=True)
-        print(f"  FM bands:       {FM_RECORD_BANDS}", flush=True)
-        print(f"  CW bands:       {CW_RECORD_BANDS}", flush=True)
-        print(f"  RF squelch:     {RF_SQUELCH_DB} dB "
-              f"({'auto: floor+' + str(AUTO_SQUELCH_MARGIN_DB) + ' dB' if AUTO_SQUELCH else 'static'})", flush=True)
-        print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
-        print("=" * 60, flush=True)
-
-        tb = UnifiedSDR()
-
-        tb.start()
-        print("[MAIN] Flowgraph running — starting detector threads", flush=True)
-
-        fft_det = FFTDetector(tb)
-        fft_det.start()
-
-        scanner = ScanScheduler(tb)
-        scanner.start()
-
-        rf_mon = RFPowerMonitor(tb)
-        rf_mon.start()
-
-        if AUTO_SQUELCH:
-            auto_squelch = AutoSquelch(tb)
-            auto_squelch.start()
-
-        try:
-            tb.wait()
-        except KeyboardInterrupt:
-            print("[MAIN] Shutting down...", flush=True)
-            tb.close_all_recordings()
-            tb.stop()
-            tb.wait()
-
-    if __name__ == "__main__":
-        try:
-            main()
-            print("[MAIN] Flowgraph exited; letting container restart", flush=True)
-            sys.exit(1)
-        except KeyboardInterrupt:
-            print("[MAIN] Interrupted; exiting", flush=True)
-        except Exception as e:
-            print(f"[MAIN] Fatal error: {e}; exiting for container restart", flush=True)
-            sys.exit(1)
-  bandplan.py: |
-    """Frequency-band helpers for unified-sdr peak routing.
-
-    The FFT detector sees occupied RF peaks, not modulation intent. A quiet FM
-    repeater carrier can look spectrally narrow enough to be mistaken for CW, so
-    we route by band plan first and only allow CW in explicit CW subbands.
+    The floor estimate follows level drops immediately and rises slowly
+    (AUTO_SQUELCH_RISE_DB per interval) while the channel is idle; it never
+    rises during a recording, so a long transmission cannot drag the
+    threshold up into itself. A steady spur becomes its channel's "floor",
+    which keeps the squelch shut on it — only power rising above the steady
+    state opens the gate.
     """
 
-    from __future__ import annotations
+    def __init__(self, tb):
+        super().__init__(daemon=True)
+        self.tb = tb
+        self._last_log = 0.0
+        # Prior for a channel's first measurement: assume the static threshold
+        # was a sane margin above the true floor, so a channel assigned
+        # mid-transmission still opens for the in-progress signal.
+        self._floor_prior = RF_SQUELCH_DB - AUTO_SQUELCH_MARGIN_DB
 
-    from typing import Iterable
+    def _update(self, name, probe, squelch, recorder, state):
+        level = 10.0 * math.log10(probe.level() + 1e-30)
+        floor = state.get("floor")
+        if floor is None:
+            floor = min(level, self._floor_prior)
+        elif level < floor:
+            floor = level
+        elif (recorder.state != SquelchRecorder.RECORDING
+              or recorder.consecutive_rollovers > 0):
+            # Rise while idle — and also during a recording that has already
+            # hit max duration: a carrier that never drops is a spur, and
+            # keeping the floor frozen under it would deadlock the channel
+            # open forever (the floor could never learn the spur level).
+            floor = min(floor + AUTO_SQUELCH_RISE_DB, level)
+        state["floor"] = floor
+        thr = min(max(floor + AUTO_SQUELCH_MARGIN_DB, AUTO_SQUELCH_MIN_DB),
+                  AUTO_SQUELCH_MAX_DB)
+        if state.get("thr") != thr:
+            squelch.set_threshold(thr)
+            state["thr"] = thr
+        return f"{name} lvl={level:.1f} floor={floor:.1f} thr={thr:.1f}"
 
-    FrequencyRange = tuple[int, int]
+    def run(self):
+        time.sleep(5)  # let the flowgraph settle
+        while True:
+            try:
+                lines = [self._update(
+                    f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
+                    self.tb.rf_squelch_fixed, self.tb.rec_fixed,
+                    self.tb.fixed_sq_state)]
+                for slot in self.tb.dyn_fm + self.tb.dyn_cw:
+                    if slot["freq"] is None:
+                        continue
+                    lines.append(self._update(
+                        f"{slot['freq']/1e6:.4f}", slot["probe"],
+                        slot["rf_squelch"], slot["recorder"],
+                        slot["sq_state"]))
+                if time.time() - self._last_log >= AUTO_SQUELCH_LOG_SEC:
+                    print(f"[SQL] {' | '.join(lines)}", flush=True)
+                    self._last_log = time.time()
+            except Exception as e:
+                print(f"[SQL] Error: {e}", flush=True)
+            time.sleep(AUTO_SQUELCH_INTERVAL)
 
+# ---------------------------------------------------------------------------
+# Satellite pass windows (background thread)
+# ---------------------------------------------------------------------------
+class SatWindowMonitor(threading.Thread):
+    """Arm an FM slot on satellite downlinks during predicted passes.
 
-    # Defaults are intentionally conservative for a VHF/UHF voice recorder:
-    # - 2 m FM voice/APRS/repeater space
-    # - VHF pager/public-safety data that is routed to the pager decoder
-    # - 1.25 m and 70 cm amateur FM/repeater space
-    DEFAULT_FM_RECORD_BANDS = (
-        "144300000-148000000,"
-        "150000000-162000000,"
-        "222000000-225000000,"
-        "433000000-450000000"
-    )
+    The API indexer writes /data/detections/sat_windows.json (sgp4 pass
+    prediction). During an active window whose downlink falls inside this
+    capture's span, keep a dynamic FM slot assigned to it — bypassing the
+    FFT detector and band-plan routing, since a pass is expected signal.
+    The adaptive squelch still gates actual recording, so a silent pass
+    costs nothing.
+    """
 
-    # CW is narrow by nature, but "narrow" alone is not enough. Limit dynamic CW
-    # to weak-signal/CW slices so quiet FM repeaters do not become CW noise files.
-    DEFAULT_CW_RECORD_BANDS = "144000000-144150000,432000000-432100000"
+    WINDOWS_PATH = os.path.join(DET_DIR, "sat_windows.json")
 
+    def __init__(self, tb):
+        super().__init__(daemon=True)
+        self.tb = tb
+        self._active: set[int] = set()
 
-    def _parse_hz(value: str) -> int:
-        cleaned = value.strip().lower().replace("_", "").replace(" ", "")
-        if cleaned.endswith("mhz"):
-            return int(float(cleaned[:-3]) * 1_000_000)
-        if cleaned.endswith("hz"):
-            return int(float(cleaned[:-2]))
-        parsed = float(cleaned)
-        # Friendly shorthand: values under 1000 are treated as MHz.
-        if parsed < 1000:
-            parsed *= 1_000_000
-        return int(parsed)
+    def _in_span(self, freq_hz: int) -> bool:
+        center = self.tb.get_center_hz()
+        return abs(freq_hz - center) < (SAMPLE_RATE / 2) * 0.95
 
+    def run(self):
+        time.sleep(10)
+        while True:
+            try:
+                self._tick()
+            except Exception as e:
+                print(f"[SAT] Error: {e}", flush=True)
+            time.sleep(30)
 
-    def parse_frequency_ranges(raw: str | None, default: str) -> tuple[FrequencyRange, ...]:
-        """Parse comma-separated frequency ranges.
-
-        Accepted examples:
-        - "144300000-148000000,433000000-450000000"
-        - "144.3MHz-148MHz,420-450"
-
-        Passing an empty string intentionally disables that band list.
-        """
-        value = default if raw is None else raw
-        if not value.strip():
-            return ()
-
-        ranges: list[FrequencyRange] = []
-        for part in value.split(","):
-            item = part.strip()
-            if not item:
+    def _tick(self):
+        try:
+            with open(self.WINDOWS_PATH) as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return
+        now = time.time()
+        current: set[int] = set()
+        for w in data.get("windows", []):
+            freq = int(w.get("freq_hz", 0))
+            if not freq or not self._in_span(freq):
                 continue
-            if "-" not in item:
-                center = _parse_hz(item)
-                ranges.append((center, center))
-                continue
-            low_raw, high_raw = item.split("-", 1)
-            low = _parse_hz(low_raw)
-            high = _parse_hz(high_raw)
-            if high < low:
-                low, high = high, low
-            ranges.append((low, high))
-        return tuple(ranges)
+            if w.get("start_epoch", 0) <= now <= w.get("end_epoch", 0):
+                current.add(freq)
+                if freq not in self._active:
+                    print(f"[SAT] {w.get('satellite')} pass — arming "
+                          f"{freq/1e6:.4f} MHz ({w.get('mode')}, "
+                          f"max el {w.get('max_elevation')}°)", flush=True)
+                # (Re)assign refreshes assigned_at so slot recycling never
+                # takes the slot away mid-pass.
+                self.tb._assign_fm_slot(freq)
+        for freq in self._active - current:
+            print(f"[SAT] pass over — releasing {freq/1e6:.4f} MHz", flush=True)
+        self._active = current
+
+# ---------------------------------------------------------------------------
+# RF power monitor (background thread — logs noise floor for squelch tuning)
+# ---------------------------------------------------------------------------
+class RFPowerMonitor(threading.Thread):
+    def __init__(self, tb):
+        super().__init__(daemon=True)
+        self.tb = tb
+
+    def run(self):
+        time.sleep(3)  # let flowgraph settle
+        while True:
+            try:
+                heartbeat = {
+                    "capture_id": CAPTURE_ID,
+                    "timestamp": time.time(),
+                    "center_freq_hz": self.tb.get_center_hz(),
+                    "fixed_monitor_hz": self.tb.fixed_freq,
+                }
+                hb_tmp = HEARTBEAT_PATH + ".tmp"
+                with open(hb_tmp, "w") as f:
+                    json.dump(heartbeat, f)
+                os.replace(hb_tmp, HEARTBEAT_PATH)
+                # Avoid SDR lockups from blocking probe reads; heartbeat drives health checks.
+                print(f"[HEARTBEAT] {CAPTURE_ID} center={self.tb.get_center_hz()/1e6:.3f} MHz", flush=True)
+            except Exception as e:
+                print(f"[HEARTBEAT] error: {e}", flush=True)
+            time.sleep(5)
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    print("=" * 60, flush=True)
+    print("  Unified SDR Flowgraph", flush=True)
+    print(f"  Capture ID:      {CAPTURE_ID}", flush=True)
+    print(f"  Primary center: {DWELL_CENTER/1e6:.3f} MHz", flush=True)
+    print(f"  Sample rate:    {SAMPLE_RATE/1e6:.1f} MS/s", flush=True)
+    print(f"  Fixed monitor:  {FIXED_MONITOR_HZ/1e6:.3f} MHz (NBFM)", flush=True)
+    print(f"  Dynamic FM:     {NUM_DYN_FM} slots", flush=True)
+    print(f"  Dynamic CW:     {NUM_DYN_CW} slots", flush=True)
+    print(f"  Dynamic ACARS:  {NUM_DYN_ACARS} slots (AM envelope)", flush=True)
+    print(f"  Slot tolerance: {DYN_SLOT_FREQ_TOLERANCE_HZ} Hz", flush=True)
+    print(f"  FM bands:       {FM_RECORD_BANDS}", flush=True)
+    print(f"  CW bands:       {CW_RECORD_BANDS}", flush=True)
+    print(f"  RF squelch:     {RF_SQUELCH_DB} dB "
+          f"({'auto: floor+' + str(AUTO_SQUELCH_MARGIN_DB) + ' dB' if AUTO_SQUELCH else 'static'})", flush=True)
+    print(f"  Scan centers:   {[f'{c/1e6:.1f}' for c in SCAN_CENTERS]} MHz", flush=True)
+    print("=" * 60, flush=True)
+
+    tb = UnifiedSDR()
+
+    tb.start()
+    print("[MAIN] Flowgraph running — starting detector threads", flush=True)
+
+    fft_det = FFTDetector(tb)
+    fft_det.start()
+
+    scanner = ScanScheduler(tb)
+    scanner.start()
+
+    rf_mon = RFPowerMonitor(tb)
+    rf_mon.start()
+
+    if AUTO_SQUELCH:
+        auto_squelch = AutoSquelch(tb)
+        auto_squelch.start()
+
+    sat_monitor = SatWindowMonitor(tb)
+    sat_monitor.start()
+
+    try:
+        tb.wait()
+    except KeyboardInterrupt:
+        print("[MAIN] Shutting down...", flush=True)
+        tb.close_all_recordings()
+        tb.stop()
+        tb.wait()
+
+if __name__ == "__main__":
+    try:
+        main()
+        print("[MAIN] Flowgraph exited; letting container restart", flush=True)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("[MAIN] Interrupted; exiting", flush=True)
+    except Exception as e:
+        print(f"[MAIN] Fatal error: {e}; exiting for container restart", flush=True)
+        sys.exit(1)\n  bandplan.py: |\n    """Frequency-band helpers for unified-sdr peak routing.
+
+The FFT detector sees occupied RF peaks, not modulation intent. A quiet FM
+repeater carrier can look spectrally narrow enough to be mistaken for CW, so
+we route by band plan first and only allow CW in explicit CW subbands.
+"""
+
+from __future__ import annotations
+
+from typing import Iterable
+
+FrequencyRange = tuple[int, int]
 
 
-    def in_frequency_ranges(freq_hz: float, ranges: Iterable[FrequencyRange]) -> bool:
-        hz = int(round(freq_hz))
-        return any(low <= hz <= high for low, high in ranges)
+# Defaults are intentionally conservative for a VHF/UHF voice recorder:
+# - 2 m FM voice/APRS/repeater space
+# - VHF pager/public-safety data that is routed to the pager decoder
+# - 1.25 m and 70 cm amateur FM/repeater space
+DEFAULT_FM_RECORD_BANDS = (
+    "144300000-148000000,"
+    "150000000-162000000,"
+    "222000000-225000000,"
+    "433000000-450000000"
+)
+
+# CW is narrow by nature, but "narrow" alone is not enough. Limit dynamic CW
+# to weak-signal/CW slices so quiet FM repeaters do not become CW noise files.
+DEFAULT_CW_RECORD_BANDS = "144000000-144150000,432000000-432100000"
 
 
-    def frequency_matches(left_hz: float | None, right_hz: float, tolerance_hz: float) -> bool:
-        return left_hz is not None and abs(left_hz - right_hz) <= tolerance_hz
+def _parse_hz(value: str) -> int:
+    cleaned = value.strip().lower().replace("_", "").replace(" ", "")
+    if cleaned.endswith("mhz"):
+        return int(float(cleaned[:-3]) * 1_000_000)
+    if cleaned.endswith("hz"):
+        return int(float(cleaned[:-2]))
+    parsed = float(cleaned)
+    # Friendly shorthand: values under 1000 are treated as MHz.
+    if parsed < 1000:
+        parsed *= 1_000_000
+    return int(parsed)
 
 
-    def classify_peak_for_recording(
-        freq_hz: float,
-        *,
-        fm_record_bands: Iterable[FrequencyRange],
-        cw_record_bands: Iterable[FrequencyRange],
-        acars_min_hz: int,
-        acars_max_hz: int,
-    ) -> str | None:
-        """Return the recorder family for a detected FFT peak.
+def parse_frequency_ranges(raw: str | None, default: str) -> tuple[FrequencyRange, ...]:
+    """Parse comma-separated frequency ranges.
 
-        Returns "ACARS", "FM", "CW", or None when the peak should be shown in
-        detections but not assigned to a recorder slot.
-        """
-        if acars_min_hz <= freq_hz <= acars_max_hz:
-            return "ACARS"
-        if in_frequency_ranges(freq_hz, fm_record_bands):
-            return "FM"
-        if in_frequency_ranges(freq_hz, cw_record_bands):
-            return "CW"
-        return None
+    Accepted examples:
+    - "144300000-148000000,433000000-450000000"
+    - "144.3MHz-148MHz,420-450"
+
+    Passing an empty string intentionally disables that band list.
+    """
+    value = default if raw is None else raw
+    if not value.strip():
+        return ()
+
+    ranges: list[FrequencyRange] = []
+    for part in value.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        if "-" not in item:
+            center = _parse_hz(item)
+            ranges.append((center, center))
+            continue
+        low_raw, high_raw = item.split("-", 1)
+        low = _parse_hz(low_raw)
+        high = _parse_hz(high_raw)
+        if high < low:
+            low, high = high, low
+        ranges.append((low, high))
+    return tuple(ranges)
+
+
+def in_frequency_ranges(freq_hz: float, ranges: Iterable[FrequencyRange]) -> bool:
+    hz = int(round(freq_hz))
+    return any(low <= hz <= high for low, high in ranges)
+
+
+def frequency_matches(left_hz: float | None, right_hz: float, tolerance_hz: float) -> bool:
+    return left_hz is not None and abs(left_hz - right_hz) <= tolerance_hz
+
+
+def classify_peak_for_recording(
+    freq_hz: float,
+    *,
+    fm_record_bands: Iterable[FrequencyRange],
+    cw_record_bands: Iterable[FrequencyRange],
+    acars_min_hz: int,
+    acars_max_hz: int,
+) -> str | None:
+    """Return the recorder family for a detected FFT peak.
+
+    Returns "ACARS", "FM", "CW", or None when the peak should be shown in
+    detections but not assigned to a recorder slot.
+    """
+    if acars_min_hz <= freq_hz <= acars_max_hz:
+        return "ACARS"
+    if in_frequency_ranges(freq_hz, fm_record_bands):
+        return "FM"
+    if in_frequency_ranges(freq_hz, cw_record_bands):
+        return "CW"
+    return None\n
