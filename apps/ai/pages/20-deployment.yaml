@@ -34,9 +34,12 @@ spec:
               value: "8080"
             - name: SITES_DIR
               value: "/data/sites"
-            # Serve zone: each site is hosted at https://<name>.SERVE_HOST/.
+            # Serve zone(s): each site is hosted at https://<name>.<serve-host>/.
+            # Comma-separated: the internal host plus the public, Authentik-gated
+            # host (<name>.pages.white.fm) whose outpost proxies here directly and
+            # forwards the original Host. First value is canonical (display/apex).
             - name: SERVE_HOST
-              value: "pages.internal.white.fm"
+              value: "pages.internal.white.fm,pages.white.fm"
             - name: MCP_HOST
               value: "pages-mcp.internal.white.fm"
             - name: TMPDIR
