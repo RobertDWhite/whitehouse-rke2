@@ -15,6 +15,9 @@ spec:
     # Nested wildcard for the `pages` static-site host's per-site subdomains
     # (<name>.pages.internal.white.fm). *.internal.white.fm is one label only.
     - "*.pages.internal.white.fm"
+    # Public per-site subdomains for `pages` (<name>.pages.white.fm), gated by
+    # Authentik. *.white.fm is one label only, so this nested wildcard is needed.
+    - "*.pages.white.fm"
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
