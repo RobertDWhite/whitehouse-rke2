@@ -24,6 +24,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: envoy-gateway-system
+        # Authentik embedded outpost proxies the public, SSO-gated
+        # <name>.pages.white.fm hosts straight to this Service.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
       ports:
         - port: 8080
           protocol: TCP
