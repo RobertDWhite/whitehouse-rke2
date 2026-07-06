@@ -75,6 +75,21 @@ spec:
         namespaces:
           from: All
 
+    # *.pages.white.fm — public per-site subdomains for the `pages` static-site
+    # host, gated by Authentik. Nested wildcard (two labels under white.fm), so
+    # the *.white.fm listener can't serve it. Cert SAN added in 05-certificates.yaml.
+    - name: https-pages-white-fm
+      protocol: HTTPS
+      port: 443
+      hostname: "*.pages.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: wildcard-white-fm-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
     # *.w3rdw.radio
     - name: https-w3rdw-radio
       protocol: HTTPS
