@@ -137,14 +137,14 @@ spec:
         - name: synapse
           port: 8008
 ---
-# white-ancestry.pages.white.fm — public, Authentik-gated view of the
-# `white-ancestry` site on the `pages` static-site host. Attaches to the nested
-# *.pages.white.fm listener (20-gateway.yaml). Forwards to the embedded outpost
-# (authentik-server); the "Provider for White Ancestry" proxy provider then
-# proxies to https://white-ancestry.pages.internal.white.fm so the pages server
-# sees the Host it needs to serve the right site. external-dns (gateway-httproute
-# source) creates the public Cloudflare record; internal split-horizon is the
-# *.pages.white.fm record in the Technitium white.fm zone.
+# white-ancestry.white.fm — public, Authentik-gated view of the `white-ancestry`
+# site on the `pages` static-site host. Single-label host on the *.white.fm
+# listener so Cloudflare Universal SSL covers it (a nested *.pages.white.fm host
+# has no CF edge cert -> ERR_SSL_VERSION_OR_CIPHER_MISMATCH). Forwards to the
+# embedded outpost (authentik-server); the "Provider for White Ancestry" proxy
+# provider proxies straight to the pages Service, which serves the site because
+# `white.fm` is in the pages SERVE_HOST list. external-dns (gateway-httproute
+# source) creates the public Cloudflare record.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -154,9 +154,9 @@ spec:
   parentRefs:
     - name: main
       namespace: envoy-gateway-system
-      sectionName: https-pages-white-fm
+      sectionName: https-white-fm
   hostnames:
-    - white-ancestry.pages.white.fm
+    - white-ancestry.white.fm
   rules:
     - backendRefs:
         - name: authentik-server
