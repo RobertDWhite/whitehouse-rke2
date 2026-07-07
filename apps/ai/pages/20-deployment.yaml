@@ -35,11 +35,12 @@ spec:
             - name: SITES_DIR
               value: "/data/sites"
             # Serve zone(s): each site is hosted at https://<name>.<serve-host>/.
-            # Comma-separated: the internal host plus the public, Authentik-gated
-            # host (<name>.pages.white.fm) whose outpost proxies here directly and
+            # Comma-separated: the internal host plus `white.fm`, so the public,
+            # Authentik-gated host <name>.white.fm (single-label, Cloudflare
+            # Universal-SSL-covered) is served when the outpost proxies here and
             # forwards the original Host. First value is canonical (display/apex).
             - name: SERVE_HOST
-              value: "pages.internal.white.fm,pages.white.fm"
+              value: "pages.internal.white.fm,white.fm"
             - name: MCP_HOST
               value: "pages-mcp.internal.white.fm"
             - name: TMPDIR
