@@ -1,0 +1,14 @@
+# Service name MUST be "backend": the frontend's next.config.mjs hardcodes the
+# server-side proxy destination to http://backend:8000.
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: nodebyte
+spec:
+  selector:
+    app: nodebyte-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
