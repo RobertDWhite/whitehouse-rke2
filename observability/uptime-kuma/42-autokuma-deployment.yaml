@@ -53,11 +53,16 @@ spec:
               value: "true"
             - name: AUTOKUMA__FILES__FOLLOW_SYMLINKS
               value: "true"
+            # Down fires only after ~4.5-5 min of sustained failure
+            # (interval + 8 retries x 30s). The cluster's pod-restart /
+            # node-flap blips last 2-3.5 min and must NOT notify — the old
+            # 30s/6x10s settings alerted after ~90s and produced hundreds of
+            # down/up webhook pairs per day.
             - name: AUTOKUMA__DEFAULT_SETTINGS
               value: |-
-                *.interval: 30
-                *.max_retries: 6
-                *.retry_interval: 10
+                *.interval: 60
+                *.max_retries: 8
+                *.retry_interval: 30
           volumeMounts:
             - name: autokuma-data
               mountPath: /data
