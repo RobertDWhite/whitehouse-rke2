@@ -1,0 +1,41 @@
+# One-shot bootstrap: create the first (superuser) account + team, since
+# REGISTRATION_ENABLED=false. Runs as an ArgoCD PostSync hook and is deleted on
+# success. create_admin.py exits non-zero if the user already exists, so `|| true`
+# keeps re-runs (on later syncs) harmless.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nodebyte-bootstrap-admin
+  namespace: nodebyte
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: nodebyte-bootstrap
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: bootstrap
+          image: ghcr.io/robertdwhite/nodebyte-backend
+          command: ["/bin/sh", "-c", "python scripts/create_admin.py || true"]
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: ADMIN_TEAM
+              value: "White Home"
+          envFrom:
+            - secretRef:
+                name: nodebyte-credentials
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
