@@ -22,6 +22,21 @@ result = (() => {
   };
 
   if (hb) {
+    // --- noise control (fix/notification-noise) ---
+    // Uptime Kuma fires on every state change. With the widened flap thresholds
+    // the residual Status-room spam is (1) UP-recovery + PENDING-retry pings and
+    // (2) a handful of monitors that flap on transient cluster blips, not real
+    // outages. Drop both so only genuine DOWN/MAINTENANCE reaches Matrix; live
+    // state is always on the Kuma dashboard. Revert = delete this block.
+    // NOTE: this file is source-of-truth only. Hookshot reads the transform from
+    // the room's `uk.half-shot.matrix-hookshot.generic.hook` state event (state_key
+    // "Status"), so after editing you must push it into that state event for it to
+    // take effect — editing this file alone changes nothing live.
+    const MUTED = new Set(["Weather API", "LazyLibrarian", "Media MCP", "Prowlarr"]);
+    if (hb.status === 1 || hb.status === 2 || MUTED.has(mon.name)) {
+      return { version: "v2", empty: true };
+    }
+
     const states = {
       0: { word: "DOWN",        icon: "🔴" },
       1: { word: "UP",          icon: "✅" },
