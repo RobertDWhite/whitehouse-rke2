@@ -1,0 +1,88 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: nodebyte
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web
+  namespace: nodebyte
+spec:
+  podSelector:
+    matchLabels:
+      app: nodebyte-web
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 3000
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-api
+  namespace: nodebyte
+spec:
+  podSelector:
+    matchLabels:
+      app: nodebyte-api
+  policyTypes:
+    - Ingress
+  ingress:
+    # The Next.js frontend proxies /api/* to the backend.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nodebyte-web
+      ports:
+        - port: 8000
+          protocol: TCP
+    # The nodebyte MCP server (separate namespace) calls the API.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nodebyte-mcp
+      ports:
+        - port: 8000
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 8000
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-db
+  namespace: nodebyte
+spec:
+  podSelector:
+    matchLabels:
+      app: nodebyte-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nodebyte-api
+      ports:
+        - port: 5432
+          protocol: TCP
