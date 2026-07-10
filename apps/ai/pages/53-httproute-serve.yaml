@@ -1,8 +1,9 @@
 # Open on the internal (tailnet-only) network: anyone who can resolve the host
-# can view hosted sites. Two routes:
+# can view hosted sites. Three routes:
 #   - apex pages.internal.white.fm  -> directory index (shared *.internal listener)
 #   - *.pages.internal.white.fm     -> one subdomain per site (dedicated listener +
 #                                       cert SAN)
+#   - white-ancestry.pages.white.fm -> 301 to the canonical public host (see below)
 # DNS: internal.white.fm is served by Technitium from static records in
 # platform/networking/technitium/35-zones-secret.sops.yaml (not external-dns).
 # A wildcard A record `*.pages.internal.white.fm -> 10.99.5.110` must exist there,
@@ -40,3 +41,29 @@ spec:
     - backendRefs:
         - name: pages
           port: 8080
+---
+# white-ancestry.pages.white.fm — a nested subdomain has no Cloudflare edge
+# cert (Universal SSL covers one label only), so the canonical public URL is
+# white-ancestry.white.fm (Authentik-gated route in
+# platform/networking/envoy-phase3-routes/30-routes-batch2.yaml). Split-horizon
+# DNS (`*.pages.white.fm -> 10.99.5.110` in the Technitium white.fm zone) still
+# lands internal clients on the https-pages-white-fm listener, which had no
+# route and returned a bare 404; redirect them to the canonical host instead.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pages-white-ancestry-redirect
+  namespace: pages
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-pages-white-fm
+  hostnames:
+    - white-ancestry.pages.white.fm
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: white-ancestry.white.fm
+            statusCode: 301
