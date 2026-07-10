@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodebyte-api
+  namespace: nodebyte
+  labels:
+    app: nodebyte-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nodebyte-api
+  template:
+    metadata:
+      labels:
+        app: nodebyte-api
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: api
+          image: ghcr.io/robertdwhite/nodebyte-backend
+          imagePullPolicy: IfNotPresent
+          # Override the image's dev entrypoint (uvicorn --reload) with a
+          # production command: run migrations, then serve without --reload.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              tries=0
+              until alembic upgrade head; do
+                tries=$((tries + 1))
+                if [ "$tries" -ge 30 ]; then echo "migrations failed"; exit 1; fi
+                echo "waiting for database (attempt $tries)"; sleep 2
+              done
+              exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: NODEBYTE_ENV
+              value: production
+            - name: TURNSTILE_ENABLED
+              value: "false"
+            - name: REGISTRATION_ENABLED
+              value: "false"
+            - name: COOKIE_SAMESITE
+              value: lax
+            - name: FRONTEND_ORIGIN
+              value: https://nodebyte.internal.white.fm
+          envFrom:
+            - secretRef:
+                name: nodebyte-credentials
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            periodSeconds: 30
+            failureThreshold: 3
