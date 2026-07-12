@@ -205,7 +205,9 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 | **congress-mcp** | `congress-trades` API | Query congressional stock trades, member track records, leaderboards, signals, backtested follow-strategies, portfolio overlap |
 | **freshrss-mcp** | FreshRSS (Google Reader API) | List feeds/categories, browse unread/starred articles, read full content, mark read/unread, star, mark-all-read, add subscriptions |
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
+| **media-mcp** | Plex, Tautulli & the *arr stack | Search libraries, sessions, queues, history, recently-added, and indexer stats across Plex/Tautulli/Sonarr/Radarr/Readarr/Bazarr/Prowlarr |
 | **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
+| **nodebyte-mcp** | `nodebyte` inventory | Add/search/update inventory nodes (devices, sites, services), stats, and team listing |
 | **sdr-research MCP** | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
 
 Each MCP ships a `NetworkPolicy` restricting it to just its upstream service.
@@ -229,11 +231,11 @@ Apps are grouped under `apps/` by domain. A non-exhaustive map:
 
 - **ai/** — ai-stack (Ollama/OpenWebUI), the MCP servers, odysseus, openclaw, codex-refresh, pages
 - **data/** — congress-trades, politics, appstore-reviews, jetlog, weather, worldmonitor
-- **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated, MinIO / VPN egress
+- **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated, FlexGet, MinIO / VPN egress
 - **social/** — Matrix stack, Mastodon stack, Nitter, Convos
 - **radio/** — sdr-research, adsb-stack, astronomy, ground-station, keeptrack, openhamclock
-- **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, homeschool, backoffice, hub
-- **misc/** — FreshRSS, SearXNG, Wallabag, Listmonk, ntfy, Monica, MISP, IntelOwl, Yeti, CyberChef, Gramps, and more
+- **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, homeschool, backoffice, hub, nodebyte
+- **misc/** — FreshRSS, SearXNG, Wallabag, Listmonk, ntfy, Monica, MISP, IntelOwl, Yeti, CyberChef, Gramps, gibt-es-gott, hermes, and more
 
 ---
 
