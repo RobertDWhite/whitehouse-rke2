@@ -206,6 +206,7 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 | **freshrss-mcp** | FreshRSS (Google Reader API) | List feeds/categories, browse unread/starred articles, read full content, mark read/unread, star, mark-all-read, add subscriptions |
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
 | **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
+| **nodebyte-mcp** | `nodebyte` inventory | Add/search/update inventory nodes (devices, sites, services), stats, and team listing |
 | **sdr-research MCP** | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
 
 Each MCP ships a `NetworkPolicy` restricting it to just its upstream service.
@@ -232,7 +233,7 @@ Apps are grouped under `apps/` by domain. A non-exhaustive map:
 - **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated, MinIO / VPN egress
 - **social/** — Matrix stack, Mastodon stack, Nitter, Convos
 - **radio/** — sdr-research, adsb-stack, astronomy, ground-station, keeptrack, openhamclock
-- **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, homeschool, backoffice, hub
+- **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, homeschool, backoffice, hub, nodebyte
 - **misc/** — FreshRSS, SearXNG, Wallabag, Listmonk, ntfy, Monica, MISP, IntelOwl, Yeti, CyberChef, Gramps, and more
 
 ---
