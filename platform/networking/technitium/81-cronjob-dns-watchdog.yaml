@@ -64,11 +64,13 @@ spec:
                 # Never let the serving set drop below this. Fails closed.
                 - name: MIN_SERVING
                   value: "2"
-                # Starts observe-only (logs what it WOULD restart) so the probe
-                # can be validated against live pods before it's allowed to act.
-                # Flip to "true" once a few runs confirm no false positives.
+                # Active: restarts a Ready-but-not-serving pod (validated against
+                # live pods in observe-only mode first — reported serving=4/4 with
+                # no false positives). Safety gates: never drops below MIN_SERVING
+                # serving pods, restarts at most one pod per run. Flip to "false"
+                # to return to observe-only.
                 - name: HEAL_ENABLED
-                  value: "false"
+                  value: "true"
               resources:
                 requests: { cpu: 10m, memory: 48Mi }
                 limits:   { cpu: 100m, memory: 96Mi }
