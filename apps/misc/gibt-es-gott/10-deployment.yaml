@@ -15,6 +15,73 @@ spec:
       labels:
         app: gibt-es-gott
     spec:
+      initContainers:
+        # Pull the site content from the private repo RobertDWhite/gibt-es-gott into
+        # the PVC on every (re)start. Text/HTML is synced whenever the repo HEAD changes;
+        # the large LFS videos are fetched only when absent (so routine restarts are cheap
+        # but a blank PVC self-heals fully from git). Best-effort: if GitHub is unreachable
+        # nginx still serves whatever is already in the PVC.
+        - name: content-sync
+          image: alpine/git
+          env:
+            - name: GIT_REMOTE
+              value: "ssh://git@ssh.github.com:443/RobertDWhite/gibt-es-gott.git"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -u
+              echo "[content-sync] starting"
+              printf '%s\n' \
+                'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+                '[ssh.github.com]:443 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > /tmp/known_hosts
+              export GIT_SSH_COMMAND="ssh -i /keys/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/tmp/known_hosts"
+              export GIT_LFS_SKIP_SMUDGE=1
+              TMP=/tmp/repo
+              rm -rf "$TMP"
+              if ! git clone --depth 1 "$GIT_REMOTE" "$TMP"; then
+                echo "[content-sync] clone failed; serving existing PVC content"; exit 0
+              fi
+              NEWSHA="$(git -C "$TMP" rev-parse HEAD)"
+              OLDSHA="$(cat /content/.synced-sha 2>/dev/null || echo none)"
+              if [ "$NEWSHA" != "$OLDSHA" ]; then
+                echo "[content-sync] syncing text @ $NEWSHA (was $OLDSHA)"
+                for f in "$TMP"/site/*; do
+                  case "$f" in *.mp4) continue ;; esac
+                  cp "$f" /content/
+                done
+                printf '%s\n' "$NEWSHA" > /content/.synced-sha
+              else
+                echo "[content-sync] text already @ $NEWSHA"
+              fi
+              NEED=""
+              for v in part1.mp4 part2.mp4 part3.mp4; do
+                [ -s "/content/$v" ] || NEED="$NEED $v"
+              done
+              if [ -n "$NEED" ]; then
+                echo "[content-sync] missing videos:$NEED - fetching via LFS"
+                if apk add --no-cache git-lfs >/dev/null 2>&1; then
+                  git -C "$TMP" lfs install --local >/dev/null 2>&1 || true
+                  for v in $NEED; do
+                    if git -C "$TMP" lfs pull --include "site/$v" && [ -s "$TMP/site/$v" ]; then
+                      cp "$TMP/site/$v" /content/ && echo "[content-sync]   $v ok"
+                    else
+                      echo "[content-sync]   $v FAILED (left absent)"
+                    fi
+                  done
+                else
+                  echo "[content-sync] git-lfs install failed; skipping videos"
+                fi
+              fi
+              echo "[content-sync] done"
+          volumeMounts:
+            - name: content
+              mountPath: /content
+            - name: git-key
+              mountPath: /keys
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
       containers:
         - name: nginx
           image: nginx
@@ -57,6 +124,10 @@ spec:
         - name: content
           persistentVolumeClaim:
             claimName: gibt-es-gott-content
+        - name: git-key
+          secret:
+            secretName: gibt-es-gott-git
+            defaultMode: 0400
         - name: nginx-conf
           configMap:
             name: nginx-conf
