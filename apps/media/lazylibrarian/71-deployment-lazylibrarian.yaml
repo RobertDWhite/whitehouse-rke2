@@ -17,6 +17,15 @@ spec:
       annotations:
         backup.velero.io/backup-volumes-excludes: downloads
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-14
       containers:
         - name: lazylibrarian
           image: lscr.io/linuxserver/lazylibrarian:latest
