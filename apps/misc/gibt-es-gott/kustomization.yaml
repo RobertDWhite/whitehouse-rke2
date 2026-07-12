@@ -10,6 +10,12 @@ resources:
   - 52-httproute-public.yaml
   - 53-httproute-internal.yaml
 
+generators:
+  - ksops.yaml
+
 images:
   - name: nginx
     newTag: "1.31-alpine"
+  # content-sync initContainer; pinned by digest (alpine/git:2.47.2)
+  - name: alpine/git
+    digest: sha256:062a01ad7a0eb17cff382bc5e26086b4d710e56dfdfdf001109a49b6d9bd378c
