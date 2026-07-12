@@ -259,4 +259,3 @@ docs/             Restructure proposal & design notes
 .sops.yaml        SOPS encryption rules
 ```
 
-For deep operational runbooks (Authentik API recipes, cert migration, registry push workarounds, GPU debugging, the git workflow, common task patterns) see `.claude/skills/homelab/SKILL.md`.
