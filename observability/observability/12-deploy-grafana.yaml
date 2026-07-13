@@ -43,6 +43,12 @@ spec:
             # admin password to "admin".
             - name: GF_SERVER_ROOT_URL
               value: "https://grafana.white.fm"
+            # SQLite (grafana.db) lives on the Longhorn-backed grafana-data
+            # PVC. Enable WAL so reads do not block the single writer; without
+            # it, Grafana 13's concurrent writers trigger "database is locked
+            # (SQLITE_BUSY)" storms that 500 /api/search and stall dashboards.
+            - name: GF_DATABASE_WAL
+              value: "true"
             - name: GF_MISP_INFLUX_TOKEN
               valueFrom:
                 secretKeyRef:
