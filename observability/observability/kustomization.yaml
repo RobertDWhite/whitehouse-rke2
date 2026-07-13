@@ -59,6 +59,11 @@ resources:
   # Restrict grafana:3000 ingress to the Authentik outpost (auth-proxy spoofing)
   - 27-networkpolicy-grafana.yaml
 
+  # Grafana database (external Postgres StatefulSet, replaces SQLite)
+  # 28-secret-grafana-postgres.sops.yaml is loaded via ksops.yaml generator
+  - 28a-statefulset-grafana-postgres.yaml
+  - 28b-svc-grafana-postgres.yaml
+
   # Unifi Poller
   - 41-deploy-unifi-poller.yaml
   - 42-svc-unifi-poller.yaml
@@ -185,3 +190,6 @@ images:
 
   - name: ghcr.io/alexbakker/alertmanager-ntfy
     newTag: "1.2.1"
+
+  - name: postgres
+    newTag: "17-alpine"

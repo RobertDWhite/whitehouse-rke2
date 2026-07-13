@@ -106,6 +106,26 @@ spec:
                   key: GF_RENDERING_AUTH_TOKEN
             - name: GF_LOG_FILTERS
               value: "rendering:debug"
+            # Database: external Postgres (grafana-postgres StatefulSet)
+            # replaces default SQLite on Longhorn, which lock-thrashed
+            # (SQLITE_BUSY) under Grafana 13 concurrent writers and 500'd
+            # /api/search. Dashboards/datasources are file-provisioned so
+            # they survive; SA tokens/users are recreated on the fresh DB.
+            - name: GF_DATABASE_TYPE
+              value: "postgres"
+            - name: GF_DATABASE_HOST
+              value: "grafana-postgres:5432"
+            - name: GF_DATABASE_NAME
+              value: "grafana"
+            - name: GF_DATABASE_USER
+              value: "grafana"
+            - name: GF_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-postgres
+                  key: POSTGRES_PASSWORD
+            - name: GF_DATABASE_SSL_MODE
+              value: "disable"
           volumeMounts:
             - name: data
               mountPath: /var/lib/grafana
