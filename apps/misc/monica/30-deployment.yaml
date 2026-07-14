@@ -92,23 +92,28 @@ spec:
             limits:
               cpu: 1000m
               memory: 1Gi
+          # Probe Laravel's built-in /up health endpoint (~2 KB, no session
+          # or Inertia render). /login is a ~250 KB page whose render
+          # intermittently exceeded the probe timeout, flapping the pod
+          # NotReady (504s at the gateway) and restarting it via liveness.
           startupProbe:
             httpGet:
-              path: /login
+              path: /up
               port: 80
             failureThreshold: 60
             periodSeconds: 5
             timeoutSeconds: 10
           readinessProbe:
             httpGet:
-              path: /login
+              path: /up
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 15
             timeoutSeconds: 10
+            failureThreshold: 4
           livenessProbe:
             httpGet:
-              path: /login
+              path: /up
               port: 80
             initialDelaySeconds: 30
             periodSeconds: 30
