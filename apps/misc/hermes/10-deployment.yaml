@@ -27,7 +27,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       initContainers:
         - name: bootstrap-claude-creds
-          image: registry.internal.white.fm/hermes-agent:v2026.4.30
+          image: registry.internal.white.fm/hermes-agent
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
@@ -58,17 +58,12 @@ spec:
               value: "10000"
             - name: HERMES_GID
               value: "10000"
-            # Route inference to in-cluster Ollama (RTX 5090 on rke2-node-50).
-            # Subscription OAuth paths (Claude / ChatGPT) all require paid
-            # extra-usage; ollama is the free local fallback.
-            - name: HERMES_INFERENCE_PROVIDER
-              value: custom
-            - name: HERMES_INFERENCE_MODEL
-              value: llama3.1:8b
-            - name: OPENAI_BASE_URL
-              value: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
-            - name: OPENAI_API_KEY
-              value: dummy
+            # Inference provider, default model, and the fallback chain
+            # (Claude primary -> Grok -> ChatGPT/Codex -> Ollama) are configured
+            # in /opt/data/config.yaml on the hermes-data PVC; OAuth tokens live
+            # in /opt/data/auth.json. OPENAI_* is intentionally left unset so the
+            # openai-codex (ChatGPT) fallback reads its token from the codex-token
+            # secret below, and the Ollama fallback uses the base_url in config.yaml.
             - name: MATRIX_HOMESERVER
               value: https://matrix.white.fm
             - name: MATRIX_USER_ID
@@ -84,9 +79,14 @@ spec:
                 name: hermes-api-keys
             - secretRef:
                 name: hermes-matrix-secrets
-            # codex-token disabled — ChatGPT subscription token returns
-            # insufficient_quota at api.openai.com. Inference now goes through
-            # Ollama (OPENAI_BASE_URL above) with OPENAI_API_KEY=dummy.
+            # ChatGPT/Codex subscription token (OPENAI_API_KEY / OPENAI_TOKEN),
+            # refreshed every 6 days by the codex-refresh CronJob. Listed last so
+            # it overrides OPENAI_API_KEY from hermes-api-keys. Consumed only by
+            # the openai-codex fallback provider in config.yaml. optional: true so
+            # a missing/rotating token never blocks the Claude-primary gateway.
+            - secretRef:
+                name: codex-token
+                optional: true
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "gateway run"]
