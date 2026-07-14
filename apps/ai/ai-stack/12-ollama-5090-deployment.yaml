@@ -67,6 +67,9 @@ spec:
               value: "1"
             - name: OLLAMA_KEEP_ALIVE
               value: "2h"
+            # 4k default -> 32k so this backend is a usable Hermes fallback (fits 5090 32GB, num_parallel=1)
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "32768"
           resources:
             requests:
               cpu: "1"
