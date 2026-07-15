@@ -125,6 +125,12 @@ spec:
               kubernetes.io/metadata.name: mastodon
       ports:
         - {protocol: TCP, port: 3000}
+    # → BlueBubbles server on Mac mini (bluebubbles.white.fm tunnel route)
+    - to:
+        - ipBlock:
+            cidr: 10.100.0.70/32
+      ports:
+        - {protocol: TCP, port: 1234}
     # → Cloudflare edge servers (internet)
     - to:
         - ipBlock:
