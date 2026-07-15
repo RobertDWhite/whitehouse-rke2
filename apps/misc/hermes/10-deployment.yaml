@@ -17,6 +17,9 @@ spec:
       labels:
         app.kubernetes.io/name: hermes
     spec:
+      # Dedicated SA bound to cluster-admin (see 12-mcp-rbac.yaml) so the
+      # kubernetes MCP server can manage the cluster via the projected token.
+      serviceAccountName: hermes-mcp
       nodeSelector:
         kubernetes.io/arch: amd64
       securityContext:

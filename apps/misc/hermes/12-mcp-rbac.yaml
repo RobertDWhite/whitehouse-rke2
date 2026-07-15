@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes-mcp
+  namespace: hermes
+---
+# Grants the kubernetes MCP server (run by the Hermes agent) cluster-admin.
+# Deliberate: requested explicitly so Hermes can manage the cluster, not just read it.
+#
+# Bound to a dedicated ServiceAccount rather than mounting a personal admin
+# kubeconfig, so that:
+#   - revoking access = delete this ClusterRoleBinding (no credential hunting)
+#   - audit logs attribute actions to system:serviceaccount:hermes:hermes-mcp
+#   - the pod uses its auto-rotating projected token; no static admin
+#     credential is written to the hermes-data PVC
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hermes-mcp-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: hermes-mcp
+    namespace: hermes
