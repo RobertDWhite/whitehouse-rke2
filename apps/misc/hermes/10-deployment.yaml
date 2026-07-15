@@ -28,25 +28,13 @@ spec:
         # by the hermes group so secret-bootstrap (running as 10000) can write.
         fsGroup: 10000
         fsGroupChangePolicy: OnRootMismatch
-      initContainers:
-        - name: bootstrap-claude-creds
-          image: registry.internal.white.fm/hermes-agent
-          imagePullPolicy: IfNotPresent
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              set -e
-              mkdir -p /opt/data/.claude
-              cp /tmp/secret/CLAUDE_CREDENTIALS_JSON /opt/data/.claude/.credentials.json
-              chown -R 10000:10000 /opt/data/.claude
-              chmod 700 /opt/data/.claude
-              chmod 600 /opt/data/.claude/.credentials.json
-          volumeMounts:
-            - name: data
-              mountPath: /opt/data
-            - name: claude-creds
-              mountPath: /tmp/secret
-              readOnly: true
+      # NOTE: the bootstrap-claude-creds initContainer was removed. It copied a
+      # STATIC CLAUDE_CREDENTIALS_JSON snapshot over /opt/data/.claude/.credentials.json
+      # on every pod start, clobbering the token Hermes refreshes at runtime. The
+      # snapshot expired 2026-05-07 and could never self-heal, silently killing the
+      # Claude fallback. Claude is now authed via `hermes auth add anthropic --type
+      # oauth`, which stores a self-refreshing credential in /opt/data/auth.json on
+      # the hermes-data PVC (Velero-backed).
       containers:
         - name: gateway
           image: registry.internal.white.fm/hermes-agent
@@ -135,13 +123,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data
-        - name: claude-creds
-          secret:
-            secretName: hermes-matrix-secrets
-            items:
-              - key: CLAUDE_CREDENTIALS_JSON
-                path: CLAUDE_CREDENTIALS_JSON
-                mode: 0600
 ---
 apiVersion: v1
 kind: Service
