@@ -74,6 +74,11 @@ spec:
               value: "!AJjNfrvHsszhSMMsjY:white.fm"
             - name: MATRIX_REQUIRE_MENTION
               value: "true"
+            # Home Assistant: enables the homeassistant platform + the
+            # hermes-homeassistant toolset. HASS_TOKEN is a dedicated
+            # long-lived token ("Hermes Agent") from hermes-matrix-secrets below.
+            - name: HASS_URL
+              value: https://homeassistant.internal.white.fm
           envFrom:
             - secretRef:
                 name: hermes-api-keys
