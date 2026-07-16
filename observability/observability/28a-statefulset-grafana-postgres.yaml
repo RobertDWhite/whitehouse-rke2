@@ -3,6 +3,13 @@ kind: StatefulSet
 metadata:
   name: grafana-postgres
   namespace: observability
+  annotations:
+    # Postgres 18 official image layout (breaking vs 17):
+    #   VOLUME  /var/lib/postgresql
+    #   PGDATA  /var/lib/postgresql/18/docker  (default; do not override)
+    # Major upgrades cannot reuse a 17 data directory in-place — see
+    # 28c-MIGRATE-postgres-17-to-18.md and scripts/migrate-grafana-postgres-17-to-18.sh.
+    white.fm/postgres-major: "18"
 spec:
   replicas: 1
   serviceName: grafana-postgres
@@ -24,9 +31,10 @@ spec:
           envFrom:
             - secretRef:
                 name: grafana-postgres
-          env:
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
+          # Intentionally no PGDATA override. Official postgres:18+ defaults to
+          # /var/lib/postgresql/18/docker and expects the volume at
+          # /var/lib/postgresql (not .../data). Overriding PGDATA back to the
+          # pre-18 path defeats the image layout and breaks future major bumps.
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "grafana", "-d", "grafana"]
@@ -47,7 +55,8 @@ spec:
               memory: 512Mi
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data
+              # PG 18+ VOLUME target (was /var/lib/postgresql/data on ≤17).
+              mountPath: /var/lib/postgresql
   volumeClaimTemplates:
     - metadata:
         name: data
