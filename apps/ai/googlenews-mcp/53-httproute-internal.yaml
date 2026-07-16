@@ -1,0 +1,19 @@
+# MCP endpoint, bearer-token gated (MCP_TOKEN). Internal (tailnet) only; the
+# server serves /mcp and 404s nothing else of note. Uses the shared wildcard
+# internal listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: googlenews-mcp-internal
+  namespace: googlenews-mcp
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - googlenews-mcp.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: googlenews-mcp
+          port: 8080
