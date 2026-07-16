@@ -204,6 +204,7 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 |------------|-------|--------------|
 | **congress-mcp** | `congress-trades` API | Query congressional stock trades, member track records, leaderboards, signals, backtested follow-strategies, portfolio overlap |
 | **freshrss-mcp** | FreshRSS (Google Reader API) | List feeds/categories, browse unread/starred articles, read full content, mark read/unread, star, mark-all-read, add subscriptions |
+| **googlenews-mcp** | Google News (public RSS) | Top/topic/geo headlines, full-text news search, redirect-URL decoding — news access for internet-isolated agents |
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
 | **media-mcp** | Plex, Tautulli & the *arr stack | Search libraries, sessions, queues, history, recently-added, and indexer stats across Plex/Tautulli/Sonarr/Radarr/Readarr/Bazarr/Prowlarr |
 | **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST) |
