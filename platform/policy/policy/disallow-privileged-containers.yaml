@@ -58,6 +58,11 @@ spec:
           - resources:
               namespaces:
                 - node-init
+          # nut installs/configures host NUT (Network UPS Tools) via nsenter
+          # for UPS-driven graceful cluster shutdown.
+          - resources:
+              namespaces:
+                - nut
       validate:
         message: >-
           Privileged containers are not allowed. If this workload needs
