@@ -1,0 +1,10 @@
+#!/bin/sh
+case "$1" in
+  onbatt-shutdown)
+    logger -t upssched-cmd "UPS on battery 180s - initiating cluster shutdown (FSD)"
+    /sbin/upsmon -c fsd
+    ;;
+  *)
+    logger -t upssched-cmd "unhandled event: $1"
+    ;;
+esac
