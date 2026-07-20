@@ -88,6 +88,10 @@ resources:
   - 121-svc-pihole-exporter-b.yaml
   - 122-svc-pihole-exporter-c.yaml
 
+  # NUT / UPS exporter (reads upsd on rke2-node-12)
+  - 60-deploy-nut-exporter.yaml
+  - 61-svc-nut-exporter.yaml
+
   # App Store Connect Exporter
   - appstore-connect/externalsecret.yaml
   - appstore-connect/deployment.yaml
@@ -131,6 +135,7 @@ configMapGenerator:
       - kyverno-violations.json=grafana_dashboards/kyverno-violations.json
       - tor-onion.json=grafana_dashboards/tor-onion.json
       - glacier.json=grafana_dashboards/glacier.json
+      - ups-power.json=grafana_dashboards/ups-power.json
   - name: observability-grafana-dashboards-imported
     files:
       - coredns-15762.json=grafana_dashboards/coredns-15762.json
@@ -183,6 +188,9 @@ images:
     
   - name: ekofr/pihole-exporter
     newTag: "v1.2.0"
+
+  - name: ghcr.io/druggeri/nut_exporter
+    newTag: "3.3.0"
 
   - name: grafana/loki
     newTag: "3.7.3"
