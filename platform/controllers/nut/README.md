@@ -71,6 +71,15 @@ commit — the next reconcile pass rewrites and restarts NUT.
 Not managed here (it's an appliance). Control Panel → Hardware & Power → UPS →
 Enable UPS support → *Network UPS server* → `10.99.5.12` (auth `monuser`/`secret`).
 
+## Metrics / Grafana
+
+`upsd` permits anonymous `LIST VAR`, so a plain exporter is enough — no credentials.
+`nut-exporter` (Deployment + Service in `observability`) reads `ups@10.99.5.12` and
+Prometheus scrapes it as job `nut`; the dashboard is **UPS / Power** (`ups-power`).
+Both live in `observability/observability/`. The exporter only exposes a thin
+default subset of variables, so the ones worth graphing are named explicitly in
+`NUT_EXPORTER_VARIABLES` — add to that list to graph anything new from `upsc ups`.
+
 ## Verify
 
 ```bash

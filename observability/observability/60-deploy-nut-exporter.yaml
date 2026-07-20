@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nut-exporter
+  namespace: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nut-exporter
+  template:
+    metadata:
+      labels:
+        app: nut-exporter
+    spec:
+      containers:
+        - name: nut-exporter
+          image: ghcr.io/druggeri/nut_exporter
+          imagePullPolicy: IfNotPresent
+          command:
+            - /nut_exporter
+          ports:
+            - containerPort: 9199
+              name: metrics
+          env:
+            # upsd on rke2-node-12 (the node with the UPS on USB).
+            # Anonymous LIST VAR is permitted, so no credentials are needed.
+            - name: NUT_EXPORTER_SERVER
+              value: "10.99.5.12"
+            - name: NUT_EXPORTER_UPS_NAME
+              value: "ups"
+            # The exporter only exposes a thin default subset; everything
+            # worth graphing has to be named explicitly.
+            - name: NUT_EXPORTER_VARIABLES
+              value: "battery.charge,battery.runtime,battery.runtime.low,input.voltage,input.frequency,output.voltage,output.frequency,output.current,ups.load,ups.realpower,ups.realpower.nominal,ups.power,ups.power.nominal,ups.temperature,ups.efficiency,ups.status"
+          readinessProbe:
+            httpGet:
+              path: /ups_metrics
+              port: 9199
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
