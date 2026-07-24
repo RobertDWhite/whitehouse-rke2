@@ -70,6 +70,20 @@ spec:
             # long-lived token ("Hermes Agent") from hermes-matrix-secrets below.
             - name: HASS_URL
               value: https://homeassistant.internal.white.fm
+            # BlueBubbles (iMessage) on the Mac mini. Plain HTTP on :1234 --
+            # https:// on 443 is not served there.
+            - name: BLUEBUBBLES_SERVER_URL
+              value: http://bluebubbles.internal.white.fm:1234
+            # Bind all interfaces so the hermes-webhook LoadBalancer can reach
+            # the listener. Hermes self-advertises this as "localhost" (a dead
+            # registration BlueBubbles cannot reach); the real callback URL is
+            # registered out-of-band against 10.99.5.126 -- see 13-service-webhook.yaml.
+            - name: BLUEBUBBLES_WEBHOOK_HOST
+              value: "0.0.0.0"
+            - name: BLUEBUBBLES_WEBHOOK_PORT
+              value: "8645"
+            - name: BLUEBUBBLES_WEBHOOK_PATH
+              value: /bluebubbles-webhook
           envFrom:
             - secretRef:
                 name: hermes-api-keys
@@ -83,6 +97,9 @@ spec:
             - secretRef:
                 name: codex-token
                 optional: true
+          ports:
+            - name: bluebubbles
+              containerPort: 8645
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "gateway run"]

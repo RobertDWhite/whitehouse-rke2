@@ -1,0 +1,25 @@
+# BlueBubbles pushes iMessage events to Hermes over HTTP, so the gateway must be
+# reachable FROM the Mac mini (10.100.0.70) -- a ClusterIP is not enough.
+#
+# Hermes' BlueBubbles platform uses BLUEBUBBLES_WEBHOOK_HOST for BOTH the listener
+# bind address AND the URL it self-registers with the server, and it rewrites
+# 0.0.0.0/127.0.0.1 to "localhost" when advertising. A pod can't bind a MetalLB VIP,
+# so there is no single value that is both bindable and routable. Instead we bind
+# 0.0.0.0 (accept from anywhere) and register the real callback URL with BlueBubbles
+# out-of-band, pointing at this LoadBalancer. Safe because Hermes only ever
+# adds/removes the webhook matching its OWN advertised URL (_webhook_register_url),
+# so it never touches the manually registered one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-webhook
+  namespace: hermes
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.99.5.126
+  selector:
+    app.kubernetes.io/name: hermes
+  ports:
+    - name: bluebubbles
+      port: 8645
+      targetPort: 8645
