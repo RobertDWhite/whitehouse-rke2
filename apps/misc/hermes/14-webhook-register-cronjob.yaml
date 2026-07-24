@@ -1,0 +1,87 @@
+# Registers Hermes' BlueBubbles callback URL out-of-band.
+#
+# Hermes cannot self-register a reachable URL: BLUEBUBBLES_WEBHOOK_HOST is used for
+# BOTH the listener bind and the advertised URL, and 0.0.0.0 is rewritten to
+# "localhost" when advertising (see 13-service-webhook.yaml). So Hermes binds
+# 0.0.0.0 and this job registers the real callback against the LoadBalancer.
+#
+# Idempotent + self-healing on purpose: it re-checks every 10 minutes, so the
+# integration completes on its own whenever the Mac mini's BlueBubbles server comes
+# back (it goes down intermittently) or if BlueBubbles loses its webhook table.
+# Hermes only ever adds/removes the webhook matching its OWN advertised localhost
+# URL, so it never clobbers the entry this job creates.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bluebubbles-webhook-register
+  namespace: hermes
+data:
+  register.sh: |
+    #!/bin/sh
+    set -u
+    BB="${BLUEBUBBLES_SERVER_URL}"
+    PW="${BLUEBUBBLES_PASSWORD}"
+    CB="http://10.99.5.126:8645/bluebubbles-webhook?password=${PW}"
+
+    if ! curl -sf --max-time 10 "${BB}/api/v1/server/info?password=${PW}" >/dev/null 2>&1; then
+      echo "BlueBubbles unreachable at ${BB} - nothing to do (will retry next run)"
+      exit 0
+    fi
+    echo "BlueBubbles reachable"
+
+    EXISTING=$(curl -sf --max-time 10 "${BB}/api/v1/webhook?password=${PW}" 2>/dev/null)
+    if echo "$EXISTING" | grep -q '10.99.5.126:8645'; then
+      echo "callback already registered - nothing to do"
+      exit 0
+    fi
+
+    echo "registering callback -> http://10.99.5.126:8645/bluebubbles-webhook?password=***"
+    RESP=$(curl -sf --max-time 15 -X POST \
+      -H 'Content-Type: application/json' \
+      -d "{\"url\":\"${CB}\",\"events\":[\"new-message\",\"updated-message\"]}" \
+      "${BB}/api/v1/webhook?password=${PW}" 2>&1)
+    echo "$RESP" | sed "s/${PW}/***/g" | head -c 300
+    echo
+    echo "done"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bluebubbles-webhook-register
+  namespace: hermes
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: register
+              image: alpine/k8s:1.31.1
+              command: ["/bin/sh", "/scripts/register.sh"]
+              env:
+                - name: BLUEBUBBLES_SERVER_URL
+                  value: http://bluebubbles.internal.white.fm:1234
+                - name: BLUEBUBBLES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: hermes-matrix-secrets
+                      key: BLUEBUBBLES_PASSWORD
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+          volumes:
+            - name: scripts
+              configMap:
+                name: bluebubbles-webhook-register
