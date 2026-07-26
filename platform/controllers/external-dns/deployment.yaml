@@ -28,6 +28,12 @@ spec:
             - --domain-filter=w3rdw.radio
             - --domain-filter=whitematter.tech
             - --exclude-domains=internal.white.fm
+            # *.pages.white.fm is split-horizon internal-only: Cloudflare's
+            # Universal SSL covers one label, so a public record for a nested
+            # pages host can only produce an edge TLS handshake failure
+            # (ERR_SSL_VERSION_OR_CIPHER_MISMATCH). Canonical public hosts for
+            # pages sites are single-label (e.g. white-ancestry.white.fm).
+            - --exclude-domains=pages.white.fm
             - --exclude-domains=internal.w3rdw.radio
             - --exclude-domains=internal.whitematter.tech
             - --default-targets=221e59d6-9538-4e44-bdaa-a89b5020f7cf.cfargotunnel.com
