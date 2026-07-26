@@ -26,6 +26,16 @@ spec:
       labels:
         app: postgres
     spec:
+      # Keep the database off the node that repeatedly lost the Longhorn
+      # attachment for this PVC during the cluster disruption.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-11]
       containers:
         - name: postgres
           image: postgres:15
