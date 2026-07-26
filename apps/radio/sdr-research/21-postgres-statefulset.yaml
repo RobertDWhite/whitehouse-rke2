@@ -36,6 +36,11 @@ spec:
                   - key: kubernetes.io/hostname
                     operator: In
                     values: [rke2-node-14]
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       containers:
         - name: postgres
           image: postgres:15
