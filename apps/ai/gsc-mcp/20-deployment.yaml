@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gsc-mcp
+  namespace: gsc-mcp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gsc-mcp
+  template:
+    metadata:
+      labels:
+        app: gsc-mcp
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: gsc-mcp
+          image: registry.internal.white.fm/gsc-mcp
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: INDEXNOW_HOST
+              value: "solacoffea.app"
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gsc-mcp-env
+                  key: MCP_TOKEN
+            # Service-account key JSON for Search Console + Site Verification.
+            # Empty until the one-time GCP setup; Google tools error clearly,
+            # IndexNow tools work regardless.
+            - name: GSC_SA_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: gsc-mcp-env
+                  key: GSC_SA_JSON
+            - name: INDEXNOW_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gsc-mcp-env
+                  key: INDEXNOW_KEY
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
