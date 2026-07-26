@@ -18,8 +18,11 @@ data:
         - json
 
     outgoing:
-      request_timeout: 6.0
-      max_request_timeout: 12.0
+      # Every engine request takes an extra hop through the VPN proxy, so a 6s
+      # budget tripped on normal tunnel latency and returned "engine timeout"
+      # for engines that were actually fine.
+      request_timeout: 10.0
+      max_request_timeout: 15.0
       # Every outbound engine request egresses ONLY through the media VPN proxy
       # (gluetun/PIA). The NetworkPolicy enforces this at L3; this makes SearXNG
       # itself use the tunnel rather than failing closed on every search.

@@ -32,6 +32,35 @@ roleRef:
   kind: Role
   name: vpn-proxy-watchdog
 ---
+# The media namespace is default-deny egress and nothing here opened a path to
+# the Kubernetes API, so the watchdog could see a wedged proxy but its restart
+# PATCH to kubernetes.default.svc always timed out -- every run ended in
+# `URLError: <urlopen error timed out>` and the self-heal never actually fired.
+# Egress policy is evaluated after the ClusterIP is DNAT'd, so the real
+# control-plane endpoints behind the `kubernetes` Service are what must be
+# allowed; the ClusterIP is listed too for CNIs that evaluate pre-DNAT.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-watchdog-to-apiserver
+  namespace: media
+spec:
+  podSelector:
+    matchLabels:
+      app: vpn-proxy-watchdog
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 10.99.5.10/32}
+        - ipBlock: {cidr: 10.99.5.11/32}
+        - ipBlock: {cidr: 10.99.5.14/32}
+      ports:
+        - {protocol: TCP, port: 6443}
+    - to:
+        - ipBlock: {cidr: 10.43.0.1/32}
+      ports:
+        - {protocol: TCP, port: 443}
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -47,6 +76,9 @@ spec:
       backoffLimit: 0
       ttlSecondsAfterFinished: 600
       template:
+        metadata:
+          labels:
+            app: vpn-proxy-watchdog
         spec:
           restartPolicy: Never
           serviceAccountName: vpn-proxy-watchdog
