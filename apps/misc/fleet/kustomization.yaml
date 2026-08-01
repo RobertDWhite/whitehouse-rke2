@@ -13,6 +13,8 @@ resources:
   - 20-valkey-statefulset.yaml
   - 21-valkey-service.yaml
   - 40-cronjob-mysqldump.yaml
+  - 90-self-hosted-sync-rbac.yaml
+  - 91-self-hosted-sync-cronjob.yaml
   - 50-httproute-public.yaml
   - 51-httproute-internal.yaml
   - 60-fleet-pdb.yaml
@@ -34,6 +36,10 @@ patches:
     target:
       kind: ServiceAccount
       name: fleet
+  - path: 84-patch-fleet-self-hosted-image.yaml
+    target:
+      kind: Deployment
+      name: fleet
 
 images:
   - name: mysql
@@ -46,7 +52,8 @@ images:
   - name: busybox
     newTag: "1.38"
   - name: fleetdm/fleet
-    newTag: "v4.89.2"
+    newName: ghcr.io/robertdwhite/fleet-self-hosted
+    newTag: latest
 
 helmCharts:
   - name: fleet
