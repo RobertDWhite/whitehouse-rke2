@@ -1,0 +1,74 @@
+# Fleet keeps SMTP settings in app_config_json, not in config files or env --
+# `fleet serve` has no FLEET_SMTP_* flags, so the settings are otherwise only
+# reachable by hand through the UI. Writing them here keeps them in git and
+# re-asserts them on every sync (a UI edit is reverted on the next sync).
+#
+# This talks to MySQL rather than Fleet's API because the API route needs an
+# admin token, and the only token that exists (the one Glance uses) is
+# api_only/observer. JSON_SET touches just the smtp_settings keys, so the rest
+# of the app config is left alone, and re-running is a no-op.
+#
+# Settings mirror the relay in apps/misc/postfix: implicit TLS on 465, no auth
+# (the relay authorises by mynetworks + NetworkPolicy), and no cert
+# verification because the relay's cert is self-signed for its cluster name.
+# Sender must be an address the relay's Proton account owns -- Proton rejects
+# anything else with 553 "Sender address rejected", and additionally requires
+# the envelope sender to match the From header.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleet-smtp-config
+  namespace: fleet
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: fleet-smtp-config
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: smtp-config
+          image: mysql
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -euc
+            - |
+              echo "[$(date -u +%FT%TZ)] applying Fleet SMTP settings"
+              mysql --host=mysql.fleet.svc.cluster.local --user=fleet fleet <<'SQL'
+              UPDATE app_config_json
+              SET json_value = JSON_SET(
+                    json_value,
+                    '$.smtp_settings.enable_smtp',         CAST('true' AS JSON),
+                    '$.smtp_settings.configured',          CAST('true' AS JSON),
+                    '$.smtp_settings.sender_address',      'server@whitematter.tech',
+                    '$.smtp_settings.server',              'postfix.postfix.svc.cluster.local',
+                    '$.smtp_settings.port',                465,
+                    '$.smtp_settings.authentication_type', 'authtype_none',
+                    '$.smtp_settings.enable_ssl_tls',      CAST('true' AS JSON),
+                    '$.smtp_settings.enable_start_tls',    CAST('false' AS JSON),
+                    '$.smtp_settings.verify_ssl_certs',    CAST('false' AS JSON)
+                  );
+              SQL
+              echo "[$(date -u +%FT%TZ)] current smtp_settings:"
+              mysql --host=mysql.fleet.svc.cluster.local --user=fleet fleet -N -e \
+                "SELECT JSON_PRETTY(JSON_REMOVE(JSON_EXTRACT(json_value,'\$.smtp_settings'),'\$.password')) FROM app_config_json;"
+          env:
+            - name: MYSQL_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql
+                  key: password
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 256Mi

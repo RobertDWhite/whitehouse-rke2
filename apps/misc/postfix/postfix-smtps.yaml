@@ -1,0 +1,19 @@
+# The image only exposes main.cf (via POSTFIX_* -> postconf), so the extra
+# master.cf listener is added through the entrypoint's /scripts.d/ hook, which
+# is sourced before `postfix start-fg`.
+#
+# Port 25 keeps opportunistic STARTTLS for the existing senders (matrix,
+# mastodon, authentik, uptime-kuma). Port 465 is implicit TLS: there is no
+# plaintext phase to fall back to, so a sender configured for SSL either gets
+# an encrypted session or fails loudly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postfix-smtps-init
+  namespace: postfix
+data:
+  10-smtps.sh: |
+    echo "Enabling smtps (implicit TLS) on port 465"
+    postconf -M "smtps/inet=smtps inet n - n - - smtpd"
+    postconf -P "smtps/inet/smtpd_tls_wrappermode=yes"
+    postconf -P "smtps/inet/smtpd_tls_security_level=encrypt"

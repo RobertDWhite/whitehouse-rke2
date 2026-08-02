@@ -13,11 +13,43 @@ spec:
       labels:
         app: postfix
     spec:
+      # smtpd drops to the image's postfix user (uid 100 / gid 101), so the
+      # mounted TLS key has to be group-readable by it.
+      securityContext:
+        fsGroup: 101
       containers:
         - name: postfix
           image: juanluisbaptiste/postfix
           ports:
             - containerPort: 25
+            - containerPort: 465
           envFrom:
             - secretRef:
                 name: postfix-main-smtp-secret
+          # POSTFIX_* vars are applied verbatim as postconf keys by the image's
+          # entrypoint. "may" = opportunistic: STARTTLS is offered, and senders
+          # that don't ask for it still get through.
+          env:
+            - name: POSTFIX_SMTPD_TLS_SECURITY_LEVEL
+              value: "may"
+            - name: POSTFIX_SMTPD_TLS_CERT_FILE
+              value: /etc/postfix/tls/tls.crt
+            - name: POSTFIX_SMTPD_TLS_KEY_FILE
+              value: /etc/postfix/tls/tls.key
+            - name: POSTFIX_SMTPD_TLS_LOGLEVEL
+              value: "1"
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/postfix/tls
+              readOnly: true
+            - name: smtps-init
+              mountPath: /scripts.d
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: postfix-tls
+            defaultMode: 0440
+        - name: smtps-init
+          configMap:
+            name: postfix-smtps-init
