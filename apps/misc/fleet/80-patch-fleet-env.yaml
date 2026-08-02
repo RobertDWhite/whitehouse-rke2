@@ -20,3 +20,18 @@ spec:
                 secretKeyRef:
                   name: redis
                   key: redis-password
+            # Windows MDM: Fleet uses this CA keypair (WSTEP) to sign device
+            # identity certificates during enrollment. Without it, toggling
+            # Windows MDM on returns 422 "Please configure Fleet with a
+            # certificate and key pair first". Self-signed, 10-year validity —
+            # replacing it invalidates every already-enrolled Windows device.
+            - name: FLEET_MDM_WINDOWS_WSTEP_IDENTITY_CERT_BYTES
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: mdm-windows-wstep-cert
+            - name: FLEET_MDM_WINDOWS_WSTEP_IDENTITY_KEY_BYTES
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: mdm-windows-wstep-key
