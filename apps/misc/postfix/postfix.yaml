@@ -32,6 +32,14 @@ spec:
           env:
             - name: POSTFIX_SMTPD_TLS_SECURITY_LEVEL
               value: "may"
+            # Outbound to Proton. The entrypoint hardcodes the deprecated
+            # `smtp_use_tls = yes`, which is only opportunistic -- a failed or
+            # downgraded STARTTLS would have sent cleartext. Note the
+            # SMTP_TLS_SECURITY_LEVEL key in postfix-main-smtp-secret is inert:
+            # the entrypoint never reads it, only POSTFIX_*-prefixed vars.
+            # "encrypt" makes TLS mandatory, so delivery defers instead.
+            - name: POSTFIX_SMTP_TLS_SECURITY_LEVEL
+              value: "encrypt"
             - name: POSTFIX_SMTPD_TLS_CERT_FILE
               value: /etc/postfix/tls/tls.crt
             - name: POSTFIX_SMTPD_TLS_KEY_FILE
