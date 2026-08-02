@@ -1,0 +1,36 @@
+# Inbound STARTTLS for the in-cluster SMTP relay.
+#
+# The relay is only ever addressed by its cluster-internal name, which no public
+# CA will sign, so the cert is self-signed. Senders therefore connect with
+# STARTTLS and certificate verification disabled -- the point is to encrypt the
+# hop to the relay, not to authenticate it. (The relay -> Proton hop is already
+# verified TLS via smtp_tls_security_level=encrypt.)
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: postfix-selfsigned
+  namespace: postfix
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: postfix-tls
+  namespace: postfix
+spec:
+  secretName: postfix-tls
+  issuerRef:
+    kind: Issuer
+    name: postfix-selfsigned
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  dnsNames:
+    - postfix
+    - postfix.postfix
+    - postfix.postfix.svc
+    - postfix.postfix.svc.cluster.local
