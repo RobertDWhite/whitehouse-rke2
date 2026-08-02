@@ -219,13 +219,7 @@ Renovate watches `helmCharts[].version` (chart) and the `images:` block (`fleetd
 - Trigger a backup now: `kubectl -n fleet create job --from=cronjob/fleet-mysqldump on-demand-$(date +%s)`
 - Restore: see `RESTORE.md`
 
-## Self-hosted image automation
-
-The Fleet source repository publishes the self-hosted server image to
-`ghcr.io/robertdwhite/fleet-self-hosted:latest` after its upstream-sync
-workflow runs. This deployment uses that image and refreshes the Fleet pods
-hourly through `fleet-self-hosted-sync`, so Argo CD remains the source of truth
-while new images are picked up automatically.
+## Private image access
 
 The `fleet` namespace must contain a `ghcr-pull` image-pull secret with access
 to the private GHCR package. The existing cluster copy is bootstrapped from
