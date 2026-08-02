@@ -122,9 +122,29 @@ Once linked, any Mac you buy via ABM auto-enrolls into Fleet on first boot.
 
 ## 7. Windows MDM setup
 
-Fleet UI: Settings → Integrations → MDM → Windows → Connect → paste your Entra
-tenant ID. (Manual enrollment without Entra also works for testing — just point
-Windows at `https://fleet.white.fm` from Settings → Access work or school.)
+**Prerequisite — the WSTEP keypair (done once, already in git).** Fleet signs
+Windows device identity certificates with a CA keypair supplied at server start.
+Without it the UI toggle fails with `422 Validation Failed` /
+`mdm.windows_enabled_and_configured: Couldn't turn on Windows MDM. Please
+configure Fleet with a certificate and key pair first.` — and there is no way to
+supply it from the UI. The pair lives in `22-secret.sops.yaml` (Secret `fleet`,
+keys `mdm-windows-wstep-cert` / `mdm-windows-wstep-key`) and is wired into the
+Deployment by `80-patch-fleet-env.yaml` as
+`FLEET_MDM_WINDOWS_WSTEP_IDENTITY_CERT_BYTES` / `..._KEY_BYTES`.
+
+Regenerate only if it is compromised — **replacing it invalidates every
+already-enrolled Windows device**:
+
+```sh
+openssl req -x509 -newkey rsa:2048 -nodes -keyout wstep.key -out wstep.crt \
+  -days 3650 -subj "/CN=Whitehouse Fleet WSTEP CA/O=Whitehouse" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature"
+```
+
+Then: Fleet UI: Settings → Integrations → MDM → Windows → Connect → paste your
+Entra tenant ID. (Manual enrollment without Entra also works for testing — just
+point Windows at `https://fleet.white.fm` from Settings → Access work or school.)
 
 ## 8. First device enrollment + backup verification
 
