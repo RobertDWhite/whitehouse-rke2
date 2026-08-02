@@ -136,11 +136,24 @@ Regenerate only if it is compromised — **replacing it invalidates every
 already-enrolled Windows device**:
 
 ```sh
-openssl req -x509 -newkey rsa:2048 -nodes -keyout wstep.key -out wstep.crt \
+openssl req -x509 -newkey rsa:2048 -nodes -keyout wstep.pkcs8.key -out wstep.crt \
   -days 3650 -subj "/CN=Whitehouse Fleet WSTEP CA/O=Whitehouse" \
   -addext "basicConstraints=critical,CA:TRUE" \
   -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature"
+
+# REQUIRED: Fleet's WSTEP depot only accepts a PKCS#1 key. OpenSSL 3.x writes
+# PKCS#8 ("BEGIN PRIVATE KEY") by default, which makes Fleet refuse to boot with
+#   Failed to start: initialize mdm microsoft wstep depot: decode private key:
+#   unexpected block type PRIVATE KEY
+# and the Deployment then sits in CrashLoopBackOff while the OLD ReplicaSet keeps
+# serving — so the UI looks unchanged rather than obviously broken.
+openssl rsa -in wstep.pkcs8.key -out wstep.key -traditional   # -> BEGIN RSA PRIVATE KEY
 ```
+
+Sanity-check before committing: `head -1 wstep.key` must read
+`-----BEGIN RSA PRIVATE KEY-----`, and the key must still match the cert
+(`openssl rsa -in wstep.key -noout -modulus | openssl md5` ==
+`openssl x509 -in wstep.crt -noout -modulus | openssl md5`).
 
 Then: Fleet UI: Settings → Integrations → MDM → Windows → Connect → paste your
 Entra tenant ID. (Manual enrollment without Entra also works for testing — just
