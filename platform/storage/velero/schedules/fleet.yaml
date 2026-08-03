@@ -1,0 +1,15 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: fleet-critical
+  namespace: velero
+spec:
+  # Independent from daily-critical: Fleet's MDM database, SOPS-managed keys,
+  # and dump PVC are all included in this recovery point.
+  schedule: "30 3 * * *"
+  template:
+    includedNamespaces:
+      - fleet
+    snapshotVolumes: true
+    snapshotMoveData: true
+    ttl: 720h # 30 days
