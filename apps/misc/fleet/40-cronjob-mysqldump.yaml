@@ -24,6 +24,17 @@ spec:
             app: fleet-mysqldump
         spec:
           restartPolicy: OnFailure
+          # The dump PVC has a stale Longhorn CSI mount on node 15. Keep this
+          # non-production workload off that node until its mount is repaired.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                          - rke2-node-15
           containers:
             - name: mysqldump
               image: mysql
