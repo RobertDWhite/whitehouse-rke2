@@ -50,6 +50,31 @@ spec:
                   # PutObjects with HTTP 501 NotImplemented. Backup volume data is
                   # already encrypted client-side by kopia; re-add SSE only after
                   # configuring KMS / auto-encryption on the MinIO server.
+              # Garage (dxflrs/garage) running as a Docker container on the NAS
+              # at /volume1/docker/garage. Replacement for MinIO, whose community
+              # edition stopped shipping images in Oct 2025 and is now in
+              # maintenance mode. The "default" location above is kept so the
+              # existing MinIO-resident backups stay restorable - do not remove
+              # it until those have aged out or been migrated.
+              - name: garage
+                provider: aws
+                bucket: velero-backup
+                default: false
+                config:
+                  # Garage has no built-in TLS, so this is plain HTTP over the
+                  # LAN. Volume data is encrypted client-side by kopia; only the
+                  # backup metadata travels in the clear.
+                  s3Url: http://garage-s3.external-services.svc.cluster.local:3900
+                  s3ForcePathStyle: "true"
+                  # Must match s3_region in the NAS garage.toml.
+                  region: garage
+                  # Selects the [garage] block in the cloud-credentials secret.
+                  profile: garage
+                  # velero-plugin-for-aws >=1.9.1 defaults to CRC32, which makes
+                  # the AWS SDK v2 use STREAMING-...-TRAILER signing. Garage (like
+                  # most non-AWS S3 implementations) rejects trailing checksums,
+                  # so disable it. See velero-io/velero#8742.
+                  checksumAlgorithm: ""
             volumeSnapshotLocation:
               - name: default
                 provider: velero.io/csi
