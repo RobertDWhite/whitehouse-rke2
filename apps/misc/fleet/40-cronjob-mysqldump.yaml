@@ -8,10 +8,14 @@ metadata:
 spec:
   schedule: "0 */6 * * *"
   concurrencyPolicy: Forbid
+  # A Longhorn mount or node fault must fail visibly instead of preventing all
+  # future dumps under the Forbid concurrency policy.
+  startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 1800
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400
       template:

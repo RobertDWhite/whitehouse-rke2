@@ -8,6 +8,25 @@ Three backup tiers, in order of preference:
 | 2 | Velero CSI snapshot of `fleet-mysql` PVC | ≤24h | 10–20 min |
 | 3 | Off-cluster: SOPS secret in git + dump PVC also caught by Velero | ≤24h | 30+ min |
 
+## GitOps ownership and recovery scope
+
+Fleet is reconciled from `apps/misc/fleet` by Argo CD. This includes the
+application image pin, MySQL and Valkey manifests, PVC definitions, HTTPRoutes,
+PDBs, and SOPS-encrypted secrets. TLS for `fleet.white.fm` terminates at the
+cluster gateway and is managed by cert-manager; Fleet itself serves HTTP only
+inside the cluster.
+
+The Fleet MySQL database is the source of truth for runtime state that cannot
+be represented safely as ordinary manifests: users, hosts, MDM enrollment
+records, Apple Business Manager and VPP tokens, APNs material, configuration
+profiles, software assignments, and MDM command history. Preserve and restore
+that database together with the `fleet` secret's `server-private-key`.
+
+Fleet has both the shared `daily-critical` Velero schedule and the independent
+`fleet-critical` schedule. The latter retains Fleet namespace recovery points
+for 30 days. Verify the Velero BackupStorageLocation is `Available` before
+relying on either schedule.
+
 The **`server-private-key`** in `fleet/22-secret.sops.yaml` is required to
 decrypt MDM-sensitive columns. If the cluster is gone but the git repo is
 intact, you have the key. **If you lose both the cluster and the password
