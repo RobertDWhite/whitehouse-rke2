@@ -50,6 +50,36 @@ spec:
                   # PutObjects with HTTP 501 NotImplemented. Backup volume data is
                   # already encrypted client-side by kopia; re-add SSE only after
                   # configuring KMS / auto-encryption on the MinIO server.
+              # Garage (dxflrs/garage) running as a Docker container on the NAS
+              # at /volume1/docker/garage. Replacement for MinIO, whose community
+              # edition stopped shipping images in Oct 2025 and is now in
+              # maintenance mode. The "default" location above is kept so the
+              # existing MinIO-resident backups stay restorable - do not remove
+              # it until those have aged out or been migrated.
+              - name: garage
+                provider: aws
+                bucket: velero-backup
+                default: false
+                config:
+                  # Garage has no built-in TLS of its own, so an nginx sidecar on
+                  # the NAS terminates TLS on :3900 with a Let's Encrypt cert for
+                  # garage.internal.white.fm (DNS-01 via Cloudflare; the name is
+                  # not public, which DNS-01 does not require). Because the cert
+                  # name matches the name we connect to, this verifies for real -
+                  # note the absence of insecureSkipTLSVerify, unlike the MinIO
+                  # location above. garage.internal.white.fm resolves to the NAS
+                  # via the Technitium zone secret (35-zones-secret.sops.yaml).
+                  s3Url: https://garage.internal.white.fm:3900
+                  s3ForcePathStyle: "true"
+                  # Must match s3_region in the NAS garage.toml.
+                  region: garage
+                  # Selects the [garage] block in the cloud-credentials secret.
+                  profile: garage
+                  # velero-plugin-for-aws >=1.9.1 defaults to CRC32, which makes
+                  # the AWS SDK v2 use STREAMING-...-TRAILER signing. Garage (like
+                  # most non-AWS S3 implementations) rejects trailing checksums,
+                  # so disable it. See velero-io/velero#8742.
+                  checksumAlgorithm: ""
             volumeSnapshotLocation:
               - name: default
                 provider: velero.io/csi
@@ -58,13 +88,23 @@ spec:
 
           deployNodeAgent: true
 
+          # velero v1.13 runs kopia repository maintenance inside the server
+          # process (dedicated maintenance Jobs only arrived in v1.15). With ~40
+          # BackupRepositories, maintenance loads large index sets into memory.
+          # On 2026-08-03 every repo went overdue at once after the object store
+          # had been unreachable for 16 days; the resulting concurrent
+          # maintenance blew through the old 2Gi limit and the server was
+          # OOMKilled (exit 137) three times in ~15 minutes. Backups running at
+          # that moment fail with "Items backed up: 0" and NO entry in
+          # status.errors, so the only tell is restartCount incrementing.
+          # Requests stay at 1Gi so scheduling behaviour is unchanged.
           resources:
             requests:
               cpu: 500m
               memory: 1Gi
             limits:
               cpu: "2"
-              memory: 2Gi
+              memory: 4Gi
 
           nodeAgent:
             resources:
