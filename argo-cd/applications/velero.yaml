@@ -61,10 +61,15 @@ spec:
                 bucket: velero-backup
                 default: false
                 config:
-                  # Garage has no built-in TLS, so this is plain HTTP over the
-                  # LAN. Volume data is encrypted client-side by kopia; only the
-                  # backup metadata travels in the clear.
-                  s3Url: http://garage-s3.external-services.svc.cluster.local:3900
+                  # Garage has no built-in TLS of its own, so an nginx sidecar on
+                  # the NAS terminates TLS on :3900 with a Let's Encrypt cert for
+                  # garage.internal.white.fm (DNS-01 via Cloudflare; the name is
+                  # not public, which DNS-01 does not require). Because the cert
+                  # name matches the name we connect to, this verifies for real -
+                  # note the absence of insecureSkipTLSVerify, unlike the MinIO
+                  # location above. garage.internal.white.fm resolves to the NAS
+                  # via the Technitium zone secret (35-zones-secret.sops.yaml).
+                  s3Url: https://garage.internal.white.fm:3900
                   s3ForcePathStyle: "true"
                   # Must match s3_region in the NAS garage.toml.
                   region: garage
@@ -83,13 +88,23 @@ spec:
 
           deployNodeAgent: true
 
+          # velero v1.13 runs kopia repository maintenance inside the server
+          # process (dedicated maintenance Jobs only arrived in v1.15). With ~40
+          # BackupRepositories, maintenance loads large index sets into memory.
+          # On 2026-08-03 every repo went overdue at once after the object store
+          # had been unreachable for 16 days; the resulting concurrent
+          # maintenance blew through the old 2Gi limit and the server was
+          # OOMKilled (exit 137) three times in ~15 minutes. Backups running at
+          # that moment fail with "Items backed up: 0" and NO entry in
+          # status.errors, so the only tell is restartCount incrementing.
+          # Requests stay at 1Gi so scheduling behaviour is unchanged.
           resources:
             requests:
               cpu: 500m
               memory: 1Gi
             limits:
               cpu: "2"
-              memory: 2Gi
+              memory: 4Gi
 
           nodeAgent:
             resources:
