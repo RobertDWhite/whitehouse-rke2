@@ -14,3 +14,10 @@ spec:
     - backendRefs:
         - name: fleet-service
           port: 8080
+      # See 50-httproute-public.yaml. Envoy Gateway's 15s default route timeout
+      # kills software installer uploads and Fleet-maintained app adds.
+      # This is also the path to use for installers >100MB, since Cloudflare
+      # caps request bodies on the public fleet.white.fm hostname.
+      timeouts:
+        request: "600s"
+        backendRequest: "600s"
