@@ -22,3 +22,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # ServerSideApply without ServerSideDiff makes Argo diff the live object
+      # (which the API server has defaulted and which Envoy Gateway's webhook
+      # annotates) against the bare manifest, so both fleet HTTPRoutes report a
+      # permanent spurious diff. ServerSideDiff runs the diff through the API
+      # server's dry-run apply so defaulted fields are not counted as drift.
+      - ServerSideDiff=true
