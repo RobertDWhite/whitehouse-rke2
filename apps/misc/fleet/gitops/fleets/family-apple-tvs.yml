@@ -1,0 +1,55 @@
+name: "Family - Apple TVs"
+settings:
+  features:
+    historical_data:
+      uptime: true
+      vulnerabilities: false
+    enable_host_users: true
+    enable_software_inventory: true
+  secrets:
+  - secret: $FLEET_ENROLL_SECRET_FAMILY_APPLETVS
+agent_options:
+  config:
+    options:
+      pack_delimiter: /
+      logger_tls_period: 10
+      distributed_plugin: tls
+      disable_distributed: false
+      logger_tls_endpoint: /api/osquery/log
+      distributed_interval: 10
+      distributed_tls_max_attempts: 3
+    decorators:
+      load:
+      - SELECT uuid AS host_uuid FROM system_info;
+      - SELECT hostname AS hostname FROM system_info;
+  overrides: {}
+controls:
+  macos_updates:
+    minimum_version: ''
+    deadline: ''
+    update_new_hosts: true
+  apple_settings:
+    configuration_profiles:
+    - path: ../lib/apple/profiles/managed-wi-fi.mobileconfig
+policies: []
+reports: []
+software:
+  app_store_apps:
+    - app_store_id: "545519333"  # Amazon Prime Video
+      platform: tvos
+    - app_store_id: "1477317200"  # DailyWire
+      platform: tvos
+    - app_store_id: "367623543"  # FOX News: US & World Headlines
+      platform: tvos
+    - app_store_id: "376510438"  # Hulu: Stream TV shows & movies
+      platform: tvos
+    - app_store_id: "363590051"  # Netflix
+      platform: tvos
+    - app_store_id: "383457673"  # Plex
+      platform: tvos
+    - app_store_id: "1392492235"  # Protect
+      platform: tvos
+    - app_store_id: "1459531037"  # Providence Bible Fellowship
+      platform: tvos
+    - app_store_id: "1193350206"  # YouTube TV
+      platform: tvos
