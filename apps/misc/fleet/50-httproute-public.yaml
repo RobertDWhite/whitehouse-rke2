@@ -14,3 +14,15 @@ spec:
     - backendRefs:
         - name: fleet-service
           port: 8080
+      # Envoy Gateway's default route timeout is 15s. Software installer
+      # uploads ("Add software" -> Custom package) and Fleet-maintained apps
+      # (which Fleet downloads server-side) routinely exceed that: Envoy
+      # returned 504 / response_flags=UT at duration=15003ms and the UI showed
+      # "Couldn't add. The request timed out." Fleet itself clears its own
+      # read/write deadlines for these routes (cmd/fleet/http_middleware.go),
+      # so the gateway was the only binding limit.
+      # NOTE: Envoy's stream_idle_timeout (5m, unset) is the next ceiling if a
+      # single transfer ever goes >5m with no bytes in either direction.
+      timeouts:
+        request: "600s"
+        backendRequest: "600s"
