@@ -39,4 +39,36 @@ spec:
               value: "true"
             - name: FLEET_MDM_OPEN_SOURCE_MODE
               value: "true"
+            # Software installer store: Garage S3 on the NAS. With no bucket
+            # configured Fleet falls back to a per-pod filesystem store under
+            # os.TempDir() (cmd/fleet/serve.go), which is not shared between the
+            # two replicas and is lost on every restart — uploaded installers
+            # silently disappear. Bootstrap packages and software title icons
+            # use this same bucket.
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_BUCKET
+              value: fleet-software-installers
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_REGION
+              value: garage
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_ENDPOINT_URL
+              value: https://garage.internal.white.fm:3900
+            # Garage only supports path-style addressing.
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_FORCE_S3_PATH_STYLE
+              value: "true"
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: s3-software-installers-access-key-id
+            - name: FLEET_S3_SOFTWARE_INSTALLERS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fleet
+                  key: s3-software-installers-secret-access-key
+            # aws-sdk-go-v2 v1.41.x adds a CRC32 trailing checksum to every PUT
+            # by default, which Garage rejects. Fleet only sets an explicit
+            # ChecksumAlgorithm for GCS (server/datastore/s3/common_file_store.go),
+            # so the default has to be turned off here. Same workaround as the
+            # empty checksumAlgorithm on the Velero Garage BSL.
+            - name: AWS_REQUEST_CHECKSUM_CALCULATION
+              value: when_required
 
