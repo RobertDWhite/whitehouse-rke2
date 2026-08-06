@@ -7,3 +7,7 @@ kustomize:
 syncOptions:
 - CreateNamespace=true
 - ServerSideApply=true
+# Keep in parity with argo-cd/applications/fleet-app.yaml, which is the file the
+# app-of-apps actually syncs today. See the comment there for why this is needed
+# alongside ServerSideApply.
+- ServerSideDiff=true

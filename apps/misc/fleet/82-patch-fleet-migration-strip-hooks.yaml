@@ -4,6 +4,21 @@
   path: /metadata/annotations/helm.sh~1hook-delete-policy
 - op: remove
   path: /metadata/annotations/helm.sh~1hook-weight
+# The Helm hook annotations are stripped because Argo does not run them, but
+# the Job must still be an *Argo* hook rather than a tracked resource. The
+# upstream chart sets ttlSecondsAfterFinished: 100, so Kubernetes deletes the
+# Job ~100s after it completes. As a tracked resource that means desired state
+# permanently contains an object the cluster permanently removes, leaving the
+# app pinned OutOfSync/Missing and self-heal re-running `fleet prepare db`
+# every few minutes (autoHealAttemptsCount reached 297).
+#
+# As a PreSync hook the Job is expected to be transient, so its deletion is no
+# longer a diff. BeforeHookCreation deletes the previous Job before recreating
+# it, which also covers the immutability of a Job's pod template -- that is
+# what Force=true,Replace=true was compensating for, so it is no longer needed.
 - op: add
-  path: /metadata/annotations/argocd.argoproj.io~1sync-options
-  value: Force=true,Replace=true
+  path: /metadata/annotations/argocd.argoproj.io~1hook
+  value: PreSync
+- op: add
+  path: /metadata/annotations/argocd.argoproj.io~1hook-delete-policy
+  value: BeforeHookCreation
