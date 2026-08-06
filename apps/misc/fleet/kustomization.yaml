@@ -13,10 +13,43 @@ resources:
   - 20-valkey-statefulset.yaml
   - 21-valkey-service.yaml
   - 40-cronjob-mysqldump.yaml
+  - 45-cronjob-gitops.yaml
+  - 46-job-gitops-apply.yaml
   - 70-smtp-config-job.yaml
   - 50-httproute-public.yaml
   - 51-httproute-internal.yaml
   - 60-fleet-pdb.yaml
+
+configMapGenerator:
+  - name: fleet-gitops-fleets
+    files:
+      - gitops/fleets/servers-rke2-nodes.yml
+      - gitops/fleets/servers-linux.yml
+      - gitops/fleets/windows-fixed-purpose.yml
+      - gitops/fleets/family-macos.yml
+      - gitops/fleets/family-iphones.yml
+      - gitops/fleets/family-ipads.yml
+      - gitops/fleets/family-apple-tvs.yml
+      - gitops/fleets/family-watches.yml
+  - name: fleet-gitops-apple-profiles
+    files:
+      - gitops/lib/apple/profiles/managed-wi-fi.mobileconfig
+      - gitops/lib/apple/profiles/stamper-wifi.mobileconfig
+      - gitops/lib/apple/profiles/the-old-whitehouse.mobileconfig
+      - gitops/lib/apple/profiles/encrypted-dns.mobileconfig
+      - gitops/lib/apple/profiles/lock-screen-message.mobileconfig
+  - name: fleet-gitops-apple-declarations
+    files:
+      - gitops/lib/apple/declarations/watchos-enrollment.json
+  - name: fleet-gitops-apple-software
+    files:
+      - gitops/lib/apple/software/balena-etcher.package.yml
+  - name: fleet-gitops-windows-profiles
+    files:
+      - gitops/lib/windows/profiles/windows-os-updates.xml
+  - name: fleet-gitops-windows-software
+    files:
+      - gitops/lib/windows/software/1password.package.yml
 
 patches:
   - path: 80-patch-fleet-env.yaml

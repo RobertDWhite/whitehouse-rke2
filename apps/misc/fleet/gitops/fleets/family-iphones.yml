@@ -1,0 +1,370 @@
+name: "Family - iPhones"
+settings:
+  features:
+    historical_data:
+      uptime: true
+      vulnerabilities: false
+    enable_host_users: true
+    enable_software_inventory: true
+  secrets:
+  - secret: $FLEET_ENROLL_SECRET_FAMILY_IPHONES
+agent_options:
+  config:
+    options:
+      pack_delimiter: /
+      logger_tls_period: 10
+      distributed_plugin: tls
+      disable_distributed: false
+      logger_tls_endpoint: /api/osquery/log
+      distributed_interval: 10
+      distributed_tls_max_attempts: 3
+    decorators:
+      load:
+      - SELECT uuid AS host_uuid FROM system_info;
+      - SELECT hostname AS hostname FROM system_info;
+  overrides: {}
+controls:
+  apple_settings:
+    configuration_profiles:
+    - path: ../lib/apple/profiles/encrypted-dns.mobileconfig
+    - path: ../lib/apple/profiles/lock-screen-message.mobileconfig
+    - path: ../lib/apple/profiles/managed-wi-fi.mobileconfig
+    - path: ../lib/apple/profiles/stamper-wifi.mobileconfig
+    - path: ../lib/apple/profiles/the-old-whitehouse.mobileconfig
+    - path: ../lib/apple/declarations/watchos-enrollment.json
+policies: []
+reports: []
+software:
+  app_store_apps:
+    - app_store_id: "462058435"  # Microsoft Excel
+      platform: darwin
+    - app_store_id: "985367838"  # Microsoft Outlook
+      platform: darwin
+    - app_store_id: "462054704"  # Microsoft Word
+      platform: darwin
+    - app_store_id: "6502835663"  # Proton Pass for Safari
+      platform: darwin
+    - app_store_id: "747648890"  # Telegram
+      platform: darwin
+    - app_store_id: "1511601750"  # 1Password
+      platform: ios
+    - app_store_id: "545519333"  # Amazon Prime Video
+      platform: ios
+    - app_store_id: "297606951"  # Amazon Shopping
+      platform: ios
+    - app_store_id: "382698565"  # American Airlines
+      platform: ios
+    - app_store_id: "362348516"  # Amex
+      platform: ios
+    - app_store_id: "349554263"  # Ancestry: Family History & DNA
+      platform: ios
+    - app_store_id: "640199958"  # Apple Developer
+      platform: ios
+    - app_store_id: "379693831"  # Audible: Audiobooks & Podcasts
+      platform: ios
+    - app_store_id: "1052879175"  # Brave Browser & Search Engine
+      platform: ios
+    - app_store_id: "407558537"  # Capital One Mobile
+      platform: ios
+    - app_store_id: "298867247"  # Chase
+      platform: ios
+    - app_store_id: "6448311069"  # ChatGPT Desktop
+      platform: ios
+    - app_store_id: "329218549"  # Chess
+      platform: ios
+    - app_store_id: "488818252"  # Chick-fil-A
+      platform: ios
+    - app_store_id: "327228455"  # Chipotle
+      platform: ios
+    - app_store_id: "301724680"  # Citi Mobile®
+      platform: ios
+    - app_store_id: "6473753684"  # Claude by Anthropic
+      platform: ios
+    - app_store_id: "1447330651"  # Copilot
+      platform: ios
+    - app_store_id: "535509415"  # Costco
+      platform: ios
+    - app_store_id: "1477317200"  # DailyWire+
+      platform: ios
+    - app_store_id: "921879637"  # Dialpad
+      platform: ios
+    - app_store_id: "985746746"  # Discord - Talk, Play, Hang Out
+      platform: ios
+    - app_store_id: "719972451"  # DoorDash: Food, Grocery, More
+      platform: ios
+    - app_store_id: "570060128"  # Duolingo: Language Lessons
+      platform: ios
+    - app_store_id: "886492891"  # ExpressVPN · Secure & Fast VPN
+      platform: ios
+    - app_store_id: "284882215"  # Facebook
+      platform: ios
+    - app_store_id: "885982973"  # FamilySearch Tree
+      platform: ios
+    - app_store_id: "732952190"  # Find a Grave
+      platform: ios
+    - app_store_id: "382233851"  # Flightradar24 | Flight Tracker
+      platform: ios
+    - app_store_id: "1358823008"  # Flighty – Live Flight Tracker
+      platform: ios
+    - app_store_id: "388491656"  # Fly Delta
+      platform: ios
+    - app_store_id: "367623543"  # FOX News: US & World Headlines
+      platform: ios
+    - app_store_id: "1477376905"  # GitHub
+      platform: ios
+    - app_store_id: "422689480"  # Gmail - Email by Google
+      platform: ios
+    - app_store_id: "535886823"  # Google Chrome
+      platform: ios
+    - app_store_id: "507874739"  # Google Drive
+      platform: ios
+    - app_store_id: "6477489729"  # Google Gemini
+      platform: ios
+    - app_store_id: "585027354"  # Google Maps
+      platform: ios
+    - app_store_id: "414706506"  # Google Translate
+      platform: ios
+    - app_store_id: "6761687490"  # GrafLens
+      platform: ios
+    - app_store_id: "6670324846"  # Grok AI
+      platform: ios
+    - app_store_id: "1169136078"  # Huckleberry: Baby Tracker
+      platform: ios
+    - app_store_id: "376510438"  # Hulu: Stream TV shows & movies
+      platform: ios
+    - app_store_id: "6756507448"  # ID.me Wallet & Rewards
+      platform: ios
+    - app_store_id: "1136220934"  # Infuse
+      platform: ios
+    - app_store_id: "389801252"  # Instagram
+      platform: ios
+    - app_store_id: "1061078659"  # KastlePresence
+      platform: ios
+    - app_store_id: "288429040"  # LinkedIn: Community & Network
+      platform: ios
+    - app_store_id: "6746714949"  # Lumo AI by Proton
+      platform: ios
+    - app_store_id: "529379082"  # Lyft
+      platform: ios
+    - app_store_id: "454638411"  # Messenger
+      platform: ios
+    - app_store_id: "761397963"  # Microsoft 365 Admin
+      platform: ios
+    - app_store_id: "541164041"  # Microsoft 365 Copilot
+      platform: ios
+    - app_store_id: "983156458"  # Microsoft Authenticator
+      platform: ios
+    - app_store_id: "477537958"  # Microsoft OneDrive
+      platform: ios
+    - app_store_id: "951937596"  # Microsoft Outlook
+      platform: ios
+    - app_store_id: "1113153706"  # Microsoft Teams
+      platform: ios
+    - app_store_id: "477971748"  # MyHeritage: Family Tree & DNA
+      platform: ios
+    - app_store_id: "1054446923"  # Navan
+      platform: ios
+    - app_store_id: "363590051"  # Netflix
+      platform: ios
+    - app_store_id: "490179405"  # Okta Verify
+      platform: ios
+    - app_store_id: "692365393"  # Panera Bread
+      platform: ios
+    - app_store_id: "429047995"  # Pinterest
+      platform: ios
+    - app_store_id: "368561278"  # Planning Center Music Stand
+      platform: ios
+    - app_store_id: "327370808"  # Planning Center Services
+      platform: ios
+    - app_store_id: "6475201956"  # plappa
+      platform: ios
+    - app_store_id: "383457673"  # Plex: Find Movies and TV Shows
+      platform: ios
+    - app_store_id: "6741758667"  # Proton Authenticator
+      platform: ios
+    - app_store_id: "1509667851"  # Proton Drive
+      platform: ios
+    - app_store_id: "979659905"  # Proton Mail - Encrypted Email
+      platform: ios
+    - app_store_id: "6745089447"  # Proton Meet: Secure Meetings
+      platform: ios
+    - app_store_id: "6443490629"  # Proton Pass - Password Manager
+      platform: ios
+    - app_store_id: "1437005085"  # Proton VPN: Fast & Secure
+      platform: ios
+    - app_store_id: "6479609548"  # Proton Wallet: Secure Bitcoin
+      platform: ios
+    - app_store_id: "1459531037"  # Providence Bible Fellowship
+      platform: ios
+    - app_store_id: "336698281"  # Realtor.com Real Estate & Rent
+      platform: ios
+    - app_store_id: "1064216828"  # Reddit
+      platform: ios
+    - app_store_id: "404249815"  # Salesforce
+      platform: ios
+    - app_store_id: "874139669"  # Signal - Private Messenger
+      platform: ios
+    - app_store_id: "618783545"  # Slack
+      platform: ios
+    - app_store_id: "6737065958"  # Sola Coffea
+      platform: ios
+    - app_store_id: "331177714"  # Starbucks
+      platform: ios
+    - app_store_id: "6767364919"  # Trump Accounts: Official App
+      platform: ios
+    - app_store_id: "368677368"  # Uber - Request a ride
+      platform: ios
+    - app_store_id: "1058959277"  # Uber Eats: Food & Groceries
+      platform: ios
+    - app_store_id: "1057750338"  # UniFi
+      platform: ios
+    - app_store_id: "1392492235"  # UniFi Protect
+      platform: ios
+    - app_store_id: "1499320261"  # UniFi Verify
+      platform: ios
+    - app_store_id: "955626407"  # VPN by Private Internet Access
+      platform: ios
+    - app_store_id: "310633997"  # WhatsApp
+      platform: ios
+    - app_store_id: "544007664"  # YouTube
+      platform: ios
+    - app_store_id: "1193350206"  # YouTube TV
+      platform: ios
+    - app_store_id: "310738695"  # Zillow Real Estate & Rentals
+      platform: ios
+    - app_store_id: "546505307"  # Zoom Workplace
+      platform: ios
+    - app_store_id: "1511601750"  # 1Password
+      platform: ipados
+    - app_store_id: "297606951"  # Amazon Shopping
+      platform: ipados
+    - app_store_id: "1052879175"  # Brave Browser & Search Engine
+      platform: ipados
+    - app_store_id: "6448311069"  # ChatGPT Desktop
+      platform: ipados
+    - app_store_id: "488818252"  # Chick-fil-A
+      platform: ipados
+    - app_store_id: "327228455"  # Chipotle
+      platform: ipados
+    - app_store_id: "6473753684"  # Claude by Anthropic
+      platform: ipados
+    - app_store_id: "1447330651"  # Copilot
+      platform: ipados
+    - app_store_id: "1477317200"  # DailyWire+
+      platform: ipados
+    - app_store_id: "921879637"  # Dialpad
+      platform: ipados
+    - app_store_id: "985746746"  # Discord - Talk, Play, Hang Out
+      platform: ipados
+    - app_store_id: "719972451"  # DoorDash: Food, Grocery, More
+      platform: ipados
+    - app_store_id: "570060128"  # Duolingo: Language Lessons
+      platform: ipados
+    - app_store_id: "886492891"  # ExpressVPN · Secure & Fast VPN
+      platform: ipados
+    - app_store_id: "284882215"  # Facebook
+      platform: ipados
+    - app_store_id: "885982973"  # FamilySearch Tree
+      platform: ipados
+    - app_store_id: "367623543"  # FOX News: US & World Headlines
+      platform: ipados
+    - app_store_id: "422689480"  # Gmail - Email by Google
+      platform: ipados
+    - app_store_id: "535886823"  # Google Chrome
+      platform: ipados
+    - app_store_id: "507874739"  # Google Drive
+      platform: ipados
+    - app_store_id: "6477489729"  # Google Gemini
+      platform: ipados
+    - app_store_id: "585027354"  # Google Maps
+      platform: ipados
+    - app_store_id: "414706506"  # Google Translate
+      platform: ipados
+    - app_store_id: "6761687490"  # GrafLens
+      platform: ipados
+    - app_store_id: "6670324846"  # Grok AI
+      platform: ipados
+    - app_store_id: "1136220934"  # Infuse
+      platform: ipados
+    - app_store_id: "389801252"  # Instagram
+      platform: ipados
+    - app_store_id: "1061078659"  # KastlePresence
+      platform: ipados
+    - app_store_id: "288429040"  # LinkedIn: Community & Network
+      platform: ipados
+    - app_store_id: "6746714949"  # Lumo AI by Proton
+      platform: ipados
+    - app_store_id: "529379082"  # Lyft
+      platform: ipados
+    - app_store_id: "454638411"  # Messenger
+      platform: ipados
+    - app_store_id: "761397963"  # Microsoft 365 Admin
+      platform: ipados
+    - app_store_id: "541164041"  # Microsoft 365 Copilot
+      platform: ipados
+    - app_store_id: "983156458"  # Microsoft Authenticator
+      platform: ipados
+    - app_store_id: "477537958"  # Microsoft OneDrive
+      platform: ipados
+    - app_store_id: "1113153706"  # Microsoft Teams
+      platform: ipados
+    - app_store_id: "363590051"  # Netflix
+      platform: ipados
+    - app_store_id: "490179405"  # Okta Verify
+      platform: ipados
+    - app_store_id: "692365393"  # Panera Bread
+      platform: ipados
+    - app_store_id: "429047995"  # Pinterest
+      platform: ipados
+    - app_store_id: "368561278"  # Planning Center Music Stand
+      platform: ipados
+    - app_store_id: "327370808"  # Planning Center Services
+      platform: ipados
+    - app_store_id: "383457673"  # Plex: Find Movies and TV Shows
+      platform: ipados
+    - app_store_id: "6741758667"  # Proton Authenticator
+      platform: ipados
+    - app_store_id: "1509667851"  # Proton Drive
+      platform: ipados
+    - app_store_id: "979659905"  # Proton Mail - Encrypted Email
+      platform: ipados
+    - app_store_id: "6745089447"  # Proton Meet: Secure Meetings
+      platform: ipados
+    - app_store_id: "6443490629"  # Proton Pass - Password Manager
+      platform: ipados
+    - app_store_id: "1437005085"  # Proton VPN: Fast & Secure
+      platform: ipados
+    - app_store_id: "6479609548"  # Proton Wallet: Secure Bitcoin
+      platform: ipados
+    - app_store_id: "1459531037"  # Providence Bible Fellowship
+      platform: ipados
+    - app_store_id: "1064216828"  # Reddit
+      platform: ipados
+    - app_store_id: "404249815"  # Salesforce
+      platform: ipados
+    - app_store_id: "874139669"  # Signal - Private Messenger
+      platform: ipados
+    - app_store_id: "618783545"  # Slack
+      platform: ipados
+    - app_store_id: "6737065958"  # Sola Coffea
+      platform: ipados
+    - app_store_id: "331177714"  # Starbucks
+      platform: ipados
+    - app_store_id: "368677368"  # Uber - Request a ride
+      platform: ipados
+    - app_store_id: "1058959277"  # Uber Eats: Food & Groceries
+      platform: ipados
+    - app_store_id: "1057750338"  # UniFi
+      platform: ipados
+    - app_store_id: "1392492235"  # UniFi Protect
+      platform: ipados
+    - app_store_id: "1499320261"  # UniFi Verify
+      platform: ipados
+    - app_store_id: "955626407"  # VPN by Private Internet Access
+      platform: ipados
+    - app_store_id: "310633997"  # WhatsApp
+      platform: ipados
+    - app_store_id: "544007664"  # YouTube
+      platform: ipados
+    - app_store_id: "546505307"  # Zoom Workplace
+      platform: ipados

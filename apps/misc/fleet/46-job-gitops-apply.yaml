@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleet-gitops-apply
+  namespace: fleet
+  annotations:
+    # Runs on every Argo sync of this app (i.e., whenever gitops/ content, the
+    # secret, or the image pin changes), so config edits apply on merge instead
+    # of waiting for the nightly CronJob.
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: gitops
+          image: fleetdm/fleet
+          command:
+            - fleetctl
+            - gitops
+            - -f
+            - /gitops/fleets/servers-rke2-nodes.yml
+            - -f
+            - /gitops/fleets/servers-linux.yml
+            - -f
+            - /gitops/fleets/windows-fixed-purpose.yml
+            - -f
+            - /gitops/fleets/family-macos.yml
+            - -f
+            - /gitops/fleets/family-iphones.yml
+            - -f
+            - /gitops/fleets/family-ipads.yml
+            - -f
+            - /gitops/fleets/family-apple-tvs.yml
+            - -f
+            - /gitops/fleets/family-watches.yml
+          envFrom:
+            - secretRef:
+                name: fleet-gitops-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: fleets
+              mountPath: /gitops/fleets
+              readOnly: true
+            - name: apple-profiles
+              mountPath: /gitops/lib/apple/profiles
+              readOnly: true
+            - name: apple-declarations
+              mountPath: /gitops/lib/apple/declarations
+              readOnly: true
+            - name: apple-software
+              mountPath: /gitops/lib/apple/software
+              readOnly: true
+            - name: windows-profiles
+              mountPath: /gitops/lib/windows/profiles
+              readOnly: true
+            - name: windows-software
+              mountPath: /gitops/lib/windows/software
+              readOnly: true
+      volumes:
+        - name: fleets
+          configMap:
+            name: fleet-gitops-fleets
+        - name: apple-profiles
+          configMap:
+            name: fleet-gitops-apple-profiles
+        - name: apple-declarations
+          configMap:
+            name: fleet-gitops-apple-declarations
+        - name: apple-software
+          configMap:
+            name: fleet-gitops-apple-software
+        - name: windows-profiles
+          configMap:
+            name: fleet-gitops-windows-profiles
+        - name: windows-software
+          configMap:
+            name: fleet-gitops-windows-software

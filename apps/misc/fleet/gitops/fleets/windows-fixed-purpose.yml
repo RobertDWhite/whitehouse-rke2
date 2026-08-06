@@ -1,0 +1,45 @@
+name: "Windows - Fixed-purpose"
+settings:
+  features:
+    historical_data:
+      uptime: true
+      vulnerabilities: false
+    enable_host_users: true
+    enable_software_inventory: true
+  secrets:
+  - secret: $FLEET_ENROLL_SECRET_WINDOWS_FIXED
+agent_options:
+  config:
+    options:
+      pack_delimiter: /
+      logger_tls_period: 10
+      distributed_plugin: tls
+      disable_distributed: false
+      logger_tls_endpoint: /api/osquery/log
+      distributed_interval: 10
+      distributed_tls_max_attempts: 3
+    decorators:
+      load:
+      - SELECT uuid AS host_uuid FROM system_info;
+      - SELECT hostname AS hostname FROM system_info;
+  overrides: {}
+controls:
+  enable_disk_encryption: true
+  windows_updates:
+    deadline_days: 5
+    grace_period_days: 0
+  windows_settings:
+    configuration_profiles:
+    - path: ../lib/windows/profiles/windows-os-updates.xml
+policies:
+  - name: '[Install software] 1Password'
+    query: SELECT 1 FROM programs WHERE name = '1Password' AND publisher = 'Agilebits Inc.';
+    description: Policy triggers automatic install of 1Password on each host that's missing this software.
+    platform: windows
+    install_software:
+      package_path: ../lib/windows/software/1password.package.yml
+reports: []
+software:
+  packages:
+    - path: ../lib/windows/software/1password.package.yml
+      self_service: true
