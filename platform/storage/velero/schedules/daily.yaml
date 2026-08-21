@@ -42,6 +42,12 @@ spec:
       - listmonk
       - odysseus
       - pages
-    snapshotVolumes: true
-    snapshotMoveData: true
+    # Velero here is v1.13.2 with ONLY velero-plugin-for-aws loaded and no
+    # `features: EnableCSI`, so there is no CSI plugin and no VolumeSnapshotter:
+    # snapshotVolumes/snapshotMoveData could never do anything except log
+    # "unable to get valid VolumeSnapshotter for velero.io/csi" once per PVC.
+    # Volume data is protected by file-system backup (kopia) via the chart-wide
+    # defaultVolumesToFsBackup: true, which is what has actually been running.
+    # Re-enable these only together with the CSI plugin + EnableCSI feature flag.
+    snapshotVolumes: false
     ttl: 168h # 7 days

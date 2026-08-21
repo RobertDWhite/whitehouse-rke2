@@ -24,7 +24,12 @@ spec:
           snapshotter:
             enabled: true
         defaultSettings:
-          backupTarget: nfs://10.100.1.20:/volume1/longhorn-backups
+          # nfsOptions is required: the NAS serves NFSv4.1 only (nfs_minor_ver_enable=1),
+          # while Longhorn defaults to nfsvers=4.0 and the mount fails. The backup store is
+          # also mounted from the instance-manager POD netns (not hostNetwork), so
+          # /volume1/longhorn-backups must be exported to the 10.42.0.0/16 pod CIDR on the
+          # NAS as well -- without both, every backup and restore fails.
+          backupTarget: nfs://10.100.1.20:/volume1/longhorn-backups?nfsOptions=nfsvers=4.1,soft,timeo=300,retry=2
         # node-14 (control-plane) carries a kube-vip=disabled:NoSchedule taint;
         # the manager DaemonSet has no default tolerations, so it was excluded
         # from node-14 even though node-14 holds ~12TB of Longhorn disks. Tolerate
