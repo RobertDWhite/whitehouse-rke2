@@ -28,6 +28,12 @@ spec:
         # by the hermes group so secret-bootstrap (running as 10000) can write.
         fsGroup: 10000
         fsGroupChangePolicy: OnRootMismatch
+        # gid 101 = the NAS's DSM `administrators` group. /volume1/Books carries
+        # a Synology ACL (mode bits read as 000 over NFSv4) whose only matching
+        # entry is group:administrators -- every other Books consumer gets in by
+        # running as root. Hermes runs as uid 10000, so it needs the gid instead.
+        # Media and downloads are plain 0777 and do not depend on this.
+        supplementalGroups: [101]
       # NOTE: the bootstrap-claude-creds initContainer was removed. It copied a
       # STATIC CLAUDE_CREDENTIALS_JSON snapshot over /opt/data/.claude/.credentials.json
       # on every pod start, clobbering the token Hermes refreshes at runtime. The
@@ -116,6 +122,17 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            # Synology NAS (10.100.1.20) exports, mounted read-write so the
+            # built-in `file` toolset can browse and organise the libraries.
+            # /volume1/Personal is deliberately NOT mounted -- Hermes is
+            # reachable from Matrix/Telegram/iMessage, so anything mounted here
+            # is reachable by anyone who can message the bot.
+            - name: nas-media
+              mountPath: /nas/media
+            - name: nas-books
+              mountPath: /nas/books
+            - name: nas-downloads
+              mountPath: /nas/downloads
         - name: dashboard
           image: registry.internal.white.fm/hermes-agent
           imagePullPolicy: IfNotPresent
@@ -140,6 +157,16 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data
+        # Static NFS PVs -> platform/storage/storage/hermes/synology-{pv,pvc}.yaml
+        - name: nas-media
+          persistentVolumeClaim:
+            claimName: pvc-hermes-media
+        - name: nas-books
+          persistentVolumeClaim:
+            claimName: pvc-hermes-books
+        - name: nas-downloads
+          persistentVolumeClaim:
+            claimName: pvc-hermes-downloads
 ---
 apiVersion: v1
 kind: Service

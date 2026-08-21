@@ -33,7 +33,11 @@ spec:
               - name: default
                 provider: aws
                 bucket: velero-backup
-                default: true
+                # No longer the default target - Garage below took over on
+                # 2026-08-20. Kept (and still Available) purely so the ~39
+                # MinIO-resident backups stay restorable; remove only once they
+                # have aged out past their ttl.
+                default: false
                 config:
                   # Use cluster DNS + EndpointSlice in external-services namespace
                   # so we don't depend on the public DNS record (which is now
@@ -51,15 +55,20 @@ spec:
                   # already encrypted client-side by kopia; re-add SSE only after
                   # configuring KMS / auto-encryption on the MinIO server.
               # Garage (dxflrs/garage) running as a Docker container on the NAS
-              # at /volume1/docker/garage. Replacement for MinIO, whose community
+              # at /volume1/docker/garage. Replaces MinIO, whose community
               # edition stopped shipping images in Oct 2025 and is now in
-              # maintenance mode. The "default" location above is kept so the
-              # existing MinIO-resident backups stay restorable - do not remove
-              # it until those have aged out or been migrated.
+              # maintenance mode - the image on the NAS, RELEASE.2025-09-07, is
+              # the last one that will ever exist. Added as a second location on
+              # 2026-08-03 but left non-default, so every backup kept landing on
+              # MinIO (39 of 40) until the flip below on 2026-08-20.
               - name: garage
                 provider: aws
                 bucket: velero-backup
-                default: false
+                # THE default backup target as of 2026-08-20. Schedules do not
+                # set storageLocation, so they inherit whichever location is
+                # marked default here - which is what actually moves new
+                # backups off MinIO.
+                default: true
                 config:
                   # Garage has no built-in TLS of its own, so an nginx sidecar on
                   # the NAS terminates TLS on :3900 with a Let's Encrypt cert for
@@ -80,11 +89,16 @@ spec:
                   # most non-AWS S3 implementations) rejects trailing checksums,
                   # so disable it. See velero-io/velero#8742.
                   checksumAlgorithm: ""
-            volumeSnapshotLocation:
-              - name: default
-                provider: velero.io/csi
-                config:
-                  snapshotClass: longhorn-snapshot
+            # No volumeSnapshotLocation. This is Velero v1.13.2 and the only
+            # plugin loaded is velero-plugin-for-aws -- there is no CSI plugin
+            # and `features: EnableCSI` is unset, so a VSL with provider
+            # velero.io/csi resolves to nothing and every backup logged
+            # "unable to get valid VolumeSnapshotter for velero.io/csi" once per
+            # PVC (7 errors in the 2026-08-16 weekly run). Volume data is
+            # protected by kopia file-system backup via defaultVolumesToFsBackup
+            # above. To move to real CSI snapshots, add the
+            # velero-plugin-for-csi initContainer AND features: EnableCSI, then
+            # restore this block and flip snapshotVolumes back on in the schedules.
 
           deployNodeAgent: true
 

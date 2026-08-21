@@ -16,6 +16,11 @@ data:
       # like "topk by (domain)" over the Technitium query stream — *.white.fm
       # alone runs ~1k–3k distinct domains per hour.
       max_query_series: 10000
+      # How long logs are kept before the compactor deletes them. Without a
+      # retention_period Loki keeps everything forever; the 333Gi PVC reached
+      # 90%, which trips Loki's WAL disk guard, flips the ingester read-only
+      # and makes every push fail 500 "Ingester is shutting down".
+      retention_period: 720h
       otlp_config:
         resource_attributes:
           attributes_config:
@@ -57,6 +62,12 @@ data:
 
     compactor:
       working_directory: /loki/compactor
+      # Actually enforce limits_config.retention_period. This is what deletes
+      # expired chunks/index; retention_period alone does nothing without it.
+      retention_enabled: true
+      # Mandatory once retention_enabled is true — Loki 3.x refuses to start
+      # without it. Matches object_store: filesystem in schema_config above.
+      delete_request_store: filesystem
 
     ingester:
       lifecycler:
