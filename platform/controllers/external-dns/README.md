@@ -1,59 +1,68 @@
-# external-dns wiring (Cloudflare + Pi-hole)
+# ExternalDNS wiring (Cloudflare)
 
-This stack now runs two `external-dns` deployments:
+This stack runs two ExternalDNS controllers, both on v0.22:
 
-- `external-dns` for public DNS in Cloudflare (existing behavior).
-- `external-dns-pihole*` for internal DNS in Pi-hole.
+- `external-dns` watches Gateway API `HTTPRoute` resources and publishes public
+  Cloudflare CNAMEs to the Cloudflare Tunnel.
+- `external-dns-records` watches opt-in `DNSEndpoint` resources for exceptional
+  records that are not naturally represented by an HTTPRoute.
 
-Pi-hole fanout deployments in this repo:
+The controllers use separate TXT owner IDs and must not manage the same DNS
+name/type pair:
 
-- `external-dns-pihole` -> primary Pi-hole (from secret `pihole-credentials.server`)
-- `external-dns-pihole-b` -> `https://10.100.0.21`
-- `external-dns-pihole-c` -> `https://10.99.5.2`
+- `whitehouse-rke2` — public HTTPRoute records
+- `whitehouse-rke2-records` — declarative DNSEndpoint records
 
-Each deployment watches ingress and writes the same A records to its Pi-hole endpoint. This makes DNS updates automatic during Kubernetes deploys without manual Pi-hole sync.
+## Public HTTPRoute records
 
-## Pi-hole credentials
+The public controller manages only CNAME records in `white.fm`, `w3rdw.radio`,
+and `whitematter.tech`. It forces them to the Cloudflare Tunnel target and
+enables Cloudflare proxying. Internal domains and the nested `pages.white.fm`
+zone are excluded.
 
-Set your Pi-hole API values in `pihole-credentials-secret.yaml`:
-
-- `server`: Pi-hole base URL (example `https://10.99.5.2`)
-- `password`: Pi-hole password or app password
-
-You can replace this plain secret with a SOPS/ExternalSecret workflow if preferred.
-
-## How records are created
-
-`external-dns-pihole` watches `Ingress` resources with ingress class `nginx` and creates/updates records for:
-
-- `*.white.fm`
-- `*.w3rdw.radio`
-- `*.whitematter.tech`
-- `*.internal`
-
-For this cluster, all Pi-hole deployments force records to ingress VIP `10.99.5.110` via:
-
-- `--default-targets=10.99.5.110`
-- `--force-default-targets`
-
-## .internal example
-
-Use a dedicated internal hostname on an ingress:
+ExternalDNS v0.22 uses the GA annotation prefix:
 
 ```yaml
-metadata:
-  annotations:
-    cert-manager.io/cluster-issuer: internal-ca
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: app.internal
-      http: ...
+external-dns.kubernetes.io/controller: skip
 ```
 
-## cert-manager note
+Use that annotation for routes whose DNS is owned by another system. For
+example, `plex.white.fm` is owned by UniFi DDNS and must remain a DNS-only A
+record rather than becoming a tunnel CNAME.
 
-Let's Encrypt will not issue trusted certificates for private suffixes like `.internal`.
+## Exceptional records with DNSEndpoint
 
-- For publicly trusted certs: use a public domain you control (split-horizon DNS via Pi-hole).
-- For `.internal`: use an internal CA issuer in cert-manager (for example CA/Vault/step-ca) and trust that CA on clients.
+The `DNSEndpoint` CRD is installed by this Kustomization. Create a namespaced
+resource with the opt-in label to publish a record:
+
+```yaml
+apiVersion: externaldns.k8s.io/v1alpha1
+kind: DNSEndpoint
+metadata:
+  name: example-alias
+  namespace: external-services
+  labels:
+    externaldns.white.fm/managed: "true"
+spec:
+  endpoints:
+    - dnsName: alias.white.fm
+      recordType: CNAME
+      recordTTL: 300
+      targets:
+        - canonical.example.net.
+```
+
+The records controller supports A, AAAA, CNAME, MX, NS, SRV, and TXT records.
+Do not declare a name/type already managed by an HTTPRoute or by an external
+DDNS system.
+
+## Observability
+
+Both controllers expose `/metrics` on port `7979`. Prometheus scrapes them via
+the `external-dns-metrics` and `external-dns-records-metrics` Services. Alerts
+cover stale syncs, consecutive reconciliation errors, source failures, TXT
+registry failures, and ownership mismatches.
+
+Both controllers emit `RecordError` Kubernetes Events on the affected source
+resource, making failures visible with `kubectl describe httproute` or
+`kubectl describe dnsendpoint`.

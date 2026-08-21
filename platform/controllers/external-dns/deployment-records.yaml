@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns-records
+  namespace: external-dns
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: external-dns-records
+  template:
+    metadata:
+      labels:
+        app: external-dns-records
+    spec:
+      serviceAccountName: external-dns-records
+      containers:
+        - name: external-dns
+          image: registry.k8s.io/external-dns/external-dns:v0.22.0
+          args:
+            - --source=crd
+            - --provider=cloudflare
+            - --policy=sync
+            - --registry=txt
+            - --txt-owner-id=whitehouse-rke2-records
+            - --events-emit=RecordError
+            - --domain-filter=white.fm
+            - --domain-filter=w3rdw.radio
+            - --domain-filter=whitematter.tech
+            - --label-filter=externaldns.white.fm/managed=true
+            - --crd-source-apiversion=externaldns.k8s.io/v1alpha1
+            - --crd-source-kind=DNSEndpoint
+            - --managed-record-types=A
+            - --managed-record-types=AAAA
+            - --managed-record-types=CNAME
+            - --managed-record-types=MX
+            - --managed-record-types=NS
+            - --managed-record-types=SRV
+            - --managed-record-types=TXT
+            - --annotation-prefix=external-dns.kubernetes.io/
+          env:
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-api-token
+                  key: api-token
