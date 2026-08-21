@@ -1,0 +1,215 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "ExternalDNS v0.22 public HTTPRoute and declarative DNSEndpoint controller health, sync, registry, and ownership visibility",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "panels": [],
+      "title": "Controller Health",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 2 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "count(up{job=\"external-dns\",controller=~\"$Controller\"})", "instant": true, "refId": "A" }],
+      "title": "Controllers Scraped",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 60 }, { "color": "red", "value": 300 }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "max(time() - external_dns_controller_last_sync_timestamp_seconds{job=\"external-dns\",controller=~\"$Controller\"})", "instant": true, "refId": "A" }],
+      "title": "Seconds Since Last Successful Sync",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "max(external_dns_controller_consecutive_soft_errors{job=\"external-dns\",controller=~\"$Controller\"})", "instant": true, "refId": "A" }],
+      "title": "Consecutive Soft Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [{ "expr": "sum(external_dns_registry_endpoints_total{job=\"external-dns\",controller=~\"$Controller\"})", "instant": true, "refId": "A" }],
+      "title": "Endpoints in Registry",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 6,
+      "panels": [],
+      "title": "Reconciliation and Errors",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "showPoints": "never" }, "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum by (controller) (rate(external_dns_source_errors_total{job=\"external-dns\",controller=~\"$Controller\"}[5m]))", "legendFormat": "{{controller}} source errors", "refId": "A" },
+        { "expr": "sum by (controller) (rate(external_dns_registry_errors_total{job=\"external-dns\",controller=~\"$Controller\"}[5m]))", "legendFormat": "{{controller}} registry errors", "refId": "B" },
+        { "expr": "sum by (controller) (rate(external_dns_controller_no_op_runs_total{job=\"external-dns\",controller=~\"$Controller\"}[5m]))", "legendFormat": "{{controller}} no-op runs", "refId": "C" }
+      ],
+      "title": "Errors and No-op Reconciliations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 12, "lineWidth": 2, "showPoints": "never" }, "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "time() - external_dns_controller_last_sync_timestamp_seconds{job=\"external-dns\",controller=~\"$Controller\"}", "legendFormat": "{{controller}} sync age", "refId": "A" }],
+      "title": "Sync Age",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 9,
+      "panels": [],
+      "title": "Records and Source State",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (controller, record_type) (external_dns_registry_records{job=\"external-dns\",controller=~\"$Controller\"})", "legendFormat": "{{controller}} {{record_type}}", "refId": "A" }],
+      "title": "Managed Records by Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "showPoints": "never" }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 11,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum by (controller, source_type) (external_dns_source_invalid_endpoints{job=\"external-dns\",controller=~\"$Controller\"})", "legendFormat": "{{controller}} {{source_type}} invalid", "refId": "A" },
+        { "expr": "sum by (controller, source_type) (external_dns_source_deduplicated_endpoints{job=\"external-dns\",controller=~\"$Controller\"})", "legendFormat": "{{controller}} {{source_type}} deduplicated", "refId": "B" }
+      ],
+      "title": "Invalid and Deduplicated Endpoints",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "custom": { "drawStyle": "line", "fillOpacity": 15, "lineWidth": 2, "showPoints": "never" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 12,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (controller, record_type, domain) (external_dns_registry_skipped_records_owner_mismatch_per_sync{job=\"external-dns\",controller=~\"$Controller\"})", "legendFormat": "{{controller}} {{record_type}} {{domain}}", "refId": "A" }],
+      "title": "Ownership Mismatches",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 13,
+      "options": { "cellHeight": "sm", "showHeader": true },
+      "targets": [{ "expr": "ALERTS{alertname=~\"ExternalDNS.*\",alertstate=\"firing\"}", "format": "table", "instant": true, "refId": "A" }],
+      "title": "Firing ExternalDNS Alerts",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": ["k8s", "dns", "external-dns"],
+  "templating": {
+    "list": [
+      {
+        "current": { "text": "prometheus", "value": "ffbp5qeorery8b" },
+        "hide": 2,
+        "label": "Datasource",
+        "name": "Datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${Datasource}" },
+        "definition": "label_values(external_dns_controller_last_sync_timestamp_seconds, controller)",
+        "includeAll": true,
+        "label": "Controller",
+        "name": "Controller",
+        "options": [],
+        "query": "label_values(external_dns_controller_last_sync_timestamp_seconds, controller)",
+        "refresh": 2,
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "ExternalDNS",
+  "uid": "external-dns",
+  "version": 1
+}

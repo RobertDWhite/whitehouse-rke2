@@ -70,6 +70,10 @@ kind: HTTPRoute
 metadata:
   name: plex-public
   namespace: external-services
+  annotations:
+    # UniFi DDNS owns this DNS-only A record. Do not let the public
+    # Cloudflare-tunnel controller replace it with a CNAME.
+    external-dns.kubernetes.io/controller: skip
 spec:
   parentRefs:
     - name: main

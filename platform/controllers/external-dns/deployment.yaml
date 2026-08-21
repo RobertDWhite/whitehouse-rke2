@@ -17,13 +17,16 @@ spec:
       serviceAccountName: external-dns
       containers:
         - name: external-dns
-          image: registry.k8s.io/external-dns/external-dns:v0.20.0
+          image: registry.k8s.io/external-dns/external-dns:v0.22.0
           args:
             - --source=gateway-httproute
             - --provider=cloudflare
             - --policy=sync
             - --registry=txt
             - --txt-owner-id=whitehouse-rke2
+            - --annotation-prefix=external-dns.kubernetes.io/
+            - --managed-record-types=CNAME
+            - --events-emit=RecordError
             - --domain-filter=white.fm
             - --domain-filter=w3rdw.radio
             - --domain-filter=whitematter.tech
