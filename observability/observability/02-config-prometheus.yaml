@@ -134,6 +134,28 @@ data:
             regex: http-metrics
 
       # =========================
+      # ExternalDNS metrics
+      # =========================
+      - job_name: external-dns
+        kubernetes_sd_configs:
+          - role: endpoints
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: external-dns
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: controller
+            regex: external-dns-metrics
+            replacement: public
+          - source_labels: [__meta_kubernetes_service_name]
+            target_label: controller
+            regex: external-dns-records-metrics
+            replacement: records
+
+      # =========================
       # Weather Dashboard API
       # =========================
       - job_name: weather-api
@@ -796,6 +818,69 @@ data:
 
   cluster-alerts.yml: |
     groups:
+      - name: cluster.external-dns
+        interval: 1m
+        rules:
+          - alert: ExternalDNSConsecutiveSoftErrors
+            expr: |
+              external_dns_controller_consecutive_soft_errors > 0
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "ExternalDNS has consecutive reconciliation errors"
+              description: >
+                ExternalDNS has not completed a clean reconciliation for at least
+                10 minutes. Check the controller logs and Cloudflare API access.
+
+          - alert: ExternalDNSStaleSync
+            expr: |
+              time() - external_dns_controller_last_sync_timestamp_seconds > 300
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "ExternalDNS last successful sync is stale"
+              description: >
+                No successful ExternalDNS provider sync has completed in over
+                five minutes. DNS changes may not be reaching Cloudflare.
+
+          - alert: ExternalDNSSourceErrors
+            expr: |
+              increase(external_dns_source_errors_total[10m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ExternalDNS source errors detected"
+              description: >
+                ExternalDNS failed while reading Kubernetes DNS sources during
+                the last 10 minutes. Check CRDs, RBAC, and controller logs.
+
+          - alert: ExternalDNSRegistryErrors
+            expr: |
+              increase(external_dns_registry_errors_total[10m]) > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ExternalDNS registry errors detected"
+              description: >
+                ExternalDNS encountered ownership or registry errors during the
+                last 10 minutes. Check TXT ownership and overlapping controllers.
+
+          - alert: ExternalDNSOwnerMismatch
+            expr: |
+              external_dns_registry_skipped_records_owner_mismatch_per_sync > 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "ExternalDNS skipped records owned by another controller"
+              description: >
+                One or more records are being skipped because their ownership
+                metadata belongs to a different ExternalDNS instance.
+
       - name: vpn-proxy
         interval: 1m
         rules:
