@@ -38,6 +38,33 @@ Goal
 
 Restore one or more namespaces without rebuilding the cluster.
 
+Tautulli has daily recovery points retained for 7 days and weekly recovery
+points retained for 49 days. The backup includes the `tautulli-config` PVC,
+which contains Tautulli's SQLite database and configuration. Stop Tautulli
+before restoring, then choose the newest successful `daily-critical-*` backup:
+
+```sh
+kubectl -n velero get backups \
+  -l velero.io/schedule-name=daily-critical \
+  --sort-by=.metadata.creationTimestamp
+
+# Stop Tautulli (or pause its Argo CD reconciliation) before restoring.
+velero restore create tautulli-restore \
+  --from-backup <daily-critical-backup-name> \
+  --include-namespaces tautulli \
+  --wait
+```
+
+If `tautulli-config` still exists, Velero will not overwrite it by default;
+restore into a clean PVC/namespace or remove the damaged PVC only after
+confirming the backup is available. Then verify the PVC is bound and the
+application starts with its prior history:
+
+```sh
+kubectl -n tautulli get pvc tautulli-config
+kubectl -n tautulli get pods
+```
+
 Step 1 — List available backups
 
 kubectl -n velero get backups

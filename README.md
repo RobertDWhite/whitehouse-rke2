@@ -164,7 +164,7 @@ node-10 runs the NVIDIA-flavored kernel (DGX Spark / Grace platform); node-50 is
 - **Longhorn** — primary distributed block storage (replicated volumes).
 - **Synology CSI** — NAS-backed volumes / snapshots for larger datasets.
 - **snapshot-controller** — CSI volume snapshot support.
-- **Velero** (`velero` namespace) — scheduled backups to a MinIO bucket, using CSI snapshots with data movement. A `daily-critical` schedule (7-day TTL) covers the stateful namespaces; a weekly schedule sweeps lower-churn namespaces. Velero does **not** back up the control plane, node OS, or git (Argo CD is git's source of truth). The `velero/recovery.md` runbook documents restore scenarios.
+- **Velero** (`velero` namespace) — scheduled backups to the MinIO/Garage object store, using file-system backups with Kopia. A `daily-critical` schedule (7-day TTL) covers the stateful namespaces, including Tautulli; a weekly schedule sweeps lower-churn namespaces and retains Tautulli recovery points for 49 days. Velero does **not** back up the control plane, node OS, or git (Argo CD is git's source of truth). The `velero/recovery.md` runbook documents restore scenarios.
 
 ---
 
@@ -259,4 +259,3 @@ docs/             Restructure proposal & design notes
 .claude/skills/   homelab operations skill (load-bearing runbook)
 .sops.yaml        SOPS encryption rules
 ```
-
