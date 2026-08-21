@@ -22,6 +22,17 @@ spec:
       - immich
       - openhamclock
       - portainer
-    snapshotVolumes: true
-    snapshotMoveData: true
+    # Velero here is v1.13.2 with ONLY velero-plugin-for-aws loaded and no
+    # `features: EnableCSI`, so there is no CSI plugin and no VolumeSnapshotter:
+    # snapshotVolumes/snapshotMoveData could never do anything except log
+    # "unable to get valid VolumeSnapshotter for velero.io/csi" once per PVC.
+    # Volume data is protected by file-system backup (kopia) via the chart-wide
+    # defaultVolumesToFsBackup: true, which is what has actually been running.
+    # Re-enable these only together with the CSI plugin + EnableCSI feature flag.
+    snapshotVolumes: false
     ttl: 1176h # 49 days
+    # The 2026-08-16 run hit the 4h default itemOperationTimeout exactly
+    # (22:00 -> 02:00) and failed with "timed out waiting for all
+    # PodVolumeBackups to complete" -- immich's NFS-backed volumes dominate
+    # this set and kopia needs longer than the default allows.
+    itemOperationTimeout: 8h

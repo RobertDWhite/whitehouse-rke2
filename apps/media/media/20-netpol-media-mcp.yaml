@@ -1,0 +1,37 @@
+# media-mcp (ns media-mcp) fronts the whole *arr stack behind one bearer-gated
+# MCP endpoint. The media namespace runs a default-deny, so without this every
+# radarr_*/sonarr_*/prowlarr_*/readarr_*/bazarr_* tool times out at the TCP
+# layer -- the MCP server still starts and advertises its tools, so the failure
+# only shows up when a tool is actually called.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-media-mcp-ingress
+  namespace: media
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [radarr, sonarr, prowlarr, readarr, bazarr]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media-mcp
+          podSelector:
+            matchLabels:
+              app: media-mcp
+      ports:
+        - port: 7878
+          protocol: TCP
+        - port: 8989
+          protocol: TCP
+        - port: 9696
+          protocol: TCP
+        - port: 8787
+          protocol: TCP
+        - port: 6767
+          protocol: TCP
