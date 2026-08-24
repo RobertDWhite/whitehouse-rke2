@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cinny
+  namespace: matrix
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cinny
+  template:
+    metadata:
+      labels:
+        app: cinny
+    spec:
+      containers:
+        - name: cinny
+          image: ghcr.io/cinnyapp/cinny:v4.12.6@sha256:a7805a8a60ff621d343c128dbca6ba42ac5383ed5292522fd72248a77b9c836f
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.json
+              subPath: config.json
+      volumes:
+        - name: config
+          configMap:
+            name: cinny-config
