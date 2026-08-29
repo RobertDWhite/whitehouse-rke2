@@ -56,6 +56,9 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/alertmanager
+            - name: secrets
+              mountPath: /etc/alertmanager-secrets
+              readOnly: true
             - name: data
               mountPath: /alertmanager
         - name: alertmanager-ntfy
@@ -87,6 +90,12 @@ spec:
         - name: config
           configMap:
             name: alertmanager-config
+        - name: secrets
+          secret:
+            secretName: alertmanager-secrets
+            # Secret volume files are owned root:fsGroup (65534 here), and the
+            # container runs as 65534 — so this must be group-readable, not 0400.
+            defaultMode: 0440
         - name: data
           emptyDir: {}
         - name: alertmanager-ntfy-config
