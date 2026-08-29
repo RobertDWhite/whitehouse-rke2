@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: condo
+
+resources:
+  - 00-namespace.yaml
+  - 10-postgres.yaml
+  - 11-redis.yaml
+  - 21-configmap.yaml
+  - 30-deployment-condo.yaml
+  - 31-service-condo.yaml
+  - 35-deployment-worker.yaml
+  - 40-deployment-address-service.yaml
+  - 41-service-address-service.yaml
+  - 45-pdb.yaml
+  - 50-httproute-internal.yaml
+  - 51-httproute-public.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  # Built from RobertDWhite/condo (fork of open-condo-software/condo) by the
+  # "homelab image" workflow — upstream publishes no usable release image.
+  - name: ghcr.io/robertdwhite/condo
+    newTag: v5.23.0
+  - name: postgres
+    newTag: "16.8"
+  - name: redis
+    newTag: 6.2-alpine

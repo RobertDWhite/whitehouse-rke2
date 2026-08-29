@@ -1,0 +1,45 @@
+# Non-secret runtime config shared by the condo web, worker and address-service pods.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: condo-config
+  namespace: condo
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  NEXT_TELEMETRY_DISABLED: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+  # Canonical origin. The frontend builds absolute API URLs from this, so it has
+  # to be the public host — condo.internal.white.fm serves the same app but its
+  # browser calls resolve back through condo.white.fm.
+  SERVER_URL: "https://condo.white.fm"
+
+  DEFAULT_LOCALE: "en"
+  DISABLE_LOGGING: "false"
+  DISABLE_RATE_LIMIT: "false"
+
+  # Uploads land on the shared RWX volume mounted at /app/media.
+  FILE_FIELD_ADAPTER: "local"
+  MEDIA_ROOT: "/app/media"
+  MEDIA_URL: "/media"
+
+  # No hCaptcha keys configured, and feature flags are resolved in-process.
+  DISABLE_CAPTCHA: "true"
+  USE_LOCAL_FEATURE_FLAGS: "true"
+
+  # No email/SMS/push provider wired up yet — notifications go to the pod log.
+  NOTIFICATION__SEND_ALL_MESSAGES_TO_CONSOLE: "true"
+  NOTIFICATION__DISABLE_LOGGING: "false"
+
+  ADAPTER_CACHE_CONFIG: '{ "enabled": true, "excludedLists":[], "logging":0, "maxCacheSize":1000, "logStatsEachSecs": 60 }'
+  REQUEST_CACHE_CONFIG: '{ "enabled": true, "logging":0, "logStatsEachSecs": 60 }'
+
+  HELP_REQUISITES: '{ "support_email": "help@white.fm", "support_email_mobile": "help@white.fm", "bot_email": "service@white.fm", "support_phone": "+1 301 000-00-00" }'
+  MOBILE_APP_IDS: '{ "resident": { "ios": "ai.doma.clients", "android": "ai.doma.client" }, "master": { "ios": "ai.doma.master", "android": "ai.doma.master" }}'
+
+  # Real address-service deployment, so the fake client stays off.
+  ADDRESS_SERVICE_URL: "http://address-service"
+  FAKE_ADDRESS_SERVICE_CLIENT: "false"
+
+  WORKER_CONCURRENCY: "10"
