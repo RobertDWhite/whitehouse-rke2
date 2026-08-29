@@ -369,3 +369,29 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # condo.white.fm — property management platform, public (condo owns its own auth)
+    - name: https-condo-public
+      protocol: HTTPS
+      port: 443
+      hostname: "condo.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: condo-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # condo.internal.white.fm
+    - name: https-condo-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "condo.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: condo-tls
+      allowedRoutes:
+        namespaces:
+          from: All
