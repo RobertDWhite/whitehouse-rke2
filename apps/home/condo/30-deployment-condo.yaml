@@ -1,0 +1,124 @@
+# Condo web (Keystone API + Next admin UI). The image carries the whole monorepo,
+# so web / worker / address-service are the same image with different commands.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: condo
+  namespace: condo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: condo
+  template:
+    metadata:
+      labels:
+        app: condo
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      initContainers:
+        # kmigrator applies pending migrations; a no-op once the schema is current.
+        - name: migrate
+          image: ghcr.io/robertdwhite/condo
+          imagePullPolicy: IfNotPresent
+          command: ["yarn", "workspace", "@app/condo", "migrate"]
+          envFrom:
+            - configMapRef:
+                name: condo-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: condo-database-url
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: condo-cookie-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: condo
+          image: ghcr.io/robertdwhite/condo
+          imagePullPolicy: IfNotPresent
+          command: ["yarn", "workspace", "@app/condo", "start"]
+          envFrom:
+            - configMapRef:
+                name: condo-config
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: condo-database-url
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: condo-cookie-secret
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: 3000m
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /server-health?checks=postgres,redis
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            # Deliberately dumb: a Postgres blip should not restart the pod,
+            # readiness already gates traffic on dependency health.
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: media
+              mountPath: /app/media
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: condo-media
