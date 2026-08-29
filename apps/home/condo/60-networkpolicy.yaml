@@ -68,27 +68,6 @@ spec:
         - port: 3000
           protocol: TCP
 
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-ingress-to-worker
-  namespace: condo
-spec:
-  podSelector:
-    matchLabels:
-      app: condo-worker
-  policyTypes:
-    - Ingress
-  ingress:
-    # Health probes only — the worker serves no application traffic.
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - port: 3000
-          protocol: TCP
 
 ---
 apiVersion: networking.k8s.io/v1

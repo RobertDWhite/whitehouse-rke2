@@ -59,11 +59,6 @@ spec:
                   key: condo-data-encryption-config
             - name: DATA_ENCRYPTION_VERSION_ID
               value: "condo_1"
-          # The worker runs with DISABLE_NEXT_APP=true, so the health server is
-          # the only thing listening here.
-          ports:
-            - name: http
-              containerPort: 3000
           resources:
             requests:
               cpu: 250m
@@ -71,19 +66,24 @@ spec:
             limits:
               cpu: 2000m
               memory: 3Gi
+          # worker.js calls createWorker() and serves no HTTP at all, so the
+          # health endpoint the web pod uses does not exist here. Probing a port
+          # nothing listens on made the liveness check kill the pod every few
+          # minutes. Process-level is the honest check: if the queue consumer
+          # dies, yarn propagates the exit and the container restarts anyway.
           readinessProbe:
-            httpGet:
-              path: /server-health?checks=postgres,redis
-              port: http
+            exec:
+              command: ["sh", "-c", "pgrep -f worker.js > /dev/null"]
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 10
             failureThreshold: 6
           livenessProbe:
-            tcpSocket:
-              port: http
+            exec:
+              command: ["sh", "-c", "pgrep -f worker.js > /dev/null"]
             initialDelaySeconds: 120
             periodSeconds: 30
+            timeoutSeconds: 10
             failureThreshold: 5
           securityContext:
             allowPrivilegeEscalation: false
