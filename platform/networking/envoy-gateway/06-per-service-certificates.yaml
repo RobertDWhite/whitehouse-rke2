@@ -156,3 +156,19 @@ spec:
   dnsNames:
     - appstore.white.fm
     - appstore.internal.white.fm
+
+---
+# condo.white.fm / condo.internal.white.fm — property management platform.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: condo-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: condo-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - condo.white.fm
+    - condo.internal.white.fm

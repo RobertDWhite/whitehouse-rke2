@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: condo-media
+  namespace: condo
+spec:
+  # RWX so the web pod and the worker can both write uploads/exports from
+  # different nodes. Kept modest to avoid the large-RWX share-manager wedge
+  # pattern called out in tasks/lessons.md.
+  accessModes:
+    - ReadWriteMany
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
