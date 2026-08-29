@@ -14,6 +14,16 @@ spec:
       labels:
         app: matrix-redis
     spec:
+      # rke2-node-10 is currently presenting Longhorn iSCSI devices through
+      # multipath, which breaks new filesystem mounts for this PVC.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-10]
       containers:
       - name: redis
         image: redis
