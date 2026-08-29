@@ -63,6 +63,23 @@ kubectl -n condo exec deploy/condo -- node apps/condo/bin/create-user.js you@whi
 The script prints the created user as JSON. It is idempotent — re-running it
 against an existing email updates that user instead.
 
+## Known issue: TLS is on the wildcard, not condo-tls
+
+Both HTTPRoutes are temporarily attached to the `*.white.fm` /
+`*.internal.white.fm` wildcard listeners instead of the per-service
+`https-condo-public` / `https-condo-internal` ones.
+
+`condo-tls` cannot issue: cert-manager's controller can't create a
+CertificateRequest because the API server times out calling the
+`webhook.cert-manager.io` validating webhook
+(`cert-manager-webhook.cert-manager.svc:443`). That is a cluster-wide fault —
+it blocks *any* new Certificate, not just condo's — and existing certs are
+unaffected because they were issued before it started.
+
+Once cert-manager is healthy, `condo-tls` issues on its own and the two
+per-service listeners program. At that point flip `sectionName` back in
+`50-httproute-internal.yaml` and `51-httproute-public.yaml`.
+
 ## Not wired up
 
 - **Email / SMS / push.** `NOTIFICATION__SEND_ALL_MESSAGES_TO_CONSOLE=true`, so
