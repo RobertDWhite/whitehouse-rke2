@@ -54,6 +54,13 @@ spec:
                 secretKeyRef:
                   name: condo-secrets
                   key: address-cookie-secret
+            - name: DATA_ENCRYPTION_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: address-data-encryption-config
+            - name: DATA_ENCRYPTION_VERSION_ID
+              value: "address-service_1"
           resources:
             requests:
               cpu: 100m
@@ -89,6 +96,13 @@ spec:
                 secretKeyRef:
                   name: condo-secrets
                   key: address-cookie-secret
+            - name: DATA_ENCRYPTION_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: address-data-encryption-config
+            - name: DATA_ENCRYPTION_VERSION_ID
+              value: "address-service_1"
           ports:
             - name: http
               containerPort: 3000
