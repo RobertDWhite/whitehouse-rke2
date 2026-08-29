@@ -63,22 +63,36 @@ kubectl -n condo exec deploy/condo -- node apps/condo/bin/create-user.js you@whi
 The script prints the created user as JSON. It is idempotent — re-running it
 against an existing email updates that user instead.
 
-## Known issue: TLS is on the wildcard, not condo-tls
-
-Both HTTPRoutes are temporarily attached to the `*.white.fm` /
-`*.internal.white.fm` wildcard listeners instead of the per-service
-`https-condo-public` / `https-condo-internal` ones.
+## Known issue: listeners borrow the wildcard cert
 
 `condo-tls` cannot issue: cert-manager's controller can't create a
 CertificateRequest because the API server times out calling the
 `webhook.cert-manager.io` validating webhook
 (`cert-manager-webhook.cert-manager.svc:443`). That is a cluster-wide fault —
-it blocks *any* new Certificate, not just condo's — and existing certs are
-unaffected because they were issued before it started.
+it blocks *any* new Certificate — and existing certs are unaffected because
+they were issued before it started.
 
-Once cert-manager is healthy, `condo-tls` issues on its own and the two
-per-service listeners program. At that point flip `sectionName` back in
-`50-httproute-internal.yaml` and `51-httproute-public.yaml`.
+As a stopgap, `https-condo-public` / `https-condo-internal` in
+`platform/networking/envoy-gateway/20-gateway.yaml` reference
+`wildcard-white-fm-tls`, which already carries `*.white.fm` and
+`*.internal.white.fm` SANs. Once cert-manager is healthy and `condo-tls` goes
+Ready, swap both `certificateRefs` back to `condo-tls`.
+
+Note the routes must stay on the per-service listeners. Attaching them to the
+wildcard listeners instead fails with `NoMatchingListenerHostname`, because a
+listener claiming the exact hostname takes precedence over the wildcard even
+while it is invalid.
+
+## OIDC client for address-service
+
+address-service builds an OIDC client against condo at boot and throws without
+`OIDC_CONFIG`. The matching client must exist in condo's database:
+
+```bash
+kubectl -n condo exec deploy/condo -- node apps/condo/bin/create-oidc-client.js \
+  address-service '<clientSecret from the address-oidc-config secret>' \
+  http://address-service/oidc/callback
+```
 
 ## Not wired up
 

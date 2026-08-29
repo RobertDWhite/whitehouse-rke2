@@ -378,7 +378,10 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: condo-tls
+          # TEMPORARY: condo-tls cannot issue while cert-manager's webhook is
+          # unreachable. The wildcard already covers this hostname; swap back
+          # to condo-tls once it goes Ready.
+          - name: wildcard-white-fm-tls
       allowedRoutes:
         namespaces:
           from: All
@@ -391,7 +394,10 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - name: condo-tls
+          # TEMPORARY: condo-tls cannot issue while cert-manager's webhook is
+          # unreachable. The wildcard already covers this hostname; swap back
+          # to condo-tls once it goes Ready.
+          - name: wildcard-white-fm-tls
       allowedRoutes:
         namespaces:
           from: All

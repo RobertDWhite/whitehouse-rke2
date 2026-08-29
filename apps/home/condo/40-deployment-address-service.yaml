@@ -61,6 +61,14 @@ spec:
                   key: address-data-encryption-config
             - name: DATA_ENCRYPTION_VERSION_ID
               value: "address-service_1"
+            # address-service's admin UI authenticates against condo as an OIDC
+            # provider; the app throws at boot without this. Client registered in
+            # condo via bin/create-oidc-client.js (see README).
+            - name: OIDC_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: address-oidc-config
           resources:
             requests:
               cpu: 100m
@@ -103,6 +111,14 @@ spec:
                   key: address-data-encryption-config
             - name: DATA_ENCRYPTION_VERSION_ID
               value: "address-service_1"
+            # address-service's admin UI authenticates against condo as an OIDC
+            # provider; the app throws at boot without this. Client registered in
+            # condo via bin/create-oidc-client.js (see README).
+            - name: OIDC_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: address-oidc-config
           ports:
             - name: http
               containerPort: 3000

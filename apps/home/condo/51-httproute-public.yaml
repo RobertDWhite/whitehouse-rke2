@@ -1,10 +1,6 @@
 # Public route goes straight to condo — no Authentik outpost in front. Condo owns
 # its own multi-tenant auth, and fronting it with SSO would break resident logins
 # and every mobile/GraphQL API client.
-# TEMPORARY: attached to the *.white.fm wildcard listener, not https-condo-public.
-# The per-service condo-tls Certificate cannot issue while cert-manager's
-# validating webhook is unreachable (see README), so that listener never
-# programs. Flip sectionName back to https-condo-public once condo-tls is Ready.
 #
 # external-dns picks this hostname up off the HTTPRoute and creates the Cloudflare
 # CNAME to the tunnel automatically; cloudflared's own ingress list still needs the
@@ -18,7 +14,7 @@ spec:
   parentRefs:
     - name: main
       namespace: envoy-gateway-system
-      sectionName: https-white-fm
+      sectionName: https-condo-public
   hostnames:
     - condo.white.fm
   rules:
