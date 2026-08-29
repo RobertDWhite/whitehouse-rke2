@@ -1,0 +1,15 @@
+# ComfyUI runtime tree: python venv, ComfyUI source checkout, pip/uv caches,
+# huggingface_hub cache. Fully reconstructable from the network, so local-path
+# (node-local, node-50) rather than Longhorn — and excluded from Velero.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-run
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 100Gi

@@ -1,0 +1,148 @@
+# ComfyUI on rke2-node-50 (RTX 5090). Blackwell needs a cu128+ torch wheel, which
+# the ubuntu24_cuda12.8 image tag pulls via TORCH_INDEX_URL.
+#
+# Egress is default-deny except the media/vpn-proxy (see 50-networkpolicy.yaml), so
+# the *_PROXY vars are load-bearing: the entrypoint git-clones ComfyUI and
+# pip-installs torch on first start, and both honour them.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui
+  namespace: comfyui
+  labels:
+    app: comfyui
+spec:
+  replicas: 1
+  strategy:
+    # RWO volumes on one node — the old pod must release them before the new one binds.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: comfyui
+  template:
+    metadata:
+      labels:
+        app: comfyui
+      annotations:
+        # Model weights and the venv/source tree are re-downloadable; only /basedir
+        # (output, workflows, user settings) is worth a kopia backup.
+        backup.velero.io/backup-volumes-excludes: run,models
+    spec:
+      priorityClassName: high-priority
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        # node-50 is a transient dual-boot host — survive it going away rather than
+        # getting evicted into a Pending loop the nodeSelector can never satisfy.
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 1024
+        # local-path is hostPath-backed so fsGroup is a no-op today, but this keeps
+        # a 500Gi recursive chown off the startup path if these ever move to Longhorn.
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: comfyui
+          image: mmartial/comfyui-nvidia-docker
+          ports:
+            - name: http
+              containerPort: 8188
+          # No allowPrivilegeEscalation:false / drop:ALL here — the entrypoint starts
+          # as root and sudo's to fix the comfy uid/gid before dropping (lessons L013/L014).
+          env:
+            - name: WANTED_UID
+              value: "1024"
+            - name: WANTED_GID
+              value: "1024"
+            # Keep models/output/user/custom_nodes off the venv volume so the runtime
+            # tree can be wiped and rebuilt without touching user data.
+            - name: BASE_DIRECTORY
+              value: /basedir
+            # ComfyUI-Manager permission level: "normal" blocks pip//git operations
+            # it deems unsafe. Do not weaken without a reason.
+            - name: SECURITY_LEVEL
+              value: "normal"
+            # Set to "true" once the first start has finished installing torch and
+            # ComfyUI's requirements — that skips the pip upgrade pass on every
+            # restart, so a wedged vpn-proxy can't stop the pod from coming up.
+            # Must stay "false" for the initial install (upstream's new-install
+            # override for this flag is broken by a typo in init.bash).
+            - name: DISABLE_UPGRADES
+              value: "false"
+            - name: HTTP_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: HTTPS_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: http_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: https_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: NO_PROXY
+              value: .svc.cluster.local,.cluster.local,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16
+            - name: no_proxy
+              value: .svc.cluster.local,.cluster.local,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16
+          resources:
+            requests:
+              cpu: "1"
+              memory: "8Gi"
+            limits:
+              cpu: "12"
+              memory: "48Gi"
+              nvidia.com/gpu: 1
+          startupProbe:
+            # First boot clones ComfyUI and installs torch over the VPN proxy —
+            # allow up to 30 min before declaring failure.
+            httpGet:
+              path: /system_stats
+              port: 8188
+            periodSeconds: 15
+            failureThreshold: 120
+          readinessProbe:
+            httpGet:
+              path: /system_stats
+              port: 8188
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /system_stats
+              port: 8188
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: run
+              mountPath: /comfy/mnt
+            - name: data
+              mountPath: /basedir
+            - name: models
+              mountPath: /basedir/models
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        - name: run
+          persistentVolumeClaim:
+            claimName: comfyui-run
+        - name: data
+          persistentVolumeClaim:
+            claimName: comfyui-data
+        - name: models
+          persistentVolumeClaim:
+            claimName: comfyui-models
+        - name: dshm
+          # Torch dataloader workers need more than the default 64Mi.
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi

@@ -172,3 +172,21 @@ spec:
   dnsNames:
     - condo.white.fm
     - condo.internal.white.fm
+
+---
+# comfyui.internal.white.fm — internal-only local image generation (Authentik SSO).
+# Both SANs per the per-service-cert convention even though only the internal
+# listener exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: comfyui-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: comfyui-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - comfyui.white.fm
+    - comfyui.internal.white.fm

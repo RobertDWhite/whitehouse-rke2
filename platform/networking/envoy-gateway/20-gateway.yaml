@@ -395,3 +395,16 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # comfyui.internal.white.fm — local image generation, internal-only (Authentik SSO)
+    - name: https-comfyui-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "comfyui.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: comfyui-tls
+      allowedRoutes:
+        namespaces:
+          from: All

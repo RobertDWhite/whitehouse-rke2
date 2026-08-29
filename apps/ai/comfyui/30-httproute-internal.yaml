@@ -1,0 +1,26 @@
+# ComfyUI ships no authentication of its own, and it can read/write files and run
+# arbitrary custom-node code — so it is internal-only and gated by Authentik.
+# Traffic for comfyui.internal.white.fm goes to the Authentik embedded outpost
+# (authentik-server:80, cross-namespace), which authenticates by Host header and
+# proxies to the upstream set on its Proxy Provider
+# (http://comfyui.comfyui.svc.cluster.local:8188). Same pattern as appstore/grafana.
+# Requires: the ReferenceGrant in security/authentik/ AND an Authentik Proxy Provider
+# + Application for comfyui.internal.white.fm assigned to the embedded outpost —
+# see README.md in this directory. Listener + cert live in envoy-gateway/.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: comfyui-internal
+  namespace: comfyui
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-comfyui-internal
+  hostnames:
+    - comfyui.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          namespace: authentik
+          port: 80

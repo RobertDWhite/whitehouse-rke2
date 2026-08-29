@@ -42,10 +42,17 @@ spec:
               value: "http://localai:8080/v1"
             - name: OPENAI_API_KEY
               value: "localai"
-            - name: IMAGES_OPENAI_API_BASE_URL
-              value: "http://localai-image-proxy:8080/v1"
-            - name: IMAGES_OPENAI_API_KEY
-              value: "localai"
+            # Image generation runs on ComfyUI (rke2-node-50 / RTX 5090). This
+            # replaces the localai-image-proxy backend, which pointed at a Service
+            # that does not exist and a localai Deployment scaled to 0.
+            # These env vars seed Open WebUI's defaults on a fresh DB only — an
+            # existing install also needs Admin Settings -> Images switched over.
+            - name: ENABLE_IMAGE_GENERATION
+              value: "true"
+            - name: IMAGE_GENERATION_ENGINE
+              value: "comfyui"
+            - name: COMFYUI_BASE_URL
+              value: "http://comfyui.comfyui.svc.cluster.local:8188"
             - name: WEBUI_AUTH
               value: "false"
           ports:
