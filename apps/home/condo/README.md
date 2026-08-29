@@ -96,6 +96,60 @@ kubectl -n condo exec deploy/condo -- sh -c 'cd /app/apps/condo && \
   http://address-service/oidc/callback'
 ```
 
+## Addresses: the fake client is deliberate
+
+`FAKE_ADDRESS_SERVICE_CLIENT=true`. condo routes every address through
+address-service, which supports dadata and pullenti (Russia-only), yandex, and
+google (paid API key). With no provider configured, US addresses cannot resolve
+and `createProperty` fails with:
+
+```
+No address found by string "251 Carlwood Drive, Miamisburg, OH 45342"
+SEARCH_ERROR_NO_PLUGINS
+```
+
+The plugins are not missing — all six ran and none matched, because there is
+nothing in the local Address table and no provider to ask. The fake client
+echoes the address back with a generated key, which is what a US install
+without a geocoder needs. Trade-off: no validation, normalisation, autocomplete
+or spelling-variant dedupe.
+
+To get real lookup: enable Geocoding API + Places API on a Google Cloud
+project, then on address-service set `PROVIDER=google` and `GOOGLE_API_KEY`
+(that exact name, see `GoogleSearchProvider.js`), and flip this flag to
+`"false"`.
+
+**address-service is kept even though the fake client never calls it** — it is
+the switch-back path above. It is idle, not broken. Remove it only if you have
+decided against real address lookup for good.
+
+## Mini-apps
+
+There are none to install. Every real mini-app in the condo ecosystem (billing,
+telephony, meter import, insurance, call centre, resident app) is a **private
+submodule** owned by Doma.ai — the same repos the fork cannot clone. The public
+repo ships only `apps/miniapp`, a scaffold. Adding one means writing it against
+`@open-condo/bridge`, deploying it, and registering a B2BApp with
+`bin/create-b2bapp.js` pointing at its URL.
+
+## Bootstrapped data
+
+Created 2026-08-29 via the GraphQL API at `/admin/api`:
+
+- Organization `Carlwood` — `country: en`, which selects US phone patterns and
+  English role names rather than the Russian defaults
+- Property `251 Carlwood Drive, Miamisburg, OH 45342`, `type: building`
+
+condo models a building as having **units**; add them to the property map if you
+want per-unit tickets or residents. A single-family house can ignore that.
+
+## Postgres collation
+
+The postgres image reported `collation version mismatch (2.36 vs 2.41)` on every
+query. Fixed 2026-08-29 by reindexing `condo` and `address_service` then running
+`ALTER DATABASE ... REFRESH COLLATION VERSION` on those plus `postgres` and
+`template1`, so new databases do not inherit the stale version.
+
 ## Not wired up
 
 - **Email / SMS / push.** `NOTIFICATION__SEND_ALL_MESSAGES_TO_CONSOLE=true`, so
