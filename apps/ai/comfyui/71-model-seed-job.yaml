@@ -1,0 +1,84 @@
+# Seeds /basedir/models with base checkpoints so ComfyUI can generate on first use.
+# Idempotent (skips files already present), so running it on every sync just picks up
+# whatever was added to the model list. Egress is the VPN proxy — the namespace has
+# no other path out.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: comfyui-model-seed
+  namespace: comfyui
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: comfyui-model-seed
+    spec:
+      restartPolicy: Never
+      # Must land on node-50: the models PVC is RWO local-path, bound there.
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      containers:
+        - name: seed
+          image: python
+          command: ["python", "/config/seed.py"]
+          env:
+            - name: MODELS_DIR
+              value: /basedir/models
+            - name: LIST_FILE
+              value: /config/models.txt
+            - name: WANTED_UID
+              value: "1024"
+            - name: WANTED_GID
+              value: "1024"
+            - name: HTTP_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: HTTPS_PROXY
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: http_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: https_proxy
+              value: http://vpn-proxy.media.svc.cluster.local:8888
+            - name: NO_PROXY
+              value: .svc.cluster.local,.cluster.local,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16
+            - name: no_proxy
+              value: .svc.cluster.local,.cluster.local,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: models
+              mountPath: /basedir/models
+      volumes:
+        - name: config
+          configMap:
+            name: comfyui-model-seed
+        - name: models
+          persistentVolumeClaim:
+            claimName: comfyui-models

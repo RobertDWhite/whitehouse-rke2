@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui-exporter
+  namespace: comfyui
+spec:
+  selector:
+    app: comfyui-exporter
+  ports:
+    - port: 9402
+      targetPort: 9402
+      name: metrics

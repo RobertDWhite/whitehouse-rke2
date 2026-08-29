@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: comfyui
+
+resources:
+  - 00-namespace.yaml
+  - 10-deployment.yaml
+  - 20-service.yaml
+  - 30-httproute-internal.yaml
+  - 50-networkpolicy.yaml
+  - 60-exporter-configmap.yaml
+  - 61-exporter-deployment.yaml
+  - 62-exporter-service.yaml
+  - 70-model-seed-configmap.yaml
+  - 71-model-seed-job.yaml
+
+commonLabels:
+  managed-by: argocd
+  app.kubernetes.io/part-of: comfyui
+
+images:
+  # ubuntu24_cuda12.8 = first CUDA line with Blackwell sm_120 support, so the
+  # entrypoint pulls cu128 torch wheels for the 5090. Do not drop below 12.8.
+  - name: mmartial/comfyui-nvidia-docker
+    newTag: "ubuntu24_cuda12.8-20260805"
+
+  - name: python
+    newTag: "3.14-alpine"

@@ -1,0 +1,14 @@
+# ComfyUI base dir minus models: generated output, inputs, saved workflows,
+# user settings, custom_nodes. This is the volume worth backing up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-data
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi

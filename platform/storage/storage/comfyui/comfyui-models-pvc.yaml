@@ -1,0 +1,14 @@
+# Model weights (checkpoints, VAEs, LoRAs, ControlNets, upscalers). Large and
+# re-downloadable, so local-path on node-50 and excluded from Velero.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-models
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 500Gi
