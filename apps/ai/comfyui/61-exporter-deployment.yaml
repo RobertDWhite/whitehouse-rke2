@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comfyui-exporter
+  namespace: comfyui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comfyui-exporter
+  template:
+    metadata:
+      labels:
+        app: comfyui-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: python
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/app/exporter.py"]
+          ports:
+            - containerPort: 9402
+          env:
+            - name: POLL_INTERVAL
+              value: "15"
+            - name: LISTEN_PORT
+              value: "9402"
+            - name: COMFYUI_URL
+              value: "http://comfyui.comfyui.svc.cluster.local:8188"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9402
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9402
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: script
+              mountPath: /app
+      volumes:
+        - name: script
+          configMap:
+            name: comfyui-exporter-script

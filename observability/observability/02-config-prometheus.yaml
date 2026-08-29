@@ -620,6 +620,16 @@ data:
         scrape_interval: 15s
         honor_labels: true
 
+      # ComfyUI — queue depth, VRAM headroom and reachability from the sidecar
+      # exporter in the comfyui namespace.
+      - job_name: comfyui
+        static_configs:
+          - targets:
+              - comfyui-exporter.comfyui.svc.cluster.local:9402
+        metrics_path: /metrics
+        scrape_interval: 15s
+        honor_labels: true
+
       # Technitium DNS — exporter sidecar in each pod, scraped per-pod via
       # the headless Service so each time series gets a `pod` label
       # (technitium-0/1/2/3) for per-node breakdown in Grafana.
