@@ -38,8 +38,14 @@ data:
   HELP_REQUISITES: '{ "support_email": "help@white.fm", "support_email_mobile": "help@white.fm", "bot_email": "service@white.fm", "support_phone": "+1 301 000-00-00" }'
   MOBILE_APP_IDS: '{ "resident": { "ios": "ai.doma.clients", "android": "ai.doma.client" }, "master": { "ios": "ai.doma.master", "android": "ai.doma.master" }}'
 
-  # Real address-service deployment, so the fake client stays off.
+  # address-service has no geocoding provider configured (it supports dadata and
+  # pullenti, both Russia-only, plus google which needs a paid API key), so it
+  # cannot resolve US addresses and every createProperty failed with
+  # "No address found by string ...". The fake client echoes the address back
+  # with a generated key, which is what this install needs. Set a
+  # GOOGLE_API_KEY on address-service and flip this to "false" to get real
+  # address validation and normalisation.
   ADDRESS_SERVICE_URL: "http://address-service"
-  FAKE_ADDRESS_SERVICE_CLIENT: "false"
+  FAKE_ADDRESS_SERVICE_CLIENT: "true"
 
   WORKER_CONCURRENCY: "10"
