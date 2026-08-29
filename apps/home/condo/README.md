@@ -57,8 +57,11 @@ Migrations create the schema but no users. After the first successful sync,
 create an admin:
 
 ```bash
-kubectl -n condo exec deploy/condo -- node apps/condo/bin/create-user.js you@white.fm '{"isAdmin":true,"password":"<pick-a-strong-one>"}'
+kubectl -n condo exec deploy/condo -- sh -c 'cd /app/apps/condo && node bin/create-user.js you@white.fm '"'"'{"isAdmin":true,"password":"<pick-a-strong-one>"}'"'"''
 ```
+
+The `cd` matters: these scripts call `path.resolve('./index.js')`, so running
+them from the image's `/app` WORKDIR fails with `MODULE_NOT_FOUND`.
 
 The script prints the created user as JSON. It is idempotent — re-running it
 against an existing email updates that user instead.
@@ -89,9 +92,9 @@ address-service builds an OIDC client against condo at boot and throws without
 `OIDC_CONFIG`. The matching client must exist in condo's database:
 
 ```bash
-kubectl -n condo exec deploy/condo -- node apps/condo/bin/create-oidc-client.js \
-  address-service '<clientSecret from the address-oidc-config secret>' \
-  http://address-service/oidc/callback
+kubectl -n condo exec deploy/condo -- sh -c 'cd /app/apps/condo && \
+  node bin/create-oidc-client.js address-service <clientSecret> \
+  http://address-service/oidc/callback'
 ```
 
 ## Not wired up
