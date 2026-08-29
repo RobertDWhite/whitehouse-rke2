@@ -66,25 +66,24 @@ them from the image's `/app` WORKDIR fails with `MODULE_NOT_FOUND`.
 The script prints the created user as JSON. It is idempotent — re-running it
 against an existing email updates that user instead.
 
-## Known issue: listeners borrow the wildcard cert
+## cert-manager: node-14's apiserver cannot reach the webhook
 
-`condo-tls` cannot issue: cert-manager's controller can't create a
-CertificateRequest because the API server times out calling the
-`webhook.cert-manager.io` validating webhook
-(`cert-manager-webhook.cert-manager.svc:443`). That is a cluster-wide fault —
-it blocks *any* new Certificate — and existing certs are unaffected because
-they were issued before it started.
+`condo-tls` was stuck unissued for 14h. Root cause was not condo's: flannel on
+rke2-node-14 lost its Kubernetes API watch on 2026-08-06 and its VXLAN state
+froze, so that node's *host* network cannot reach pods on other nodes. node-14
+is still in the `kubernetes` Endpoints, so admission-webhook calls landing on
+its apiserver time out. Proven per-apiserver:
 
-As a stopgap, `https-condo-public` / `https-condo-internal` in
-`platform/networking/envoy-gateway/20-gateway.yaml` reference
-`wildcard-white-fm-tls`, which already carries `*.white.fm` and
-`*.internal.white.fm` SANs. Once cert-manager is healthy and `condo-tls` goes
-Ready, swap both `certificateRefs` back to `condo-tls`.
+```
+kubectl --server=https://10.99.5.10:6443 apply --dry-run=server -f cert.yaml  -> OK
+kubectl --server=https://10.99.5.11:6443 apply --dry-run=server -f cert.yaml  -> OK
+kubectl --server=https://10.99.5.14:6443 apply --dry-run=server -f cert.yaml  -> failed calling webhook
+```
 
-Note the routes must stay on the per-service listeners. Attaching them to the
-wildcard listeners instead fails with `NoMatchingListenerHostname`, because a
-listener claiming the exact hostname takes precedence over the wildcard even
-while it is invalid.
+Restarting the cert-manager controller re-rolls which apiserver its client-go
+connection pins to (2 of 3 are healthy), which unblocked issuance. That is a
+symptom fix — until flannel on node-14 is restarted, any controller can land on
+its apiserver again and stall. See the node-14 memory note for the real fix.
 
 ## OIDC client for address-service
 
