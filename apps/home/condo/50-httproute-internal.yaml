@@ -1,3 +1,8 @@
+# TEMPORARY: attached to the wildcard listener, not https-condo-internal.
+# The per-service condo-tls Certificate cannot issue while cert-manager's
+# validating webhook is unreachable (see README), so that listener has no Secret
+# and never programs. wildcard-white-fm-tls already carries a *.internal.white.fm
+# SAN. Flip sectionName back to https-condo-internal once condo-tls goes Ready.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -7,7 +12,7 @@ spec:
   parentRefs:
     - name: main
       namespace: envoy-gateway-system
-      sectionName: https-condo-internal
+      sectionName: https-internal-white-fm
   hostnames:
     - condo.internal.white.fm
   rules:
