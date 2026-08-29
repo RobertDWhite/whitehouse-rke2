@@ -1,0 +1,77 @@
+# Redis for condo sessions, caches and the bull task queues.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: condo
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: condo
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  serviceName: "redis"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
+      containers:
+        - name: redis
+          image: redis
+          args: ["--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 768Mi
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
