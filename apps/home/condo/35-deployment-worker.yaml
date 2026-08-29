@@ -52,6 +52,13 @@ spec:
                 secretKeyRef:
                   name: condo-secrets
                   key: condo-cookie-secret
+            - name: DATA_ENCRYPTION_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: condo-secrets
+                  key: condo-data-encryption-config
+            - name: DATA_ENCRYPTION_VERSION_ID
+              value: "condo_1"
           # The worker runs with DISABLE_NEXT_APP=true, so the health server is
           # the only thing listening here.
           ports:
