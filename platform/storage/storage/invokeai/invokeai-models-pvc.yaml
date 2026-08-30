@@ -1,0 +1,14 @@
+# InvokeAI model store (/invokeai/models). Large and re-downloadable through the
+# built-in model manager, so local-path on node-50 and excluded from Velero.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: invokeai-models
+  namespace: invokeai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 500Gi
