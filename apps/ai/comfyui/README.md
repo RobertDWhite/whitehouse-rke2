@@ -76,27 +76,32 @@ Gated repos (FLUX.1-dev, SD3.5) need an `Authorization: Bearer <hf_token>` heade
 which this seeder does not send. Pull those through ComfyUI-Manager in the UI, or
 add a SOPS secret and extend `seed.py`.
 
-## Authentik SSO — one-time manual step
+## Authentik SSO
 
-ComfyUI has no authentication of its own and can execute custom-node code, so the
-HTTPRoute sends `comfyui.internal.white.fm` to the Authentik embedded outpost rather
-than to the pod. Until the Proxy Provider exists, the hostname will not serve.
+ComfyUI has no authentication of its own, so the HTTPRoute sends
+`comfyui.internal.white.fm` to the Authentik embedded outpost rather than to the pod.
 
-Create it once (see `platform/networking/technitium/bin/setup-authentik-sso.md` for
-the full runbook):
+**This is already provisioned** — Proxy Provider pk `79`, application slug
+`comfyui-sso`, attached to the `authentik Embedded Outpost`. Created via the API,
+not the UI, so it is not in git; if Authentik is ever rebuilt from scratch it has
+to be recreated.
 
-1. Authentik → Applications → Providers → Create → **Proxy Provider**
-   - Name: `Provider for comfyui SSO`
-   - Mode: **Forward auth (single application)**
-   - External host: `https://comfyui.internal.white.fm`
-   - Internal host: `http://comfyui.comfyui.svc.cluster.local:8188`
-2. Applications → Create → slug `comfyui-sso`, provider as above,
-   launch URL `https://comfyui.internal.white.fm`.
-3. Outposts → **authentik Embedded Outpost** → add the new application.
+Note the mode is **`proxy`** (external_host + internal_host), matching every other
+provider in this cluster — not forward-auth. The outpost terminates the request and
+proxies to `http://comfyui.comfyui.svc.cluster.local:8188`.
 
-ComfyUI's UI is WebSocket-heavy; the outpost proxies WS fine, but note that anything
-calling the ComfyUI HTTP API from outside the cluster will now hit the SSO redirect.
-In-cluster consumers (Open WebUI) talk to the Service directly and are unaffected.
+To recreate:
+
+```
+POST /api/v3/providers/proxy/   name="Provider for ComfyUI", mode=proxy,
+                                external_host=https://comfyui.internal.white.fm,
+                                internal_host=http://comfyui.comfyui.svc.cluster.local:8188
+POST /api/v3/core/applications/ slug=comfyui-sso, provider=<pk>
+PATCH /api/v3/outposts/instances/<embedded>/  providers=[... , <pk>]
+```
+
+Copy `authorization_flow`, `invalidation_flow` and `property_mappings` from any
+existing proxy provider.
 
 ## Consumers
 

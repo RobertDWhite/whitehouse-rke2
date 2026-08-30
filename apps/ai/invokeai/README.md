@@ -69,20 +69,32 @@ Gated repos (FLUX.1-dev, SD3.5) need a HuggingFace token — InvokeAI takes one 
 Models → Settings, or via a `HF_TOKEN` env var if you would rather add a SOPS
 secret to this namespace.
 
-## Authentik SSO — one-time manual step
+## Authentik SSO
 
-InvokeAI has no authentication enabled by default, so the HTTPRoute sends
-`invokeai.internal.white.fm` to the Authentik embedded outpost rather than to the
-pod. Until the Proxy Provider exists, the hostname will not serve.
+InvokeAI has no authentication of its own, so the HTTPRoute sends
+`invokeai.internal.white.fm` to the Authentik embedded outpost rather than to the pod.
 
-1. Authentik → Applications → Providers → Create → **Proxy Provider**
-   - Name: `Provider for invokeai SSO`
-   - Mode: **Forward auth (single application)**
-   - External host: `https://invokeai.internal.white.fm`
-   - Internal host: `http://invokeai.invokeai.svc.cluster.local:9090`
-2. Applications → Create → slug `invokeai-sso`, provider as above,
-   launch URL `https://invokeai.internal.white.fm`.
-3. Outposts → **authentik Embedded Outpost** → add the new application.
+**This is already provisioned** — Proxy Provider pk `80`, application slug
+`invokeai-sso`, attached to the `authentik Embedded Outpost`. Created via the API,
+not the UI, so it is not in git; if Authentik is ever rebuilt from scratch it has
+to be recreated.
+
+Note the mode is **`proxy`** (external_host + internal_host), matching every other
+provider in this cluster — not forward-auth. The outpost terminates the request and
+proxies to `http://invokeai.invokeai.svc.cluster.local:9090`.
+
+To recreate:
+
+```
+POST /api/v3/providers/proxy/   name="Provider for InvokeAI", mode=proxy,
+                                external_host=https://invokeai.internal.white.fm,
+                                internal_host=http://invokeai.invokeai.svc.cluster.local:9090
+POST /api/v3/core/applications/ slug=invokeai-sso, provider=<pk>
+PATCH /api/v3/outposts/instances/<embedded>/  providers=[... , <pk>]
+```
+
+Copy `authorization_flow`, `invalidation_flow` and `property_mappings` from any
+existing proxy provider.
 
 ## Open WebUI
 
