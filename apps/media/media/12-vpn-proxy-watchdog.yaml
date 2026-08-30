@@ -1,6 +1,15 @@
 # Belt-and-suspenders: liveness probe should catch a wedged Tinyproxy in 3min,
 # but if the probe itself hangs or the pod can't restart cleanly, this CronJob
 # tests the proxy from outside the pod and forces a rollout-restart.
+#
+# It must not restart a pod that is merely still starting. vpn-proxy's
+# startupProbe allows 30 x 10s = 300s for the OpenVPN tunnel to come up, while
+# this CronJob runs every 180s -- so the original version killed slow-starting
+# pods before their own startup budget had expired, and the replacement then
+# started from zero and was killed again on the next tick. That loop produced
+# ten rollouts in two hours on 2026-08-29 and kept DNS recursion (and with it
+# the cloudflared tunnel, and every public hostname) down the whole time.
+# Hence the grace period and the cooldown below.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -17,6 +26,12 @@ rules:
     resources: [deployments]
     resourceNames: [vpn-proxy]
     verbs: [get, patch]
+  # Pod age is what tells the watchdog whether vpn-proxy is wedged or merely
+  # still starting. resourceNames can't scope a list, so this is namespace-wide
+  # read-only on pods.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -97,15 +112,48 @@ spec:
               args:
                 - |
                   import datetime, json, ssl, sys, time, urllib.request
-                  PROXY = "http://vpn-proxy.media.svc.cluster.local:8888"
+
+                  PROXY  = "http://vpn-proxy.media.svc.cluster.local:8888"
+                  NS     = "media"
+                  DEPLOY = "vpn-proxy"
+                  ANNOT  = "watchdog.media/restartedAt"
+
+                  # vpn-proxy's startupProbe budget is 30 x 10s = 300s. Restarting inside
+                  # that window kills a pod that was still bringing its tunnel up, and the
+                  # replacement inherits the same deadline — a loop, not a repair.
+                  GRACE_SECONDS    = 420
+                  # A restart cannot fix an upstream PIA outage or a stuck volume mount.
+                  # After one attempt, back off and let the failed Job be the alert.
+                  COOLDOWN_SECONDS = 1800
+
+                  API   = "https://kubernetes.default.svc"
+                  TOKEN = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read()
+                  CTX   = ssl.create_default_context(
+                      cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+
+                  def api(path, data=None, method="GET"):
+                      headers = {"Authorization": f"Bearer {TOKEN}"}
+                      if data is not None:
+                          headers["Content-Type"] = "application/strategic-merge-patch+json"
+                      req = urllib.request.Request(API + path, data=data, method=method,
+                                                   headers=headers)
+                      with urllib.request.urlopen(req, context=CTX, timeout=15) as r:
+                          return r.status, json.loads(r.read() or b"{}")
 
                   def probe():
                       try:
-                          op = urllib.request.build_opener(urllib.request.ProxyHandler({"https": PROXY}))
+                          op = urllib.request.build_opener(
+                              urllib.request.ProxyHandler({"https": PROXY}))
                           r = op.open("https://www.google.com/generate_204", timeout=8)
                           return r.status == 204
                       except Exception:
                           return False
+
+                  def age(ts):
+                      if not ts:
+                          return None
+                      t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                      return (datetime.datetime.now(datetime.timezone.utc) - t).total_seconds()
 
                   ok = fail = 0
                   for i in range(3):
@@ -113,23 +161,37 @@ spec:
                       else:       fail += 1
                       if i < 2:   time.sleep(5)
                   print(f"watchdog: ok={ok} fail={fail}", flush=True)
-                  if fail < 2: sys.exit(0)
+                  if fail < 2:
+                      sys.exit(0)
 
-                  print("watchdog: 2+ probes failed — restarting vpn-proxy via k8s API", flush=True)
-                  token = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read()
-                  ctx = ssl.create_default_context(cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
-                  body = json.dumps({"spec":{"template":{"metadata":{"annotations":{
-                      "watchdog.media/restartedAt": datetime.datetime.utcnow().isoformat() + "Z"
+                  # Still starting? Leave it alone — this is the loop the old version had.
+                  _, pods = api(f"/api/v1/namespaces/{NS}/pods?labelSelector=app%3Dvpn-proxy")
+                  ages = [a for a in (age(p.get("status", {}).get("startTime"))
+                                      for p in pods.get("items", [])) if a is not None]
+                  if ages and min(ages) < GRACE_SECONDS:
+                      print(f"watchdog: youngest pod is {int(min(ages))}s old, inside the "
+                            f"{GRACE_SECONDS}s startup grace — not restarting", flush=True)
+                      sys.exit(0)
+
+                  # Already restarted recently? Restarting again will not help.
+                  _, dep = api(f"/apis/apps/v1/namespaces/{NS}/deployments/{DEPLOY}")
+                  last = age(dep.get("spec", {}).get("template", {})
+                                .get("metadata", {}).get("annotations", {}).get(ANNOT))
+                  if last is not None and last < COOLDOWN_SECONDS:
+                      print(f"watchdog: last restart was {int(last)}s ago, inside the "
+                            f"{COOLDOWN_SECONDS}s cooldown — proxy still unhealthy, "
+                            "failing this Job so a human sees it", flush=True)
+                      sys.exit(1)
+
+                  print("watchdog: 2+ probes failed and pod is past its grace period — "
+                        "restarting vpn-proxy via k8s API", flush=True)
+                  body = json.dumps({"spec": {"template": {"metadata": {"annotations": {
+                      ANNOT: datetime.datetime.now(datetime.timezone.utc)
+                                 .isoformat().replace("+00:00", "Z")
                   }}}}}).encode()
-                  req = urllib.request.Request(
-                      "https://kubernetes.default.svc/apis/apps/v1/namespaces/media/deployments/vpn-proxy",
-                      data=body, method="PATCH",
-                      headers={
-                          "Authorization": f"Bearer {token}",
-                          "Content-Type": "application/strategic-merge-patch+json",
-                      })
-                  with urllib.request.urlopen(req, context=ctx, timeout=15) as r:
-                      print(f"k8s API: HTTP {r.status} — rollout-restart triggered", flush=True)
+                  status, _ = api(f"/apis/apps/v1/namespaces/{NS}/deployments/{DEPLOY}",
+                                  data=body, method="PATCH")
+                  print(f"k8s API: HTTP {status} — rollout-restart triggered", flush=True)
               resources:
                 requests: {cpu: 10m, memory: 32Mi}
                 limits:   {cpu: 100m, memory: 64Mi}
