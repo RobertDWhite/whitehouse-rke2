@@ -630,6 +630,16 @@ data:
         scrape_interval: 15s
         honor_labels: true
 
+      # InvokeAI — queue depth and reachability from the sidecar exporter in the
+      # invokeai namespace.
+      - job_name: invokeai
+        static_configs:
+          - targets:
+              - invokeai-exporter.invokeai.svc.cluster.local:9403
+        metrics_path: /metrics
+        scrape_interval: 15s
+        honor_labels: true
+
       # Technitium DNS — exporter sidecar in each pod, scraped per-pod via
       # the headless Service so each time series gets a `pod` label
       # (technitium-0/1/2/3) for per-node breakdown in Grafana.

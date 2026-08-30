@@ -408,3 +408,16 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # invokeai.internal.white.fm — default image-generation front door (Authentik SSO)
+    - name: https-invokeai-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "invokeai.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: invokeai-tls
+      allowedRoutes:
+        namespaces:
+          from: All

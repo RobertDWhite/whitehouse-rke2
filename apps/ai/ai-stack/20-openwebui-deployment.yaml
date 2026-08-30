@@ -45,6 +45,14 @@ spec:
             # Image generation runs on ComfyUI (rke2-node-50 / RTX 5090). This
             # replaces the localai-image-proxy backend, which pointed at a Service
             # that does not exist and a localai Deployment scaled to 0.
+            #
+            # InvokeAI is the default front door for humans, but it cannot be the
+            # backend here: Open WebUI only implements openai, gemini, comfyui and
+            # automatic1111 engines, and InvokeAI exposes neither an A1111- nor an
+            # OpenAI-images-compatible API. Pointing this at InvokeAI would need a
+            # translation shim. ComfyUI stays wired so chat-driven image generation
+            # keeps working.
+            #
             # These env vars seed Open WebUI's defaults on a fresh DB only — an
             # existing install also needs Admin Settings -> Images switched over.
             - name: ENABLE_IMAGE_GENERATION
