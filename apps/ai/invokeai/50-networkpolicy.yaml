@@ -1,0 +1,144 @@
+# Hard egress lockdown, same shape as the searxng and comfyui namespaces: every pod
+# here is default-deny egress and may only reach (1) cluster DNS, (2) the media VPN
+# proxy, (3) other pods in this namespace. There is no route to the internet except
+# through the gluetun/PIA tunnel, so every model-manager download egresses from the
+# VPN exit rather than the home IP — and anything that ignores the proxy env vars
+# fails closed at L3 instead of leaking.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: invokeai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-dns-and-vpn-only
+  namespace: invokeai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Cluster DNS — needed to resolve vpn-proxy and external names.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # The only internet egress: the VPN proxy (HTTP CONNECT 8888 / SOCKS5 1080).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: media
+          podSelector:
+            matchLabels:
+              app: vpn-proxy
+      ports:
+        - port: 8888
+          protocol: TCP
+        - port: 1080
+          protocol: TCP
+    # Intra-namespace: the metrics exporter polls the InvokeAI API.
+    - to:
+        - podSelector: {}
+
+---
+# Envoy Gateway → InvokeAI. The gateway hop is Authentik's outpost, not the browser,
+# but it still originates in envoy-gateway-system.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-envoy-gateway
+  namespace: invokeai
+spec:
+  podSelector:
+    matchLabels:
+      app: invokeai
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - port: 9090
+          protocol: TCP
+
+---
+# ai-stack reserved. Open WebUI has no InvokeAI engine (it supports only openai,
+# gemini, comfyui and automatic1111), so nothing uses this today — it is here so a
+# future compatibility shim does not need a policy change.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ai-stack-consumers
+  namespace: invokeai
+spec:
+  podSelector:
+    matchLabels:
+      app: invokeai
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-stack
+      ports:
+        - port: 9090
+          protocol: TCP
+
+---
+# Intra-namespace: exporter → InvokeAI API.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: invokeai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+
+---
+# Prometheus → invokeai-exporter metrics scrape.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: invokeai
+spec:
+  podSelector:
+    matchLabels:
+      app: invokeai-exporter
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - port: 9403
+          protocol: TCP

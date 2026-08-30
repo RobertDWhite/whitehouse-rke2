@@ -1,0 +1,15 @@
+# InvokeAI root minus models: generated outputs, the sqlite databases that hold
+# boards/gallery/queue history, configs and custom nodes. This is the volume worth
+# backing up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: invokeai-data
+  namespace: invokeai
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 100Gi

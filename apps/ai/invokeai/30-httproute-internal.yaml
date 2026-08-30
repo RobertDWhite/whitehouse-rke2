@@ -1,0 +1,26 @@
+# InvokeAI ships no authentication by default and can download and execute model
+# code, so it is internal-only and gated by Authentik. Traffic for
+# invokeai.internal.white.fm goes to the Authentik embedded outpost
+# (authentik-server:80, cross-namespace), which authenticates by Host header and
+# proxies to the upstream set on its Proxy Provider
+# (http://invokeai.invokeai.svc.cluster.local:9090). Same pattern as comfyui/appstore.
+# Requires: the ReferenceGrant in security/authentik/ AND an Authentik Proxy Provider
+# + Application for invokeai.internal.white.fm assigned to the embedded outpost —
+# see README.md in this directory. Listener + cert live in envoy-gateway/.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: invokeai-internal
+  namespace: invokeai
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-invokeai-internal
+  hostnames:
+    - invokeai.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: authentik-server
+          namespace: authentik
+          port: 80

@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: invokeai-exporter
+  namespace: invokeai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: invokeai-exporter
+  template:
+    metadata:
+      labels:
+        app: invokeai-exporter
+    spec:
+      containers:
+        - name: exporter
+          image: python
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/app/exporter.py"]
+          ports:
+            - containerPort: 9403
+          env:
+            - name: POLL_INTERVAL
+              value: "15"
+            - name: LISTEN_PORT
+              value: "9403"
+            - name: INVOKEAI_URL
+              value: "http://invokeai.invokeai.svc.cluster.local:9090"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9403
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9403
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: script
+              mountPath: /app
+      volumes:
+        - name: script
+          configMap:
+            name: invokeai-exporter-script
