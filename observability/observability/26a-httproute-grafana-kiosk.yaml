@@ -1,0 +1,32 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-kiosk-internal
+  namespace: observability
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - grafana-kiosk.internal.white.fm
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-authentik-username
+                value: kiosk
+              - name: X-authentik-name
+                value: Kiosk Display
+              - name: X-authentik-email
+                value: kiosk@white.fm
+            remove:
+              - X-authentik-groups
+      backendRefs:
+        - name: grafana
+          port: 3000
