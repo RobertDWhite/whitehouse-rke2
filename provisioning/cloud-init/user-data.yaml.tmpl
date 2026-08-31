@@ -1,0 +1,63 @@
+#cloud-config
+# Rendered by provisioning/render.sh — do not edit the output, edit this template.
+hostname: ${NODE_HOSTNAME}
+fqdn: ${NODE_HOSTNAME}.internal.white.fm
+prefer_fqdn_over_hostname: false
+
+users:
+  # Username and full name come from cloud-init/secrets.sops.env (ADMIN_USER,
+  # ADMIN_GECOS) — decrypted in-memory by render.sh, never committed in plaintext.
+  - name: ${ADMIN_USER}
+    gecos: ${ADMIN_GECOS}
+    groups: [adm, sudo]
+    # Passwordless sudo on purpose: node recovery previously required
+    # privileged nsenter pods because SSH access had no sudo.
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${SSH_PUBKEY}
+
+ssh_pwauth: false
+
+# Consume however large the VMDK is at first boot (explicit, though these
+# are cloud-init defaults). The disk arrives already sized to DISK_GB —
+# deploy.sh imports an OVA pre-baked to that capacity (make-ova.sh).
+growpart:
+  mode: auto
+  devices: ["/"]
+  ignore_growroot_disabled: false
+resize_rootfs: true
+
+package_update: true
+packages:
+  - open-vm-tools
+  - nfs-common
+  - open-iscsi   # required by Longhorn
+  - curl
+
+# VMware clock skew has previously future-dated rke2 certs and broken nodes.
+ntp:
+  enabled: true
+  servers:
+    - time.apple.com
+    - 0.pool.ntp.org
+    - 1.pool.ntp.org
+
+timezone: America/New_York
+
+write_files:
+  - path: /etc/rancher/rke2/config.yaml
+    permissions: "0600"
+    owner: root:root
+    content: |
+      server: ${RKE2_SERVER_URL}
+      token: ${RKE2_TOKEN}
+      node-ip: ${NODE_IP}
+
+runcmd:
+  - systemctl enable --now iscsid
+  - curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE=${RKE2_TYPE} sh -
+  - systemctl enable --now rke2-${RKE2_TYPE}.service
+
+final_message: "cloud-init done: ${NODE_HOSTNAME} (${NODE_IP}) up after $UPTIME seconds"
