@@ -1,0 +1,14 @@
+# NoCloud network-config (v2 / netplan). Rendered per-node by render.sh.
+version: 2
+ethernets:
+  ${NODE_IFACE}:
+    dhcp4: false
+    addresses:
+      - ${NODE_IP}/${NODE_PREFIX}
+    routes:
+      - to: default
+        via: ${NODE_GATEWAY}
+    nameservers:
+      # Internal DNS only — never add a public fallback here.
+      addresses: [10.99.5.50, 10.99.5.51]
+      search: [internal.white.fm]
