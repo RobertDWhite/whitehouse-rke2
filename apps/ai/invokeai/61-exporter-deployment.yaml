@@ -6,12 +6,19 @@ metadata:
 spec:
   replicas: 1
   selector:
+    # Spelled out in full: the `labels` transformer no longer writes selectors, and a
+    # Deployment selector is immutable — this must keep matching the live object.
     matchLabels:
       app: invokeai-exporter
+      app.kubernetes.io/part-of: invokeai
+      managed-by: argocd
   template:
     metadata:
       labels:
+        # Must carry every key the immutable selector above matches on.
         app: invokeai-exporter
+        app.kubernetes.io/part-of: invokeai
+        managed-by: argocd
     spec:
       containers:
         - name: exporter
