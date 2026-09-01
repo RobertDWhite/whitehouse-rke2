@@ -17,12 +17,19 @@ spec:
     # RWO volumes on one node — the old pod must release them before the new one binds.
     type: Recreate
   selector:
+    # Spelled out in full: the `labels` transformer no longer writes selectors, and a
+    # Deployment selector is immutable — this must keep matching the live object.
     matchLabels:
       app: comfyui
+      app.kubernetes.io/part-of: comfyui
+      managed-by: argocd
   template:
     metadata:
       labels:
+        # Must carry every key the immutable selector above matches on.
         app: comfyui
+        app.kubernetes.io/part-of: comfyui
+        managed-by: argocd
       annotations:
         # Model weights and the venv/source tree are re-downloadable; only /basedir
         # (output, workflows, user settings) is worth a kopia backup.
@@ -54,6 +61,38 @@ spec:
         # local-path is hostPath-backed so fsGroup is a no-op today, but this keeps
         # a 500Gi recursive chown off the startup path if these ever move to Longhorn.
         fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        # local-path is hostPath-backed, so the fsGroup above never lands and these
+        # volumes arrive owned by root:root. The entrypoint refuses to start on that
+        # ("Directory /comfy/mnt owned by unexpected user/group ... actual 0:0") and
+        # exits before it ever binds :8188, which surfaces as a 502 at the gateway.
+        # Chown the three mount roots only — non-recursive, so a 500Gi models volume
+        # is never walked on startup (the seed job already chowns what it downloads).
+        - name: fix-volume-ownership
+          image: busybox
+          securityContext:
+            runAsUser: 0
+          command:
+            - sh
+            - -c
+            - |
+              for d in /comfy/mnt /basedir /basedir/models; do
+                [ "$(stat -c '%u:%g' "$d")" = "1024:1024" ] || chown 1024:1024 "$d"
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          volumeMounts:
+            - name: run
+              mountPath: /comfy/mnt
+            - name: data
+              mountPath: /basedir
+            - name: models
+              mountPath: /basedir/models
       containers:
         - name: comfyui
           image: mmartial/comfyui-nvidia-docker
