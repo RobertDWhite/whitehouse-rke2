@@ -6,12 +6,19 @@ metadata:
 spec:
   replicas: 1
   selector:
+    # Full label set for the same reason as 10-deployment.yaml: selectors are now
+    # hand-written and immutable once created.
     matchLabels:
       app: comfyui-exporter
+      app.kubernetes.io/part-of: comfyui
+      managed-by: argocd
   template:
     metadata:
       labels:
+        # Must carry every key the immutable selector above matches on.
         app: comfyui-exporter
+        app.kubernetes.io/part-of: comfyui
+        managed-by: argocd
     spec:
       containers:
         - name: exporter

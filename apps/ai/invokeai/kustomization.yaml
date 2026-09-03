@@ -12,9 +12,18 @@ resources:
   - 61-exporter-deployment.yaml
   - 62-exporter-service.yaml
 
-commonLabels:
-  managed-by: argocd
-  app.kubernetes.io/part-of: invokeai
+# NOT commonLabels. That transformer also rewrites NetworkPolicy *peer* selectors,
+# so it silently appended these two labels to the kube-dns and vpn-proxy podSelectors
+# in 50-networkpolicy.yaml. Nothing in kube-system or media carries them, so every
+# DNS and proxy egress rule matched zero pods and fell through to default-deny —
+# InvokeAI came up but every outbound call died on "Temporary failure in name
+# resolution". With includeSelectors:false the transformer only stamps
+# metadata.labels, so selectors and pod-template labels are written by hand below.
+labels:
+  - pairs:
+      managed-by: argocd
+      app.kubernetes.io/part-of: invokeai
+    includeSelectors: false
 
 images:
   # -cuda variant; the 5090 needs a cu128+ torch, which the 6.x images ship.

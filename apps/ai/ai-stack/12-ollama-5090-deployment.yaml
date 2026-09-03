@@ -70,6 +70,13 @@ spec:
             # 4k default -> 32k so this backend is a usable Hermes fallback (fits 5090 32GB, num_parallel=1)
             - name: OLLAMA_CONTEXT_LENGTH
               value: "32768"
+            # This PVC has no Longhorn replica on node-50 (node-50 has only
+            # ~47GB of Longhorn disk free, too little for a 100Gi replica), so
+            # every read crosses to node-14 on another subnet at ~32 MB/s.
+            # A 17GB model therefore needs ~9 min to load, past the 5m default.
+            # KEEP_ALIVE=2h means this cold-load cost is paid rarely.
+            - name: OLLAMA_LOAD_TIMEOUT
+              value: "20m"
           resources:
             requests:
               cpu: "1"
