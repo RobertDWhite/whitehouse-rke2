@@ -31,8 +31,12 @@ data:
           proxy_next_upstream error timeout http_502 http_503 http_504;
           proxy_next_upstream_tries 2;
           proxy_connect_timeout  5s;
-          proxy_read_timeout    300s;
-          proxy_send_timeout    300s;
+          # A cold qwen3.8:27b load takes ~9 min on the 5090 and ~5 min on the
+          # Spark (both PVCs read over the network from the node-14 replica at
+          # 32-57 MB/s), so 300s would fail the first request after any restart
+          # before ollama ever finished loading. 900s covers the cold load.
+          proxy_read_timeout    900s;
+          proxy_send_timeout    900s;
           proxy_set_header Host $host;
           proxy_set_header X-Real-IP $remote_addr;
           proxy_buffering    off;

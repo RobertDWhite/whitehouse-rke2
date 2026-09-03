@@ -14,9 +14,18 @@ resources:
   - 70-model-seed-configmap.yaml
   - 71-model-seed-job.yaml
 
-commonLabels:
-  managed-by: argocd
-  app.kubernetes.io/part-of: comfyui
+# NOT commonLabels. That transformer also rewrites NetworkPolicy *peer* selectors,
+# so it silently appended these two labels to the kube-dns and vpn-proxy podSelectors
+# in 50-networkpolicy.yaml. Nothing in kube-system or media carries them, so every
+# DNS and proxy egress rule matched zero pods and fell through to default-deny —
+# ComfyUI crash-looped on "Could not resolve proxy". With includeSelectors:false the
+# transformer only stamps metadata.labels, so every selector and pod-template label
+# below is written out by hand instead.
+labels:
+  - pairs:
+      managed-by: argocd
+      app.kubernetes.io/part-of: comfyui
+    includeSelectors: false
 
 images:
   # ubuntu24_cuda12.8 = first CUDA line with Blackwell sm_120 support, so the
@@ -26,3 +35,6 @@ images:
 
   - name: python
     newTag: "3.14-alpine"
+
+  - name: busybox
+    newTag: "1.38"
