@@ -61,6 +61,16 @@ spec:
             # in /opt/data/auth.json. OPENAI_* is intentionally left unset so the
             # openai-codex (ChatGPT) fallback reads its token from the codex-token
             # secret below, and the Ollama fallback uses the base_url in config.yaml.
+            #
+            # Local inference deliberately points at ollama.ai-stack (the GB10
+            # Spark) DIRECTLY, not ollama-router, and stays on llama3.1:8b.
+            # Measured on the Spark: llama3.1:8b does 183 tok/s prompt eval vs
+            # 22 tok/s for qwen3.8:27b, and hermes sends large agent prompts, so
+            # prompt eval dominates its latency. Routing via ollama-router would
+            # land on the 5090, where MAX_LOADED_MODELS=1 and ~34GB of combined
+            # weights (vs 32.6GB VRAM) make it evict qwen3.8 on every call -- and
+            # a reload there costs ~9 min off the 32 MB/s PVC. Keeping hermes on
+            # the Spark leaves the 5090 dedicated to qwen3.8 for the batch jobs.
             - name: MATRIX_HOMESERVER
               value: https://matrix.white.fm
             - name: MATRIX_USER_ID
