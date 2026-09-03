@@ -70,6 +70,12 @@ spec:
             # parallelism (politics fires ~25 concurrent summary calls) without OOM.
             - name: OLLAMA_CONTEXT_LENGTH
               value: "16384"
+            # This PVC's only running Longhorn replica is on node-14, so reads
+            # cross the network at ~57 MB/s even though the pod runs on node-10.
+            # A 17GB model takes ~5 min to load, right at the 5m default, which
+            # fails intermittently. KEEP_ALIVE=2h amortises the cold load.
+            - name: OLLAMA_LOAD_TIMEOUT
+              value: "20m"
           resources:
             requests:
               cpu: "1"
