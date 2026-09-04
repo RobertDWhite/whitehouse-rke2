@@ -111,3 +111,27 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: uptime-kuma
+
+---
+# Politics daily digest → Synapse client API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-politics-digest-to-synapse
+  namespace: matrix
+spec:
+  podSelector:
+    matchLabels:
+      app: synapse
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: politics
+          podSelector:
+            matchLabels:
+              app: politics-matrix-digest
+      ports:
+        - protocol: TCP
+          port: 8008
