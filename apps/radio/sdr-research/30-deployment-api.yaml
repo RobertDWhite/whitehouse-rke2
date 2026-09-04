@@ -70,6 +70,10 @@ spec:
             - name: INDEX_INITIAL_LOOKBACK_SECONDS
               # Scan only last 24h on startup; older files already indexed
               value: "86400"
+            # A table copy/partition migration is maintenance-window work,
+            # never an implicit side effect of restarting the API.
+            - name: ENABLE_RECORDINGS_PARTITIONING
+              value: "false"
             - name: SDR_POD_HEALTH_FALLBACK
               value: "true"
             - name: HAMDB_ENABLED
