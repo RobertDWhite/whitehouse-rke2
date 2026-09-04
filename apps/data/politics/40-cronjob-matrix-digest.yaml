@@ -39,16 +39,13 @@ spec:
                 - |
                   import json
                   import os
-                  import urllib.parse
                   import urllib.request
 
                   API = "http://politics-api.politics.svc.cluster.local:8000"
-                  MATRIX = "http://synapse.matrix.svc.cluster.local:8008"
+                  HOOKSHOT = "http://matrix-hookshot.matrix.svc.cluster.local:9000/webhook/" + os.environ["MATRIX_WEBHOOK_UUID"]
 
-                  def request(method, url, body=None, token=None):
+                  def request(method, url, body=None):
                       headers = {"Content-Type": "application/json"}
-                      if token:
-                          headers["Authorization"] = f"Bearer {token}"
                       data = None if body is None else json.dumps(body).encode()
                       req = urllib.request.Request(url, method=method, headers=headers, data=data)
                       with urllib.request.urlopen(req, timeout=600) as response:
@@ -61,35 +58,17 @@ spec:
                   if not text:
                       raise RuntimeError("Politics API returned an empty AI digest")
 
-                  login = request("POST", f"{MATRIX}/_matrix/client/v3/login", {
-                      "type": "m.login.password",
-                      "identifier": {"type": "m.id.user", "user": os.environ["MATRIX_USER"]},
-                      "password": os.environ["MATRIX_PASSWORD"],
-                  })
-                  room = urllib.parse.quote(os.environ["MATRIX_ROOM_ID"], safe="")
-                  txn = urllib.parse.quote(f"politics-digest-{digest.get('updated_at', 'daily')}", safe="")
                   request(
-                      "PUT",
-                      f"{MATRIX}/_matrix/client/v3/rooms/{room}/send/m.room.message/{txn}",
-                      {"msgtype": "m.text", "body": "Politics daily AI summary\n\n" + text},
-                      login["access_token"],
+                      "POST",
+                      HOOKSHOT,
+                      {"text": "Politics daily AI summary\n\n" + text},
                   )
               env:
-                - name: MATRIX_USER
+                - name: MATRIX_WEBHOOK_UUID
                   valueFrom:
                     secretKeyRef:
                       name: politics-secret
-                      key: matrix-user
-                - name: MATRIX_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: politics-secret
-                      key: matrix-password
-                - name: MATRIX_ROOM_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: politics-secret
-                      key: matrix-room-id
+                      key: matrix-webhook-uuid
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true

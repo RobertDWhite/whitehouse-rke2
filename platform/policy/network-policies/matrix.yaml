@@ -113,16 +113,16 @@ spec:
               kubernetes.io/metadata.name: uptime-kuma
 
 ---
-# Politics daily digest → Synapse client API
+# Politics daily digest → Hookshot encrypted-room webhook
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-politics-digest-to-synapse
+  name: allow-politics-digest-to-hookshot
   namespace: matrix
 spec:
   podSelector:
     matchLabels:
-      app: synapse
+      app: matrix-hookshot
   policyTypes: [Ingress]
   ingress:
     - from:
@@ -134,4 +134,4 @@ spec:
               app: politics-matrix-digest
       ports:
         - protocol: TCP
-          port: 8008
+          port: 9000
