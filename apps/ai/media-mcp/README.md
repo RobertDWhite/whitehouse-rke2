@@ -26,7 +26,8 @@ watching).
 | Bazarr   | `bazarr.media…:6767`                              | `bazarr_status`, `bazarr_wanted`, `bazarr_providers` |
 | Plex     | `PLEX_URL` (`:32400`)                             | `plex_sessions`, `plex_libraries`, `plex_recently_added`, `plex_search`, `plex_scan_library` |
 | Tautulli | `tautulli.tautulli…:8181`                         | `tautulli_activity`, `tautulli_history`, `tautulli_home_stats`, `tautulli_recently_added` |
-| **join** | —                                                | `media_overview` — health + queue depth across every *arr, Plex now-playing, Tautulli stream count |
+| FileBot  | Synology Docker via SSH                           | `filebot_version`, `filebot_preview`, `filebot_rename`, `filebot_get_subtitles`, `filebot_mediainfo` |
+| **join** | —                                                | `media_overview` — health + queue depth across every *arr, FileBot version, Plex now-playing, Tautulli stream count |
 
 Notes:
 - **Read + write** for Radarr/Sonarr (add, delete, force-search) and Plex
@@ -35,10 +36,9 @@ Notes:
   author/book dance, intentionally omitted. Force a grab from Readarr's UI.
 - **Bazarr** is read-only here (status / wanted / providers). It already
   auto-searches subtitles; its write API is version-fragile.
-- **FileBot** is deliberately *not* included: it has no REST API (it's a
-  licensed CLI that renames files on disk), so it doesn't fit this HTTP-wrapper
-  pattern. The *arrs already auto-rename on import. Revisit only if you want a
-  CLI-in-container with the media NFS mounted.
+- **FileBot** is reached over SSH because it is a CLI in a Docker container on
+  the Synology NAS. The tools only construct `docker exec` invocations for the
+  supported FileBot operations; arbitrary shell commands are not exposed.
 
 ## One-time setup (you do this)
 
@@ -59,6 +59,35 @@ You only need to add Plex:
    `technitium/35-zones-secret.sops.yaml` pointing at the gateway IP (same as
    `monica-mcp.internal.white.fm`).
 4. Commit + push; ArgoCD syncs the `media-mcp` Application.
+
+### FileBot on Synology
+
+The FileBot tools are disabled until the following configuration is present.
+The path values are the paths *inside the FileBot container*, not the
+Synology host paths.
+
+1. Enable SSH on Synology and create/use a key-authenticated user which can
+   run `docker exec` for the existing FileBot container. Ensure the container
+   is running and has the media paths mounted, for example `/downloads`,
+   `/movies`, and `/tv`.
+2. Pin the Synology host key with `ssh-keyscan` performed from a trusted host,
+   and add the resulting OpenSSH known-hosts line to `FILEBOT_SSH_KNOWN_HOSTS`.
+3. Add the private key and known-hosts line to the encrypted secret:
+
+   ```sh
+   sops media-mcp/11-secret.sops.yaml
+   # FILEBOT_SSH_PRIVATE_KEY -> the private key for the Synology SSH user
+   # FILEBOT_SSH_KNOWN_HOSTS -> the pinned Synology host-key line
+   # FILEBOT_SSH_KEY_PASSPHRASE -> optional, if the key is encrypted
+   ```
+
+4. Set `FILEBOT_SSH_HOST`, `FILEBOT_SSH_USER`, `FILEBOT_CONTAINER`, and
+   `FILEBOT_ALLOWED_PATHS` in `20-deployment.yaml` to match the NAS and the
+   FileBot container's volume mounts.
+
+`filebot_preview` always runs with `--action test`; review its output before
+calling `filebot_rename` with a mutating action. The server rejects paths
+outside `FILEBOT_ALLOWED_PATHS`.
 
 ## Registering it with Claude
 
