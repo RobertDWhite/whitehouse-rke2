@@ -47,6 +47,42 @@ spec:
               value: "http://tautulli.tautulli.svc.cluster.local:8181"
             - name: LAZYLIBRARIAN_URL
               value: "http://lazylibrarian.calibre.svc.cluster.local:80"
+            # FileBot runs in Docker on the Synology NAS. The MCP reaches it
+            # over SSH and invokes the fixed FileBot CLI via docker exec.
+            # Leave FILEBOT_SSH_HOST empty until the NAS SSH details and
+            # encrypted secret fields below have been configured.
+            - name: FILEBOT_SSH_HOST
+              value: ""
+            - name: FILEBOT_SSH_PORT
+              value: "22"
+            - name: FILEBOT_SSH_USER
+              value: ""
+            - name: FILEBOT_CONTAINER
+              value: "filebot"
+            - name: FILEBOT_DOCKER_BIN
+              value: "docker"
+            - name: FILEBOT_COMMAND
+              value: "filebot"
+            - name: FILEBOT_ALLOWED_PATHS
+              value: "/downloads,/movies,/tv,/music"
+            - name: FILEBOT_SSH_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-mcp-env
+                  key: FILEBOT_SSH_PRIVATE_KEY
+                  optional: true
+            - name: FILEBOT_SSH_KEY_PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  name: media-mcp-env
+                  key: FILEBOT_SSH_KEY_PASSPHRASE
+                  optional: true
+            - name: FILEBOT_SSH_KNOWN_HOSTS
+              valueFrom:
+                secretKeyRef:
+                  name: media-mcp-env
+                  key: FILEBOT_SSH_KNOWN_HOSTS
+                  optional: true
             - name: MCP_TOKEN
               valueFrom: { secretKeyRef: { name: media-mcp-env, key: MCP_TOKEN } }
             - name: RADARR_KEY
