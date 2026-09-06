@@ -56,20 +56,35 @@ spec:
               value: "1"
             - name: OLLAMA_KEEP_ALIVE
               value: "2h"
+            # Dropped 4 -> 2 to part-pay for the much larger context below.
+            # Total KV cache is context x parallel: 65536x2 = 131072 vs the old
+            # 16384x4 = 65536, so this is 2x the previous KV budget (llama3.1:8b
+            # measured 13GB at the old budget, so expect ~21GB — fine against the
+            # 80Gi limit; the pod idles around 10GB). politics' ~25 concurrent
+            # summary calls now queue 2-wide instead of 4-wide.
             - name: OLLAMA_NUM_PARALLEL
-              value: "4"
+              value: "2"
             # node-10 GB10 has ~80Gi available unified memory — hold several
             # models at once so heavy consumers (sdr-viewer-api → deepseek-r1:14b)
             # don't pin the single slot and starve politics' llama3.2:3b.
-            # Context is capped at 16384, so 3 models stay well under the limit.
             - name: OLLAMA_MAX_LOADED_MODELS
               value: "3"
             # GB10 is a unified-memory iGPU, so KV cache counts against the
             # container cgroup limit. ollama 0.24 defaults to a 256K VRAM-based
-            # context which, x4 parallel, OOMs the pod. Cap context so we keep
-            # parallelism (politics fires ~25 concurrent summary calls) without OOM.
+            # context which OOMs the pod, so context stays explicitly capped.
+            # Raised 16384 -> 65536 (llama3.1 supports 131072 natively).
+            # Hermes defers MCP tools behind a tool_search/tool_call bridge when
+            # their schemas exceed tools.tool_search.threshold_pct (10%) of the
+            # model's context. At 16384 that threshold is only ~1638 tokens, so
+            # the bridge always engaged — and llama3.1:8b cannot reliably emit a
+            # nested tool_call(name, arguments), so it printed malformed JSON as
+            # text instead of invoking. The bridge is now disabled in Hermes'
+            # config.yaml, which puts every MCP schema back in the prompt:
+            # ~13.5k tokens of core tools + ~14k of MCP tools = ~28k for tools
+            # alone, so the window must be well above that to leave room for
+            # conversation. 32768 was measured as too tight.
             - name: OLLAMA_CONTEXT_LENGTH
-              value: "16384"
+              value: "65536"
             # This PVC's only running Longhorn replica is on node-14, so reads
             # cross the network at ~57 MB/s even though the pod runs on node-10.
             # A 17GB model takes ~5 min to load, right at the 5m default, which
