@@ -56,14 +56,14 @@ spec:
               value: "1"
             - name: OLLAMA_KEEP_ALIVE
               value: "2h"
-            # Dropped 4 -> 2 to part-pay for the much larger context below.
-            # Total KV cache is context x parallel: 65536x2 = 131072 vs the old
-            # 16384x4 = 65536, so this is 2x the previous KV budget (llama3.1:8b
-            # measured 13GB at the old budget, so expect ~21GB — fine against the
-            # 80Gi limit; the pod idles around 10GB). politics' ~25 concurrent
-            # summary calls now queue 2-wide instead of 4-wide.
+            # Dropped to 1 to pay for the full 131072 context below. KV cache
+            # is context x parallel, so 131072x1 is the SAME 131072 budget as the
+            # previous 65536x2 — no extra unified memory (llama3.1:8b measured
+            # 22GB at this budget via ollama ps, against the 80Gi limit).
+            # Trade-off: requests to this instance now serialise, so politics'
+            # ~25 concurrent summary calls queue rather than run 2-wide.
             - name: OLLAMA_NUM_PARALLEL
-              value: "2"
+              value: "1"
             # node-10 GB10 has ~80Gi available unified memory — hold several
             # models at once so heavy consumers (sdr-viewer-api → deepseek-r1:14b)
             # don't pin the single slot and starve politics' llama3.2:3b.
@@ -82,9 +82,14 @@ spec:
             # config.yaml, which puts every MCP schema back in the prompt:
             # ~13.5k tokens of core tools + ~14k of MCP tools = ~28k for tools
             # alone, so the window must be well above that to leave room for
-            # conversation. 32768 was measured as too tight.
+            # conversation. Measured in production: Hermes assembles a 68,922
+            # token prompt, so 65536 still forced per-turn context compaction
+            # ("Preflight compression: ~68,922 tokens >= 65,536 threshold"),
+            # which summarised away the user's actual question and produced
+            # vague non-answers. 131072 is llama3.1's native maximum and leaves
+            # ~62k of headroom above the tool array.
             - name: OLLAMA_CONTEXT_LENGTH
-              value: "65536"
+              value: "131072"
             # This PVC's only running Longhorn replica is on node-14, so reads
             # cross the network at ~57 MB/s even though the pod runs on node-10.
             # A 17GB model takes ~5 min to load, right at the 5m default, which
