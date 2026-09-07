@@ -34,6 +34,11 @@ spec:
                 # itself or they get copied wholesale.
                 case "$name" in
                   '@eaDir'|'#recycle'|'@tmp'|'lost+found') continue ;;
+                  # PhotoMaster/Immich is Immich's OWN upload tree (~1.47 TiB).
+                  # It is copied separately to immich-upload-longhorn, and every
+                  # external library excludes it via **/Immich/**, so copying it
+                  # here would duplicate 1.47 TB for nothing.
+                  'Immich') continue ;;
                 esac
                 rsync --archive --hard-links --numeric-ids --partial --update \
                   $EXCL "$d" "/destination/$name/" &
