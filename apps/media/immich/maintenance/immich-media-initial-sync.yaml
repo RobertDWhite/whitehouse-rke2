@@ -11,6 +11,15 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      # The RWX share manager for the new media claim runs on node 14. Keeping
+      # this bulk copy beside it avoids an unnecessary CNI hop for every write.
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
