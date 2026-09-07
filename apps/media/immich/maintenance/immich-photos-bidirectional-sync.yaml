@@ -20,14 +20,12 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          nodeSelector:
-            kubernetes.io/hostname: rke2-node-11
           securityContext:
             fsGroup: 1000
             fsGroupChangePolicy: OnRootMismatch
           containers:
             - name: rsync
-              image: alpine:3.22
+              image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
               command: [sh, -ec]
               args:
                 - |
