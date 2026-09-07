@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-media-final-sync-20260907
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-media-migration
+    app.kubernetes.io/component: final-sync
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: OnFailure
+      # Run beside the RWX share manager and tolerate node 14's control-plane
+      # taint. This only runs after Immich writers have been quiesced.
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: rsync
+          image: alpine:3.22
+          command: [sh, -ec]
+          args:
+            - |
+              apk add --no-cache rsync
+              rsync --archive --hard-links --numeric-ids --delete --partial \
+                --human-readable /source/ /destination/
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: destination
+              mountPath: /destination
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: source
+          persistentVolumeClaim:
+            claimName: immich-upload
+        - name: destination
+          persistentVolumeClaim:
+            claimName: immich-upload-longhorn
