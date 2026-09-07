@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/name: immich-photos-migration
     app.kubernetes.io/component: bidirectional-sync
 spec:
+  # Suspended until immich-photos-initial-sync completes. This job performs the
+  # same Synology -> Longhorn copy, so running it during the initial 8.2 TB
+  # seed would duplicate that work and contend for the same NAS read path.
+  # Flip to false once the initial copy reports succeeded.
+  suspend: true
   # A full stat pass over ~8.2 TB is expensive on the NAS; every 6 hours keeps
   # the two copies close without hammering it.
   schedule: "17 */6 * * *"
