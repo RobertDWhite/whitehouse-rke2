@@ -57,10 +57,12 @@ spec:
             periodSeconds: 20
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
+              cpu: 500m
               memory: 2Gi
+            limits:
+              # VectorChord needs temporary working memory while it builds
+              # Immich's large vector indexes during a restore.
+              memory: 8Gi
   volumeClaimTemplates:
     - metadata:
         name: data
