@@ -31,7 +31,12 @@ spec:
           args:
             - |
               apk add --no-cache rsync
+              # --delete makes this the authoritative reconciliation, so the
+              # destination's own ext4 lost+found must be excluded: it does not
+              # exist on the NFS source, it is root-owned, and rsync failing to
+              # remove it would fail the whole job.
               rsync --archive --hard-links --numeric-ids --delete --partial \
+                --exclude=/lost+found \
                 --human-readable /source/ /destination/
           volumeMounts:
             - name: source
