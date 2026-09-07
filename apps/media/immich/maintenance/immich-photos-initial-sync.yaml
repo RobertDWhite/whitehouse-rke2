@@ -12,16 +12,12 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
-      # node-11 holds the single `longhorn-immich-photos` replica and carries
-      # no taints, so the write path stays local to that disk.
-      nodeSelector:
-        kubernetes.io/hostname: rke2-node-11
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: rsync
-          image: alpine:3.22
+          image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
           command: [sh, -ec]
           args:
             - |
@@ -33,6 +29,12 @@ spec:
               N=0
               for d in /source/*/; do
                 name=$(basename "$d")
+                # --exclude filters WITHIN a transfer, not the transfer root,
+                # so Synology's own directories must be skipped by the loop
+                # itself or they get copied wholesale.
+                case "$name" in
+                  '@eaDir'|'#recycle'|'@tmp'|'lost+found') continue ;;
+                esac
                 rsync --archive --hard-links --numeric-ids --partial --update \
                   $EXCL "$d" "/destination/$name/" &
                 N=$((N+1))
