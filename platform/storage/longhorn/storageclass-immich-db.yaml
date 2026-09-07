@@ -1,0 +1,19 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-immich-db
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: driver.longhorn.io
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+parameters:
+  # Keep both the database and its logical-dump volume on the new dedicated
+  # disks, with one replica on node 11 and one on node 14.
+  diskSelector: immich-media
+  numberOfReplicas: "2"
+  staleReplicaTimeout: "30"
+  dataLocality: best-effort
+  fsType: ext4
+  recurringJobSelector: '[{"name":"default","isGroup":true}]'

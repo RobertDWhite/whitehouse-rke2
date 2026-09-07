@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-postgres-logical-backup
+  namespace: immich
+spec:
+  schedule: "20 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 999
+            fsGroupChangePolicy: OnRootMismatch
+          containers:
+            - name: pg-dump
+              image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+              command: [sh, -ec]
+              args:
+                - |
+                  umask 077
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  pg_dump --format=custom --no-owner --no-privileges \
+                    --host=immich-postgres --port=5432 \
+                    --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" \
+                    --file="/backups/immich-${stamp}.dump"
+                  find /backups -type f -name 'immich-*.dump' -mtime +14 -delete
+              env:
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef: {name: immich-db, key: DB_USERNAME}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: immich-db, key: DB_PASSWORD}
+                - name: POSTGRES_DB
+                  valueFrom:
+                    secretKeyRef: {name: immich-db, key: DB_DATABASE_NAME}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: immich-postgres-backups
