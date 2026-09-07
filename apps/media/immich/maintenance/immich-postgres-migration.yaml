@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-postgres-migrate-20260907
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-postgres-migration
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: migrate
+          image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+          command: [sh, -ec]
+          args:
+            - |
+              umask 077
+              dump=/backups/immich-pre-switch-$(date -u +%Y%m%dT%H%M%SZ).dump
+              export PGPASSWORD="$POSTGRES_PASSWORD"
+              pg_dump --format=custom --no-owner --no-privileges \
+                --host="$SOURCE_DB_HOST" --port="$SOURCE_DB_PORT" \
+                --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --file="$dump"
+              pg_restore --exit-on-error --clean --if-exists --no-owner --no-privileges \
+                --host=immich-postgres --port=5432 \
+                --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" "$dump"
+              psql --host=immich-postgres --port=5432 --username="$POSTGRES_USER" \
+                --dbname="$POSTGRES_DB" -v ON_ERROR_STOP=1 -tAc \
+                "SELECT extname FROM pg_extension ORDER BY extname"
+          env:
+            - name: SOURCE_DB_HOST
+              value: 10.100.1.20
+            - name: SOURCE_DB_PORT
+              value: "5435"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_USERNAME}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_PASSWORD}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_DATABASE_NAME}
+          volumeMounts:
+            - name: backups
+              mountPath: /backups
+      volumes:
+        - name: backups
+          persistentVolumeClaim:
+            claimName: immich-postgres-backups
