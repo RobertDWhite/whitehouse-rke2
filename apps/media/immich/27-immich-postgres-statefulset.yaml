@@ -36,16 +36,15 @@ spec:
                 secretKeyRef: {name: immich-db, key: DB_DATABASE_NAME}
             - name: POSTGRES_INITDB_ARGS
               value: --data-checksums
-            # A newly formatted ext4 volume has lost+found at its root. PostgreSQL
-            # requires an empty PGDATA directory, not the mount point itself.
-            - name: PGDATA
-              value: /var/lib/postgresql/data/pgdata
             # The new capacity is HDD-backed; Immich supplies matching tuning.
             - name: DB_STORAGE_TYPE
               value: HDD
           volumeMounts:
             - name: data
-              mountPath: /var/lib/postgresql/data
+              # The Immich image owns /var/lib/postgresql/data. Mounting the
+              # PVC one level higher leaves that empty data directory below the
+              # filesystem's lost+found entry.
+              mountPath: /var/lib/postgresql
           readinessProbe:
             exec:
               command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
