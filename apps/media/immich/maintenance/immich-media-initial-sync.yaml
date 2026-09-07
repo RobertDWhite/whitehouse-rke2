@@ -32,8 +32,30 @@ spec:
           args:
             - |
               apk add --no-cache rsync
-              rsync --archive --hard-links --numeric-ids --partial \
-                --info=progress2 --human-readable /source/ /destination/
+              # These are independent Immich trees. Four bounded workers make
+              # better use of the NFS and Longhorn RWX connections while the
+              # final, quiesced rsync remains the authoritative reconciliation.
+              sync_tree() {
+                tree="$1"
+                mkdir -p "/destination/$tree"
+                rsync --archive --hard-links --numeric-ids --partial \
+                  --human-readable "/source/$tree/" "/destination/$tree/"
+              }
+              for tree in library/encoded-video library/library library/thumbs library/upload; do
+                sync_tree "$tree" &
+              done
+              wait
+              for tree in \
+                library/backups library/profile immich-ml-cache/clip \
+                immich-ml-cache/facial-recognition
+              do
+                sync_tree "$tree" &
+              done
+              wait
+              for tree in immich-ml-cache/hf immich-ml-cache/matplotlib immich-ml-cache/ocr; do
+                sync_tree "$tree" &
+              done
+              wait
           volumeMounts:
             - name: source
               mountPath: /source
