@@ -1,0 +1,64 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-photos-bidirectional-sync
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-photos-migration
+    app.kubernetes.io/component: bidirectional-sync
+spec:
+  # A full stat pass over ~8.2 TB is expensive on the NAS; every 6 hours keeps
+  # the two copies close without hammering it.
+  schedule: "17 */6 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: rke2-node-11
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+          containers:
+            - name: rsync
+              image: alpine:3.22
+              command: [sh, -ec]
+              args:
+                - |
+                  apk add --no-cache rsync
+                  EXCL="--exclude=@eaDir --exclude=#recycle --exclude=.DS_Store --exclude=@tmp"
+                  # IMPORTANT: neither direction uses --delete, and both use
+                  # --update (never overwrite a newer file on the receiver).
+                  # The result is an additive union: every original exists on
+                  # BOTH the Synology PhotoMaster and the Longhorn volume, and
+                  # no run of this job can ever remove a photo. The trade-off is
+                  # that a deletion on one side is restored from the other, so
+                  # real deletions must be made on both sides deliberately.
+                  echo "=== Synology -> Longhorn ==="
+                  rsync --archive --hard-links --numeric-ids --partial --update \
+                    $EXCL /nfs/ /longhorn/
+                  echo "=== Longhorn -> Synology ==="
+                  rsync --archive --hard-links --numeric-ids --partial --update \
+                    $EXCL /longhorn/ /nfs/
+                  echo "bidirectional photo sync complete"
+              volumeMounts:
+                - name: nfs
+                  mountPath: /nfs
+                - name: longhorn
+                  mountPath: /longhorn
+              resources:
+                requests: { cpu: 200m, memory: 256Mi }
+                limits: { memory: 1Gi }
+          volumes:
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: immich-photos
+            - name: longhorn
+              persistentVolumeClaim:
+                claimName: immich-photos-longhorn
