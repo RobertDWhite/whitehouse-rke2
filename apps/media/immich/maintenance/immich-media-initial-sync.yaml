@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-media-initial-sync-20260907
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-media-migration
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: rsync
+          # Installed at runtime so the operational job is portable across
+          # the cluster's ARM nodes. This is intentionally not GitOps-managed.
+          image: alpine:3.22
+          command: [sh, -ec]
+          args:
+            - |
+              apk add --no-cache rsync
+              rsync --archive --hard-links --numeric-ids --partial \
+                --info=progress2 --human-readable /source/ /destination/
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: destination
+              mountPath: /destination
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: source
+          persistentVolumeClaim:
+            claimName: immich-upload
+        - name: destination
+          persistentVolumeClaim:
+            claimName: immich-upload-longhorn
