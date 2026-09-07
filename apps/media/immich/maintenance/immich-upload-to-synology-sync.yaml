@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-upload-to-synology-sync
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-media-migration
+    app.kubernetes.io/component: upload-backfeed
+spec:
+  # Mobile uploads are irreplaceable and land only on Longhorn once the
+  # claim swap happens, so push them back to the NAS every hour.
+  schedule: "37 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            fsGroupChangePolicy: OnRootMismatch
+          containers:
+            - name: rsync
+              image: alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+              command: [sh, -ec]
+              args:
+                - |
+                  apk add --no-cache rsync
+                  # Direction is Longhorn -> Synology. After the cutover the
+                  # Longhorn claim is authoritative for Immich's own tree and
+                  # the NAS copy is the backup.
+                  #
+                  # Only the irreplaceable trees are pushed back:
+                  #   upload/  - where mobile-app uploads actually land
+                  #   library/ - originals, once a storage template moves them
+                  #   profile/ - user profile images
+                  #   backups/ - Immich's own database dumps
+                  # encoded-video/ and thumbs/ are deliberately NOT copied:
+                  # together they are >1.28 TB of derivatives Immich can
+                  # regenerate, and shipping them back wastes NAS space.
+                  #
+                  # No --delete in this direction either: the NAS keeps a copy
+                  # even if something removes it on the cluster side.
+                  for t in upload library profile backups; do
+                    mkdir -p "/nfs/library/$t"
+                    echo "=== $t ==="
+                    rsync --archive --hard-links --numeric-ids --partial --update \
+                      --exclude=@eaDir --exclude=#recycle --exclude=.DS_Store \
+                      "/longhorn/library/$t/" "/nfs/library/$t/"
+                  done
+                  echo "upload backfeed to Synology complete"
+              volumeMounts:
+                - name: longhorn
+                  mountPath: /longhorn
+                  readOnly: true
+                - name: nfs
+                  mountPath: /nfs
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { memory: 1Gi }
+          volumes:
+            - name: longhorn
+              persistentVolumeClaim:
+                claimName: immich-upload-longhorn
+            - name: nfs
+              persistentVolumeClaim:
+                claimName: immich-upload
