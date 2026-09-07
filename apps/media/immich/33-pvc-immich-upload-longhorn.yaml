@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-upload-longhorn
+  namespace: immich
+  annotations:
+    # The migration is deliberately a separate, explicit operation. This
+    # claim can be provisioned and checked without changing the live NFS mount.
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: longhorn-immich-media
+  resources:
+    requests:
+      storage: 10Ti

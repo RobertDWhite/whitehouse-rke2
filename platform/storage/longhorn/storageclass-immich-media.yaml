@@ -1,0 +1,18 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-immich-media
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: driver.longhorn.io
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+parameters:
+  # Only schedule media replicas on the two new 17 TB disks.
+  diskSelector: immich-media
+  numberOfReplicas: "2"
+  staleReplicaTimeout: "30"
+  dataLocality: disabled
+  fsType: ext4
+  recurringJobSelector: '[{"name":"default","isGroup":true}]'
