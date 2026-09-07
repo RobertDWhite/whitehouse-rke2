@@ -1,0 +1,21 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-immich-photos
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: driver.longhorn.io
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+parameters:
+  # Pinned to node-11's 18 TB disk (tag `immich-photos`) so the originals and
+  # the derived media library each get their own spindle.
+  diskSelector: immich-photos
+  numberOfReplicas: "1"
+  staleReplicaTimeout: "30"
+  dataLocality: disabled
+  fsType: ext4
+  # Deliberately NO recurringJobSelector. Attaching the default group to a
+  # multi-TB bulk load produced 1.27 TB of hourly snapshots on the media
+  # volume and wedged its replica rebuild behind a snapshot purge.

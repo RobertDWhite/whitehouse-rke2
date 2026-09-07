@@ -4,6 +4,10 @@ metadata:
   name: longhorn-immich-media
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
+    # StorageClass parameters are immutable, so dropping numberOfReplicas from
+    # 2 to 1 requires Argo to delete and recreate this object. Safe: removing a
+    # StorageClass does not touch already-provisioned PVs or PVCs.
+    argocd.argoproj.io/sync-options: Replace=true
 provisioner: driver.longhorn.io
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
@@ -11,7 +15,7 @@ allowVolumeExpansion: true
 parameters:
   # Only schedule media replicas on the two new 17 TB disks.
   diskSelector: immich-media
-  numberOfReplicas: "2"
+  numberOfReplicas: "1"
   staleReplicaTimeout: "30"
   dataLocality: disabled
   fsType: ext4

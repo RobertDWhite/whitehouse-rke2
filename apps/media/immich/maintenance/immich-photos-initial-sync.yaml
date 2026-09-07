@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-photos-initial-sync-20260907
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-photos-migration
+    app.kubernetes.io/component: initial-sync
+spec:
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: OnFailure
+      # node-11 holds the single `longhorn-immich-photos` replica and carries
+      # no taints, so the write path stays local to that disk.
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-11
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: rsync
+          image: alpine:3.22
+          command: [sh, -ec]
+          args:
+            - |
+              apk add --no-cache rsync
+              # Synology internals must never be copied into Longhorn.
+              EXCL="--exclude=@eaDir --exclude=#recycle --exclude=.DS_Store --exclude=@tmp"
+              # Four bounded workers over the top-level album directories;
+              # 8.2 TB single-stream off the NAS is needlessly slow.
+              N=0
+              for d in /source/*/; do
+                name=$(basename "$d")
+                rsync --archive --hard-links --numeric-ids --partial --update \
+                  $EXCL "$d" "/destination/$name/" &
+                N=$((N+1))
+                [ $((N % 4)) -eq 0 ] && wait
+              done
+              wait
+              # Loose files sitting at the top level.
+              rsync --archive --numeric-ids --partial --update $EXCL \
+                --exclude='*/' /source/ /destination/
+              echo "initial photo sync complete"
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: destination
+              mountPath: /destination
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: source
+          persistentVolumeClaim:
+            claimName: immich-photos
+        - name: destination
+          persistentVolumeClaim:
+            claimName: immich-photos-longhorn
