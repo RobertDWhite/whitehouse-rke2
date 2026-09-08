@@ -18,17 +18,30 @@ spec:
       containers:
         - name: redis
           image: redis
-          args: ["--save", ""]
+          # --maxmemory sits below the container limit on purpose: Redis then
+          # refuses new writes instead of being OOMKilled. noeviction matters
+          # because these are job queues - evicting keys silently drops work.
+          args:
+            - "--save"
+            - ""
+            - "--maxmemory"
+            - "3gb"
+            - "--maxmemory-policy"
+            - "noeviction"
           ports:
             - containerPort: 6379
           securityContext:
             allowPrivilegeEscalation: false
           resources:
+            # 256Mi was OOMKilling Redis 62 times: Immich's job queues live
+            # here, and ~1.6M queued ML jobs blow far past it. Each kill wiped
+            # the entire queue, which is why 578k assets sat unprocessed while
+            # the GPU idled at 0%.
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 512Mi
             limits:
-              memory: 256Mi
+              memory: 4Gi
           livenessProbe:
             tcpSocket: { port: 6379 }
             initialDelaySeconds: 5
