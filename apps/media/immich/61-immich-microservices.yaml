@@ -13,6 +13,13 @@ spec:
       labels:
         app: immich-microservices
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
