@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-ml-cache-local
+  namespace: immich
+spec:
+  # Node-local on purpose. immich-ml-gpu is pinned to rke2-node-50, which sits
+  # on a different subnet (10.100.0.x) from the Longhorn RWX share managers
+  # (10.99.5.x); mounting the media volume there returned "Remote I/O error"
+  # and unstable directory listings. The contents are just downloaded model
+  # weights, so they are regenerable and do not need replication or backup.
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi
