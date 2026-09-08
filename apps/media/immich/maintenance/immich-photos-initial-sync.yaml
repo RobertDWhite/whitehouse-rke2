@@ -12,6 +12,17 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      # node-15 reports Longhorn condition MultipathdIsRunning (multipathd
+      # claims Longhorn devices) and every RWX write there failed with
+      # "Remote I/O error (121)". node-14 is clean and carries the replica's
+      # engine; it needs the kube-vip toleration.
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -26,7 +37,13 @@ spec:
               EXCL="--exclude=@eaDir --exclude=#recycle --exclude=.DS_Store --exclude=@tmp"
               # Four bounded workers over the top-level album directories;
               # 8.2 TB single-stream off the NAS is needlessly slow.
+              # `wait` with no arguments always returns 0, so a previous run
+              # reported success after 17 rsync failures. Wait on each PID and
+              # propagate the status instead.
+              fail=0
               N=0
+              PIDS=""
+              reap() { for p in $PIDS; do wait "$p" || fail=1; done; PIDS=""; }
               for d in /source/*/; do
                 name=$(basename "$d")
                 # --exclude filters WITHIN a transfer, not the transfer root,
@@ -42,13 +59,18 @@ spec:
                 esac
                 rsync --archive --hard-links --numeric-ids --partial --update \
                   $EXCL "$d" "/destination/$name/" &
+                PIDS="$PIDS $!"
                 N=$((N+1))
-                [ $((N % 4)) -eq 0 ] && wait
+                [ $((N % 4)) -eq 0 ] && reap
               done
-              wait
+              reap
               # Loose files sitting at the top level.
               rsync --archive --numeric-ids --partial --update $EXCL \
-                --exclude='*/' /source/ /destination/
+                --exclude='*/' /source/ /destination/ || fail=1
+              if [ "$fail" -ne 0 ]; then
+                echo "ERROR: one or more rsync workers failed - copy is INCOMPLETE"
+                exit 1
+              fi
               echo "initial photo sync complete"
           volumeMounts:
             - name: source
