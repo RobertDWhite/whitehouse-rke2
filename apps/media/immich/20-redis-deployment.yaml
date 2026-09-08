@@ -5,6 +5,11 @@ metadata:
   namespace: immich
 spec:
   replicas: 1
+  # node-10 runs at its 110-pod cap, so a RollingUpdate deadlocks: the new pod
+  # cannot schedule until the old one releases its slot. Redis here is a single
+  # replica with persistence disabled, so there is nothing to keep alive.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: immich-redis
