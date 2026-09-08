@@ -56,7 +56,6 @@ spec:
           volumeMounts:
             - name: ml-cache
               mountPath: /cache
-              subPath: immich-ml-cache
           readinessProbe:
             httpGet:
               path: /ping
@@ -72,4 +71,4 @@ spec:
       volumes:
         - name: ml-cache
           persistentVolumeClaim:
-            claimName: immich-upload-longhorn
+            claimName: immich-ml-cache-local
