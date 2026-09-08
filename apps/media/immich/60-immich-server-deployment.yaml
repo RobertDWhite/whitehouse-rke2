@@ -4,7 +4,7 @@ metadata:
   name: immich-server
   namespace: immich
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app: immich-server
@@ -81,7 +81,7 @@ spec:
       volumes:
         - name: upload
           persistentVolumeClaim:
-            claimName: immich-upload
+            claimName: immich-upload-longhorn
         - name: photos
           persistentVolumeClaim:
             claimName: immich-photos
