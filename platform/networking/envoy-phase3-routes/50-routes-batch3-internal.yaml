@@ -416,10 +416,9 @@ spec:
   hostnames:
     - photos.internal.white.fm
   rules:
-    - timeouts:
-        request: "60s"
-        backendRequest: "60s"
-      backendRefs:
+    # See photos-public: no timeout, for the mobile app's websocket and
+    # single-request video transfers.
+    - backendRefs:
         - name: immich-server
           port: 2283
 ---
