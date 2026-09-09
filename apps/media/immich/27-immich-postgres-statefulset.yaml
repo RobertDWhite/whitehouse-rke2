@@ -45,6 +45,8 @@ spec:
               # PVC one level higher leaves that empty data directory below the
               # filesystem's lost+found entry.
               mountPath: /var/lib/postgresql
+            - name: dshm
+              mountPath: /dev/shm
           readinessProbe:
             exec:
               command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
@@ -63,6 +65,15 @@ spec:
               # VectorChord needs temporary working memory while it builds
               # Immich's large vector indexes during a restore.
               memory: 8Gi
+      volumes:
+        # Kubernetes gives a container a 64 MB /dev/shm by default, which is
+        # where Postgres puts parallel-query shared memory. On a 765k-row asset
+        # table that runs out: queries fail with "could not resize shared memory
+        # segment ... No space left on device".
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
   volumeClaimTemplates:
     - metadata:
         name: data
