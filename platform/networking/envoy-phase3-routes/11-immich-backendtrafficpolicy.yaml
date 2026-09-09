@@ -1,0 +1,18 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: immich-upgrade
+  namespace: immich
+spec:
+  # The Immich mobile app opens a websocket for realtime sync. Without an
+  # explicit upgrade type Envoy reset it after the 101 handshake
+  # (upstream_reset_after_response), so the app never received updates.
+  httpUpgrade:
+    - type: websocket
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: photos-public
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: photos-internal

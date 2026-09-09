@@ -201,10 +201,12 @@ spec:
   hostnames:
     - photos.white.fm
   rules:
-    - timeouts:
-        request: "60s"
-        backendRequest: "60s"
-      backendRefs:
+    # No request timeout. The Immich mobile app holds a long-lived websocket and
+    # transfers whole videos in a single request; the previous 60s cap cut those
+    # off mid-stream (Envoy logged response_timeout after 23 MB) so the app never
+    # finished its initial sync. headscale, the other websocket app on this
+    # gateway, likewise sets no timeouts.
+    - backendRefs:
         - name: immich-server
           port: 2283
 ---
