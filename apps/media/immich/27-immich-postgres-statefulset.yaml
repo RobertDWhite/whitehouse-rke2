@@ -39,6 +39,16 @@ spec:
             # The new capacity is HDD-backed; Immich supplies matching tuning.
             - name: DB_STORAGE_TYPE
               value: HDD
+            # CRITICAL: the image declares VOLUME /var/lib/postgresql/data, so
+            # containerd mounts an anonymous node-local volume there that
+            # SHADOWS the PVC mounted one level above. With the default PGDATA
+            # the database lived on node-10's local disk and was destroyed by
+            # every pod restart, while the PVC stayed empty (28K used) and its
+            # Longhorn snapshots held nothing. Point PGDATA at a sibling path on
+            # the PVC itself, which the image's VOLUME cannot shadow and which
+            # avoids the filesystem's lost+found at the PVC root.
+            - name: PGDATA
+              value: /var/lib/postgresql/pgdata
           volumeMounts:
             - name: data
               # The Immich image owns /var/lib/postgresql/data. Mounting the
