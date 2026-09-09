@@ -13,8 +13,19 @@ spec:
       labels:
         app: immich-server
     spec:
+      # node-10 runs at its 110-pod cap, so the pod could not be rescheduled
+      # once it lost its slot. node-13 and node-15 both report Longhorn
+      # Multipathd=False / KernelModulesLoaded=False - the fault that made RWX
+      # writes fail with "Remote I/O error" - so they are not safe for the
+      # Longhorn upload volume. node-14 is Longhorn-clean, has capacity, and
+      # already runs immich-microservices; it needs the kube-vip toleration.
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-10
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
