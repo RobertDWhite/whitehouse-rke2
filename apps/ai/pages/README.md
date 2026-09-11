@@ -10,6 +10,12 @@ Self-hosted static-site host with an MCP upload tool. Source:
 - **Upload (MCP):** `https://pages-mcp.internal.white.fm/mcp` —
   `Authorization: Bearer <MCP_TOKEN>` (`11-secret.sops.yaml`).
 - **Storage:** Longhorn PVC `pages-data` (5Gi) at `/data/sites`, one dir per site.
+- **Public family plan:** `https://family-rental-plan.white.fm/` — publicly
+  readable through Cloudflare, without an Authentik login. The exact-host
+  HTTPRoute in `55-httproute-family-rental-public.yaml` sends traffic directly
+  to Pages. ExternalDNS manages the proxied DNS record; the cloudflared ingress
+  entry forwards this host to the HTTPS gateway. Pages MCP updates to the
+  `family-rental-plan` site update both the internal and public URLs.
 
 One Deployment serves both planes on `:8080`, split by Host header. The apex
 `pages.internal.white.fm` + the MCP host ride the shared `*.internal.white.fm`
