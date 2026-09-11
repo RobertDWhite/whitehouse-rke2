@@ -1,0 +1,19 @@
+# Public sharing for the family rental plan. Exact hostname only; serves this
+# Pages site directly without an Authentik login. ExternalDNS creates the
+# proxied Cloudflare record; cloudflared routes this host to the HTTPS gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: family-rental-plan-public
+  namespace: pages
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-white-fm
+  hostnames:
+    - family-rental-plan.white.fm
+  rules:
+    - backendRefs:
+        - name: pages
+          port: 8080
