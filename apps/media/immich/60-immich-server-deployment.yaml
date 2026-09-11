@@ -82,13 +82,24 @@ spec:
             periodSeconds: 10
             failureThreshold: 43200
           readinessProbe:
-            tcpSocket: { port: 2283 }
+            # TCP and /api/server/ping stay healthy when sync streams exhaust
+            # the database pool (immich-app/immich#31415). Config reads the DB.
+            httpGet:
+              path: /api/server/config
+              port: 2283
             initialDelaySeconds: 5
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
-            tcpSocket: { port: 2283 }
+            httpGet:
+              path: /api/server/config
+              port: 2283
             initialDelaySeconds: 20
             periodSeconds: 20
+            timeoutSeconds: 5
+            # Allow about two minutes of DB contention before restarting API.
+            failureThreshold: 6
       volumes:
         - name: upload
           persistentVolumeClaim:
