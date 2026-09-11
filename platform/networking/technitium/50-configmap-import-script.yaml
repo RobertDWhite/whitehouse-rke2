@@ -361,15 +361,19 @@ data:
 
         # Always-on: keep proxy reconciled. Idempotent.
         ensure_outbound_proxy(token)
-        # Only the primary installs DNS apps. In cluster mode the secondary's
-        # /api/apps/downloadAndInstall is delegated to the primary over the
-        # cluster channel (https://primary:53443) which fails cert validation
-        # against the self-signed cluster cert. Each pod's data PVC holds its
-        # own copy of the app, and Technitium's cluster catalog propagates the
-        # files to secondaries automatically — so we only need to install
-        # once, on the primary.
+        # Every pod installs the Query Logs app for itself. The old assumption
+        # was that only the primary needs it and the cluster catalog would push
+        # it to secondaries — but the secondaries have never completed the
+        # cluster join (primary URL is an IP; Technitium insists on the domain
+        # name), so nothing ever propagated and 3 of 4 nodes logged no queries
+        # at all while the pooled DNS VIP spread traffic across all 4.
+        # ensure_query_logs is idempotent (checks the installed list first) and
+        # non-fatal (warns and returns False), so this is safe on a node that
+        # does later join: a delegated install that fails the cluster-cert
+        # check just logs a warning.
+        ensure_query_logs(token)
+        # Blocklists still come from the primary only.
         if IS_PRIMARY:
-            ensure_query_logs(token)
             try:
                 apply_blocklists(token)
             except Exception as e:

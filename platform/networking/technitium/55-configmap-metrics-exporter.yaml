@@ -208,10 +208,24 @@ data:
         sys.stdout.write(json.dumps(out, separators=(",", ":")) + "\n")
         sys.stdout.flush()
 
+    def _ts_key(ts):
+        # Technitium emits ISO-8601 with a variable-width fraction (6 or 7
+        # digits), so a plain string compare mis-orders e.g. ".49Z" vs
+        # ".490604Z". Normalise to (second-precision text, 7-digit int).
+        ts = (ts or "").rstrip("Z")
+        main, _, frac = ts.partition(".")
+        return (main, int((frac + "0000000")[:7]))
+
     def query_streamer():
         global _token
-        last_row = -1
+        # Watermark on the entry timestamp, NOT rowNumber. rowNumber is the
+        # entry's *position* in the current result set (newest == totalEntries),
+        # so it drops every time the Sqlite app prunes old rows — after which a
+        # rowNumber watermark silently filters out every new entry forever.
+        # (That is exactly how technitium-0 went dark on 2026-09-09.)
+        last_ts = ("", 0)
         first_pass = True
+        missing_warned = False
         while True:
             try:
                 if not _token:
@@ -222,25 +236,33 @@ data:
                     time.sleep(2)
                     continue
                 if result is None:
-                    # App not installed (yet) — back off.
+                    # App not installed (yet) — back off, but say so once so
+                    # a dead stream is never silent.
+                    if not missing_warned:
+                        print(f"query stream: {QUERY_LOGS_APP} not installed / not answering; waiting",
+                              file=sys.stderr, flush=True)
+                        missing_warned = True
                     time.sleep(30)
                     continue
+                if missing_warned:
+                    print("query stream: app answering again", file=sys.stderr, flush=True)
+                    missing_warned = False
                 entries = result
                 if entries:
                     # API returns descending; play forward from oldest new row.
                     new_entries = [e for e in entries
-                                   if (e.get("rowNumber") or -1) > last_row]
-                    new_entries.sort(key=lambda e: e.get("rowNumber") or 0)
+                                   if _ts_key(e.get("timestamp")) > last_ts]
+                    new_entries.sort(key=lambda e: _ts_key(e.get("timestamp")))
                     if first_pass:
                         # On first poll just establish the watermark; don't
                         # flood Loki with the back-catalog the app already has.
                         if new_entries:
-                            last_row = new_entries[-1].get("rowNumber") or last_row
+                            last_ts = _ts_key(new_entries[-1].get("timestamp"))
                         first_pass = False
                     else:
                         for e in new_entries:
                             _emit(e)
-                            last_row = max(last_row, e.get("rowNumber") or last_row)
+                            last_ts = max(last_ts, _ts_key(e.get("timestamp")))
             except Exception as e:
                 print(f"query stream error: {_redact(e)}", file=sys.stderr, flush=True)
                 time.sleep(5)
