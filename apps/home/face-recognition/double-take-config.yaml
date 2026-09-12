@@ -6,14 +6,14 @@ metadata:
 data:
   config.yml: |
     # Double Take — https://github.com/jakowenko/double-take#configuration
-    # ${compreface_key} is expanded from secrets.yml (sops secret double-take-secrets).
+    # "!secret compreface_key" is expanded from secrets.yml (sops secret double-take-secrets).
     time:
       timezone: America/New_York
 
     detectors:
       compreface:
         url: http://compreface.face-recognition.svc.cluster.local
-        key: ${compreface_key}
+        key: "!secret compreface_key"
         det_prob_threshold: 0.8
         timeout: 15
 
