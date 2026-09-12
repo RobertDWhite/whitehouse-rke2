@@ -1,0 +1,71 @@
+# Double Take fronts CompreFace: Home Assistant calls its /api/recognize
+# endpoint synchronously (no MQTT hop) when the doorbell rings, and it holds
+# the trained faces / match history. Config is code: the sops secret is
+# mounted over /.storage/config.yml (read-only), so edit the secret, not the UI.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: double-take
+  namespace: face-recognition
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: double-take
+  template:
+    metadata:
+      labels:
+        app: double-take
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
+      containers:
+        - name: double-take
+          image: jakowenko/double-take
+          env:
+            - name: TZ
+              value: America/New_York
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: storage
+              mountPath: /.storage
+            - name: config
+              mountPath: /.storage/config.yml
+              subPath: config.yml
+              readOnly: true
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: double-take-data
+        - name: config
+          secret:
+            secretName: double-take-config
