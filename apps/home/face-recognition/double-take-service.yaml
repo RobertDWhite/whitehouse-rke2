@@ -10,3 +10,19 @@ spec:
     - name: http
       port: 3000
       targetPort: 3000
+---
+# Direct LAN address for Home Assistant's rest_command (no DNS dependency).
+apiVersion: v1
+kind: Service
+metadata:
+  name: double-take-lb
+  namespace: face-recognition
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.99.5.127
+  selector:
+    app: double-take
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
