@@ -70,8 +70,12 @@ spec:
             periodSeconds: 30
             failureThreshold: 4
           volumeMounts:
+            # subPath keeps the mount empty on first boot: the image's startup.sh
+            # only seeds Postgres into an EMPTY dir, and a raw Longhorn volume
+            # already carries lost+found.
             - name: data
               mountPath: /var/lib/postgresql/data
+              subPath: pgdata
       volumes:
         - name: data
           persistentVolumeClaim:
