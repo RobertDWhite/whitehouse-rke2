@@ -1,0 +1,78 @@
+# CompreFace all-in-one (embedded Postgres + admin/api/core/ui in one container).
+# ArcFace-r100 build: highest-accuracy CPU recognition model CompreFace ships.
+# The GPU builds are CUDA 11 / amd64-only and won't run on the Spark (arm64)
+# or 5090 (Blackwell) nodes, so this stays on an amd64 CPU node.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compreface
+  namespace: face-recognition
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: compreface
+  template:
+    metadata:
+      labels:
+        app: compreface
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
+      containers:
+        - name: compreface
+          image: exadel/compreface
+          env:
+            - name: TZ
+              value: America/New_York
+            - name: SAVE_IMAGES_TO_DB
+              value: "true"
+            - name: MAX_FILE_SIZE
+              value: 10MB
+            - name: MAX_REQUEST_SIZE
+              value: 10MB
+            - name: ADMIN_JAVA_OPTS
+              value: -Xmx512m
+            - name: API_JAVA_OPTS
+              value: -Xmx1g
+            - name: UWSGI_PROCESSES
+              value: "2"
+            - name: UWSGI_THREADS
+              value: "2"
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: "1"
+              memory: 3Gi
+            limits:
+              memory: 8Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 4
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: compreface-data
