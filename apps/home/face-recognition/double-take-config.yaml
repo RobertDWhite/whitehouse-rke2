@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: double-take-config
+  namespace: face-recognition
+data:
+  config.yml: |
+    # Double Take — https://github.com/jakowenko/double-take#configuration
+    # ${compreface_key} is expanded from secrets.yml (sops secret double-take-secrets).
+    time:
+      timezone: America/New_York
+
+    detectors:
+      compreface:
+        url: http://compreface.face-recognition.svc.cluster.local
+        key: ${compreface_key}
+        det_prob_threshold: 0.8
+        timeout: 15
+
+    detect:
+      match:
+        save: true
+        base64: false
+        confidence: 70
+        purge: 168
+        min_area: 3000
+      unknown:
+        save: true
+        base64: false
+        confidence: 40
+        purge: 24
+        min_area: 3000
+
+    ui:
+      pagination:
+        limit: 50
+      thumbnails:
+        quality: 90
+        width: 500
