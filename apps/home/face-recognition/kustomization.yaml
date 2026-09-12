@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - compreface-deployment.yaml
+  - compreface-service.yaml
+  - double-take-deployment.yaml
+  - double-take-service.yaml
+  - routes.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: exadel/compreface
+    newTag: "1.2.0-arcface-r100"
+  - name: jakowenko/double-take
+    newTag: "1.13.2"
