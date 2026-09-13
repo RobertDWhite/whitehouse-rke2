@@ -117,8 +117,6 @@ configMapGenerator:
       - syslog.json=grafana_dashboards/syslog.json
       - trivy-operator.json=grafana_dashboards/trivy-operator.json
       - trivy-overview.json=grafana_dashboards/trivy-overview.json
-      - claude-code.json=grafana_dashboards/claude-code.json
-      - claude-code-solo.json=grafana_dashboards/claude-code-solo.json
       - cluster-health.json=grafana_dashboards/cluster-health.json
       - glance-ops.json=grafana_dashboards/glance-ops.json
       - app-health-overview.json=grafana_dashboards/app-health-overview.json
@@ -159,6 +157,12 @@ configMapGenerator:
   - name: observability-grafana-dashboards-unifi-dpi
     files:
       - unifi-client-dpi-11310.json=grafana_dashboards/unifi-client-dpi-11310.json
+  # AI usage dashboards get their own ConfigMap: the main one sits just under
+  # the 1 MiB object limit, and these two grow whenever a section is added.
+  - name: observability-grafana-dashboards-ai
+    files:
+      - claude-code.json=grafana_dashboards/claude-code.json
+      - claude-code-solo.json=grafana_dashboards/claude-code-solo.json
   - name: appstore-connect-exporter-scripts
     files:
       - exporter.py=appstore-connect/exporter.py
