@@ -86,3 +86,16 @@ If `/api/version` works but `/v1/chat/completions` fails, verify:
 - model exists in Ollama (`/api/tags`)
 - base URL includes `/v1`
 - DNS name uses `ai-stack` namespace
+
+## AI Assistant extension → Ollama routing (changed 2026-09-13)
+
+The xExtension-AIAssistant summarises **every** new article on insert
+(`entry_before_insert` hook, no toggle), so it is a continuous inference load.
+Its endpoint lives in FreshRSS's system config on the PVC
+(`/config/www/freshrss/data/config.php`, keys `openai_baseurl_article` /
+`openai_baseurl_roundup`), set via the UI — not in this repo. On 2026-09-13 it
+was moved from `ollama.ai-stack` (the DGX Spark, node-10) to
+`ollama-router.ai-stack` (5090 first, Spark as backup) because the Spark was
+running at 81 °C GPU / ~90 °C SoC and hung twice. Backup of the previous file:
+`config.php.bak-20260913` alongside it. Model stays `llama3.1:8b` (present on
+both backends).
