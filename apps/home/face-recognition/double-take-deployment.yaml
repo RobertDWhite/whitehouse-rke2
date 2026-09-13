@@ -50,13 +50,16 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             failureThreshold: 6
+          # Generous: bulk training batches can stall the Node event loop for a
+          # while when CompreFace is cold; don't SIGTERM it for that.
           livenessProbe:
             httpGet:
               path: /
               port: 3000
             initialDelaySeconds: 60
-            periodSeconds: 30
-            failureThreshold: 4
+            periodSeconds: 60
+            timeoutSeconds: 10
+            failureThreshold: 10
           volumeMounts:
             - name: storage
               mountPath: /.storage
