@@ -19,15 +19,15 @@ spec:
         fsGroup: 472
       nodeSelector:
         observability: "true"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - rke2-node-14
+      # node-14 is the kube-vip-disabled CPU node; Grafana may land there when
+      # node-13/15 are full or down (2026-09-13: both were, Grafana was
+      # unschedulable for an hour). The old NotIn rke2-node-14 rule had no
+      # recorded reason.
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       containers:
         - name: grafana
           image: grafana/grafana
