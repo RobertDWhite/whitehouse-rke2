@@ -66,7 +66,7 @@ spec:
             - name: OLLAMA_MAX_TAGS
               value: "8"
             - name: OLLAMA_MAX_PER_CYCLE
-              value: "200"
+              value: "50"
             - name: INDEX_INITIAL_LOOKBACK_SECONDS
               # Scan only last 24h on startup; older files already indexed
               value: "86400"
@@ -154,7 +154,7 @@ spec:
               memory: 2Gi
             limits:
               cpu: 2000m
-              memory: 6Gi
+              memory: 12Gi
           livenessProbe:
             httpGet:
               path: /api/v1/health

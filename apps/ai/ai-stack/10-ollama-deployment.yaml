@@ -55,7 +55,7 @@ spec:
             - name: OLLAMA_DEBUG
               value: "1"
             - name: OLLAMA_KEEP_ALIVE
-              value: "2h"
+              value: "30m"
             # Dropped to 1 to pay for the full 131072 context below. KV cache
             # is context x parallel, so 131072x1 is the SAME 131072 budget as the
             # previous 65536x2 — no extra unified memory (llama3.1:8b measured
@@ -68,7 +68,7 @@ spec:
             # models at once so heavy consumers (sdr-viewer-api → deepseek-r1:14b)
             # don't pin the single slot and starve politics' llama3.2:3b.
             - name: OLLAMA_MAX_LOADED_MODELS
-              value: "3"
+              value: "2"
             # GB10 is a unified-memory iGPU, so KV cache counts against the
             # container cgroup limit. ollama 0.24 defaults to a 256K VRAM-based
             # context which OOMs the pod, so context stays explicitly capped.
@@ -89,7 +89,7 @@ spec:
             # vague non-answers. 131072 is llama3.1's native maximum and leaves
             # ~62k of headroom above the tool array.
             - name: OLLAMA_CONTEXT_LENGTH
-              value: "131072"
+              value: "65536"
             # This PVC's only running Longhorn replica is on node-14, so reads
             # cross the network at ~57 MB/s even though the pod runs on node-10.
             # A 17GB model takes ~5 min to load, right at the 5m default, which
@@ -102,7 +102,7 @@ spec:
               memory: "4Gi"
             limits:
               cpu: "8"
-              memory: "80Gi"
+              memory: "56Gi"
               nvidia.com/gpu: 1
           volumeMounts:
             - name: ollama-data
