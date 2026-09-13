@@ -3865,6 +3865,1539 @@
       ],
       "title": "Sessions by Hour of Day",
       "type": "bargauge"
+    },
+    {
+      "type": "row",
+      "title": "By Device \u2014 Primary vs Mac mini",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 183
+      },
+      "panels": [],
+      "id": 1200,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Devices Reporting",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 184
+      },
+      "description": "Macs whose claude-stats-exporter (:9101) Prometheus can currently scrape",
+      "targets": [
+        {
+          "expr": "count(up{job=\"claude-code-stats\"} == 1) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "id": 1201,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sessions per Device",
+      "gridPos": {
+        "h": 4,
+        "w": 7,
+        "x": 4,
+        "y": 184
+      },
+      "targets": [
+        {
+          "expr": "sum by(host) (ai_total_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1202,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tokens per Device",
+      "gridPos": {
+        "h": 4,
+        "w": 7,
+        "x": 11,
+        "y": 184
+      },
+      "targets": [
+        {
+          "expr": "sum by(host) (ai_total_tokens{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1203,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Est. Cost per Device",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 184
+      },
+      "targets": [
+        {
+          "expr": "sum by(host) (ai_total_cost_usd{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "textMode": "value_and_name",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1204,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Sessions by Device & Tool",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 188
+      },
+      "targets": [
+        {
+          "expr": "sum by(host, tool) (ai_sessions_by_tool{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}} \u00b7 {{tool}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^primary .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^mac-mini .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1205,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "piechart",
+      "title": "Token Share by Device",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 188
+      },
+      "targets": [
+        {
+          "expr": "sum by(host) (ai_total_tokens{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1206,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Est. Cost by Device & Tool",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 188
+      },
+      "targets": [
+        {
+          "expr": "sum by(host, tool) (ai_cost_by_tool_usd{job=\"claude-code-stats\"})",
+          "legendFormat": "{{host}} \u00b7 {{tool}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^primary .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^mac-mini .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1207,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Device Summary",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 196
+      },
+      "targets": [
+        {
+          "expr": "max by(host) (up{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "B",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (claude_deep_total_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "C",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (codex_total_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "D",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (cowork_total_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "E",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "F",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_tool_calls{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "G",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_tokens{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "H",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_projects{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "I",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (claude_deep_unique_files_edited{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "J",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by(host) (ai_total_cost_usd{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "K",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "seriesToColumns",
+          "options": {
+            "byField": "host"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "__name__": true,
+              "Time 1": true,
+              "job 1": true,
+              "__name__ 1": true,
+              "Time 2": true,
+              "job 2": true,
+              "__name__ 2": true,
+              "Time 3": true,
+              "job 3": true,
+              "__name__ 3": true,
+              "Time 4": true,
+              "job 4": true,
+              "__name__ 4": true,
+              "Time 5": true,
+              "job 5": true,
+              "__name__ 5": true,
+              "Time 6": true,
+              "job 6": true,
+              "__name__ 6": true,
+              "Time 7": true,
+              "job 7": true,
+              "__name__ 7": true,
+              "Time 8": true,
+              "job 8": true,
+              "__name__ 8": true,
+              "Time 9": true,
+              "job 9": true,
+              "__name__ 9": true,
+              "Time 10": true,
+              "job 10": true,
+              "__name__ 10": true,
+              "Time 11": true,
+              "job 11": true,
+              "__name__ 11": true
+            },
+            "renameByName": {
+              "host": "Device",
+              "Value #A": "Scrape",
+              "Value #B": "Sessions",
+              "Value #C": "Claude",
+              "Value #D": "Codex",
+              "Value #E": "Cowork",
+              "Value #F": "Messages",
+              "Value #G": "Tool Calls",
+              "Value #H": "Tokens",
+              "Value #I": "Projects",
+              "Value #J": "Files Edited",
+              "Value #K": "Est. Cost"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": true,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Tokens"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scrape"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "UP",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. Cost"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1208,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Daily Claude Messages by Device (Last 30 Days)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 204
+      },
+      "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
+      "targets": [
+        {
+          "expr": "sum by(date, host) (claude_deep_daily_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "date",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 60
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "host",
+            "rowField": "date",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "date\\host",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "orientation": "auto",
+        "xField": "date\\host",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.85,
+        "showValue": "never",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1209,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Daily Est. Claude Cost by Device (Last 30 Days)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 204
+      },
+      "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
+      "targets": [
+        {
+          "expr": "sum by(date, host) (claude_daily_cost_usd{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "date",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 60
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "host",
+            "rowField": "date",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "date\\host",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "orientation": "auto",
+        "xField": "date\\host",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.85,
+        "showValue": "never",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1210,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "barchart",
+      "title": "Claude Sessions by Hour of Day \u2014 per Device",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 212
+      },
+      "targets": [
+        {
+          "expr": "sum by(hour, host) (claude_stats_hour_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "targetField": "hour",
+                "destinationType": "number"
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupingToMatrix",
+          "options": {
+            "columnField": "host",
+            "rowField": "hour",
+            "valueField": "Value"
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "hour\\host",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ],
+      "options": {
+        "orientation": "auto",
+        "xField": "hour\\host",
+        "stacking": "normal",
+        "groupWidth": 0.7,
+        "barWidth": 0.9,
+        "showValue": "never",
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "primary"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "mac-mini"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1211,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Claude Output Tokens by Device & Model",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 212
+      },
+      "targets": [
+        {
+          "expr": "sum by(host, model) (claude_deep_model_output_tokens{job=\"claude-code-stats\", model!=\"<synthetic>\"})",
+          "legendFormat": "{{host}} \u00b7 {{model}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^primary .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#5794F2"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^mac-mini .*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1212,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top Claude Tools per Device (Top 10 each)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 220
+      },
+      "targets": [
+        {
+          "expr": "topk by(host) (10, sum by(host, tool) (claude_tool_usage_total{job=\"claude-code-stats\"}))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "host": 0,
+              "tool": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "host": "Device",
+              "tool": "Tool",
+              "Value": "Calls"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Calls"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "primary": {
+                        "color": "#5794F2",
+                        "index": 0
+                      },
+                      "mac-mini": {
+                        "color": "#B877D9",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calls"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1213,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top Claude Projects per Device (Top 10 each, by messages)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 220
+      },
+      "targets": [
+        {
+          "expr": "topk by(host) (10, sum by(host, project) (claude_project_messages{job=\"claude-code-stats\"}))",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "job": true,
+              "__name__": true
+            },
+            "indexByName": {
+              "host": 0,
+              "project": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "host": "Device",
+              "project": "Project",
+              "Value": "Messages"
+            }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        },
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Messages"
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Device"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "primary": {
+                        "color": "#5794F2",
+                        "index": 0
+                      },
+                      "mac-mini": {
+                        "color": "#B877D9",
+                        "index": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Messages"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-BlPu"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "id": 1214,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      }
     }
   ],
   "refresh": "30s",
