@@ -57,16 +57,30 @@ spec:
               mountPath: /var/lib/postgresql
             - name: dshm
               mountPath: /dev/shm
+          # After an unclean node or container restart PostgreSQL may need to
+          # replay a substantial WAL segment before it accepts connections.
+          # A startup probe suppresses liveness restarts during that recovery;
+          # without it the 30-second liveness delay can repeatedly interrupt
+          # recovery and leave all Immich API pods unable to reach the DB.
+          startupProbe:
+            exec:
+              command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 180
           readinessProbe:
             exec:
               command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             exec:
               command: [sh, -c, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
             initialDelaySeconds: 30
             periodSeconds: 20
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 500m
