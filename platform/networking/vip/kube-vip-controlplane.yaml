@@ -61,6 +61,12 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
+      # node-14's kube-vip=disabled taint predates the flannel node-ip fix; its
+      # flannel.1 is now bound to 10.99.5.14, so it is safe to hold the VIP again.
+      - key: kube-vip
+        operator: Equal
+        value: disabled
+        effect: NoSchedule
       containers:
       - name: kube-vip
         image: ghcr.io/kube-vip/kube-vip:v0.8.9
