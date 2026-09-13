@@ -433,19 +433,21 @@ data:
       # =================================
       # Claude Code deep stats (JSONL)
       # =================================
+      # One target per Mac; each runs scripts/claude-stats-exporter.py (install
+      # with scripts/install-claude-stats-exporter.sh). Every Mac scans only its
+      # own ~/.claude, ~/.codex and Cowork data, so there is no overlap and the
+      # dashboards sum across `host`. Prefer the LAN DNS name over a DHCP IP —
+      # the primary's IP has already drifted twice (.133 -> .112 -> .110).
       - job_name: claude-code-stats
         static_configs:
           - targets:
               - 10.100.1.110:9101
             labels:
               host: primary
-          # Second Mac: run claude-stats-exporter.py there (launchd, :9101), join the
-          # tailnet, then uncomment and set its 10.100.x.x IP. Dashboard panels already
-          # sum across instances, so its stats fold into the combined totals.
-          # - targets:
-          #     - 10.100.X.X:9101
-          #   labels:
-          #     host: mac2
+          - targets:
+              - minitheertwhite.lan.internal.white.fm:9101
+            labels:
+              host: mac-mini
         metrics_path: /metrics
         scrape_interval: 120s
 
