@@ -5,6 +5,11 @@ idempotent and has a verify line. Do them in order; step 3 restarts
 `rke2-server` (etcd keeps quorum on node-11/14, the API gets sluggish for
 ~1 min). Total time about 5 minutes.
 
+**Status: applied 2026-09-13 13:44 EDT** via `kubectl debug node/rke2-node-10
+--profile=sysadmin` + `chroot /host` (no SSH key on the box). All four steps
+verified; see "What actually happened" at the bottom for the one surprise
+(the kubelet resets `vm.overcommit_memory` to 1 on every start).
+
 Background (2026-09-13): the box hung twice in 24 h — once from memory
 exhaustion (a pod OOM-looped at 6 GiB nine times until the NVIDIA driver
 returned `NV_ERR_NO_MEMORY`), once with no log at all while the SoC sat at
@@ -41,6 +46,34 @@ vm.overcommit_memory = 0
 EOF
 sysctl -p /etc/sysctl.d/90-no-overcommit.conf   # expect: vm.overcommit_memory = 0
 ```
+
+**The sysctl.d file alone does not stick.** The kubelet writes
+`vm.overcommit_memory=1` (and `vm.panic_on_oom=0`) at startup whenever
+`protect-kernel-defaults` is off, so every `rke2-server` restart puts it
+back to 1. Re-apply it after rke2 is up:
+
+```bash
+cat > /etc/systemd/system/no-overcommit.service <<'EOF'
+[Unit]
+Description=Re-apply vm.overcommit_memory=0 after rke2-server (kubelet resets it to 1)
+After=rke2-server.service
+PartOf=rke2-server.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 45
+ExecStart=/usr/sbin/sysctl -p /etc/sysctl.d/90-no-overcommit.conf
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload && systemctl enable --now no-overcommit.service
+sysctl -n vm.overcommit_memory                   # expect: 0 (about 45 s after any rke2 restart)
+```
+
+`PartOf=` makes systemd stop/start this unit alongside `rke2-server`, so it
+re-fires after each restart without an ExecStartPost hack on rke2 itself.
 
 ## 3. Let the kubelet evict before the pool is exhausted
 
@@ -85,7 +118,8 @@ nvidia-smi -lgc 0,1500                                   # cap at 1.5 GHz; rever
 nvidia-smi --query-gpu=clocks.max.gr,clocks.gr,temperature.gpu --format=csv
 ```
 
-If `-lgc` is unsupported on this SKU it says so and nothing changes — skip it.
+`-lgc` **is** supported on the GB10: the cap took immediately (idle clock
+went 2411 → 1488 MHz; under an 8B generate: 1456 MHz, 95 % util, 57 °C, 21 W).
 Optionally cap the CPUs too (they were 88–92 °C):
 
 ```bash
@@ -113,3 +147,27 @@ Expected: `active`, `0`, GPU well under 80 °C, hottest zone under 85000, and
 `0` OOM/NVRM events. Cluster-side changes that pair with this runbook went in
 commit `7f645cd0` (Ollama context/keep-alive/limit, sdr-viewer-api limit and
 batch size).
+
+## What actually happened (2026-09-13)
+
+| step | result |
+|---|---|
+| 1 watchdog | `sbsa_gwdt` active, `RuntimeWatchdogSec=30s`; survived the rke2 restart |
+| 2 overcommit | set to 0, **reverted to 1 by the kubelet** when rke2-server restarted in step 3; fixed with `no-overcommit.service` above, now 0 |
+| 3 kubelet | `config.yaml` backed up to `config.yaml.bak-20260913`; all four `kubelet-arg`s on the kubelet cmdline; node stayed Ready through the restart; allocatable memory 125.5 → 110.8 GiB, CPU 20 → 18 |
+| 4 clocks | GPU capped at 1500 MHz, CPUs at 80 % (2.25 / 3.12 GHz); 52–57 °C idle |
+
+Post-change check: `ollama run llama3.1:8b` on the node answered normally under
+`overcommit_memory=0`; the model now loads at 13 GB (was 22 GB before the
+65536-context change), 100 % GPU. Zero OOM/NVRM events since boot.
+
+Unrelated things seen on node-10 while in there (not touched):
+
+- `ai-stack/openwebui` CrashLoopBackOff since the last boot:
+  `sqlite3.OperationalError: no such column: config.id` — a DB-schema /
+  migration problem, not resource pressure.
+- `opencti/opencti-server` stuck in `Init:1/4`: its rabbitmq and redis pods
+  are `Terminating` on **node-12 (NotReady)** and `opencti-minio` has no
+  endpoints. That is a node-12 problem.
+- To undo the temporary clock caps once fans are in: `nvidia-smi -rgc` and
+  reboot (cpufreq caps are not persisted).
