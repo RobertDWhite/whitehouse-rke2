@@ -5,9 +5,7 @@ metadata:
   namespace: immich
 spec:
   replicas: 1
-  # node-10 runs at its 110-pod cap, so a RollingUpdate deadlocks: the new pod
-  # cannot schedule until the old one releases its slot. Redis here is a single
-  # replica with persistence disabled, so there is nothing to keep alive.
+  # Single replica, persistence disabled: nothing to keep alive across a roll.
   strategy:
     type: Recreate
   selector:
@@ -18,8 +16,15 @@ spec:
       labels:
         app: immich-redis
     spec:
+      # Co-located with immich-server / microservices. Not node-10 or node-50:
+      # both go away (power / reboots) and a pinned Redis takes Immich with it.
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-10
+        kubernetes.io/hostname: rke2-node-14
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
       containers:
         - name: redis
           image: redis
