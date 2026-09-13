@@ -7,11 +7,7 @@ metadata:
     app.kubernetes.io/name: immich-photos-migration
     app.kubernetes.io/component: bidirectional-sync
 spec:
-  # Suspended until immich-photos-initial-sync completes. This job performs the
-  # same Synology -> Longhorn copy, so running it during the initial 8.2 TB
-  # seed would duplicate that work and contend for the same NAS read path.
-  # Flip to false once the initial copy reports succeeded.
-  suspend: true
+  suspend: false
   # A full stat pass over ~8.2 TB is expensive on the NAS; every 6 hours keeps
   # the two copies close without hammering it.
   schedule: "17 */6 * * *"
@@ -25,6 +21,15 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
+          # Same pin as immich-photos-initial-sync: node-13/15 fail RWX writes
+          # with "Remote I/O error"; node-14 is Longhorn-clean, needs kube-vip toleration.
+          nodeSelector:
+            kubernetes.io/hostname: rke2-node-14
+          tolerations:
+            - key: kube-vip
+              operator: Equal
+              value: disabled
+              effect: NoSchedule
           securityContext:
             fsGroup: 1000
             fsGroupChangePolicy: OnRootMismatch
