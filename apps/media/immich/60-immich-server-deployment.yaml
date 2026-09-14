@@ -4,7 +4,9 @@ metadata:
   name: immich-server
   namespace: immich
 spec:
-  replicas: 1
+  # Keep an API endpoint available while a peer is recovering from a slow
+  # storage read or is being rolled out.
+  replicas: 2
   selector:
     matchLabels:
       app: immich-server
@@ -70,6 +72,13 @@ spec:
 
             - name: IMMICH_WORKERS_INCLUDE
               value: "api"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 3Gi
           volumeMounts:
             - name: upload
               mountPath: /usr/src/app/upload
@@ -89,17 +98,24 @@ spec:
               port: 2283
             initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
+            timeoutSeconds: 10
+            # Remove a slow instance from the service before its client
+            # requests begin timing out, without restarting it.
+            failureThreshold: 6
           livenessProbe:
+            # The config endpoint reads PostgreSQL and can block behind a
+            # large upload or recovery I/O. The ping endpoint verifies the
+            # API process itself without turning temporary DB contention into
+            # a full API restart and public 504.
             httpGet:
-              path: /api/server/config
+              path: /api/server/ping
               port: 2283
             initialDelaySeconds: 20
-            periodSeconds: 20
-            timeoutSeconds: 5
-            # Allow about two minutes of DB contention before restarting API.
-            failureThreshold: 6
+            periodSeconds: 30
+            timeoutSeconds: 10
+            # A genuine API process failure still restarts, but allow five
+            # minutes for a transient storage stall to clear first.
+            failureThreshold: 10
       volumes:
         - name: upload
           persistentVolumeClaim:
