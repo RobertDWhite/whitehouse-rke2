@@ -1,0 +1,67 @@
+# CompreFace goes cold after ~25-30s idle: the first recognize after idle takes
+# ~13s (ArcFace/RetinaFace model reload) vs ~2s warm. That 13s was the dominant
+# doorbell latency (ring -> "Welcome"). This tiny sidecar keeps the model hot by
+# POSTing a face straight to CompreFace every 20s.
+#
+# It hits CompreFace DIRECTLY (not Double Take) so it never writes to DT's match
+# history. The recognition API key is read at runtime from the same sops secret
+# Double Take uses (/secrets/secrets.yml -> compreface_key); the warm face is the
+# hosted test portrait. If warm=200 never appears in the logs, the key parse or
+# the image URL is off -- check `kubectl logs deploy/compreface-warmer -n face-recognition`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: compreface-warmer
+  namespace: face-recognition
+  labels:
+    app: compreface-warmer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: compreface-warmer
+  template:
+    metadata:
+      labels:
+        app: compreface-warmer
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
+      containers:
+        - name: warmer
+          image: curlimages/curl:8.10.1
+          command: ["sh", "-c"]
+          args:
+            - |
+              KEY=$(grep -m1 compreface_key /secrets/secrets.yml | sed 's/.*compreface_key:[[:space:]]*//' | tr -d '"\r' | tr -d '[:space:]')
+              if [ -n "$KEY" ]; then echo "warmer up: compreface_key parsed (len ${#KEY})"; else echo "warmer up: FAILED to parse compreface_key from /secrets/secrets.yml"; fi
+              CF=http://compreface.face-recognition.svc.cluster.local
+              IMG=https://doorbell-greetings.pages.internal.white.fm/test/portrait.jpg
+              while true; do
+                [ -s /tmp/warm.jpg ] || curl -sf --max-time 15 "$IMG" -o /tmp/warm.jpg 2>/dev/null || echo "$(date +%H:%M:%S) warm image fetch failed"
+                if [ -s /tmp/warm.jpg ]; then
+                  code=$(curl -s --max-time 25 -o /dev/null -w '%{http_code}' -F "file=@/tmp/warm.jpg" -H "x-api-key: $KEY" "$CF/api/v1/recognition/recognize?limit=1&det_prob_threshold=0.8")
+                  echo "$(date +%H:%M:%S) warm=$code"
+                fi
+                sleep 20
+              done
+          volumeMounts:
+            - name: secrets
+              mountPath: /secrets/secrets.yml
+              subPath: secrets.yml
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: secrets
+          secret:
+            secretName: double-take-secrets
