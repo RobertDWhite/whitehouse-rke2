@@ -91,10 +91,12 @@ spec:
             periodSeconds: 10
             failureThreshold: 43200
           readinessProbe:
-            # TCP and /api/server/ping stay healthy when sync streams exhaust
-            # the database pool (immich-app/immich#31415). Config reads the DB.
+            # Do not repeatedly queue a database-backed config lookup while
+            # the database is slow. A backed-up config probe was itself
+            # filling Immich's GetSystemConfig lock queue and rejecting asset
+            # requests. Ping still proves that the API process can respond.
             httpGet:
-              path: /api/server/config
+              path: /api/server/ping
               port: 2283
             initialDelaySeconds: 5
             periodSeconds: 10
