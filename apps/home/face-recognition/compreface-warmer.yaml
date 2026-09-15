@@ -1,13 +1,18 @@
-# CompreFace goes cold after ~25-30s idle: the first recognize after idle takes
-# ~13s (ArcFace/RetinaFace model reload) vs ~2s warm. That 13s was the dominant
-# doorbell latency (ring -> "Welcome"). This tiny sidecar keeps the model hot by
-# POSTing a face straight to CompreFace every 20s.
+# CompreFace keep-warm heartbeat.
+#
+# History: the doorbell pipeline once saw ~13s "cold" recognitions after idle,
+# which was blamed on CompreFace unloading its model. A controlled test on
+# 2026-09-15 (warmer paused, requests after 2/30/45/60/90s idle) showed NO
+# idle penalty at all: every call took ~1.5s. The 13s was almost certainly
+# the 2 GB Home Assistant VM being too slow to serve the snapshot to Double
+# Take (VM has since been upsized). Warming every 20s cost ~0.3 CPU core for
+# nothing, so this now runs every 120s as a cheap hedge against any longer
+# idle effect and as a health heartbeat (warm=200 in the logs).
 #
 # It hits CompreFace DIRECTLY (not Double Take) so it never writes to DT's match
 # history. The recognition API key is read at runtime from the same sops secret
-# Double Take uses (/secrets/secrets.yml -> compreface_key); the warm face is the
-# hosted test portrait. If warm=200 never appears in the logs, the key parse or
-# the image URL is off -- check `kubectl logs deploy/compreface-warmer -n face-recognition`.
+# Double Take uses (/secrets/secrets.yml -> compreface_key); the warm face is a
+# 360px copy of the hosted test portrait.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,7 +53,7 @@ spec:
                   code=$(curl -s --max-time 25 -o /dev/null -w '%{http_code}' -F "file=@/tmp/warm.jpg" -H "x-api-key: $KEY" "$CF/api/v1/recognition/recognize?limit=1&det_prob_threshold=0.8")
                   echo "$(date +%H:%M:%S) warm=$code"
                 fi
-                sleep 20
+                sleep 120
               done
           volumeMounts:
             - name: secrets
