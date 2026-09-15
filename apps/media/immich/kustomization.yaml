@@ -9,6 +9,7 @@ resources:
   - 26-immich-postgres-service.yaml
   - 27-immich-postgres-statefulset.yaml
   - 28-immich-postgres-backup-cronjob.yaml
+  - 29-immich-db-connection-reaper.yaml
   - 30-pvc-immich-upload.yaml
   - 31-pvc-photo.yaml
   - 33-pvc-immich-upload-longhorn.yaml
@@ -40,7 +41,13 @@ images:
     digest: "sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2"
 
   - name: ghcr.io/immich-app/immich-server
-    newTag: "v3.2.0"
+    # v3.2.1 carries "fix: sync client disconnect" (immich-app/immich#31463,
+    # closes #31415): on v3.2.0 a mobile client dropping /api/sync/stream left
+    # its Postgres connection checked out forever (pg_stat_activity: active,
+    # wait_event=ClientRead), and once all 10 pool slots per API pod were gone
+    # every DB-backed request timed out at the gateway.
+    newTag: "v3.2.1"
+    digest: "sha256:2ab6a6273755d9b8a5c4f25dbaa2d097fc4a2cc261b70bc73621e6405cc106fe"
 
   # immich-machine-learning tag is pinned directly in 51-immich-gpu.yaml (:v2.7.5-cuda),
   # because the kustomize images: transformer would otherwise strip the -cuda suffix.

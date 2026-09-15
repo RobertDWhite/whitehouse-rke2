@@ -416,9 +416,12 @@ spec:
   hostnames:
     - photos.internal.white.fm
   rules:
-    # See photos-public: no timeout, for the mobile app's websocket and
-    # single-request video transfers.
-    - backendRefs:
+    # See photos-public: timeouts must be set to 0s explicitly, otherwise Envoy
+    # Gateway applies a 15s default that cuts the mobile app's sync stream.
+    - timeouts:
+        request: "0s"
+        backendRequest: "0s"
+      backendRefs:
         - name: immich-server
           port: 2283
 ---
