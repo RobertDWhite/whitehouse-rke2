@@ -5,6 +5,9 @@ metadata:
   namespace: matrix
 spec:
   replicas: 1
+  # RWO Longhorn PVC: RollingUpdate stalls on Multi-Attach, so replace the pod instead
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: maubot
