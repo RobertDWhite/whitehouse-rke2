@@ -1,0 +1,86 @@
+# Safety net for Postgres connection leaks in the Immich API.
+#
+# Immich's /api/sync/stream keeps a pooled Postgres connection open while it
+# streams rows to the phone. On v3.2.0 a client that disconnected mid-stream
+# (Envoy's 15s default route timeout did this on every sync) left that backend
+# stuck forever in state=active / wait_event=ClientRead. Each API pod has a
+# pool of 10; on 2026-09-15 all 20 were stuck (the oldest for 25h), so every
+# DB-backed request queued until the gateway returned 504 while /api/server/ping
+# stayed green. v3.2.1 fixes the leak upstream; this reaper makes sure a
+# regression can never take the service down again.
+#
+# A backend that is *active* but has waited more than 10 minutes for its
+# client to read is not doing work for anyone: a healthy stream consumer keeps
+# draining, and a phone that went to sleep resumes sync v2 from its last ack.
+# Migrations, vacuums and long queries are never in ClientRead, so they are
+# untouched.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-db-connection-reaper
+  namespace: immich
+  labels:
+    app: immich-db-connection-reaper
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: immich-db-connection-reaper
+  template:
+    metadata:
+      labels:
+        app: immich-db-connection-reaper
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+      containers:
+        - name: reaper
+          image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+          command: [sh, -ec]
+          args:
+            - |
+              echo "immich-db-connection-reaper: killing postgres.js backends active+ClientRead > ${MAX_CLIENT_READ_MIN}m every ${INTERVAL_SEC}s"
+              while true; do
+                psql --host=immich-postgres --port=5432 \
+                  --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" \
+                  --no-align --tuples-only --quiet \
+                  --set=ON_ERROR_STOP=0 \
+                  --command="
+                    select format('%s reaped pid=%s client=%s age=%s query=%s',
+                                  now()::timestamptz(0), pid, client_addr,
+                                  date_trunc('second', now()-query_start),
+                                  left(regexp_replace(query, '\s+', ' ', 'g'), 60))
+                    from pg_stat_activity
+                    where application_name = 'postgres.js'
+                      and state = 'active'
+                      and wait_event_type = 'Client'
+                      and wait_event = 'ClientRead'
+                      and now() - query_start > make_interval(mins => ${MAX_CLIENT_READ_MIN})
+                      and pg_terminate_backend(pid);" \
+                  || echo "$(date -u +%FT%TZ) reaper: psql failed (postgres down or unreachable), retrying"
+                sleep "$INTERVAL_SEC"
+              done
+          env:
+            - name: INTERVAL_SEC
+              value: "60"
+            - name: MAX_CLIENT_READ_MIN
+              value: "10"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_USERNAME}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_PASSWORD}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: {name: immich-db, key: DB_DATABASE_NAME}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi

@@ -201,12 +201,17 @@ spec:
   hostnames:
     - photos.white.fm
   rules:
-    # No request timeout. The Immich mobile app holds a long-lived websocket and
-    # transfers whole videos in a single request; the previous 60s cap cut those
-    # off mid-stream (Envoy logged response_timeout after 23 MB) so the app never
-    # finished its initial sync. headscale, the other websocket app on this
-    # gateway, likewise sets no timeouts.
-    - backendRefs:
+    # Request timeout explicitly disabled. Omitting `timeouts` does NOT mean
+    # "no timeout": Envoy Gateway then applies Envoy's built-in 15s route
+    # timeout, which is what cut the mobile app's /api/sync/stream and any
+    # video transfer at exactly 15000ms (access log: response_timeout, flag
+    # UT). On Immich <= v3.2.0 every stream cut that way leaked a Postgres
+    # connection until both API pods' pools were exhausted and every DB-backed
+    # request 504'd. Gateway API defines 0s as "disabled".
+    - timeouts:
+        request: "0s"
+        backendRequest: "0s"
+      backendRefs:
         - name: immich-server
           port: 2283
 ---
