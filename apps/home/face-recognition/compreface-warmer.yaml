@@ -41,7 +41,7 @@ spec:
               KEY=$(grep -m1 "^compreface_key:" /secrets/secrets.yml | sed 's/.*compreface_key:[[:space:]]*//' | tr -d '"\r' | tr -d '[:space:]')
               if [ -n "$KEY" ]; then echo "warmer up: compreface_key parsed (len ${#KEY})"; else echo "warmer up: FAILED to parse compreface_key from /secrets/secrets.yml"; fi
               CF=http://compreface.face-recognition.svc.cluster.local
-              IMG=https://doorbell-greetings.pages.internal.white.fm/test/portrait.jpg
+              IMG=https://doorbell-greetings.pages.internal.white.fm/test/portrait-small.jpg  # 360px: same face, ~1/10 the detector work of the 1600px original
               while true; do
                 [ -s /tmp/warm.jpg ] || curl -sf --max-time 15 "$IMG" -o /tmp/warm.jpg 2>/dev/null || echo "$(date +%H:%M:%S) warm image fetch failed"
                 if [ -s /tmp/warm.jpg ]; then
