@@ -14,6 +14,11 @@
 # draining, and a phone that went to sleep resumes sync v2 from its last ack.
 # Migrations, vacuums and long queries are never in ClientRead, so they are
 # untouched.
+#
+# The victim set is a MATERIALIZED CTE on purpose: Postgres may evaluate WHERE
+# predicates in any order, so `where ... and pg_terminate_backend(pid)` in a
+# single scan terminated every backend (its own session included) before the
+# other filters were checked. Never move the terminate call into the scan.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -50,17 +55,23 @@ spec:
                   --no-align --tuples-only --quiet \
                   --set=ON_ERROR_STOP=0 \
                   --command="
+                    with victims as materialized (
+                      select pid, client_addr, query_start, query
+                      from pg_stat_activity
+                      where datname = current_database()
+                        and pid <> pg_backend_pid()
+                        and application_name = 'postgres.js'
+                        and state = 'active'
+                        and wait_event_type = 'Client'
+                        and wait_event = 'ClientRead'
+                        and now() - query_start > make_interval(mins => ${MAX_CLIENT_READ_MIN})
+                    )
                     select format('%s reaped pid=%s client=%s age=%s query=%s',
                                   now()::timestamptz(0), pid, client_addr,
                                   date_trunc('second', now()-query_start),
                                   left(regexp_replace(query, '\s+', ' ', 'g'), 60))
-                    from pg_stat_activity
-                    where application_name = 'postgres.js'
-                      and state = 'active'
-                      and wait_event_type = 'Client'
-                      and wait_event = 'ClientRead'
-                      and now() - query_start > make_interval(mins => ${MAX_CLIENT_READ_MIN})
-                      and pg_terminate_backend(pid);" \
+                    from victims
+                    where pg_terminate_backend(pid);" \
                   || echo "$(date -u +%FT%TZ) reaper: psql failed (postgres down or unreachable), retrying"
                 sleep "$INTERVAL_SEC"
               done
