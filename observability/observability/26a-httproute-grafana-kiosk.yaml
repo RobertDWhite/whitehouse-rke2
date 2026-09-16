@@ -27,6 +27,11 @@ spec:
                 value: kiosk@white.fm
             remove:
               - X-authentik-groups
+      # Envoy Gateway applies a 15s request timeout when this is omitted;
+      # kiosk Loki panels routinely take longer and were returning 504.
+      timeouts:
+        request: "90s"
+        backendRequest: "90s"
       backendRefs:
         - name: grafana
           port: 3000
