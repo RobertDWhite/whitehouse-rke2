@@ -32,6 +32,9 @@ spec:
                     values:
                       - rke2-node-14
                       - rke2-node-50
+                      # 2026-09-16: node-11 flapped Ready/NotReady 91x in a day (overcommitted,
+                      # apiserver OOM-killed); the tailnet's DNS + relay must not live there.
+                      - rke2-node-11
       containers:
         - name: derper
           image: ghcr.io/yangchuansheng/ip_derper
