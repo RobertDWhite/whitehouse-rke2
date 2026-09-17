@@ -14,16 +14,14 @@ spec:
       labels:
         app: immich-postgres
     spec:
-      # Keep the database off node-10, which is at its pod cap. node-14 hosts
-      # an existing healthy Longhorn replica for this volume and the Immich API.
-      # This avoids a remote, saturated I/O path during PostgreSQL recovery.
+      # Pin to the node that currently holds the only healthy Longhorn replica.
+      # After the 2026-09-17 instance-manager restart on node-14, local replicas
+      # for this volume stay stopped (instanceManagerName empty), so the engine
+      # on node-14 was serving all reads over the network from node-11 and Immich
+      # bootstrap (vchordrq_prewarm + advisory lock) never finished. node-11 is
+      # Ready again and keeps Immich DB I/O local.
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-14
-      tolerations:
-        - key: kube-vip
-          operator: Equal
-          value: disabled
-          effect: NoSchedule
+        kubernetes.io/hostname: rke2-node-11
       securityContext:
         fsGroup: 999
         fsGroupChangePolicy: OnRootMismatch
