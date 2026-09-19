@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: riffado
+  namespace: riffado
+  labels:
+    app: riffado
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  # Single Postgres + a background sync worker: never run two app pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: riffado
+  template:
+    metadata:
+      labels:
+        app: riffado
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      # node-11 is overcommitted and flaps NotReady; node-50 is
+                      # the GPU box and should keep its RAM for models.
+                      - rke2-node-11
+                      - rke2-node-50
+      # The upstream image has no USER (runs as root under compose). We run the
+      # app as 1001; the init container below is the only thing that runs as root
+      # and it just hands the NAS directories over, since fsGroup cannot chown NFS.
+      securityContext:
+        fsGroup: 1001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: chown-nas
+          image: busybox:1.37
+          command: [sh, -ec]
+          args:
+            - |
+              chown 1001:1001 /app/audio /app/storage
+              chmod 0750 /app/audio /app/storage
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER]
+          volumeMounts:
+            - {name: nas, mountPath: /app/audio, subPath: Riffado/audio}
+            - {name: nas, mountPath: /app/storage, subPath: Riffado/storage}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {memory: 64Mi}
+      containers:
+        - name: riffado
+          image: ghcr.io/riffado/riffado
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: APP_URL
+              value: https://riffado.internal.white.fm
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {name: riffado-env, key: DATABASE_URL}
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef: {name: riffado-env, key: BETTER_AUTH_SECRET}
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef: {name: riffado-env, key: ENCRYPTION_KEY}
+            # Flip to "true" once the single household account exists.
+            - name: DISABLE_REGISTRATION
+              value: "false"
+            - name: DEFAULT_STORAGE_TYPE
+              value: local
+            - name: LOCAL_STORAGE_PATH
+              value: /app/audio
+            # Behind Envoy Gateway, which sets X-Forwarded-For.
+            - name: RATE_LIMIT_TRUST_PROXY_HEADERS
+              value: "true"
+            # Allow cluster-internal webhook targets (n8n/HA) if ever wired up.
+            - name: WEBHOOKS_REQUIRE_PUBLIC_TARGETS
+              value: "false"
+            - name: BACKGROUND_SYNC_ENABLED
+              value: "true"
+            # Whisper on the 5090 handles a one-hour recording in a minute or
+            # two, but keep the upstream 60 min ceiling for long meetings.
+            - name: WHISPER_REQUEST_TIMEOUT_MS
+              value: "3600000"
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: nas
+              mountPath: /app/audio
+              subPath: Riffado/audio
+            # The image's fallback storage path; persisted so nothing ever lands
+            # on the container filesystem.
+            - name: nas
+              mountPath: /app/storage
+              subPath: Riffado/storage
+            - name: tmp
+              mountPath: /tmp
+            # Next.js image-optimizer cache; only path under /app the app writes.
+            - name: next-cache
+              mountPath: /app/.next/cache
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # ffmpeg re-encodes >25 MiB uploads to Opus; let it burst.
+              cpu: "4"
+              memory: 3Gi
+          startupProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: nas
+          persistentVolumeClaim:
+            claimName: riffado-nas
+        - name: tmp
+          emptyDir:
+            sizeLimit: 4Gi
+        - name: next-cache
+          emptyDir:
+            sizeLimit: 1Gi
