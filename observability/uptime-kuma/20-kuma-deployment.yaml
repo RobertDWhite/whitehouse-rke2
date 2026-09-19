@@ -13,10 +13,23 @@ spec:
       labels:
         app: uptime-kuma
     spec:
-      nodeName: rke2-node-11  
-      containers:  
+      # 2026-09-19: was hard-pinned with nodeName to rke2-node-11. That bypasses the
+      # scheduler (every retry while node-11 is at its pod cap dies as OutOfpods) and
+      # node-11 is the overcommitted node that flaps NotReady. The data volume is
+      # Longhorn, so let the scheduler place it anywhere stable.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-11
+                      - rke2-node-50
+      containers:
         - name: uptime-kuma
-          image: louislam/uptime-kuma
+          image: louislam/uptime-kuma:2.5.5@sha256:c74379ac4509ce2d2c2633f509e67003ee2e45b6e995c5e43fc101f45a0e1fbe
           ports:
             - containerPort: 3001
           resources:
@@ -26,19 +39,24 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          # Probe timeouts were the 1s default; Kuma's first byte on a busy node is
+          # slower than that, so kubelet killed a healthy container every few minutes.
           readinessProbe:
             httpGet:
               path: /
               port: 3001
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 4
           livenessProbe:
             httpGet:
               path: /
               port: 3001
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 30
-            failureThreshold: 3
+            timeoutSeconds: 10
+            failureThreshold: 5
           securityContext:
             allowPrivilegeEscalation: false
           volumeMounts:
