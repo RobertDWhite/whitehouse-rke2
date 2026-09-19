@@ -1,0 +1,68 @@
+# Second tunnel, owned by the Wallace and White Cloudflare account (tunnel
+# ww-synology, 14461e82-b5cc-4117-b61f-3cf22f3fc631). Remotely managed: the
+# ingress (synology.wallaceandwhite.com -> https://10.99.99.10:5001) lives in
+# the Cloudflare dashboard, not here. cfargotunnel CNAMEs only work within the
+# tunnel's own account, so this cannot be folded into the white.fm tunnel.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared-ww
+  namespace: cloudflared
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared-ww
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: cloudflared-ww
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2026.5.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - cloudflared
+            - tunnel
+            - --protocol
+            - http2
+            - --metrics
+            - 0.0.0.0:2000
+            - --no-autoupdate
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-ww-secret
+                  key: TUNNEL_TOKEN
+          ports:
+            - name: metrics
+              containerPort: 2000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
