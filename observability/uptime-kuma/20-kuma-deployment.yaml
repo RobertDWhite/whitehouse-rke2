@@ -5,6 +5,9 @@ metadata:
   namespace: uptime-kuma
 spec:
   replicas: 1
+  # RWO Longhorn volume: a rolling update deadlocks on Multi-Attach.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: uptime-kuma
