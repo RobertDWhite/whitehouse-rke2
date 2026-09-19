@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: riffado-postgres-logical-backup
+  namespace: riffado
+spec:
+  # Nightly pg_dump to the Synology (Personal/Riffado/db-backups), 14-day
+  # retention. The database is small; what matters is that transcripts and the
+  # encrypted Plaud/API tokens survive a Longhorn loss.
+  schedule: "40 5 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: riffado-postgres-backup
+        spec:
+          restartPolicy: OnFailure
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: [rke2-node-11, rke2-node-50]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+          containers:
+            - name: pg-dump
+              image: postgres
+              command: [sh, -ec]
+              args:
+                - |
+                  umask 077
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  pg_dump --format=custom --no-owner --no-privileges \
+                    --host=riffado-postgres --port=5432 \
+                    --username=postgres --dbname=riffado \
+                    --file="/backups/riffado-${stamp}.dump"
+                  find /backups -type f -name 'riffado-*.dump' -mtime +14 -delete
+                  ls -la /backups | tail -n 3
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: riffado-env, key: POSTGRES_PASSWORD}
+              volumeMounts:
+                - name: nas
+                  mountPath: /backups
+                  subPath: Riffado/db-backups
+              resources:
+                requests: {cpu: 100m, memory: 128Mi}
+                limits: {memory: 512Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: nas
+              persistentVolumeClaim:
+                claimName: riffado-nas

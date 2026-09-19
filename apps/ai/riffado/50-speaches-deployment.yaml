@@ -1,0 +1,134 @@
+# GPU Whisper for Riffado: faster-whisper (CTranslate2) behind an
+# OpenAI-compatible /v1/audio/transcriptions.
+#
+# Lives on rke2-node-50 (RTX 5090). The GB10 (node-10) was tried first and the
+# arm64 CUDA image turned out to carry a CPU-only CTranslate2, so it cannot use
+# that GPU. See README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: speaches
+  namespace: riffado
+  labels:
+    app: speaches
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: speaches
+  template:
+    metadata:
+      labels:
+        app: speaches
+    spec:
+      runtimeClassName: nvidia
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - rke2-node-50
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        # Fetch the model into the cache volume so the server never depends on
+        # Hugging Face being reachable at start. No-op once it is present.
+        - name: fetch-model
+          image: ghcr.io/speaches-ai/speaches
+          command: [python, -c]
+          args:
+            - |
+              from huggingface_hub import snapshot_download
+              import os
+              m = os.environ["MODEL_ID"]
+              print("ensuring", m, "in", os.environ.get("HF_HOME"))
+              print(snapshot_download(m))
+          env:
+            - name: MODEL_ID
+              value: deepdml/faster-whisper-large-v3-turbo-ct2
+            - name: HF_HOME
+              value: /home/ubuntu/.cache/huggingface
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "0"
+          volumeMounts:
+            - name: models
+              mountPath: /home/ubuntu/.cache/huggingface
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: speaches
+          image: ghcr.io/speaches-ai/speaches
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: WHISPER__INFERENCE_DEVICE
+              value: cuda
+            - name: WHISPER__COMPUTE_TYPE
+              value: float16
+            # Keep the model resident: a cold load costs more than the VRAM.
+            - name: STT_MODEL_TTL
+              value: "-1"
+            - name: PRELOAD_MODELS
+              value: '["deepdml/faster-whisper-large-v3-turbo-ct2"]'
+            - name: ENABLE_UI
+              value: "false"
+            - name: LOG_LEVEL
+              value: info
+            - name: HF_HOME
+              value: /home/ubuntu/.cache/huggingface
+            - name: HF_HUB_OFFLINE
+              value: "1"
+          volumeMounts:
+            - name: models
+              mountPath: /home/ubuntu/.cache/huggingface
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+              nvidia.com/gpu: 1
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: speaches-models
+        - name: tmp
+          emptyDir:
+            sizeLimit: 8Gi

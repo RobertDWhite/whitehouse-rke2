@@ -12,4 +12,7 @@ data:
       timeSlicing:
         resources:
           - name: nvidia.com/gpu
-            replicas: 4
+            # 2026-09-19: 4 -> 6. comfyui, invokeai, ollama-5090 and immich-ml
+            # already wanted 4 and speaches (Riffado's Whisper) makes 5; the
+            # 32 GB card has the headroom, time-slicing only gates scheduling.
+            replicas: 6
