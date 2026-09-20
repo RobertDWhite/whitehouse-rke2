@@ -13,11 +13,24 @@ spec:
       kustomize: {}
     - chart: falco
       repoURL: https://falcosecurity.github.io/charts
-      targetRevision: 8.0.1
+      # 2026-09-19: 8.0.1 -> 9.1.0 (Falco 0.43.0 -> 0.44.1). The container plugin
+      # bundled with 0.43.0 segfaults in criEngine.ctrToInfo (cri.go:243, nil
+      # deref while listing containers over the containerd CRI socket); every
+      # agent had been crash-looping for weeks (9k-12k restarts). falcoctl also
+      # installs the current container plugin so the bundled copy is superseded.
+      targetRevision: 9.1.0
       helm:
         values: |
           driver:
             kind: modern_ebpf
+
+          falcoctl:
+            config:
+              artifact:
+                install:
+                  refs: [falco-rules:5, container:0.7.4]
+                follow:
+                  refs: [falco-rules:5, container:0.7.4]
 
           metrics:
             enabled: true
