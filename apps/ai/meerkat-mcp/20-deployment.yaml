@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meerkat-mcp
+  namespace: meerkat-mcp
+  annotations:
+    renovatebot/update-container-image: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meerkat-mcp
+  template:
+    metadata:
+      labels:
+        app: meerkat-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: meerkat-mcp
+          image: ghcr.io/robertdwhite/meerkat-mcp
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: MEERKAT_BASE_URL
+              value: "http://meerkat.meerkat.svc.cluster.local:80"
+            - name: MEERKAT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: meerkat-mcp-env
+                  key: MEERKAT_API_TOKEN
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: meerkat-mcp-env
+                  key: MCP_TOKEN
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
