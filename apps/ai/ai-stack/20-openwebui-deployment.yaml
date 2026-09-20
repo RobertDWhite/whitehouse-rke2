@@ -7,6 +7,9 @@ metadata:
     app: openwebui
 spec:
   replicas: 1
+  # SQLite on an RWO Longhorn volume: never let two pods overlap.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: openwebui
