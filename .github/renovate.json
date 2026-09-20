@@ -10,16 +10,16 @@
   },
   "customManagers": [
     {
-  "customType": "regex",
-  "managerFilePatterns": [
-    "velero/values\\.ya?ml$"
-  ],
-  "matchStrings": [
-    "image:\\s*(?<depName>velero/velero-plugin-for-aws):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)",
-    "image:\\s*(?<depName>velero/velero-plugin-for-csi):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
-  ],
-  "datasourceTemplate": "docker"
-},
+      "customType": "regex",
+      "managerFilePatterns": [
+        "velero/values\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "image:\\s*(?<depName>velero/velero-plugin-for-aws):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)",
+        "image:\\s*(?<depName>velero/velero-plugin-for-csi):(?<currentValue>v?[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
     {
       "customType": "regex",
       "managerFilePatterns": [
@@ -209,6 +209,24 @@
       "matchPackageNames": [
         "registry.white.fm/**",
         "registry.internal.white.fm/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Postgres majors need pg_upgrade/dump-restore of the data volume first; never auto-bump them (condo postgres-0 crash-looped after 16 -> 18, 2026-09-16).",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "postgres",
+        "docker.io/library/postgres",
+        "docker.io/postgres",
+        "/^ghcr.io/immich-app/postgres$/",
+        "/^tensorchord/pgvecto-rs$/",
+        "/^pgvector/pgvector$/"
+      ],
+      "matchUpdateTypes": [
+        "major"
       ],
       "enabled": false
     }

@@ -27,10 +27,18 @@ spec:
                     values:
                       - rke2-node-14
                       - rke2-node-50
+      # 0.28.0 switched the image from nginx-unprivileged to caddy:latest, which
+      # has no USER and wants writable /data + /config. Run it as the nonroot
+      # uid on 8080 instead of relying on the image (2026-09-20; the 0.28.0 pod
+      # had sat in CreateContainerConfigError for a week behind the old RS).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
       volumes:
-        - name: nginx-cache
+        - name: caddy-data
           emptyDir: {}
-        - name: nginx-run
+        - name: caddy-config
           emptyDir: {}
         - name: tmp
           emptyDir: {}
@@ -38,19 +46,22 @@ spec:
         - name: admin
           image: goodieshq/headscale-admin
           imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "8080"
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
           livenessProbe:
             httpGet:
               path: /admin/
-              port: 80
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /admin/
-              port: 80
+              port: http
             initialDelaySeconds: 3
             periodSeconds: 10
           resources:
@@ -61,10 +72,10 @@ spec:
               cpu: 200m
               memory: 128Mi
           volumeMounts:
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: nginx-run
-              mountPath: /var/run
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-config
+              mountPath: /config
             - name: tmp
               mountPath: /tmp
           securityContext:
@@ -73,4 +84,3 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-              add: ["NET_BIND_SERVICE"]
