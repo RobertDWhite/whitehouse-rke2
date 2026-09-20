@@ -76,6 +76,16 @@ data:
     app_service_config_files:
       - /hookshot-registration/registration.yaml
 
+    # Hookshot end-to-bridge encryption (all of its rooms are E2EE). Appservice
+    # users only get a device_id via MSC3202 masquerading + MSC4203 to-device
+    # delivery; without these hookshot >= mid-2026 aborts with "Encryption not
+    # possible: server not revealing device ID". Pair with receive_ephemeral /
+    # org.matrix.msc3202 in the registration.
+    experimental_features:
+      msc3202_device_masquerading: true
+      msc3202_transaction_extensions: true
+      msc2409_to_device_messages_enabled: true
+
     # --- Email Notifications ---
     email:
       smtp_host: postfix
