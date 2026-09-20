@@ -64,9 +64,11 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /home/ubuntu/.cache/huggingface
+          # huggingface_hub buffers the 1.6 GB model file in RAM while
+          # downloading; at 1Gi this init container was OOMKilled (exit 137).
           resources:
-            requests: {cpu: 100m, memory: 256Mi}
-            limits: {memory: 1Gi}
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {memory: 3Gi}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
