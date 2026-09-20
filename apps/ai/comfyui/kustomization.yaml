@@ -30,8 +30,14 @@ labels:
 images:
   # ubuntu24_cuda12.8 = first CUDA line with Blackwell sm_120 support, so the
   # entrypoint pulls cu128 torch wheels for the 5090. Do not drop below 12.8.
+  # 2026-09-20: cuda12.8 -> cuda13.0. PyTorch dropped CUDA 12.8 wheels at 2.12, so
+  # PyPI pulls (custom-node requirements) gave the venv a CUDA-13 torch while the
+  # image kept re-pinning torchaudio to +cu128 -> "compiled with different CUDA
+  # versions" crash loop. On first start the image renames the old venv to
+  # venv-ubuntu24_cuda12.8 and builds a fresh CUDA-13 one (node-50 driver 580).
   - name: mmartial/comfyui-nvidia-docker
-    newTag: "ubuntu24_cuda12.8-20260805"
+    newTag: ubuntu24_cuda13.0-20260914
+    digest: sha256:a63bf18f31c7ac7d7748d79a628dd661fb440371ab7e97127aead2e5475e62d8
 
   - name: python
     newTag: "3.14-alpine"
