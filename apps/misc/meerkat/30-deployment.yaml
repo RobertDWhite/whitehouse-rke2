@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meerkat
+  namespace: meerkat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: meerkat
+  template:
+    metadata:
+      labels:
+        app: meerkat
+    spec:
+      # Entrypoint runs as root (usermod/chown for PUID/PGID) then supervisord
+      # drops the backend to appuser — no allowPrivilegeEscalation/cap drops.
+      containers:
+        - name: meerkat
+          image: ghcr.io/fbuchner/meerkat-crm
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PUID
+              value: "1001"
+            - name: PGID
+              value: "1001"
+            - name: FRONTEND_URL
+              value: https://meerkat.internal.white.fm
+            - name: COOKIE_SECURE
+              value: "true"
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: meerkat-secrets
+                  key: jwt-secret-key
+            - name: CARDDAV_ENABLED
+              value: "true"
+            - name: SMTP_HOST
+              value: postfix.postfix.svc.cluster.local
+            - name: SMTP_PORT
+              value: "25"
+            - name: SMTP_FROM_EMAIL
+              value: meerkat@whitematter.tech
+            - name: SMTP_USE_TLS
+              value: "false"
+            - name: REMINDER_TIME
+              value: "06:00"
+            - name: REMINDER_TIMEZONE
+              value: America/New_York
+            # Monica lives in-cluster; the importer must be allowed to hit it.
+            - name: MONICA_BLOCK_PRIVATE_URLS
+              value: "false"
+            - name: LOG_LEVEL
+              value: info
+            - name: TZ
+              value: America/New_York
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: data
+              mountPath: /app/static/photos
+              subPath: photos
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: meerkat-data
