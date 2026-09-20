@@ -25,7 +25,10 @@ images:
   # "homelab image" workflow — upstream publishes no usable release image.
   - name: ghcr.io/robertdwhite/condo
     newTag: v5.23.0
+  # Data directory is PostgreSQL 16; a major bump needs pg_upgrade/dump-restore,
+  # not an image change (#651 moved this to 18.6 and postgres-0 crash-looped
+  # 950+ times: "database files are incompatible with server").
   - name: postgres
-    newTag: "18.6"
+    newTag: "16.15"
   - name: redis
     newTag: 8.10-alpine
