@@ -19,6 +19,9 @@ spec:
     spec:
       securityContext:
         fsGroup: 10001
+        # Skip the recursive chown of the whole chunk store on every start (it
+        # took minutes at ~6k files/min); only fix ownership if the root mismatches.
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: loki
           image: grafana/loki
