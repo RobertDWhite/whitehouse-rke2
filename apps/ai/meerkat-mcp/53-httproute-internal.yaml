@@ -1,0 +1,16 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: meerkat-mcp-internal
+  namespace: meerkat-mcp
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - meerkat-mcp.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: meerkat-mcp
+          port: 8080
