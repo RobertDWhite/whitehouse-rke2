@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: meerkat
+
+resources:
+  - 00-namespace.yaml
+  - 30-deployment.yaml
+  - 40-service.yaml
+  - 53-httproute-internal.yaml
+
+generators:
+  - 25-ksops.yaml
+
+images:
+  - name: ghcr.io/fbuchner/meerkat-crm
+    newTag: "1.7.0"
+    digest: "sha256:d513bdd3ae800c07ed8d318c33226cb510f9b1083fdc253007ce8b1c9ac553d0"
