@@ -79,8 +79,15 @@ images:
     digest: "sha256:1b92e7a80c021647bf70f5d3eb66066a998e4f5cf43c07bb9dc9f729782cf88e"
 
   # Synapse
+  # HOLD at v1.160.0 (2026-09-20): v1.161.0 removed the unstable
+  # org.matrix.msc3202.device_id appservice masquerading parameter, and hookshot
+  # (bot-sdk 0.8.0-element.3) still sends only that -> crash loop
+  # "Encryption not possible: server not revealing device ID".
+  # Unpin once https://github.com/matrix-org/matrix-hookshot/issues/1398 ships.
+  # Schema version is 94 on both releases, so the rollback is safe.
   - name: matrixdotorg/synapse
-    newTag: "v1.161.0"
+    newTag: v1.160.0
+    digest: sha256:78de1d10bef02e375f861d1cc99f8bedd9381d4f9083ea8b2c22a053477b205f
 
   # NGINX
   - name: nginx
@@ -91,8 +98,11 @@ images:
     newTag: "1.38"
   - name: bitnami/kubectl
     newTag: "latest"
+  # Pinned by digest (2026-09-20): the upstream only publishes rolling tags and a
+  # silent :latest change is what surfaced the missing E2EE homeserver flags.
   - name: halfshot/matrix-hookshot
-    newTag: "latest"
+    newTag: latest
+    digest: sha256:8e6c1f9d2a949bb1025f01bf175ab9dde7e6650d39aa8781f3837d40af5b3484
   - name: juanluisbaptiste/postfix
     newTag: "alpine"
   - name: quay.io/prometheuscommunity/postgres-exporter
