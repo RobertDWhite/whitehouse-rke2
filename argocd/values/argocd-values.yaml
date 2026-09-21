@@ -113,6 +113,28 @@ server:
 
 controller:
   replicas: 2
+  # 2026-09-20: keep the controllers off rke2-node-11. Its kube-apiserver is
+  # OOM-killed constantly (597 restarts in 7d); a controller there sees
+  # 10.43.0.1 "connection refused" mid-sync, leaving operations wedged as
+  # "one or more synchronization tasks are not valid" / zombie Running hooks.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values:
+                  - rke2-node-11
+                  - rke2-node-50
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: argocd-application-controller
 
   metrics:
     enabled: true

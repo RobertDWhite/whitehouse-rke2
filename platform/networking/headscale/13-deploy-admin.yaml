@@ -84,3 +84,6 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+              # The caddy binary carries a cap_net_bind_service file capability;
+              # without it in the bounding set exec fails with "operation not permitted".
+              add: ["NET_BIND_SERVICE"]

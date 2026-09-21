@@ -5,6 +5,10 @@ metadata:
   namespace: observability
 spec:
   replicas: 1
+  # Single Longhorn RWO volume: a rolling update deadlocks on Multi-Attach (the
+  # 3.7.7 -> 3.7.8 bump sat ContainerCreating for 2.5 days).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: loki
@@ -15,6 +19,9 @@ spec:
     spec:
       securityContext:
         fsGroup: 10001
+        # Skip the recursive chown of the whole chunk store on every start (it
+        # took minutes at ~6k files/min); only fix ownership if the root mismatches.
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: loki
           image: grafana/loki
