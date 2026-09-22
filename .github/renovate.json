@@ -36,9 +36,10 @@
         "/.*\\.ya?ml$/"
       ],
       "matchStrings": [
-        "repository:\\s*(?<depName>[a-z0-9./-]+)\\s*\\n\\s*tag:\\s*[\"']?(?<currentValue>[\\w.-]+)[\"']?"
+        "(?:registry:\\s*(?<registry>[a-z0-9.-]+)\\s*\\n\\s*)?repository:\\s*(?<repo>[a-z0-9./-]+)\\s*\\n\\s*tag:\\s*[\"']?(?<currentValue>[\\w.-]+)[\"']?"
       ],
-      "datasourceTemplate": "docker"
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "{{#if registry}}{{registry}}/{{/if}}{{repo}}"
     },
     {
       "customType": "regex",
