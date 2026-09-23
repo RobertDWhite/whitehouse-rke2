@@ -17,4 +17,8 @@ spec:
         action: Allow
         principal:
           clientCIDRs:
+            # kiosk display
             - 10.100.0.43/32
+            # Home Assistant VM - the System dashboard embeds the kiosk Grafana boards,
+            # which carry the injected authentik headers so they render without a login.
+            - 10.100.1.30/32
