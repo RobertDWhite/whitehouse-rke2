@@ -32,6 +32,7 @@ resources:
   - 11-deploy-prometheus.yaml
   - 12-deploy-grafana.yaml
   - 13-deploy-promtail.yaml
+  - 130-daemonset-node-exporter.yaml
   - 13a-deploy-alertmanager.yaml
 
   # Promtail ServiceAccounts and RBAC
@@ -177,6 +178,9 @@ generatorOptions:
 images:
   - name: prom/prometheus
     newTag: "v3.14.0"
+
+  - name: prom/node-exporter
+    newTag: "v1.10.1"
 
   - name: grafana/promtail
     newTag: "3.6.11"
