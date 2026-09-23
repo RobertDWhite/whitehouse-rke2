@@ -166,7 +166,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"2\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s]) + increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) / clamp_min(sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) - sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"4\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) + sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"2\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s]) + increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])),1)",
+          "expr": "sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=~\"2|3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) / clamp_min(sum(increase(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) - sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=\"4\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])) + sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class=~\"2|3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[${__range_s}s])), 1)",
           "legendFormat": "",
           "refId": "A"
         }
@@ -344,7 +344,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(envoy_http_downstream_rq_xx{envoy_response_code_class=\"2\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m]) + rate(envoy_http_downstream_rq_xx{envoy_response_code_class=\"3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) / clamp_min(sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])),0.001)",
+          "expr": "sum(rate(envoy_http_downstream_rq_xx{envoy_response_code_class=~\"2|3\", envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])) / clamp_min(sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~\"$listener\", pod=~\"$pod\"}[2m])), 0.001)",
           "legendFormat": "",
           "refId": "A"
         }
