@@ -154,9 +154,21 @@ spec:
                 secretKeyRef:
                   name: grafana-admin
                   key: GF_RENDERING_AUTH_TOKEN
+            # Default mode launches a fresh Chromium per request, which put a single
+            # panel render at 8-11s. Clustered mode keeps a browser pool warm so repeat
+            # renders are quick enough to be fetched on a schedule.
+            - name: RENDERING_MODE
+              value: "clustered"
+            - name: RENDERING_CLUSTERING_MODE
+              value: "browser"
+            - name: RENDERING_CLUSTERING_MAX_CONCURRENCY
+              value: "3"
+            - name: RENDERING_CLUSTERING_TIMEOUT
+              value: "60"
           resources:
             limits:
-              memory: 512Mi
+              # a warm browser pool needs more headroom than one-shot rendering
+              memory: 1Gi
             requests:
               cpu: 50m
               memory: 128Mi
