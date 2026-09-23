@@ -11,6 +11,12 @@ spec:
   hostnames:
     - jetlog.internal.white.fm
   rules:
-    - backendRefs:
+    # Nothing in front of jetlog sets X-Authentik-Username, so never let a client supply it.
+    - filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - X-Authentik-Username
+      backendRefs:
         - name: jetlog
           port: 3000
