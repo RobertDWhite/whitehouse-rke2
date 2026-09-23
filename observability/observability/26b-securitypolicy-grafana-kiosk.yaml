@@ -19,6 +19,9 @@ spec:
           clientCIDRs:
             # kiosk display
             - 10.100.0.43/32
-            # Home Assistant VM - the System dashboard embeds the kiosk Grafana boards,
-            # which carry the injected authentik headers so they render without a login.
-            - 10.100.1.30/32
+            # Home Assistant VM. It reaches the gateway over its second NIC (enp2s3),
+            # so the address Envoy sees is 10.99.5.232 and NOT its 10.100.1.30 LAN address
+            # (`ip route get 10.99.5.110` -> "dev enp2s3 src 10.99.5.232").
+            # Note this only covers requests HA makes server-side; the dashboard's Grafana
+            # cards are iframes, which the viewing browser fetches under its own IP.
+            - 10.99.5.232/32
