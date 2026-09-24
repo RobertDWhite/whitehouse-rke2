@@ -17,7 +17,7 @@ spec:
     # Velero Helm chart
     - repoURL: https://vmware-tanzu.github.io/helm-charts
       chart: velero
-      targetRevision: 6.7.0
+      targetRevision: 12.2.0
       helm:
         releaseName: velero
         values: |
@@ -49,6 +49,11 @@ spec:
                   s3Url: https://minio-s3.external-services.svc.cluster.local:9000
                   s3ForcePathStyle: "true"
                   insecureSkipTLSVerify: "true"
+                  # velero-plugin-for-aws v1.14 (AWS SDK v2 endpoint resolver)
+                  # refuses to send any request without a region: "A region
+                  # must be set when sending requests to S3". MinIO's default
+                  # region is us-east-1.
+                  region: us-east-1
                   # NOTE: serverSideEncryption (SSE-S3 / AES256) intentionally
                   # omitted. This MinIO has no KMS configured and rejects SSE
                   # PutObjects with HTTP 501 NotImplemented. Backup volume data is
@@ -89,21 +94,39 @@ spec:
                   # most non-AWS S3 implementations) rejects trailing checksums,
                   # so disable it. See velero-io/velero#8742.
                   checksumAlgorithm: ""
-            # No volumeSnapshotLocation. This is Velero v1.13.2 and the only
-            # plugin loaded is velero-plugin-for-aws -- there is no CSI plugin
-            # and `features: EnableCSI` is unset, so a VSL with provider
-            # velero.io/csi resolves to nothing and every backup logged
-            # "unable to get valid VolumeSnapshotter for velero.io/csi" once per
-            # PVC (7 errors in the 2026-08-16 weekly run). Volume data is
-            # protected by kopia file-system backup via defaultVolumesToFsBackup
-            # above. To move to real CSI snapshots, add the
-            # velero-plugin-for-csi initContainer AND features: EnableCSI, then
-            # restore this block and flip snapshotVolumes back on in the schedules.
+            # No volumeSnapshotLocation. `features: EnableCSI` is unset, so a VSL
+            # with provider velero.io/csi resolves to nothing and every backup
+            # logged "unable to get valid VolumeSnapshotter for velero.io/csi"
+            # once per PVC (7 errors in the 2026-08-16 weekly run). Volume data
+            # is protected by kopia file-system backup via
+            # defaultVolumesToFsBackup above. To move to real CSI snapshots, set
+            # features: EnableCSI (the CSI plugin is built into velero since
+            # v1.14 -- do NOT add the old velero-plugin-for-csi initContainer,
+            # it double-registers), then restore this block and flip
+            # snapshotVolumes back on in the schedules.
+            # Must be an explicit empty list: omitting the key falls back to the
+            # chart default of one VSL with an empty provider, which the API
+            # rejects ("spec.provider: Required value") and fails every sync.
+            volumeSnapshotLocation: []
+
+            # Since v1.14 kopia repository maintenance runs as one Job per
+            # BackupRepository (~57) instead of inside the server, and those
+            # Jobs have no resource limits by default. See the server
+            # resources comment below for why maintenance memory matters.
+            repositoryMaintenanceJob:
+              repositoryConfigData:
+                global:
+                  podResources:
+                    cpuRequest: 100m
+                    cpuLimit: "1"
+                    memoryRequest: 256Mi
+                    memoryLimit: 2Gi
 
           deployNodeAgent: true
 
-          # velero v1.13 runs kopia repository maintenance inside the server
-          # process (dedicated maintenance Jobs only arrived in v1.15). With ~40
+          # Up to velero v1.13 kopia repository maintenance ran inside the
+          # server process (it moved to the Jobs configured above in v1.14,
+          # so this 4Gi limit can likely come down once that is proven). With ~40
           # BackupRepositories, maintenance loads large index sets into memory.
           # On 2026-08-03 every repo went overdue at once after the object store
           # had been unreachable for 16 days; the resulting concurrent
