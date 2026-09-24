@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: https://prometheus-community.github.io/helm-charts
     chart: kube-state-metrics
-    targetRevision: 5.37.0
+    targetRevision: 8.5.0
     helm:
       releaseName: kube-state-metrics
       values: |
@@ -19,9 +19,6 @@ spec:
         prometheus:
           monitor:
             enabled: false
-
-        extraArgs:
-          - --resources=certificatesigningrequests,configmaps,cronjobs,daemonsets,deployments,endpoints,horizontalpodautoscalers,ingresses,jobs,leases,limitranges,mutatingwebhookconfigurations,namespaces,networkpolicies,nodes,persistentvolumeclaims,persistentvolumes,poddisruptionbudgets,pods,replicasets,replicationcontrollers,resourcequotas,secrets,services,statefulsets,storageclasses,validatingwebhookconfigurations,volumeattachments
 
         rbac:
           extraRules:
