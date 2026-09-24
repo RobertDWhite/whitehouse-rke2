@@ -18,7 +18,7 @@ spec:
         controllers:
           main:
             replicas: 1
-            strategy: RollingUpdate
+            strategy: Recreate  # RWO Longhorn PVC: rolling updates deadlock on attach
             initContainers:
               fix-perms:
                 image:
