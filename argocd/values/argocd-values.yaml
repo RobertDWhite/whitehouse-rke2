@@ -74,14 +74,7 @@ repoServer:
   initContainers:
   - name: install-ksops
     image: viaductoss/ksops:v4.5.1
-    command: ["/bin/sh", "-c"]
-    args:
-    - |
-      set -e
-      echo "[INIT] Installing ksops + kustomize"
-      cp /usr/local/bin/ksops /custom-tools/ksops
-      cp /usr/local/bin/kustomize /custom-tools/kustomize
-      chmod +x /custom-tools/*
+    command: ["/usr/local/bin/ksops", "install", "/custom-tools"]
     volumeMounts:
     - mountPath: /custom-tools
       name: custom-tools
@@ -90,9 +83,6 @@ repoServer:
   - mountPath: /usr/local/bin/ksops
     name: custom-tools
     subPath: ksops
-  - mountPath: /usr/local/bin/kustomize
-    name: custom-tools
-    subPath: kustomize
   - mountPath: /etc/sops/age
     name: sops-age
     readOnly: true
