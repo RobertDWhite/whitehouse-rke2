@@ -259,6 +259,24 @@
       "enabled": false
     },
     {
+      "description": "MySQL/MariaDB majors are one-way data-dir upgrades; stay on LTS lines (MySQL 8.4 -> 9.7 -> 26.x is LTS-to-next-LTS only; MariaDB 13 is rolling, 11.8 is LTS to 2030). Upgrade by hand (PR #724, 2026-09-24).",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "mysql",
+        "docker.io/library/mysql",
+        "docker.io/mysql",
+        "mariadb",
+        "docker.io/library/mariadb",
+        "docker.io/mariadb"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Synapse held at v1.160.0 until hookshot supports the stable MSC3202 device_id param (matrix-hookshot#1398). Remove this rule to resume updates.",
       "matchDatasources": [
         "docker"
