@@ -26,7 +26,7 @@
         "/.*\\.ya?ml$/"
       ],
       "matchStrings": [
-        "repoURL:\\s*(?<registryUrl>.*?)\\s*\\n.*?chart:\\s*(?<depName>.*?)\\s*\\n.*?targetRevision:\\s*(?<currentValue>.*?)\\s"
+        "repoURL:\\s*[\"']?(?<registryUrl>.*?)[\"']?\\s*\\n.*?chart:\\s*[\"']?(?<depName>.*?)[\"']?\\s*\\n.*?targetRevision:\\s*[\"']?(?<currentValue>.*?)[\"']?\\s"
       ],
       "datasourceTemplate": "helm"
     },
@@ -132,6 +132,19 @@
       ],
       "depNameTemplate": "longhorn/longhorn",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Immich server + ML (incl. the -cuda pin) tracked via GitHub releases: ghcr.io/immich-app has >20k PR/commit tags listed oldest-first, so the docker datasource's 20-page cap never reaches the release tags (lookup = no-result).",
+      "managerFilePatterns": [
+        "/^apps/media/immich/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "image:\\s*ghcr\\.io/immich-app/immich-(?:server|machine-learning):(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)",
+        "name:\\s*ghcr\\.io/immich-app/immich-server\\s*\\n(?:\\s*#.*\\n)*\\s*newTag:\\s*[\"']?(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "depNameTemplate": "immich-app/immich",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
@@ -213,6 +226,17 @@
       "matchPackageNames": [
         "registry.white.fm/**",
         "registry.internal.white.fm/**"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Immich server/ML images are updated by the immich-app/immich github-releases regex manager; the GHCR tag list is too large for the docker datasource.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/immich-app/immich-server",
+        "ghcr.io/immich-app/immich-machine-learning"
       ],
       "enabled": false
     },
