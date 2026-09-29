@@ -5,6 +5,9 @@ metadata:
   namespace: observability
 spec:
   replicas: 1
+  # RWO Longhorn volume: a rolling update would start the new pod while the old one still holds the volume.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: influxdb
@@ -30,16 +33,21 @@ spec:
           envFrom:
             - secretRef:
                 name: influxdb-unpoller
+          env:
+            # One full TSM compaction at a time: at startup a backlog of compactions (e.g. shard 762, 11 files)
+            # ran in parallel and blew through the old 2Gi limit -> OOMKilled crash loop (2026-09-29).
+            - name: INFLUXD_STORAGE_MAX_CONCURRENT_COMPACTIONS
+              value: "1"
           volumeMounts:
             - name: data
               mountPath: /var/lib/influxdb2
           resources:
             requests:
               cpu: 200m
-              memory: 512Mi
+              memory: 1Gi
             limits:
               cpu: 1
-              memory: 2Gi
+              memory: 4Gi
       volumes:
         - name: data
           persistentVolumeClaim:
