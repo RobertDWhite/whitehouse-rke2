@@ -54,6 +54,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: fleet
+        # Home Assistant VM (LAN + Cluster-network interfaces), via postfix-lb 10.99.5.127:25
+        - ipBlock:
+            cidr: 10.100.1.30/32
+        - ipBlock:
+            cidr: 10.99.5.232/32
 
 ---
 # ---- CLOUDFLARED (tunnel) ----

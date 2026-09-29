@@ -1,0 +1,19 @@
+# SMTP relay for Home Assistant (a VM outside the cluster, so it can't reach the ClusterIP).
+# Port 25 only. externalTrafficPolicy: Local keeps HA's real source IP so the ipBlock allow in
+# platform/policy/network-policies/infrastructure.yaml (postfix/allow-ingress) matches it;
+# postfix relays for all of RFC1918, so that ipBlock is what keeps the rest of the LAN out.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postfix-lb
+  namespace: postfix
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.99.5.127
+  externalTrafficPolicy: Local
+  selector:
+    app: postfix
+  ports:
+    - name: smtp
+      port: 25
+      targetPort: 25
