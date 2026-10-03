@@ -40,6 +40,14 @@ spec:
               apk add --no-cache git openssh-client bash curl jq || echo "apk add failed; continuing without extra tools"
               mkdir -p /root/workspace
               cd /root/workspace
+              # Public GitOps repo, read-only (no push credentials in the pod).
+              # Clone once; afterwards only fast-forward so agent edits are never clobbered.
+              REPO=/root/workspace/whitehouse-rke2
+              if [ ! -d "$REPO/.git" ]; then
+                git clone https://github.com/RobertDWhite/whitehouse-rke2.git "$REPO" || echo "clone failed; continuing"
+              else
+                git -C "$REPO" pull --ff-only || echo "pull skipped (local changes or diverged)"
+              fi
               exec opencode web --hostname 0.0.0.0 --port 4096
           ports:
             - containerPort: 4096
