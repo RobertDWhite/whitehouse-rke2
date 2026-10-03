@@ -17,6 +17,18 @@ spec:
       labels:
         app: mysql
     spec:
+      # Keep MySQL off rke2-node-10 (DGX Spark: no BMC, hard-hangs — a hang there
+      # corrupted the InnoDB undo log in 2026-09/10) and the dead rke2-node-12.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-10
+                      - rke2-node-12
       initContainers:
         - name: write-exporter-cnf
           image: busybox:1.36
@@ -131,6 +143,6 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: fleet-mysql
+            claimName: fleet-mysql-v2
         - name: exporter-config
           emptyDir: {}

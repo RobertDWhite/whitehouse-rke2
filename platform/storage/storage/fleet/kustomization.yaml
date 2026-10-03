@@ -3,5 +3,8 @@ kind: Kustomization
 
 resources:
   - fleet-mysql.yaml
+  # v2: fresh volume restored from a force-recovery dump after the 2026-09/10
+  # InnoDB undo corruption; the original fleet-mysql is kept for forensics.
+  - fleet-mysql-v2.yaml
   - fleet-mysql-dumps.yaml
   - valkey-data.yaml

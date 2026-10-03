@@ -45,6 +45,8 @@ spec:
                 - |
                   STAMP=$(date -u +%Y%m%d-%H%M%S)
                   OUT="/backups/fleet-${STAMP}.sql.gz"
+                  set -o pipefail
+                  trap 'rm -f "${OUT}.tmp"' EXIT
                   echo "[$(date -u +%FT%TZ)] starting mysqldump → ${OUT}"
                   mysqldump \
                     --host=mysql.fleet.svc.cluster.local \
@@ -59,6 +61,11 @@ spec:
                     --set-gtid-purged=OFF \
                     --databases fleet \
                     | gzip -9 > "${OUT}.tmp"
+                  # pipefail above makes a failed mysqldump fail the job; also
+                  # require the trailer so a truncated dump is never kept.
+                  if ! gunzip -c "${OUT}.tmp" | tail -n 1 | grep -q '^-- Dump completed'; then
+                    echo "FATAL: dump incomplete (no 'Dump completed' trailer)"; exit 1
+                  fi
                   mv "${OUT}.tmp" "${OUT}"
                   SIZE=$(stat -c%s "${OUT}")
                   echo "[$(date -u +%FT%TZ)] dump complete: ${OUT} (${SIZE} bytes)"
