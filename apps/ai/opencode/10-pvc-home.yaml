@@ -1,0 +1,14 @@
+# Mounted as $HOME (/root): opencode config/auth (~/.config, ~/.local/share),
+# session history, the provider npm cache (~/.cache) and /root/workspace.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opencode-home
+  namespace: opencode
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: longhorn-single

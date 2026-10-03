@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencode
+  namespace: opencode
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: opencode
+  template:
+    metadata:
+      labels:
+        app: opencode
+    spec:
+      enableServiceLinks: false
+      # Run next to its model backend on the DGX Spark (GB10, arm64). The
+      # upstream image is multi-arch, so arm64 is fine here.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - rke2-node-10
+      containers:
+        - name: opencode
+          # Upstream image is bare alpine + the opencode binary + ripgrep; add
+          # the tools an agent needs for real repo work before starting.
+          image: ghcr.io/anomalyco/opencode
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache git openssh-client bash curl jq || echo "apk add failed; continuing without extra tools"
+              mkdir -p /root/workspace
+              cd /root/workspace
+              exec opencode web --hostname 0.0.0.0 --port 4096
+          ports:
+            - containerPort: 4096
+              name: http
+          env:
+            - name: HOME
+              value: /root
+            - name: OPENCODE_CONFIG
+              value: /etc/opencode/opencode.json
+            - name: OPENCODE_SERVER_USERNAME
+              value: opencode
+            - name: OPENCODE_SERVER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opencode-secret
+                  key: OPENCODE_SERVER_PASSWORD
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+          # All HTTP paths sit behind basic auth, so probe the socket.
+          startupProbe:
+            tcpSocket:
+              port: 4096
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: 4096
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 4096
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: home
+              mountPath: /root
+            - name: config
+              mountPath: /etc/opencode
+              readOnly: true
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: opencode-home
+        - name: config
+          configMap:
+            name: opencode-config
