@@ -13,7 +13,9 @@ web UI (`opencode web`) at https://opencode.internal.white.fm.
   (copy at `~/kube/secrets/opencode-password.txt`). Internal-only route.
 - **Storage**: `opencode-home` PVC is `$HOME` (`/root`): sessions,
   `auth.json` (keys added with `/connect`), provider npm cache, and the
-  working directory `/root/workspace`. Clone repos there.
+  working directory `/root/workspace`. Clone repos there. The public
+  `whitehouse-rke2` repo is cloned at startup (`git pull --ff-only` on restarts;
+  read-only, no push credentials).
 - Startup `apk add`s git/ssh/bash/curl/jq (upstream image is bare alpine).
 
 Attach a terminal TUI to the same sessions:
