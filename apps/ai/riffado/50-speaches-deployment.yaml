@@ -85,10 +85,10 @@ spec:
             - name: WHISPER__COMPUTE_TYPE
               value: float16
             # Keep the model resident: a cold load costs more than the VRAM.
-            - name: STT_MODEL_TTL
+            # speaches 0.8.x reads this as WHISPER__TTL; STT_MODEL_TTL and
+            # PRELOAD_MODELS were silently ignored (model offloaded after 300s).
+            - name: WHISPER__TTL
               value: "-1"
-            - name: PRELOAD_MODELS
-              value: '["deepdml/faster-whisper-large-v3-turbo-ct2"]'
             - name: ENABLE_UI
               value: "false"
             - name: LOG_LEVEL
@@ -110,6 +110,28 @@ spec:
               cpu: "4"
               memory: 8Gi
               nvidia.com/gpu: 1
+          # 0.8.x has no preload setting: load the model onto the GPU once the
+          # server is up so the first transcription doesn't pay the ~55s load.
+          # Never fails the hook; a miss just means a lazy load later.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - python3
+                  - -c
+                  - |
+                    import time, urllib.error, urllib.request
+                    m = "deepdml/faster-whisper-large-v3-turbo-ct2"
+                    for _ in range(60):
+                        try:
+                            urllib.request.urlopen("http://localhost:8000/health", timeout=5)
+                            urllib.request.urlopen(urllib.request.Request(
+                                "http://localhost:8000/api/ps/" + m, method="POST"), timeout=180)
+                            break
+                        except urllib.error.HTTPError:
+                            break  # server answered (e.g. 409 already loaded)
+                        except Exception:
+                            time.sleep(5)
           startupProbe:
             httpGet: {path: /health, port: http}
             periodSeconds: 10
