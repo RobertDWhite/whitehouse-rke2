@@ -1,0 +1,20 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: opencode-internal
+  namespace: opencode
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - opencode.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: opencode
+          port: 4096
+      # Envoy Gateway applies a 15s default when omitted; the web UI holds an
+      # SSE event stream open and agent turns on a 27B model run for minutes.
+      timeouts:
+        request: "0s"
