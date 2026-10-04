@@ -1,0 +1,116 @@
+# Keeps vpp_apps.latest_version current so iOS/iPadOS auto-updates fire.
+#
+# Fleet's own refresh_vpp_app_versions cron authenticates to fleetdm.com's
+# licensed metadata proxy, which rejects this self-hosted (no license key)
+# server, so latest_version froze in 2026-08 and Fleet's scheduled-update
+# check (installed < latest_version) never triggered. This job does the same
+# refresh from Apple's public iTunes Lookup API and writes ONLY latest_version.
+# Remove it once the fleet-self-hosted image carries the public-metadata
+# fallback in vpp.RefreshVersions (branch fix/vpp-refresh-public-fallback).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fleet-vpp-latest-versions
+  namespace: fleet
+  labels:
+    app: fleet-vpp-latest-versions
+spec:
+  # Every 4 hours (6x/day); auto-update windows are 00:00-23:30 host-local.
+  schedule: "20 */4 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: fleet-vpp-latest-versions
+        spec:
+          restartPolicy: OnFailure
+          initContainers:
+            - name: list-apps
+              image: mysql
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -euc
+                - |
+                  MYSQL_PWD="$DB_PASSWORD" mysql -h mysql.fleet.svc.cluster.local -u fleet -N fleet \
+                    -e "SELECT DISTINCT adam_id FROM vpp_apps WHERE platform IN ('ios','ipados') ORDER BY 1" > /work/ids
+                  echo "apps: $(wc -l < /work/ids)"
+              env:
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql
+                      key: password
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                requests: {cpu: 10m, memory: 64Mi}
+                limits: {memory: 256Mi}
+            - name: lookup
+              image: python:3.13-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - python3
+                - -c
+                - |
+                  import json, re, urllib.request
+                  ids = [l.strip() for l in open("/work/ids") if l.strip().isdigit()]
+                  ok = re.compile(r"^[0-9][0-9A-Za-z.\-]{0,62}$")
+                  stmts, seen = [], 0
+                  for i in range(0, len(ids), 150):
+                      url = "https://itunes.apple.com/lookup?country=us&entity=software&id=" + ",".join(ids[i:i + 150])
+                      with urllib.request.urlopen(url, timeout=60) as r:
+                          results = json.load(r).get("results", [])
+                      for res in results:
+                          adam, ver = str(res.get("trackId", "")), str(res.get("version", ""))
+                          if not adam.isdigit() or not ok.match(ver):
+                              continue
+                          seen += 1
+                          stmts.append(
+                              "UPDATE vpp_apps SET latest_version='%s' WHERE adam_id='%s' "
+                              "AND platform IN ('ios','ipados') AND latest_version<>'%s';" % (ver, adam, ver))
+                  if ids and seen == 0:
+                      raise SystemExit("no versions returned by iTunes Lookup; refusing to continue")
+                  open("/work/update.sql", "w").write("\n".join(stmts) + "\n")
+                  print(f"apps={len(ids)} versions={seen}")
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                requests: {cpu: 10m, memory: 64Mi}
+                limits: {memory: 256Mi}
+          containers:
+            - name: apply
+              image: mysql
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -euc
+                - |
+                  MYSQL_PWD="$DB_PASSWORD" mysql -h mysql.fleet.svc.cluster.local -u fleet fleet < /work/update.sql
+                  MYSQL_PWD="$DB_PASSWORD" mysql -h mysql.fleet.svc.cluster.local -u fleet -N fleet \
+                    -e "SELECT CONCAT('vpp apps updated in last 10m: ', COUNT(*)) FROM vpp_apps WHERE updated_at > NOW() - INTERVAL 10 MINUTE"
+              env:
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql
+                      key: password
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+              resources:
+                requests: {cpu: 10m, memory: 64Mi}
+                limits: {memory: 256Mi}
+          volumes:
+            - name: work
+              emptyDir: {}
