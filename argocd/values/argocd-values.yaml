@@ -39,6 +39,12 @@ configs:
   rbac:
     policy.csv: |
       g, api-bot, role:admin
+  # Every push re-renders ~125 apps at once (many with ksops + the 5-attempt
+  # git retry below); the default 60s repo-server deadline leaves ~15 apps
+  # "Unknown" with "context deadline exceeded" after each push.
+  params:
+    controller.repo.server.timeout.seconds: "180"
+    server.repo.server.timeout.seconds: "180"
 
 repoServer:
   replicas: 2
