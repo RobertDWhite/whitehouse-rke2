@@ -31,8 +31,12 @@ data:
         location / {
           access_log /dev/stdout ollama;
           proxy_pass         http://ollama_backends;
-          proxy_next_upstream error timeout http_502 http_503 http_504;
-          proxy_next_upstream_tries 2;
+          # http_500 + non_idempotent: a backend that can't load the model
+          # (e.g. 5090 CUDA OOM when another pod holds the VRAM) answers the
+          # POST with a 500; without these nginx never retries a POST on a
+          # backup and every LLM consumer fails.
+          proxy_next_upstream error timeout http_500 http_502 http_503 http_504 non_idempotent;
+          proxy_next_upstream_tries 3;
           proxy_connect_timeout  5s;
           # A cold qwen3.8:27b load takes ~9 min on the 5090 and ~5 min on the
           # Spark (both PVCs read over the network from the node-14 replica at
