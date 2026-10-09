@@ -17,5 +17,9 @@ spec:
     # Volume data is protected by file-system backup (kopia) via the chart-wide
     # defaultVolumesToFsBackup: true, which is what has actually been running.
     # Re-enable these only together with the CSI plugin + EnableCSI feature flag.
+    # Skips NFS and emptyDir volumes - see volume-policy.yaml.
+    resourcePolicy:
+      kind: configmap
+      name: velero-volume-policy
     snapshotVolumes: false
     ttl: 720h # 30 days
