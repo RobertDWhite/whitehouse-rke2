@@ -7,7 +7,7 @@ It is written for high-stress situations. Follow steps in order. Do not skip ahe
 ⸻
 
 Assumptions
-	•	Backups are stored in MinIO bucket: velero-backup
+	•	Backups are stored in the Garage (S3) bucket velero-backup on the Synology NAS (https://garage.internal.white.fm:3900); MinIO was retired 2026-10-09
 	•	Velero is installed via Argo CD / Helm
 	•	Storage backend is Longhorn and/or Synology CSI
 	•	Backups are created via Velero Schedules (GitOps)

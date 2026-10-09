@@ -30,35 +30,10 @@ spec:
             uploaderType: kopia
             defaultVolumesToFsBackup: true
             backupStorageLocation:
-              - name: default
-                provider: aws
-                bucket: velero-backup
-                # No longer the default target - Garage below took over on
-                # 2026-08-20. Kept (and still Available) purely so the ~39
-                # MinIO-resident backups stay restorable; remove only once they
-                # have aged out past their ttl.
-                default: false
-                config:
-                  # Use cluster DNS + EndpointSlice in external-services namespace
-                  # so we don't depend on the public DNS record (which is now
-                  # Cloudflare-proxied and refuses port 9000).
-                  # MinIO now terminates TLS on :9000. The served cert is for
-                  # minio.white.fm (Let's Encrypt) and is hostname-mismatched and
-                  # expired for this internal service name, so connect over https
-                  # and skip verification.
-                  s3Url: https://minio-s3.external-services.svc.cluster.local:9000
-                  s3ForcePathStyle: "true"
-                  insecureSkipTLSVerify: "true"
-                  # velero-plugin-for-aws v1.14 (AWS SDK v2 endpoint resolver)
-                  # refuses to send any request without a region: "A region
-                  # must be set when sending requests to S3". MinIO's default
-                  # region is us-east-1.
-                  region: us-east-1
-                  # NOTE: serverSideEncryption (SSE-S3 / AES256) intentionally
-                  # omitted. This MinIO has no KMS configured and rejects SSE
-                  # PutObjects with HTTP 501 NotImplemented. Backup volume data is
-                  # already encrypted client-side by kopia; re-add SSE only after
-                  # configuring KMS / auto-encryption on the MinIO server.
+              # The old MinIO location ("default") was removed on 2026-10-09:
+              # MinIO on the NAS has refused connections since 2026-09-23 and
+              # every backup it still listed was past its ttl or Failed. All
+              # backups now live in Garage below.
               # Garage (dxflrs/garage) running as a Docker container on the NAS
               # at /volume1/docker/garage. Replaces MinIO, whose community
               # edition stopped shipping images in Oct 2025 and is now in
@@ -124,6 +99,27 @@ spec:
 
           deployNodeAgent: true
 
+          # Since v1.17 fs-backup no longer runs inside node-agent: every
+          # PodVolumeBackup gets its own data-mover pod, pinned (via nodeName)
+          # to the node of the pod being backed up. Velero creates them all at
+          # once by default, and on nodes near the 110 max-pods cap the kubelet
+          # rejects the burst ("Node didn't have enough resource: pods") - on
+          # 2026-10-08 only 5 of 62 daily-critical volumes made it. Cap how
+          # many are prepared at a time, and allow 2 transfers per node so the
+          # run finishes before pods churn ("error getting client pod ... not
+          # found") or the itemOperationTimeout hits.
+          # The chart names this ConfigMap velero-<key>.
+          configMaps:
+            node-agent-config:
+              data:
+                node-agent-config.json: |
+                  {
+                    "loadConcurrency": {
+                      "globalConfig": 2
+                    },
+                    "prepareQueueLength": 6
+                  }
+
           # Up to velero v1.13 kopia repository maintenance ran inside the
           # server process (it moved to the Jobs configured above in v1.14,
           # so this 4Gi limit can likely come down once that is proven). With ~40
@@ -144,6 +140,8 @@ spec:
               memory: 4Gi
 
           nodeAgent:
+            extraArgs:
+              - --node-agent-configmap=velero-node-agent-config
             resources:
               requests:
                 cpu: 500m

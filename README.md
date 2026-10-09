@@ -179,7 +179,7 @@ node-10 runs the NVIDIA-flavored kernel (DGX Spark / Grace platform). After two 
 - **Synology CSI** — NAS-backed volumes / snapshots for larger datasets.
 - **local-path-provisioner** — node-local volumes for caches and scratch data.
 - **snapshot-controller** — CSI volume snapshot support.
-- **Velero** (`velero` namespace, chart 12.x / Velero 1.18) — scheduled backups to two S3 backup locations (in-cluster MinIO and Garage), using file-system backups with Kopia; no VolumeSnapshotLocation is rendered. Schedules in `platform/storage/velero/schedules/`:
+- **Velero** (`velero` namespace, chart 12.x / Velero 1.18) — scheduled backups to Garage (S3) on the Synology NAS, using file-system backups with Kopia; no VolumeSnapshotLocation is rendered. A daily `velero-backup-pruner` CronJob (`platform/storage/velero/pruner/`) keeps only the newest two backups per schedule (n and n-1), plus any older backup still holding a volume's newest good copy. Schedules in `platform/storage/velero/schedules/`:
   - `daily` (03:00, 7-day TTL) — the stateful namespaces, including Tautulli.
   - `weekly` (Sunday 02:00, 49-day TTL) — lower-churn namespaces.
   - `fleet` (03:30, 30-day TTL) — Fleet's MySQL, alongside an in-namespace `mysqldump` CronJob.
