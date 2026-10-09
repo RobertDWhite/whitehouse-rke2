@@ -35,13 +35,20 @@ spec:
           image: louislam/uptime-kuma
           ports:
             - containerPort: 3001
+          # 2026-10-08: ~460 monitors outgrew a 512Mi limit. V8 sizes its heap to ~half
+          # the container limit (~256MB), so Kuma sat in back-to-back mark-compacts,
+          # stalled its event loop for 8-10s (HA's /metrics poll timed out and flapped
+          # 2k entities to unavailable) and finally died with heap OOM (exit 134).
+          env:
+            - name: NODE_OPTIONS
+              value: --max-old-space-size=1024
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 500m
+              cpu: 100m
               memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
           # Probe timeouts were the 1s default; Kuma's first byte on a busy node is
           # slower than that, so kubelet killed a healthy container every few minutes.
           readinessProbe:
