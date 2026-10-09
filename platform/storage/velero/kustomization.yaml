@@ -5,3 +5,11 @@ resources:
   - schedules/daily.yaml
   - schedules/fleet.yaml
   - schedules/weekly.yaml
+  - pruner/cronjob.yaml
+
+configMapGenerator:
+  - name: velero-backup-pruner
+    namespace: velero
+    files:
+      - pruner/prune.sh
+      - pruner/select.jq
