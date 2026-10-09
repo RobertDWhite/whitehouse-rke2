@@ -6,46 +6,53 @@ metadata:
 spec:
   schedule: "0 3 * * *"
   template:
-    # High-churn / transactional workloads: tighter RPO (daily)
+    # Catch-all: every namespace that is not cluster plumbing or on another
+    # schedule. This used to be an allowlist, and by 2026-10-09 it had
+    # silently missed 18 namespaces with real data (technitium, media's *arr
+    # configs, opencti, ntfy, riffado, gramps, kavita, wallabag, ...). New
+    # apps are now covered without anyone remembering to add them here.
     includedNamespaces:
-      - authentik
-      - paperless
-      - matrix
-      - calibre
-      - audiobookshelf
-      - snappymail
-      - freshrss
-      - ombi
-      - uptime-kuma
-      - registry
-      - sdr-research
-      - congress-trades
-      - comfyui
-      - invokeai
-      - condo
-      - ai-stack
-      - dispatcharr
-      - jetlog
-      - mastodon
-      - misp
-      - lazylibrarian
-      - shelfmark
-      - raven
-      - yeti
-      - intelowl
-      - backoffice
-      - homeschool
-      - monica
-      - meerkat
-      - hermes
-      - headscale
-      - fleet
-      - scrypted
-      - homebridge
-      - listmonk
-      - odysseus
-      - pages
-      - tautulli
+      - "*"
+    excludedNamespaces:
+      # Cluster plumbing - rebuilt from git, never restored from Velero.
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - velero
+      - argocd
+      - longhorn-system
+      - local-path-storage
+      - synology-csi
+      - metallb-system
+      - envoy-gateway-system
+      - cert-manager
+      - external-dns
+      - external-secrets
+      - kyverno
+      - trivy-system
+      - kube-bench
+      # Own schedules (glacier-daily lives in the glacier app; weekly.yaml).
+      # tautulli is deliberately in both daily and weekly.
+      - glacier
+      - homepage
+      - homarr
+      - myspeed
+      - cyberchef
+      - observability
+      - postfix
+      - adsb
+      - cybether
+      - cloudflare
+      - crowdsec
+      - falco
+      - immich
+      - openhamclock
+      - portainer
+    # Skips NFS (NAS shares - copying them back onto the same NAS only burns
+    # hours) and emptyDir scratch volumes. See volume-policy.yaml.
+    resourcePolicy:
+      kind: configmap
+      name: velero-volume-policy
     # Velero here is v1.13.2 with ONLY velero-plugin-for-aws loaded and no
     # `features: EnableCSI`, so there is no CSI plugin and no VolumeSnapshotter:
     # snapshotVolumes/snapshotMoveData could never do anything except log
