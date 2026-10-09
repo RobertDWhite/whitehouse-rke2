@@ -1,0 +1,82 @@
+# Keeps only n and n-1 of each Velero schedule on the NAS (Garage), plus any
+# older backup still holding the newest good copy of some volume. Logic lives
+# in select.jq / prune.sh next to this file.
+#
+# Schedule TTLs stay as a backstop in case this job stops running. Runs at
+# 17:00 UTC, well after the nightly backups (03:00-03:30 local) have finished
+# or hit their 4h/8h itemOperationTimeout.
+#
+# Dry run from a workstation with kubectl + jq:
+#   DRY_RUN=true sh platform/storage/velero/pruner/prune.sh
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: velero-backup-pruner
+  namespace: velero
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: velero-backup-pruner
+  namespace: velero
+rules:
+  - apiGroups: ["velero.io"]
+    resources: ["backups", "podvolumebackups", "backupstoragelocations"]
+    verbs: ["get", "list"]
+  - apiGroups: ["velero.io"]
+    resources: ["deletebackuprequests"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: velero-backup-pruner
+  namespace: velero
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: velero-backup-pruner
+subjects:
+  - kind: ServiceAccount
+    name: velero-backup-pruner
+    namespace: velero
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: velero-backup-pruner
+  namespace: velero
+spec:
+  schedule: "0 17 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: velero-backup-pruner
+          restartPolicy: Never
+          containers:
+            - name: prune
+              image: alpine/k8s:1.37.1
+              command: ["sh", "/scripts/prune.sh"]
+              env:
+                - name: KEEP
+                  value: "2"
+                - name: DRY_RUN
+                  value: "false"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: velero-backup-pruner
