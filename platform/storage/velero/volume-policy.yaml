@@ -1,0 +1,28 @@
+# Velero resource policy referenced by the schedules' resourcePolicy.
+#
+# - NFS volumes are shares on the Synology itself (20Ti media library, books,
+#   photos, downloads). Backing them up writes them back onto the same NAS,
+#   protects against nothing the NAS's own snapshots don't, and turned the
+#   nightly run into a multi-hour crawl that hit itemOperationTimeout.
+# - emptyDir volumes (dshm, tmp, caches) are scratch space by definition.
+#
+# Longhorn / local-path / Synology-CSI volumes are still file-system backed up
+# via defaultVolumesToFsBackup.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velero-volume-policy
+  namespace: velero
+data:
+  policy.yaml: |
+    version: v1
+    volumePolicies:
+      - conditions:
+          nfs: {}
+        action:
+          type: skip
+      - conditions:
+          volumeTypes:
+            - emptyDir
+        action:
+          type: skip
