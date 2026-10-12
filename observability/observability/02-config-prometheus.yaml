@@ -25,7 +25,10 @@ data:
         static_configs:
           - targets: ["localhost:9090"]
 
+      # Payload is ~2MB / ~7k series; keep timeout <= interval.
       - job_name: unifi-poller
+        scrape_interval: 30s
+        scrape_timeout: 25s
         static_configs:
           - targets:
               - unifi-poller.observability.svc.cluster.local:9130
