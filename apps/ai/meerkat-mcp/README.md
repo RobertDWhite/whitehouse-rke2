@@ -46,3 +46,14 @@ claude mcp add --transport http meerkat \
 
 You must be on the Headscale tailnet for the hostname to resolve. Once
 connected, `whoami` confirms both tokens are working.
+
+## Other clients
+
+- **Codex** (`~/.codex/config.toml`): `[mcp_servers.meerkat]` with `url` +
+  `http_headers.Authorization`.
+- **opencode (laptop)**: remote entry in `~/.config/opencode/opencode.jsonc`,
+  token in `~/.config/opencode/secrets/meerkat.token`.
+- **opencode (cluster)**: `apps/ai/opencode/15-configmap.yaml`, token as
+  `MEERKAT_MCP_TOKEN` in `apps/ai/opencode/11-secret.sops.yaml`.
+- **Hermes**: `meerkat` under `mcp_servers` in `/opt/data/config.yaml` on the
+  hermes-data PVC, token as `MEERKAT_MCP_TOKEN` in `/opt/data/.env` (not in git).
