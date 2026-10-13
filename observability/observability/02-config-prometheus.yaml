@@ -491,6 +491,16 @@ data:
         scrape_interval: 300s
 
       # =========================
+      # ADS-B receiver (readsb stats.prom served by ultrafeeder's nginx)
+      # =========================
+      - job_name: adsb-ultrafeeder
+        static_configs:
+          - targets:
+              - ultrafeeder.adsb.svc.cluster.local:80
+        metrics_path: /metrics
+        scrape_interval: 30s
+
+      # =========================
       # Matrix Synapse metrics
       # =========================
       - job_name: synapse
