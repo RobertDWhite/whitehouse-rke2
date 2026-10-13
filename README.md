@@ -123,9 +123,9 @@ RKE2 nodes are named `rke2-node-NN`. The cluster mixes one always-on arm64 GPU h
 | **rke2-node-11** | control-plane, etcd | amd64 | 12 | ~48 GB | — | Utility node — Authentik replica, Immich Postgres; Argo CD controllers, Headscale router/DERP kept off it |
 | **rke2-node-12** | worker | amd64 | 8 | ~16 GB | — | **RX888** wideband HF SDR, HF decode chain (HFDL/FT8/WSPR/SSTV), **UPS USB link** (NUT server). Rebuilt Sept 2026; currently **NotReady**, and stateful apps (e.g. Fleet MySQL) avoid it |
 | **rke2-node-13** | worker | amd64 | 8 | ~32 GB | — | **RTL-SDR** dongles (VHF + 70 cm + pager), AIS, VDL2 — busiest radio node; also data apps |
-| **rke2-node-14** | control-plane, etcd | amd64 | 48 | ~56 GB | — | Data apps (congress-trades, politics, app-store-reviews, listmonk, condo), Immich server, Matrix Postgres, Homebridge/Scrypted, Headscale. Tainted `kube-vip=disabled:NoSchedule` |
+| **rke2-node-14** | control-plane, etcd | amd64 | 48 | ~56 GB | — | Data apps (congress-trades, politics, app-store-reviews, listmonk, condo), Immich server, Matrix Postgres, Homebridge/Scrypted, Headscale. General-purpose (the old `kube-vip=disabled` taint was removed 2026-10-13) |
 | **rke2-node-15** | worker | amd64 | 6 | ~8 GB | — | **ADS-B** feeder, Nitter, jetlog, Authentik replica, Technitium replica |
-| **rke2-node-50** | worker | amd64 | 32 | ~48 GB | **1× RTX 5090 (32 GB)**, time-sliced ×6 — **transient** (dual-boots, may be offline) | Larger-model inference, image generation (ComfyUI/InvokeAI), Whisper (Riffado), Immich ML. Tainted `dedicated=gpu:PreferNoSchedule` |
+| **rke2-node-50** | worker | amd64 | 32 | ~48 GB | **1× RTX 5090 (32 GB)**, time-sliced ×6 — **transient** (dual-boots, may be offline) | Larger-model inference, image generation (ComfyUI/InvokeAI), Whisper (Riffado), Immich ML. Tainted `dedicated=gpu:PreferNoSchedule`. `local-path` volumes live on a dedicated 500 GB NVMe mounted at `/opt/local-path-provisioner`, not the 196 GB root disk |
 
 **GPU details.** Both GPU hosts run the `nvidia-device-plugin` with **separate ConfigMaps per node** for time-slicing (node-10 ×4, node-50 ×6 — time-slicing only gates scheduling, it doesn't partition VRAM). Cluster-wide:
 
