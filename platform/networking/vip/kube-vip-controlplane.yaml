@@ -75,7 +75,9 @@ spec:
         env:
         - name: vip_interface
           value: ""
-        - name: vip_cidr
+        # kube-vip v1 dropped vip_cidr and refuses to start when vip_address is
+        # set without vip_subnet (CheckSubnetExists), so this must be vip_subnet.
+        - name: vip_subnet
           value: "32"
         - name: vip_address
           value: "10.99.5.100"
