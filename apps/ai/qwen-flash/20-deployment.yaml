@@ -1,0 +1,172 @@
+# Qwen3.8-Flash-Next (125B sparse, 6B active) on node-10's GB10, served by vLLM with
+# the blazux/qwen3.8-Flash-DGX recipe (https://github.com/blazux/qwen3.8-Flash-DGX).
+#
+# The recipe keeps the 48 GiB n-gram (PLE) table on NVMe via mmap, so only ~75 GiB of
+# weights sit in the 128 GB unified pool; the rest is KV cache and page cache for the
+# table. Its patched vLLM image is built on node-10 (arm64, compiles a GB10 kernel) and
+# imported straight into node-10's containerd, hence imagePullPolicy: Never. Rebuild
+# with the build pod described in README.md when bumping the recipe commit.
+#
+# Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
+# resolved at recipe commit 1139abf, with GPU_MEM lowered to 0.70 and the fp8 KV
+# cache so node-10's Ollama keeps ~25 GiB alongside it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qwen-flash
+spec:
+  replicas: 1
+  # One GPU memory pool and an RWO local volume: never run two at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: qwen-flash
+  template:
+    metadata:
+      labels:
+        app: qwen-flash
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-10
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: PreferNoSchedule
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        # Resumable: hf download skips files already complete, so restarts cost seconds.
+        - name: fetch-weights
+          image: python:3.12-slim
+          command: ["bash", "-ec"]
+          args:
+            - |
+              pip install --no-cache-dir --quiet "huggingface_hub[hf_xet]>=0.35"
+              hf download "$MODEL" --revision "$REVISION" --max-workers 8
+              mkdir -p /hf/tools
+              python3 -c "import urllib.request,sys; urllib.request.urlretrieve(sys.argv[1], '/hf/tools/fp8_convert.py')" \
+                "https://raw.githubusercontent.com/blazux/qwen3.8-Flash-DGX/${RECIPE_COMMIT}/tools/fp8_convert.py"
+          env:
+            - {name: MODEL, value: nvidia/Qwen3.8-Flash-Next-NVFP4}
+            - {name: REVISION, value: fc694b54fb0174e0913e6adf86691ef85a4ead47}
+            - {name: RECIPE_COMMIT, value: 1139abf38990583d3f5503ea3a7525e791468567}
+            - {name: HF_HOME, value: /hf}
+            - {name: HF_HUB_DISABLE_XET, value: "0"}
+            - {name: HF_XET_HIGH_PERFORMANCE, value: "1"}
+          resources:
+            requests: {cpu: "2", memory: 2Gi}
+            limits: {memory: 8Gi}
+          volumeMounts:
+            - {name: models, mountPath: /hf}
+        # scripts/prepare-hybrid.sh: copy the snapshot (relative symlinks, instant) and
+        # rewrite 4 shards' dense side layers to blockwise fp8 (+20% decode, same quality).
+        # Skipped once .prepared exists.
+        - name: prepare-hybrid
+          image: registry.internal.white.fm/qwen38-flash-dgx:v0.31-1139abf
+          imagePullPolicy: Never
+          command: ["bash", "-ec"]
+          args:
+            - |
+              SRC=/hf/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/$REVISION
+              DST=$SRC-fp8hybrid
+              if [ -f "$DST/.prepared" ]; then echo "hybrid checkpoint already prepared"; exit 0; fi
+              rm -rf "$DST"
+              cp -a "$SRC" "$DST"
+              rm -f "$DST/model.safetensors.index.json"
+              cp "$SRC/model.safetensors.index.json" "$DST/model.safetensors.index.json"
+              python3 /hf/tools/fp8_convert.py "$DST" | tee "$DST/fp8_convert.log"
+              n=$(python3 -c "import json;print(sum(1 for k in json.load(open('$DST/model.safetensors.index.json'))['weight_map'] if k.endswith('weight_scale_inv')))")
+              [ "$n" -gt 0 ] || { echo "conversion produced no fp8 tensors"; exit 1; }
+              chmod 644 "$DST"/*.safetensors "$DST"/model.safetensors.index.json
+              touch "$DST/.prepared"
+              echo "done: $n fp8 side-layer tensors"
+          env:
+            - {name: REVISION, value: fc694b54fb0174e0913e6adf86691ef85a4ead47}
+          resources:
+            requests: {cpu: "4", memory: 16Gi}
+            limits: {memory: 64Gi}
+          volumeMounts:
+            - {name: models, mountPath: /hf}
+      containers:
+        - name: vllm
+          image: registry.internal.white.fm/qwen38-flash-dgx:v0.31-1139abf
+          imagePullPolicy: Never
+          args:
+            - /hf/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/fc694b54fb0174e0913e6adf86691ef85a4ead47-fp8hybrid
+            - --served-model-name=qwen3.8-flash-next
+            - --host=0.0.0.0
+            - --port=8000
+            - --load-format=safetensors
+            - --max-model-len=262144
+            - --max-num-seqs=8
+            # Fraction of the unified pool for weights + KV. vLLM needs this much free
+            # at boot; what is left is page cache for the mmapped PLE table.
+            - --gpu-memory-utilization=0.70
+            - --kv-cache-dtype=fp8_e4m3
+            - --enable-prefix-caching
+            - --enable-prompt-tokens-details
+            - --enable-chunked-prefill
+            - --max-num-batched-tokens=8192
+            - -cc.cudagraph_mode=PIECEWISE
+            - -cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen4_exp_ple_short_conv","vllm::qwen4_exp_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::gdn_attention_core_xpu","vllm::olmo_hybrid_gdn_full_forward","vllm::sparse_attn_indexer","vllm::rocm_aiter_sparse_attn_indexer","vllm::deepseek_v4_attention","vllm::hpc_rope_norm_forward","vllm::unified_kv_cache_update","vllm::unified_mla_kv_cache_update","vllm::ple_mmap_lookup_ids"]
+            - --no-enable-flashinfer-autotune
+            - --enable-auto-tool-choice
+            - --tool-call-parser=qwen3_coder
+            - --reasoning-parser=qwen3
+            - --speculative-config={"method":"mtp","num_speculative_tokens":2}
+          env:
+            - {name: HF_HOME, value: /hf}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: VLLM_PLE_MMAP, value: "1"}
+            - {name: VLLM_PLE_MMAP_WORKERS, value: "32"}
+            - {name: VLLM_PLE_MMAP_PREWARM, value: "0"}
+            - {name: VLLM_PLE_MMAP_MADVISE, value: random}
+            - {name: VLLM_PLE_MMAP_FAST_ROWS, value: "0"}
+            - {name: VLLM_QSA_EXACT_TOPK, value: "0"}
+            - {name: VLLM_QSA_DET_TOPK, value: "1"}
+            - {name: VLLM_QSA_DET_LIB, value: /opt/llm/kernel-det/_C_det.so}
+            - {name: VLLM_MTP_DRAFT_VOCAB, value: /opt/llm/draft_vocab_65536.npy}
+            - {name: VLLM_USE_FLASHINFER_SAMPLER, value: "1"}
+            - {name: VLLM_ALLOW_LONG_MAX_MODEL_LEN, value: "0"}
+            - {name: VLLM_FP8_HYBRID, value: "1"}
+            - {name: VLLM_USE_DEEP_GEMM, value: "0"}
+          ports:
+            - {name: http, containerPort: 8000}
+          # First boot loads ~75 GiB and compiles CUDA graphs; later boots reuse the
+          # compile caches below.
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+            failureThreshold: 90
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            # GB10 memory is unified: CUDA allocations count against this cgroup.
+            requests: {cpu: "4", memory: 90Gi, nvidia.com/gpu: 1}
+            limits: {memory: 108Gi, nvidia.com/gpu: 1}
+          volumeMounts:
+            - {name: models, mountPath: /hf}
+            - {name: models, mountPath: /root/.cache/vllm, subPath: cache/vllm}
+            - {name: models, mountPath: /root/.cache/flashinfer, subPath: cache/flashinfer}
+            - {name: models, mountPath: /root/.triton, subPath: cache/triton}
+            - {name: models, mountPath: /root/.nv, subPath: cache/nv}
+            - {name: dshm, mountPath: /dev/shm}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: qwen-flash-models
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Gi

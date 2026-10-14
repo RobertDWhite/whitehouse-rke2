@@ -73,8 +73,10 @@ spec:
             # node-10 GB10 has ~80Gi available unified memory — hold several
             # models at once so heavy consumers (sdr-viewer-api → deepseek-r1:14b)
             # don't pin the single slot and starve politics' llama3.2:3b.
+            # Dropped to 1 (2026-10-14): node-10 now also runs the qwen-flash vLLM
+            # server (~84 GiB of the unified pool), so Ollama gets one model at a time.
             - name: OLLAMA_MAX_LOADED_MODELS
-              value: "2"
+              value: "1"
             # GB10 is a unified-memory iGPU, so KV cache counts against the
             # container cgroup limit. ollama 0.24 defaults to a 256K VRAM-based
             # context which OOMs the pod, so context stays explicitly capped.
@@ -108,7 +110,8 @@ spec:
               memory: "4Gi"
             limits:
               cpu: "8"
-              memory: "56Gi"
+              # 56Gi -> 32Gi alongside qwen-flash (apps/ai/qwen-flash) on the same 128 GB pool.
+              memory: "32Gi"
               nvidia.com/gpu: 1
           volumeMounts:
             - name: ollama-data

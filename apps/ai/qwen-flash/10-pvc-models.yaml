@@ -1,0 +1,15 @@
+# Checkpoint (~124 GiB NVFP4 + ~13 GiB fp8 hybrid shards) and compile caches.
+# local-path, so it lands on node-10's own NVMe: the recipe memory-maps the 48 GiB
+# n-gram (PLE) table and reads rows from it on every prefill, which needs local
+# flash, not a network volume. The size is not enforced by local-path; it is
+# what we expect to use, with room for a second checkpoint.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qwen-flash-models
+spec:
+  storageClassName: local-path
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 300Gi
