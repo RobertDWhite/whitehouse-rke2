@@ -46,8 +46,14 @@ spec:
     spec:
       serviceAccountName: kube-vip
       hostNetwork: true
+      # DISABLED: the control-plane VIP 10.99.5.100 is owned by host-level
+      # keepalived on node-10/11/14 (VRRP, with apiserver/rke2 health checks).
+      # Running kube-vip alongside it puts the VIP on two nodes at once, which
+      # breaks ARP for the VIP and flannel's VXLAN source address (2026-10-13).
+      # No node carries this label, so the DaemonSet schedules nothing.
       nodeSelector:
         node-role.kubernetes.io/control-plane: "true"
+        kube-vip.whitehouse/enabled: "true"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
