@@ -8,8 +8,8 @@
 # with the build pod described in README.md when bumping the recipe commit.
 #
 # Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
-# resolved at recipe commit 1139abf, with GPU_MEM lowered to 0.70 and the fp8 KV
-# cache so node-10's Ollama keeps ~25 GiB alongside it.
+# resolved at recipe commit 1139abf, with the fp8 KV cache. node-10's Ollama was
+# retired (its traffic goes to the 5090), so vLLM gets the recipe's 0.80 of the pool.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -107,7 +107,7 @@ spec:
             - --max-num-seqs=8
             # Fraction of the unified pool for weights + KV. vLLM needs this much free
             # at boot; what is left is page cache for the mmapped PLE table.
-            - --gpu-memory-utilization=0.70
+            - --gpu-memory-utilization=0.80
             - --kv-cache-dtype=fp8_e4m3
             - --enable-prefix-caching
             - --enable-prompt-tokens-details
@@ -153,8 +153,8 @@ spec:
             failureThreshold: 5
           resources:
             # GB10 memory is unified: CUDA allocations count against this cgroup.
-            requests: {cpu: "4", memory: 90Gi, nvidia.com/gpu: 1}
-            limits: {memory: 108Gi, nvidia.com/gpu: 1}
+            requests: {cpu: "4", memory: 100Gi, nvidia.com/gpu: 1}
+            limits: {memory: 116Gi, nvidia.com/gpu: 1}
           volumeMounts:
             - {name: models, mountPath: /hf}
             - {name: models, mountPath: /root/.cache/vllm, subPath: cache/vllm}
