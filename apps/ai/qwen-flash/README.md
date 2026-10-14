@@ -13,8 +13,10 @@ token reads only a few rows of. The recipe memory-maps that table from local NVM
 (fp8), and page cache holds the hot rows of the table. That is why the model volume is
 `local-path` on node-10 and not Longhorn.
 
-node-10 shares the pool with the node-10 Ollama (capped at 32 GiB, one loaded model). vLLM
-runs at `--gpu-memory-utilization=0.70`, and it needs that much memory free when it boots.
+node-10's Ollama was retired when this went in (Ollama traffic goes to the 5090 via
+ollama-router). vLLM runs at the recipe's `--gpu-memory-utilization=0.80`, and it needs that
+much memory free when it boots. Leave the remaining ~20% alone: it is the page cache that
+holds the hot rows of the n-gram table, and prefill speed depends on it.
 
 ## Startup
 
