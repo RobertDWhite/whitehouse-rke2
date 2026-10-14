@@ -56,6 +56,13 @@ spec:
                 secretKeyRef:
                   name: yeti-secrets
                   key: ARANGO_ROOT_PASSWORD
+          # RocksDB recovery and checksumming can take minutes on a slow volume; the
+          # liveness probe used to kill it after 75s, so it restart-looped forever.
+          startupProbe:
+            tcpSocket:
+              port: 8529
+            periodSeconds: 10
+            failureThreshold: 90
           readinessProbe:
             tcpSocket:
               port: 8529
