@@ -1,0 +1,22 @@
+# Pin flannel's VXLAN source address to each node's own IP.
+#
+# keepalived floats the control-plane VIP 10.99.5.100 between node-10/11/14
+# as a secondary /32 on the node's uplink. With no iface set, flannel takes
+# the default-route interface's address, and on the node holding the VIP it
+# can pick 10.99.5.100. VXLAN packets then leave with the VIP as their source,
+# and whichever node holds the VIP drops them as its own address: that node's
+# pods lose all cross-node traffic (seen on node-14 on 2026-10-13, and the
+# original reason for node-14's old kube-vip=disabled taint).
+#
+# flannel's iface regex also matches IP addresses. This one accepts the node
+# addresses (10.99.5.1-99, and node-50 on 10.100.0.0/24) and never the VIP
+# or the MetalLB pool (10.99.5.100+). Extend it if a node joins on another subnet.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: rke2-canal
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    flannel:
+      regexIface: '^10\.99\.5\.[0-9]{1,2}$|^10\.100\.0\.[0-9]+$'
