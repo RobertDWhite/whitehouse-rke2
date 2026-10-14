@@ -3,3 +3,15 @@ controller:
 
 speaker:
   enabled: true
+  # node-10 is tainted dedicated=llm:NoSchedule; L2 speakers must still run there.
+  tolerations:
+    - key: dedicated
+      operator: Exists
+      effect: NoSchedule
+
+frr-k8s:
+  frrk8s:
+    tolerations:
+      - key: dedicated
+        operator: Exists
+        effect: NoSchedule

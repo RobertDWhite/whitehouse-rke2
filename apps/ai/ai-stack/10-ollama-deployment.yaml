@@ -25,7 +25,13 @@ spec:
                     values:
                       - rke2-node-10
 
-      tolerations: []
+      # node-10 is tainted dedicated=llm:NoSchedule. Ollama stays here until
+      # the vLLM server replaces it and its consumers move to ollama-5090.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
 
       containers:
         - name: ollama

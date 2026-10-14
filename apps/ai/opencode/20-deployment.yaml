@@ -18,6 +18,13 @@ spec:
       enableServiceLinks: false
       # Run next to its model backend on the DGX Spark (GB10, arm64). The
       # upstream image is multi-arch, so arm64 is fine here.
+      # node-10 is tainted dedicated=llm:NoSchedule (reserved for the vLLM
+      # server); this workload is pinned there on purpose.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
