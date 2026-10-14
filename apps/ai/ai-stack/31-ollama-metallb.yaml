@@ -6,8 +6,10 @@ metadata:
 spec:
   type: LoadBalancer
   loadBalancerIP: 10.99.5.125
+  # Points at ollama-router (5090 first, then fallback) since node-10's Ollama
+  # was retired; consumers keep using ollama.ai-stack / 10.99.5.125 unchanged.
   selector:
-    app: ollama
+    app: ollama-router
   ports:
     - name: http
       port: 11434
