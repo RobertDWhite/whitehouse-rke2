@@ -140,6 +140,11 @@ spec:
               memory: 4Gi
 
           nodeAgent:
+            # node-10 is tainted dedicated=llm:NoSchedule; back up its volumes too.
+            tolerations:
+              - key: dedicated
+                operator: Exists
+                effect: NoSchedule
             extraArgs:
               - --node-agent-configmap=velero-node-agent-config
             resources:

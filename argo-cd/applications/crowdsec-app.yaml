@@ -54,6 +54,11 @@ spec:
               on_success: break
 
           agent:
+            # node-10 is tainted dedicated=llm:NoSchedule; still ship its logs.
+            tolerations:
+              - key: dedicated
+                operator: Exists
+                effect: NoSchedule
             acquisition:
               - namespace: kube-system
                 podName: rke2-ingress-nginx-controller-*

@@ -17,6 +17,13 @@ spec:
       annotations:
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
+      # node-10 is tainted dedicated=llm:NoSchedule (reserved for the vLLM
+      # server); this workload is pinned there on purpose.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
       nodeSelector:
         kubernetes.io/hostname: rke2-node-10
       containers:

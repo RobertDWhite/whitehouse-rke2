@@ -8,3 +8,15 @@ resources:
   - https://raw.githubusercontent.com/SynologyOpenSource/synology-csi/v1.2.0/deploy/kubernetes/v1.20/node.yml
 generators:
   - ksops.yaml
+patches:
+  # node-10 is tainted dedicated=llm:NoSchedule; the CSI node plugin must still run there.
+  - target:
+      kind: DaemonSet
+      name: synology-csi-node
+    patch: |-
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - key: dedicated
+            operator: Exists
+            effect: NoSchedule

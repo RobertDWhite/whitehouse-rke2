@@ -16,9 +16,10 @@ spec:
         app: dispatcharr-web
     spec:
       # Shares the RWO dispatcharr-data PVC with celery (pinned to the same
-      # node); both must co-locate or the volume can't attach.
+      # node); both must co-locate or the volume can't attach. node-14, not
+      # node-10: node-10 is reserved for the vLLM server.
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-10
+        kubernetes.io/hostname: rke2-node-14
       enableServiceLinks: false
       containers:
         - name: web
