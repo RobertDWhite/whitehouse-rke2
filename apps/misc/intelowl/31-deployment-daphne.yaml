@@ -14,6 +14,10 @@ spec:
       labels:
         app.kubernetes.io/name: intelowl-daphne
     spec:
+      # amd64-only image; node-10 (arm64, LLM-reserved) only carries a soft
+      # PreferNoSchedule taint, so pin the architecture explicitly.
+      nodeSelector:
+        kubernetes.io/arch: amd64
       securityContext:
         fsGroup: 1000
       initContainers:
