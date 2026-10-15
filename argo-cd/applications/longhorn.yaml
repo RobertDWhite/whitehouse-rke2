@@ -40,8 +40,9 @@ spec:
           # plugin and engine images; instance managers pick it up once idle.
           # (node-14's old kube-vip=disabled taint was removed 2026-10-13.)
           taintToleration: dedicated:NoSchedule
-          # The Immich disks (/mnt/longhorn-immich-20tb on node-11 and node-14, tagged
-          # immich-media / immich-photos) are Immich-only. Longhorn's default lets a
+          # The Immich disk (/mnt/longhorn-immich-20tb on node-14, tagged immich-media
+          # and immich-photos) is Immich-only. node-11's Immich disk was evicted and
+          # disabled 2026-10-14. Longhorn's default lets a
           # volume with no disk selector use any disk, tagged or not, so general
           # volumes (small databases included) ended up on those HDDs and every write
           # waited on them. false = untagged volumes only use untagged disks.
@@ -49,6 +50,11 @@ spec:
           # Rebuild missing replicas of detached volumes too, instead of waiting for
           # their next attach (used when moving replicas off the Immich disks).
           offlineReplicaRebuilding: '{"v1":"true","v2":"false"}'
+          # Thin provisioning: Longhorn schedules by provisioned size, and Immich's
+          # two 10 TiB volumes (1.9 + 4.4 TiB actually used) would not otherwise fit
+          # on node-14's 17 TiB disk. Real usage is still guarded by
+          # storage-minimal-available-percentage (25% free).
+          storageOverProvisioningPercentage: 200
         # The manager DaemonSet is user-deployed, so it needs the toleration
         # in its own spec as well.
         longhornManager:
