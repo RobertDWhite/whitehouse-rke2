@@ -11,12 +11,22 @@ data:
       "$schema": "https://opencode.ai/config.json",
       "autoupdate": false,
       "share": "disabled",
-      "model": "ollama/qwen3.8:27b",
-      "small_model": "ollama/llama3.1:8b",
+      "model": "qwen-flash/qwen3.8-flash-next",
+      "small_model": "qwen-flash/qwen3.8-flash-next",
       "provider": {
+        "qwen-flash": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Qwen3.8 Flash Next (vLLM)",
+          "options": {
+            "baseURL": "http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1"
+          },
+          "models": {
+            "qwen3.8-flash-next": { "name": "Qwen3.8 Flash Next" }
+          }
+        },
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",
-          "name": "Ollama (Spark)",
+          "name": "Ollama (RTX 5090)",
           "options": {
             "baseURL": "http://ollama.ai-stack.svc.cluster.local:11434/v1"
           },
