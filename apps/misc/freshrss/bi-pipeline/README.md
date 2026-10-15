@@ -72,7 +72,7 @@ Retry controls (recommended for intermittent API timeouts):
 For Ollama in OpenAI-compatible mode, set:
 
 - `ai.base_url`: `http://ollama.ai-stack.svc.cluster.local:11434/v1`
-- `ai.model`: your installed model, for example `llama3.1:8b`
+- `ai.model`: your installed model, for example `qwen3.8:27b`
 - `ai.api_key`: any non-empty value if your endpoint expects an Authorization header
 
 If AI fails, the pipeline falls back to heuristic extraction so the run still completes.

@@ -8,7 +8,8 @@ web UI (`opencode web`) at https://opencode.internal.white.fm.
 - **Models**: defaults to Qwen3.8 Flash Next through the in-cluster vLLM API
   (`qwen-flash.qwen-flash:8000/v1`) for both coding and lightweight tasks — see
   `15-configmap.yaml`. The Ollama provider remains available for manually
-  selecting its models; Ollama traffic routes to the RTX 5090.
+  selecting Qwen3.8 27B or Qwen3 0.6B through the Mac mini primary, with the
+  RTX 5090 as failover.
 - **Auth**: HTTP basic auth, user `opencode`, password in `11-secret.sops.yaml`
   (copy at `~/kube/secrets/opencode-password.txt`). Internal-only route.
 - **Storage**: `opencode-home` PVC is `$HOME` (`/root`): sessions,

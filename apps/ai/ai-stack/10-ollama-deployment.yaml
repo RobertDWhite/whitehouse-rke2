@@ -5,8 +5,9 @@ metadata:
   namespace: ai-stack
 spec:
   # Retired 2026-10-14: node-10 (GB10) now serves Qwen3.8-Flash-Next via vLLM
-  # (apps/ai/qwen-flash), and all Ollama traffic goes to the 5090 through
-  # ollama-router. The models stay on ollama-pvc; set 1 to bring it back.
+  # (apps/ai/qwen-flash). Ollama clients use the Mac mini primary via
+  # ollama-router, with the 5090 as failover. Models stay on ollama-pvc; set 1
+  # to bring this retired deployment back.
   replicas: 0
   selector:
     matchLabels:

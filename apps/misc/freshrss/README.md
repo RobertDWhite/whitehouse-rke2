@@ -26,7 +26,7 @@ Set:
 - `OpenAI Base URL (Article)`: `http://ollama.ai-stack.svc.cluster.local:11434/v1`
 - `OpenAI Base URL (Roundup)`: `http://ollama.ai-stack.svc.cluster.local:11434/v1`
 - `OpenAI API Key`: any non-empty value for local Ollama (for example `dummy`)
-- `OpenAI Model`: `llama3.1:8b` (or another installed model)
+- `OpenAI Model`: `qwen3.8:27b` (or another model listed by `ollama-router`)
 - `Temperature`: `0.2` to `0.7`
 - `Max tokens (chars)`: keep realistic (`4096` to `16000` recommended)
 
@@ -45,7 +45,7 @@ Also ensure the user has the extension enabled:
 - tags for indexing
 4. Use the category `Summarize` button to generate unread digests.
 5. Optionally enable `mark_read_after_summary` when your process is stable.
-6. For local models (for example `llama3.1:8b`), set Feed Digest batch size to `1` for reliability.
+6. For local models (for example `qwen3.8:27b`), set Feed Digest batch size to `1` for reliability.
 
 Recommended prompt shape:
 - Require strict JSON.
@@ -79,7 +79,7 @@ kubectl -n freshrss exec deploy/freshrss -- \
   sh -lc "curl -sS -X POST http://ollama.ai-stack.svc.cluster.local:11434/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer dummy' \
-  -d '{\"model\":\"llama3.1:8b\",\"messages\":[{\"role\":\"user\",\"content\":\"Return JSON with title summary tags\"}]}'"
+  -d '{\"model\":\"qwen3.8:27b\",\"messages\":[{\"role\":\"user\",\"content\":\"Return JSON with title summary tags\"}]}'"
 ```
 
 If `/api/version` works but `/v1/chat/completions` fails, verify:
@@ -95,7 +95,6 @@ Its endpoint lives in FreshRSS's system config on the PVC
 (`/config/www/freshrss/data/config.php`, keys `openai_baseurl_article` /
 `openai_baseurl_roundup`), set via the UI — not in this repo. On 2026-09-13 it
 was moved from `ollama.ai-stack` (the DGX Spark, node-10) to
-`ollama-router.ai-stack` (5090 first, Spark as backup) because the Spark was
-running at 81 °C GPU / ~90 °C SoC and hung twice. Backup of the previous file:
-`config.php.bak-20260913` alongside it. Model stays `llama3.1:8b` (present on
-both backends).
+`ollama-router.ai-stack` (Mac mini primary, RTX 5090 failover) after the Spark
+was repurposed for vLLM. Its model is `qwen3.8:27b`, available on the router's
+primary and failover backends.
