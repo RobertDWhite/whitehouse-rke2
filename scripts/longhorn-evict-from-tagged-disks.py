@@ -33,11 +33,20 @@ def log(*a):
     print(time.strftime("%H:%M:%S"), *a, flush=True)
 
 
-def k(*args, out=True):
+def k(*args, out=True, tries=8):
+    """kubectl with retries: an apiserver restart briefly breaks discovery
+    ("the server doesn't have a resource type") and must not kill a long run."""
     cmd = ["kubectl", *args]
-    if out:
-        return json.loads(subprocess.check_output(cmd + ["-o", "json"]))
-    subprocess.check_call(cmd, stdout=subprocess.DEVNULL)
+    for attempt in range(tries):
+        try:
+            if out:
+                return json.loads(subprocess.check_output(cmd + ["-o", "json"]))
+            subprocess.check_call(cmd, stdout=subprocess.DEVNULL)
+            return None
+        except subprocess.CalledProcessError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(15 * (attempt + 1))
 
 
 def tagged_disks():
