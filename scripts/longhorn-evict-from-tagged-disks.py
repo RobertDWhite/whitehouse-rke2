@@ -124,6 +124,13 @@ def main():
         pvc = (v["status"].get("kubernetesStatus") or {}).get("pvcName", "?")
         log(f"== {vol} ({pvc}, {int(v['spec']['size']) // 2**30} GiB, "
             f"{v['spec']['numberOfReplicas']} replicas, {v['status']['state']})")
+        if v["status"]["state"] != "attached":
+            # A detached volume's replicas all show "stopped", and healthyAt cannot
+            # tell a stale replica from a current one, so deleting the "wrong" one
+            # can lose data. Leave these to Longhorn's disk eviction, which attaches
+            # the volume and rebuilds from its real replica set first.
+            log("  SKIP: detached; use Longhorn disk eviction for these")
+            continue
         if not wait_healthy(vol, timeout=20 * 60):
             log(f"  SKIP: not healthy after 20 min")
             continue
