@@ -9,8 +9,8 @@
 #
 # Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
 # resolved at recipe commit 1139abf, with the fp8 KV cache. node-10's Ollama was
-# retired (its traffic goes to the 5090), so vLLM gets 0.78 of the pool (the recipe default
-# 0.80 did not leave enough free memory at boot next to node-10's system pods).
+# retired (its traffic goes to the 5090), so vLLM sizes its KV cache explicitly
+# (12 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -106,11 +106,16 @@ spec:
             - --load-format=safetensors
             - --max-model-len=262144
             - --max-num-seqs=8
-            # Fraction of the unified pool for weights + KV. vLLM refuses to start
-            # unless this much is free at boot (0.80 needed 95.75 GiB; node-10 had
-            # 95.66 with its system pods), so 0.78 leaves ~2 GiB of slack. What is
-            # left is page cache for the mmapped PLE table.
-            - --gpu-memory-utilization=0.78
+            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 12 GiB of fp8 KV.
+            # vLLM refuses to start unless gpu-memory-utilization x 119.7 GiB is free,
+            # and on the GB10 CUDA counts page cache as used, so "free" drifts as the
+            # 140 GB of checkpoint files are read (95.66 GiB, then 92.6). A fixed KV
+            # size makes the footprint ~91 GiB regardless (75 weights + 12 KV +
+            # activations), and the low utilization just keeps the boot check from
+            # tripping. The kernel reclaims page cache as vLLM really allocates;
+            # what stays free is page cache for the mmapped PLE table.
+            - --gpu-memory-utilization=0.70
+            - --kv-cache-memory-bytes=12884901888
             - --kv-cache-dtype=fp8_e4m3
             - --enable-prefix-caching
             - --enable-prompt-tokens-details
