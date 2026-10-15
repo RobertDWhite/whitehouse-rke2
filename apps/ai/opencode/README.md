@@ -5,10 +5,10 @@ web UI (`opencode web`) at https://opencode.internal.white.fm.
 
 - **Runs on the DGX Spark** (rke2-node-10, arm64), next to its model backend.
   The upstream image `ghcr.io/anomalyco/opencode` is multi-arch.
-- **Models**: the Spark's Ollama (`ollama.ai-stack:11434/v1`), default
-  `qwen3.8:27b`, small model `llama3.1:8b` — see `15-configmap.yaml`.
-  Ollama runs `OLLAMA_NUM_PARALLEL=1`, so opencode turns queue behind
-  Hermes/Riffado calls on the same instance.
+- **Models**: defaults to Qwen3.8 Flash Next through the in-cluster vLLM API
+  (`qwen-flash.qwen-flash:8000/v1`) for both coding and lightweight tasks — see
+  `15-configmap.yaml`. The Ollama provider remains available for manually
+  selecting its models; Ollama traffic routes to the RTX 5090.
 - **Auth**: HTTP basic auth, user `opencode`, password in `11-secret.sops.yaml`
   (copy at `~/kube/secrets/opencode-password.txt`). Internal-only route.
 - **Storage**: `opencode-home` PVC is `$HOME` (`/root`): sessions,
