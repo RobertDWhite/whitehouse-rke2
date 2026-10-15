@@ -6,9 +6,8 @@ metadata:
 data:
   config.yaml: |
     ai:
-      # ollama-router fronts the GPU backends (5090 on node-50, node-10 backup).
+      # ollama-router routes to the responsive Mac mini Ollama, with the 5090 as backup.
       base_url: "http://ollama-router.ai-stack.svc.cluster.local:11434/v1"
       model: "qwen3.8:27b"
-      fallback_models: ["llama3.1:8b", "llama3.2:3b"]
       temperature: 0.4
       request_timeout: 120.0

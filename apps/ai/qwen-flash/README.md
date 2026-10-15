@@ -13,8 +13,9 @@ token reads only a few rows of. The recipe memory-maps that table from local NVM
 (fp8), and page cache holds the hot rows of the table. That is why the model volume is
 `local-path` on node-10 and not Longhorn.
 
-node-10's Ollama was retired when this went in (Ollama traffic goes to the 5090 via
-ollama-router). vLLM sizes its KV cache explicitly (`--kv-cache-memory-bytes`, 12 GiB fp8) rather
+node-10's Ollama was retired when this went in. The shared Ollama router uses
+the Mac mini as primary and the RTX 5090 as failover; this vLLM endpoint is
+separate. vLLM sizes its KV cache explicitly (`--kv-cache-memory-bytes`, 12 GiB fp8) rather
 than by fraction. On the GB10, CUDA counts page cache as used, so the free memory vLLM
 checks at boot drifts with every file read, and the recipe's 0.80 failed that check. Leave the remaining ~20% alone: it is the page cache that
 holds the hot rows of the n-gram table, and prefill speed depends on it.
