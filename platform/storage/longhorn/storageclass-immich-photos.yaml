@@ -9,8 +9,11 @@ reclaimPolicy: Retain
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
 parameters:
-  # Pinned to node-11's 18 TB disk (tag `immich-photos`) so the originals and
-  # the derived media library each get their own spindle.
+  # Immich lives on node-14's 18 TB HDD only (2026-10-14): node-14's disk carries
+  # both the `immich-photos` and `immich-media` tags. node-11's Immich disk was
+  # evicted; sharing it with general volumes had node-11 (a control-plane node)
+  # I/O-starved. Single replica: the originals are also synced to the Synology
+  # by immich-photos-bidirectional-sync.
   diskSelector: immich-photos
   numberOfReplicas: "1"
   staleReplicaTimeout: "30"
