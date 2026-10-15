@@ -6,7 +6,7 @@ HDMI + USB. Use it when the node is `NotReady` and SSH/ping are dead.
 | | |
 |---|---|
 | Web UI | https://10.100.2.86 (Pro XG switch, port 2) |
-| User | `admin` — password in 1Password / the admin's notes, **not** in this repo |
+| Credentials | 1Password → "GLKVM Comet (node-12)" (never in this repo) |
 | Power control | **none** (no ATX board). Reboot = magic SysRq, or a physical button press |
 | Root shell on the KVM | Web UI → Terminal, or ttyd at `/extras/webterm/ttyd/ws` |
 
