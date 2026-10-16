@@ -12,6 +12,17 @@ spec:
     - weather.internal.white.fm
     - meteorology.internal.white.fm
   rules:
+    # AI context gathering and inference can exceed the gateway's 15s default.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/briefing
+      timeouts:
+        request: 120s
+        backendRequest: 120s
+      backendRefs:
+        - name: weather-ui
+          port: 80
     - backendRefs:
         - name: weather-ui
           port: 80
