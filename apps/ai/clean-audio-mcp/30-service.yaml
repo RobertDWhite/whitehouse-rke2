@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: clean-audio-mcp
+  namespace: clean-audio-mcp
+spec:
+  selector:
+    app: clean-audio-mcp
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
