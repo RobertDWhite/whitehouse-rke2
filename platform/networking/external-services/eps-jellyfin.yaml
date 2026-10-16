@@ -1,0 +1,18 @@
+# EndpointSlice for the headless jellyfin Service — Jellyfin container on the Synology NAS.
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: jellyfin
+  namespace: external-services
+  labels:
+    kubernetes.io/service-name: jellyfin
+addressType: IPv4
+ports:
+  - name: http
+    port: 8096
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 10.100.1.20
+    conditions:
+      ready: true

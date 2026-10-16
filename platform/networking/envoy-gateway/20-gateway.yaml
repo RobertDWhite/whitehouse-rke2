@@ -421,3 +421,29 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # jellyfin.internal.white.fm — Jellyfin on the Synology NAS (native auth, no SSO)
+    - name: https-jellyfin-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "jellyfin.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jellyfin-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    # jellystat.internal.white.fm — Jellyfin playback stats (native auth, no SSO)
+    - name: https-jellystat-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "jellystat.internal.white.fm"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: jellystat-tls
+      allowedRoutes:
+        namespaces:
+          from: All

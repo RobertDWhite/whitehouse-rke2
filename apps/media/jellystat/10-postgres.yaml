@@ -1,0 +1,104 @@
+# Jellystat Postgres — longhorn-single (default 3-replica longhorn can't schedule new PVCs).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellystat-postgres
+  namespace: jellystat
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single
+  resources:
+    requests:
+      storage: 5Gi
+---
+# First-boot only: read-only role Grafana uses as a datasource.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jellystat-db-init
+  namespace: jellystat
+data:
+  10-grafana-ro.sh: |
+    #!/bin/sh
+    set -e
+    psql -v ON_ERROR_STOP=1 -v pw="$GRAFANA_RO_PASSWORD" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
+    CREATE ROLE grafana_ro LOGIN PASSWORD :'pw';
+    GRANT pg_read_all_data TO grafana_ro;
+    SQL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellystat-db
+  namespace: jellystat
+  labels:
+    app: jellystat-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jellystat-db
+  template:
+    metadata:
+      labels:
+        app: jellystat-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres
+          ports:
+            - containerPort: 5432
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_DB
+              value: jfstat
+          envFrom:
+            - secretRef:
+                name: jellystat-credentials
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d jfstat"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: jellystat-postgres
+        - name: init
+          configMap:
+            name: jellystat-db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellystat-db
+  namespace: jellystat
+spec:
+  selector:
+    app: jellystat-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

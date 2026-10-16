@@ -1,0 +1,1460 @@
+{
+  "uid": "media-plex-jellyfin",
+  "title": "Media \u2014 Plex + Jellyfin",
+  "tags": [
+    "media",
+    "plex",
+    "jellyfin",
+    "tautulli",
+    "jellystat"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Tautulli (Plex)",
+      "type": "dashboards",
+      "tags": [
+        "tautulli"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "id": 1,
+      "title": "Right now",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 2,
+      "title": "Plex \u2014 active streams",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "sum(tautulli_active_streams)",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 3,
+      "title": "Jellyfin \u2014 active streams",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Jellyfin\" FROM jf_activity_watchdog"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 4,
+      "title": "All servers \u2014 active streams",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "sum(tautulli_active_streams)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "hide": true
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM jf_activity_watchdog",
+          "hide": true
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "type": "math",
+          "expression": "$A + $B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 5,
+      "title": "Plex \u2014 transcodes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "sum(tautulli_streams_transcode)",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 6,
+      "title": "Jellyfin \u2014 transcodes",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Jellyfin\" FROM jf_activity_watchdog WHERE \"PlayMethod\" ILIKE 'transcode%'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 7,
+      "title": "Plex \u2014 bandwidth",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "sum(tautulli_bandwidth_kbps{location=\"total\"})",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Kbits",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "table",
+      "id": 8,
+      "title": "Plex \u2014 now playing",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "tautulli_stream_info",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {
+              "user": 0,
+              "title": 1,
+              "player": 2,
+              "transcode_decision": 3,
+              "video_resolution": 4,
+              "quality": 5,
+              "state": 6
+            },
+            "renameByName": {
+              "user": "User",
+              "title": "Title",
+              "player": "Player",
+              "transcode_decision": "Decision",
+              "video_resolution": "Resolution",
+              "quality": "Quality",
+              "state": "State",
+              "media_type": "Type",
+              "library_name": "Library"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "table",
+      "id": 9,
+      "title": "Jellyfin \u2014 now playing",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT \"UserName\" AS \"User\",\n       CASE WHEN COALESCE(\"SeriesName\",'') <> '' THEN \"SeriesName\" || ' - ' || \"NowPlayingItemName\" ELSE \"NowPlayingItemName\" END AS \"Title\",\n       \"Client\", \"DeviceName\" AS \"Device\", \"PlayMethod\" AS \"Method\",\n       CASE WHEN \"IsPaused\" THEN 'paused' ELSE 'playing' END AS \"State\"\nFROM jf_activity_watchdog\nORDER BY \"ActivityDateInserted\" DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "type": "row",
+      "id": 10,
+      "title": "Activity (dashboard time range)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 11,
+      "title": "Plex \u2014 plays",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> group()\n  |> count()"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 12,
+      "title": "Jellyfin \u2014 plays",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 13,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Jellyfin\" FROM jf_playback_activity WHERE $__timeFilter(\"ActivityDateInserted\")"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          },
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 13,
+      "title": "Plex \u2014 hours watched",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> group()\n  |> sum()\n  |> map(fn: (r) => ({r with _value: float(v: r._value) / 3600.0}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          },
+          "noValue": "0",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 14,
+      "title": "Jellyfin \u2014 hours watched",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 13,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(sum(\"PlaybackDuration\"),0) / 3600.0 AS \"Jellyfin\" FROM jf_playback_activity WHERE $__timeFilter(\"ActivityDateInserted\")"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          },
+          "noValue": "0",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 15,
+      "title": "Plays per day \u2014 Plex vs Jellyfin",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> group()\n  |> aggregateWindow(every: 1d, fn: count, createEmpty: true)\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> rename(columns: {_value: \"Plex\"})"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(\"ActivityDateInserted\", 1d, 0), count(*) AS \"Jellyfin\"\nFROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\")\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Plex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E5A00D"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Jellyfin"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#AA5CC3"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 16,
+      "title": "Hours watched per day \u2014 Plex vs Jellyfin",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> group()\n  |> aggregateWindow(every: 1d, fn: sum, createEmpty: true)\n  |> map(fn: (r) => ({_time: r._time, Plex: float(v: if exists r._value then r._value else 0) / 3600.0}))"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "time_series",
+          "rawSql": "SELECT $__timeGroupAlias(\"ActivityDateInserted\", 1d, 0), sum(\"PlaybackDuration\") / 3600.0 AS \"Jellyfin\"\nFROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\")\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "barAlignment": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Plex"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E5A00D"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Jellyfin"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#AA5CC3"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "row",
+      "id": 17,
+      "title": "Who & what (dashboard time range)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "id": 18,
+      "title": "Plex \u2014 top users (plays)",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 27,
+        "w": 6,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> map(fn: (r) => ({name: r.user, _value: 1}))\n  |> group(columns: [\"name\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> rename(columns: {_value: \"plays\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 19,
+      "title": "Jellyfin \u2014 top users (plays)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 27,
+        "w": 6,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT \"UserName\" AS name, count(*) AS plays FROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\") GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 20,
+      "title": "Plex \u2014 top titles (plays)",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 27,
+        "w": 6,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "import \"strings\"\nfrom(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"title\")\n  |> map(fn: (r) => ({r with _value: strings.replaceAll(v: strings.replaceAll(v: strings.replaceAll(v: r._value, t: \"\\\\ \", u: \" \"), t: \"\\\\,\", u: \",\"), t: \"\\\\=\", u: \"=\")}))\n  |> map(fn: (r) => ({name: if r.media_type == \"episode\" then strings.split(v: r._value, t: \" - \")[0] else r._value, _value: 1}))\n  |> group(columns: [\"name\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> rename(columns: {_value: \"plays\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 21,
+      "title": "Jellyfin \u2014 top titles (plays)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 27,
+        "w": 6,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(NULLIF(\"SeriesName\",''), \"NowPlayingItemName\") AS name, count(*) AS plays FROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\") GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "piechart",
+      "id": 22,
+      "title": "Plex \u2014 stream decision",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> map(fn: (r) => ({name: r.transcode, _value: 1}))\n  |> group(columns: [\"name\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> rename(columns: {_value: \"plays\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^plays$/",
+          "values": true
+        },
+        "displayLabels": []
+      }
+    },
+    {
+      "type": "piechart",
+      "id": 23,
+      "title": "Jellyfin \u2014 play method",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 36,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(\"PlayMethod\",'?') AS name, count(*) AS plays FROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\") GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^plays$/",
+          "values": true
+        },
+        "displayLabels": []
+      }
+    },
+    {
+      "type": "piechart",
+      "id": 24,
+      "title": "Plex \u2014 platforms",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "7utNPds7z"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 36,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "7utNPds7z"
+          },
+          "query": "from(bucket: \"tautulli\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tautulli_play\" and r._field == \"watch_seconds\")\n  |> map(fn: (r) => ({name: r.platform, _value: 1}))\n  |> group(columns: [\"name\"])\n  |> sum()\n  |> group()\n  |> sort(columns: [\"_value\"], desc: true)\n  |> limit(n: 10)\n  |> rename(columns: {_value: \"plays\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^plays$/",
+          "values": true
+        },
+        "displayLabels": []
+      }
+    },
+    {
+      "type": "piechart",
+      "id": 25,
+      "title": "Jellyfin \u2014 clients",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 36,
+        "w": 6,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT COALESCE(\"Client\",'?') AS name, count(*) AS plays FROM jf_playback_activity\nWHERE $__timeFilter(\"ActivityDateInserted\") GROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^plays$/",
+          "values": true
+        },
+        "displayLabels": []
+      }
+    },
+    {
+      "type": "row",
+      "id": 26,
+      "title": "Libraries",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": []
+    },
+    {
+      "type": "bargauge",
+      "id": 27,
+      "title": "Plex \u2014 items per library",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "expr": "max by (library_name) (tautulli_library_items)",
+          "instant": true,
+          "range": false,
+          "format": "time_series",
+          "legendFormat": "{{library_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#E5A00D"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    },
+    {
+      "type": "bargauge",
+      "id": 28,
+      "title": "Jellyfin \u2014 items per library",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "jellystat-pg"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 45,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "jellystat-pg"
+          },
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT l.\"Name\" AS name, count(i.\"Id\") AS items\nFROM jf_libraries l\nLEFT JOIN jf_library_items i ON i.\"ParentId\" = l.\"Id\" AND NOT COALESCE(i.archived, false)\nWHERE NOT COALESCE(l.archived, false)\nGROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#AA5CC3"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        }
+      }
+    }
+  ]
+}

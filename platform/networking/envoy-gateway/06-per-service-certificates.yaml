@@ -208,3 +208,39 @@ spec:
   dnsNames:
     - invokeai.white.fm
     - invokeai.internal.white.fm
+
+---
+# jellyfin.internal.white.fm — Jellyfin on the Synology NAS, internal-only.
+# Both SANs per the per-service-cert convention even though only the internal
+# listener exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jellyfin-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: jellyfin-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - jellyfin.white.fm
+    - jellyfin.internal.white.fm
+
+---
+# jellystat.internal.white.fm — Jellyfin playback stats, internal-only.
+# Both SANs per the per-service-cert convention even though only the internal
+# listener exists.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jellystat-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: jellystat-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - jellystat.white.fm
+    - jellystat.internal.white.fm

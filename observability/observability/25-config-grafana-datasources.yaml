@@ -43,3 +43,17 @@ data:
           defaultBucket: homeassistant
         secureJsonData:
           token: ${GF_MISP_INFLUX_TOKEN}
+      # Jellystat's Postgres (read-only grafana_ro role) for the media dashboard.
+      - name: jellystat
+        uid: jellystat-pg
+        type: grafana-postgresql-datasource
+        access: proxy
+        url: jellystat-db.jellystat.svc.cluster.local:5432
+        user: grafana_ro
+        isDefault: false
+        jsonData:
+          database: jfstat
+          sslmode: disable
+          postgresVersion: 1600
+        secureJsonData:
+          password: ${GF_JELLYSTAT_PG_PASSWORD}
