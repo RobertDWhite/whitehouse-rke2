@@ -210,7 +210,7 @@ spec:
         - {protocol: TCP, port: 11434}
 
 ---
-# Allow designated consumers, including the weather API, to reach ollama-5090.
+# Allow default-namespace ad-hoc Jobs to reach ollama-5090 (qwen3:30b for translation work)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -232,11 +232,5 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: openclaw
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: weather
-          podSelector:
-            matchLabels:
-              app: weather-api
       ports:
         - {protocol: TCP, port: 11434}
