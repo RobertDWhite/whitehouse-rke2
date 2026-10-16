@@ -1,0 +1,17 @@
+# jellystat.internal.white.fm — Jellystat UI (native auth), per-service listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: jellystat-internal
+  namespace: jellystat
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-jellystat-internal
+  hostnames:
+    - jellystat.internal.white.fm
+  rules:
+    - backendRefs:
+        - name: jellystat
+          port: 3000

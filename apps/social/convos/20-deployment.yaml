@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: znc
+  namespace: convos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: znc
+  template:
+    metadata:
+      labels:
+        app: znc
+    spec:
+      containers:
+        - name: znc
+          image: znc
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: irc
+              containerPort: 6697
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 6697
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 6697
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: znc-data
+              mountPath: /znc-data
+
+          env:
+            - name: ZNC_DATADIR
+              value: /znc-data
+
+      volumes:
+        - name: znc-data
+          persistentVolumeClaim:
+            claimName: znc-data

@@ -49,6 +49,11 @@ spec:
             # (SQLITE_BUSY)" storms that 500 /api/search and stall dashboards.
             - name: GF_DATABASE_WAL
               value: "true"
+            - name: GF_JELLYSTAT_PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-jellystat
+                  key: GF_JELLYSTAT_PG_PASSWORD
             - name: GF_MISP_INFLUX_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -193,5 +198,7 @@ spec:
                   name: observability-grafana-dashboards-unifi-dpi
               - configMap:
                   name: observability-grafana-dashboards-ai
+              - configMap:
+                  name: observability-grafana-dashboards-media
               - secret:
                   name: observability-grafana-dashboards-private

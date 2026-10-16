@@ -1,0 +1,111 @@
+# Jellystat — Jellyfin playback statistics (Tautulli equivalent).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellystat-backup
+  namespace: jellystat
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellystat
+  namespace: jellystat
+  labels:
+    app: jellystat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: jellystat
+  template:
+    metadata:
+      labels:
+        app: jellystat
+    spec:
+      containers:
+        - name: jellystat
+          image: cyfershepard/jellystat
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: TZ
+              value: America/New_York
+            - name: POSTGRES_IP
+              value: jellystat-db
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: jfstat
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-credentials
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-credentials
+                  key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-credentials
+                  key: JWT_SECRET
+            # Jellyfin on the Synology; overrides the UI-entered connection settings.
+            - name: JF_HOST
+              value: http://10.100.1.20:8096
+            - name: JF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jellystat-credentials
+                  key: JF_API_KEY
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /auth/isConfigured
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /auth/isConfigured
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: backup
+              mountPath: /app/backend/backup-data
+      volumes:
+        - name: backup
+          persistentVolumeClaim:
+            claimName: jellystat-backup
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellystat
+  namespace: jellystat
+spec:
+  selector:
+    app: jellystat
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
