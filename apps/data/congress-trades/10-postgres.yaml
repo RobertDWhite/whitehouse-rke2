@@ -95,12 +95,10 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        # local-path (node-local): this DB is a cache fully reconstructable from the
-        # public primary sources, so it needs no replication/backup. Longhorn is
-        # currently scheduling-exhausted (can't place even a single 10Gi replica),
-        # so local-path avoids that dependency. If longhorn capacity is freed later
-        # and replication is desired, switch back to a longhorn storageClass.
-        storageClassName: local-path
+        # Longhorn so the DB isn't tied to one node's disk (it was local-path on
+        # node-15, which blocked rebuilding that node). Still a cache rebuildable
+        # from the public primary sources.
+        storageClassName: longhorn
         resources:
           requests:
             storage: 10Gi
