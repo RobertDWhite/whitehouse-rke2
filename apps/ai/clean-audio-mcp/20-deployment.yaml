@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clean-audio-mcp
+  namespace: clean-audio-mcp
+spec:
+  replicas: 1
+  # One worker owns the job queue and the RWO state volume.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: clean-audio-mcp
+  template:
+    metadata:
+      labels:
+        app: clean-audio-mcp
+    spec:
+      # Media files on the NAS are owned by the *arr PUID/PGID.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1026
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # node-15 is too small for ffmpeg decode/encode runs.
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-15]
+      containers:
+        - name: clean-audio-mcp
+          image: registry.internal.white.fm/clean-audio-mcp
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: WHISPER_URL
+              value: http://speaches.riffado.svc.cluster.local:8000/v1
+            - name: WHISPER_MODEL
+              value: deepdml/faster-whisper-large-v3-turbo-ct2
+            - name: ALLOWED_ROOTS
+              value: /movies,/documentaries_movies,/tv,/documentaries_series
+            - name: STATE_DIR
+              value: /state
+            - name: SCRATCH_DIR
+              value: /scratch
+            - name: TMPDIR
+              value: /scratch
+            - name: HOME
+              value: /scratch
+            - name: MCP_TOKEN
+              valueFrom: { secretKeyRef: { name: clean-audio-mcp-env, key: MCP_TOKEN } }
+            - name: PLEX_URL
+              valueFrom: { secretKeyRef: { name: clean-audio-mcp-env, key: PLEX_URL } }
+            - name: PLEX_TOKEN
+              valueFrom: { secretKeyRef: { name: clean-audio-mcp-env, key: PLEX_TOKEN } }
+            # Optional: add both keys to the secret once Jellyfin is up so new
+            # sidecars show without waiting for a library scan.
+            - name: JELLYFIN_URL
+              valueFrom: { secretKeyRef: { name: clean-audio-mcp-env, key: JELLYFIN_URL, optional: true } }
+            - name: JELLYFIN_API_KEY
+              valueFrom: { secretKeyRef: { name: clean-audio-mcp-env, key: JELLYFIN_API_KEY, optional: true } }
+          volumeMounts:
+            - { name: media, mountPath: /movies, subPath: Movies }
+            - { name: media, mountPath: /documentaries_movies, subPath: "Documentaries (Movies)" }
+            - { name: media, mountPath: /tv, subPath: TV Shows }
+            - { name: media, mountPath: /documentaries_series, subPath: "Documentaries (Series)" }
+            - { name: state, mountPath: /state }
+            - { name: scratch, mountPath: /scratch }
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media
+        - name: state
+          persistentVolumeClaim:
+            claimName: state
+        # Speech FLAC + rendered E-AC-3 track; ~1 GB for a 3-hour film.
+        - name: scratch
+          emptyDir:
+            sizeLimit: 10Gi

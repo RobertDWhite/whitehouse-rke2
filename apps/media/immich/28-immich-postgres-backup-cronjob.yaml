@@ -16,8 +16,15 @@ spec:
           restartPolicy: OnFailure
           # Keep the dump next to the in-cluster PostgreSQL service.  This
           # avoids routing a database backup across a recovering overlay node.
-          nodeSelector:
-            kubernetes.io/hostname: rke2-node-10
+          affinity:
+            podAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchLabels:
+                        app: immich-postgres
           securityContext:
             fsGroup: 999
             fsGroupChangePolicy: OnRootMismatch

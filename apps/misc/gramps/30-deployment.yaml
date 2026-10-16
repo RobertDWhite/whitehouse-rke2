@@ -15,6 +15,17 @@ spec:
       labels:
         app: gramps
     spec:
+      # gramps-media is an NFS mount of the NAS's /volume1/Personal, which is only
+      # exported to the 10.99.5.0/24 node subnet; node-50 (10.100.0.50) gets
+      # "No such file or directory" from the server and the pod never starts.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-50]
       initContainers:
         # The gramps image bakes its directory tree under /app and
         # /root/.gramps; mounting an empty PVC over those paths hides it.

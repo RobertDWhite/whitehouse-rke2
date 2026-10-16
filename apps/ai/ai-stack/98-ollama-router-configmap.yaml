@@ -7,19 +7,20 @@ data:
   nginx.conf: |
     events {}
     http {
-      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time body=$request_body';
+      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time';
 
-      # 5090 is primary (fast GDDR7), Spark is backup (always-on), Mac mini
-      # (M4 Pro 48GB, MiniTheertWhite, brew ollama via launchd fm.white.ollama)
-      # is a second backup; nginx round-robins the backups when the 5090 is down.
+      # The Mac mini (M4 Pro 48GB, MiniTheertWhite, brew ollama via launchd
+      # fm.white.ollama) is primary: qwen3.8:27b responds reliably there. The
+      # 5090 is backup while node-50's disk pressure and model latency are
+      # investigated. The Spark's Ollama was retired 2026-10-14; the GB10 now
+      # runs Qwen3.8-Flash-Next (apps/ai/qwen-flash).
       # max_fails=0 on the backup: never eject it. Otherwise a cold-model load
       # (briefly not accepting connections) trips the default max_fails=1 and,
       # with the primary down, every queued request gets an instant
       # "no live upstreams" 502 for the fail_timeout window.
       upstream ollama_backends {
-        server ollama-5090.ai-stack.svc.cluster.local:11434 max_fails=0;
-        server ollama.ai-stack.svc.cluster.local:11434 backup max_fails=0;
-        server 10.100.0.70:11434 backup max_fails=0;
+        server 10.100.0.70:11434 max_fails=0;
+        server ollama-5090.ai-stack.svc.cluster.local:11434 backup max_fails=0;
       }
 
       server {
@@ -31,13 +32,15 @@ data:
         location / {
           access_log /dev/stdout ollama;
           proxy_pass         http://ollama_backends;
-          proxy_next_upstream error timeout http_502 http_503 http_504;
-          proxy_next_upstream_tries 2;
+          # http_500 + non_idempotent: a backend that can't load the model
+          # (e.g. 5090 CUDA OOM when another pod holds the VRAM) answers the
+          # POST with a 500; without these nginx never retries a POST on a
+          # backup and every LLM consumer fails.
+          proxy_next_upstream error timeout http_500 http_502 http_503 http_504 non_idempotent;
+          proxy_next_upstream_tries 3;
           proxy_connect_timeout  5s;
-          # A cold qwen3.8:27b load takes ~9 min on the 5090 and ~5 min on the
-          # Spark (both PVCs read over the network from the node-14 replica at
-          # 32-57 MB/s), so 300s would fail the first request after any restart
-          # before ollama ever finished loading. 900s covers the cold load.
+          # Keep the long cold-load window because requests can fall back to
+          # the 5090, whose model files are on network-backed storage.
           proxy_read_timeout    900s;
           proxy_send_timeout    900s;
           proxy_set_header Host $host;

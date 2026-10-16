@@ -25,7 +25,10 @@ data:
         static_configs:
           - targets: ["localhost:9090"]
 
+      # Payload is ~2MB / ~7k series; keep timeout <= interval.
       - job_name: unifi-poller
+        scrape_interval: 30s
+        scrape_timeout: 25s
         static_configs:
           - targets:
               - unifi-poller.observability.svc.cluster.local:9130
@@ -76,17 +79,17 @@ data:
             target_label: namespace
       # =========================
       # MinIO metrics scraping
+      # Prefer the in-cluster ExternalName/headless Service so we do not depend
+      # on public DNS (minio-bucket.white.fm currently resolves to the Envoy
+      # VIP 10.99.5.110, which is not MinIO). The EndpointSlice points at the
+      # Synology MinIO host 10.100.1.20:9000.
       # =========================
       - job_name: minio
-        scheme: https
+        scheme: http
         metrics_path: /minio/v2/metrics/cluster
-
         static_configs:
           - targets:
-              - minio-bucket.white.fm:9000
-
-        tls_config:
-          insecure_skip_verify: true
+              - minio-s3.external-services.svc.cluster.local:9000
 
       # =========================
       # Argo CD metrics scraping
@@ -486,6 +489,16 @@ data:
               - appstore-connect-exporter.observability.svc.cluster.local:9488
         metrics_path: /metrics
         scrape_interval: 300s
+
+      # =========================
+      # ADS-B receiver (readsb stats.prom served by ultrafeeder's nginx)
+      # =========================
+      - job_name: adsb-ultrafeeder
+        static_configs:
+          - targets:
+              - ultrafeeder.adsb.svc.cluster.local:80
+        metrics_path: /metrics
+        scrape_interval: 30s
 
       # =========================
       # Matrix Synapse metrics

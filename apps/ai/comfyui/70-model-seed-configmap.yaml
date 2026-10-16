@@ -26,8 +26,10 @@ data:
     namespace has no other egress path. One bad entry does not fail the job —
     each result is reported and a non-zero exit only happens if every entry failed.
     """
+    import glob
     import os
     import shutil
+    import signal
     import sys
     import tempfile
     import urllib.request
@@ -36,6 +38,23 @@ data:
     LIST_FILE = os.getenv("LIST_FILE", "/config/models.txt")
     UID = int(os.getenv("WANTED_UID", "1024"))
     GID = int(os.getenv("WANTED_GID", "1024"))
+    # comfyui-models is a local-path PVC on node-50's root disk, so its 500Gi
+    # size is not enforced: the real limit is what the node has left. Keep this
+    # much free after a download so kubelet's ~10.5GB ephemeral-storage eviction
+    # threshold is never crossed (crossing it evicts every pod on the node,
+    # Longhorn's CSI plugin included).
+    RESERVE_BYTES = int(os.getenv("RESERVE_GB", "25")) * 10**9
+
+    # Eviction sends SIGTERM, whose default action kills Python without running
+    # the cleanup in download(). Raise instead so the .part file is removed.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+
+
+    def sweep_partials():
+        """Remove .part files a killed earlier run left behind (each is up to 17GB)."""
+        for path in glob.glob(os.path.join(MODELS_DIR, "**", "*.part"), recursive=True):
+            print(f"== removing stale partial {os.path.relpath(path, MODELS_DIR)}")
+            os.remove(path)
 
 
     def parse(path):
@@ -60,6 +79,12 @@ data:
             req = urllib.request.Request(url, headers={"User-Agent": "comfyui-model-seed/1"})
             with urllib.request.urlopen(req, timeout=120) as r, open(tmp_path, "wb") as out:
                 total = int(r.headers.get("Content-Length") or 0)
+                free = shutil.disk_usage(os.path.dirname(dest)).free
+                if total + RESERVE_BYTES > free:
+                    raise OSError(
+                        f"needs {total / 1e9:.1f} GB + {RESERVE_BYTES / 1e9:.0f} GB reserve, "
+                        f"only {free / 1e9:.1f} GB free"
+                    )
                 done = 0
                 next_mark = 0
                 while True:
@@ -89,6 +114,7 @@ data:
             print("nothing to do — model list is empty")
             return 0
 
+        sweep_partials()
         print(f"proxy: {os.getenv('HTTPS_PROXY', '<none>')}")
         ok, skipped, failed = 0, 0, []
 

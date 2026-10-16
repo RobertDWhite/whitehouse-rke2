@@ -361,6 +361,18 @@ data:
 
         # Always-on: keep proxy reconciled. Idempotent.
         ensure_outbound_proxy(token)
+        # Always-on: every pod must forward through dnscrypt-proxy (ODoH).
+        # set_settings above only runs on first boot, so pods whose config
+        # was reset later silently fell back to full recursion.
+        try:
+            S.get(f"{API}/api/settings/set", params={
+                "token": token,
+                "forwarders": FORWARDERS,
+                "forwarderProtocol": FORWARDER_PROTOCOL,
+            }, timeout=30).raise_for_status()
+            print(f"forwarders reconciled: {FORWARDERS} ({FORWARDER_PROTOCOL})")
+        except Exception as e:
+            print(f"warn: forwarder reconcile failed: {e}", file=sys.stderr)
         # Every pod installs the Query Logs app for itself. The old assumption
         # was that only the primary needs it and the cluster catalog would push
         # it to secondaries — but the secondaries have never completed the

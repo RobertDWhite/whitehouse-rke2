@@ -80,3 +80,20 @@ kubectl exec -n ai-stack deploy/ollama-5090 -- ollama pull llama3.1:8b
   (scheduler will place it on the least-loaded GPU node).
 - `localai` (SD) is currently replicas=0. To enable on the 5090, update the image from
   `l4t-arm64-cuda-13` to an amd64 CUDA image and set replicas=1.
+
+## Local-path storage (NVMe)
+
+`/opt/local-path-provisioner` is the Samsung 960 EVO 500 GB (`nvme1n1p1`, ext4, label
+`k8s-local`), mounted from `/etc/fstab`:
+
+```
+UUID=bd2b5107-d5c6-443b-9a5a-d4715a8585e6 /opt/local-path-provisioner ext4 defaults,noatime,nofail 0 2
+```
+
+ComfyUI/InvokeAI models, listmonk and the Immich ML cache are `local-path` PVCs, and
+local-path does not enforce PVC sizes. They used to sit on the 196 GB root disk, and a
+model download filling it put the node into DiskPressure, which evicted every pod there
+(Longhorn CSI included, so `ollama-5090` could not attach its volume). Keep them on the
+NVMe. `nofail` lets the node boot if the drive is missing, but the pods would then write
+to the root disk underneath the mountpoint, so check `findmnt /opt/local-path-provisioner`
+after any hardware change.

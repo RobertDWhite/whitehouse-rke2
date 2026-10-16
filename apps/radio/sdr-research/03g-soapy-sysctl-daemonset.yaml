@@ -16,6 +16,12 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
+      # node-10 is tainted dedicated=llm:NoSchedule (reserved for the
+      # Qwen3.8-Flash-Next vLLM server); node-level DaemonSets must still run there.
+      tolerations:
+        - key: dedicated
+          operator: Exists
+          effect: NoSchedule
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

@@ -67,6 +67,13 @@ spec:
         - podSelector:
             matchLabels:
               app: riffado
+        # clean-audio-mcp transcribes movie dialogue for its clean tracks.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: clean-audio-mcp
+          podSelector:
+            matchLabels:
+              app: clean-audio-mcp
       ports:
         - port: 8000
           protocol: TCP

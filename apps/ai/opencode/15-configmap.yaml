@@ -11,21 +11,47 @@ data:
       "$schema": "https://opencode.ai/config.json",
       "autoupdate": false,
       "share": "disabled",
-      "model": "ollama/qwen3.8:27b",
-      "small_model": "ollama/llama3.1:8b",
+      "model": "qwen-flash/qwen3.8-flash-next",
+      "small_model": "qwen-flash/qwen3.8-flash-next",
       "provider": {
+        "qwen-flash": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Qwen3.8 Flash Next (vLLM)",
+          "options": {
+            "baseURL": "http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1"
+          },
+          "models": {
+            "qwen3.8-flash-next": { "name": "Qwen3.8 Flash Next" }
+          }
+        },
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",
-          "name": "Ollama (Spark)",
+          "name": "Ollama (Mac mini primary, RTX 5090 fallback)",
           "options": {
             "baseURL": "http://ollama.ai-stack.svc.cluster.local:11434/v1"
           },
           "models": {
             "qwen3.8:27b": { "name": "Qwen3.8 27B" },
-            "llama3.1:8b": { "name": "Llama 3.1 8B" },
-            "llama3.2:3b": { "name": "Llama 3.2 3B" },
-            "hf.co/mradermacher/Qwen3-4B-OBLITERATED-GGUF:Q8_0": { "name": "Qwen3 4B Obliterated" }
+            "qwen3:0.6b": { "name": "Qwen3 0.6B" }
           }
+        }
+      },
+      "mcp": {
+        "meerkat": {
+          "type": "remote",
+          "url": "https://meerkat-mcp.internal.white.fm/mcp",
+          "headers": {
+            "Authorization": "Bearer {env:MEERKAT_MCP_TOKEN}"
+          },
+          "enabled": true
+        },
+        "clean-audio": {
+          "type": "remote",
+          "url": "https://clean-audio-mcp.internal.white.fm/mcp",
+          "headers": {
+            "Authorization": "Bearer {env:CLEAN_AUDIO_MCP_TOKEN}"
+          },
+          "enabled": true
         }
       }
     }

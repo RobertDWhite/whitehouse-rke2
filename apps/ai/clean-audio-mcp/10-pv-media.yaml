@@ -1,0 +1,48 @@
+# Same Synology export the media namespace mounts. The pod only sees the four
+# library subPaths, mounted at the paths Plex uses so refreshes line up.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-clean-audio-media
+spec:
+  capacity:
+    storage: 20Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.100.1.20
+    path: /volume1/Media
+  claimRef:
+    name: media
+    namespace: clean-audio-mcp
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media
+  namespace: clean-audio-mcp
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: pv-clean-audio-media
+  resources:
+    requests:
+      storage: 20Ti
+---
+# Job history, reports and cached transcripts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: state
+  namespace: clean-audio-mcp
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi

@@ -18,6 +18,12 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: rke2-node-10
       priorityClassName: system-node-critical
+      # node-10 is tainted dedicated=llm:NoSchedule (reserved for the
+      # Qwen3.8-Flash-Next vLLM server); node-level DaemonSets must still run there.
+      tolerations:
+        - key: dedicated
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: nvidia-device-plugin-ctr
           image: nvcr.io/nvidia/k8s-device-plugin
