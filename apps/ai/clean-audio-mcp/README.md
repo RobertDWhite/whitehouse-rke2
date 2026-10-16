@@ -18,6 +18,10 @@ time; the video file is never modified. Plex can't use external audio
   as 1026:100 (the *arr PUID/PGID).
 - State (`/state`, Longhorn): job history, per-job reports, cached transcripts.
   A re-run with different tiers skips Whisper.
+- Notifications: finished jobs (written, dry run ready, failed, removed) are
+  posted to the Matrix **Media** room through the hookshot generic webhook
+  `clean-audio` (`NOTIFY_WEBHOOK_URL` in the secret, in-cluster hookshot URL).
+  Rotate with `apps/social/matrix-stack/hookshot/rotate-webhook.sh`.
 - Jellyfin refresh: optional `JELLYFIN_URL` / `JELLYFIN_API_KEY` keys in
   `11-secret.sops.yaml`. Without them, sidecars appear on the next library scan.
 
