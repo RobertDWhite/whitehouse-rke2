@@ -16,6 +16,13 @@ spec:
         app: voice-decoder
     spec:
       runtimeClassName: nvidia
+      # node-10 is tainted dedicated=llm:NoSchedule (reserved for the vLLM
+      # server); this workload is pinned there on purpose.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
       nodeSelector:
         kubernetes.io/hostname: rke2-node-10
       containers:

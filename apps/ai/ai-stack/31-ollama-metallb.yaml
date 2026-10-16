@@ -6,8 +6,10 @@ metadata:
 spec:
   type: LoadBalancer
   loadBalancerIP: 10.99.5.125
+  # Points at ollama-router (Mac mini first, then 5090) since node-10's Ollama
+  # was retired; consumers keep using ollama.ai-stack / 10.99.5.125 unchanged.
   selector:
-    app: ollama
+    app: ollama-router
   ports:
     - name: http
       port: 11434

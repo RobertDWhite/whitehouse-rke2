@@ -17,10 +17,8 @@ spec:
       labels:
         app: weather-api
       annotations:
-        # Force pod restart when the SOPS-encrypted config changes (kustomize
-        # rewrites this hash via configMapGenerator-equivalent on every apply).
-        # No-op until you wire it up, but the env var pattern below works without it.
-        weather.config/checksum: "v1"
+        # Roll the API when its encrypted config changes.
+        weather.config/checksum: "fe397dc7b35880da84a864f68ca464fb344d9c3516537211ef115f876bbeeedf"
     spec:
       securityContext:
         runAsNonRoot: true

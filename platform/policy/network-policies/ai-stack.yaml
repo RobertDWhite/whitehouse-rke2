@@ -86,6 +86,30 @@ spec:
         - {protocol: TCP, port: 11434}
 
 ---
+# MetalLB / LAN → ollama-router. The ollama and ollama-lb Services now select the
+# router (node-10's Ollama was retired), so it needs the same LAN reach the old
+# Ollama pod had: in-cluster consumers not listed above (odysseus, opencode,
+# riffado, ...) and LAN clients on 10.99.5.125 come in through this rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-ollama-router
+  namespace: ai-stack
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama-router
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+        - ipBlock:
+            cidr: 192.168.0.0/16
+      ports:
+        - {protocol: TCP, port: 11434}
+
+---
 # MetalLB / LAN → Ollama
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

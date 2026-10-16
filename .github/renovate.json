@@ -296,6 +296,17 @@
         "ghcr.io/anomalyco/opencode"
       ],
       "allowedVersions": "<2.0.0"
+    },
+    {
+      "description": "Longhorn only supports upgrading one minor version at a time (its pre-upgrade hook fails otherwise), so propose each minor separately and never auto-merge.",
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "longhorn"
+      ],
+      "separateMultipleMinor": true,
+      "automerge": false
     }
   ],
   "hostRules": [

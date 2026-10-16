@@ -287,6 +287,26 @@ spec:
         - {protocol: TCP, port: 80}
 
 ---
+# observability → ultrafeeder (Prometheus scrapes readsb stats at /metrics)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-to-ultrafeeder
+  namespace: adsb
+spec:
+  podSelector:
+    matchLabels:
+      app: ultrafeeder
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {protocol: TCP, port: 80}
+
+---
 # FR24 egress → FlightRadar24 (internet)
 # fr24feed needs three things outbound, not just HTTPS:
 #   TCP 443/80  - fetching its feeder configuration from the FR24 API

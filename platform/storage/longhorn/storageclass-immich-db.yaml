@@ -4,15 +4,18 @@ metadata:
   name: longhorn-immich-db
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
 provisioner: driver.longhorn.io
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
 parameters:
-  # Keep both the database and its logical-dump volume on the new dedicated
-  # disks, with one replica on node 11 and one on node 14.
+  # The database and its logical-dump volume live on node-14's Immich HDD. One
+  # replica: node-14's is the only Immich disk since node-11's was evicted
+  # (2026-10-14). Recovery points: the default recurring backup group (NAS)
+  # and the immich-postgres-logical-backup CronJob.
   diskSelector: immich-media
-  numberOfReplicas: "2"
+  numberOfReplicas: "1"
   staleReplicaTimeout: "30"
   dataLocality: best-effort
   fsType: ext4
