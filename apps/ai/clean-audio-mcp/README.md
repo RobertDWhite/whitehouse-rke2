@@ -8,8 +8,10 @@ and only the dialogue is muted for each hit. Source: `RobertDWhite/clean-audio-m
 The result is written beside the video as `<name>.en.Clean.mka` (E-AC-3,
 ~0.5 GB) plus a redacted `<name>.en.Clean.srt`. **Jellyfin** lists these as
 extra "Clean" audio/subtitle tracks and pairs them with the video at playback
-time; the video file is never modified. Plex can't use external audio
-(`output=track` remuxes it into the file for Plex instead).
+time; the video file is never modified. Each run also writes a **Light**
+version, `<name>.en.Clean-Light.mka` ("English (Clean - Light)"), which mutes only
+f-words and sh-words (`CLEAN_EXTRA_VARIANTS`; `extra_variants=false` skips it).
+Plex can't use external audio (`output=track` remuxes it into the file for Plex instead).
 
 - Endpoint: `https://clean-audio-mcp.internal.white.fm/mcp` (tailnet, bearer `MCP_TOKEN`).
 - Media: the Synology `Media` export is mounted at Plex's own paths
