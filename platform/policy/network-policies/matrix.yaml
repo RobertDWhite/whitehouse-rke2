@@ -113,6 +113,26 @@ spec:
               kubernetes.io/metadata.name: uptime-kuma
 
 ---
+# clean-audio-mcp job notifications → Hookshot (Media room webhook)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clean-audio-mcp-hookshot
+  namespace: matrix
+spec:
+  podSelector:
+    matchLabels:
+      app: matrix-hookshot
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: clean-audio-mcp
+      ports:
+        - {protocol: TCP, port: 9000}
+
+---
 # Politics daily digest → Hookshot encrypted-room webhook
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
