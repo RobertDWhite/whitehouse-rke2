@@ -255,6 +255,7 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 | **googlenews-mcp** | Google News (public RSS) | Top/topic/geo headlines, full-text news search, redirect-URL decoding — news access for internet-isolated agents |
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
 | **media-mcp** | Plex, Tautulli, the *arr stack & FileBot | Search libraries, sessions, queues, history, recently-added, indexer stats, and controlled FileBot CLI operations |
+| **clean-audio-mcp** | Whisper (speaches) + ffmpeg/mkvmerge on the media share | Transcribe a movie's dialogue, log profanity, and remux in a muted "English (Clean)" audio (and subtitle) track that Plex offers as an alternate stream |
 | **meerkat-mcp** | Meerkat CRM (REST API) | Contacts, notes, activities, reminders, and relationships — Meerkat is the Monica replacement |
 | **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST); kept while Monica is still deployed |
 | **nodebyte-mcp** | `nodebyte` inventory | Add/search/update inventory nodes (devices, sites, services), stats, and team listing |
