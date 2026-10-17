@@ -47,6 +47,11 @@ spec:
           # volumes (small databases included) ended up on those HDDs and every write
           # waited on them. false = untagged volumes only use untagged disks.
           allowEmptyDiskSelectorVolume: false
+          # Let a volume put a second replica on the same node (on another disk) when
+          # no other node has room. The scheduler still prefers separate nodes. node-14
+          # has TBs of untagged disk (hdd-6tb, sdb, longhorn-sdx) while the other nodes
+          # are near full; without this, rebuilds and node evictions stall.
+          replicaSoftAntiAffinity: true
           # Rebuild missing replicas of detached volumes too, instead of waiting for
           # their next attach (used when moving replicas off the Immich disks).
           offlineReplicaRebuilding: '{"v1":"true","v2":"false"}'
