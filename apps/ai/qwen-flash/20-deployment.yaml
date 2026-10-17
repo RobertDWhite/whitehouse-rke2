@@ -16,7 +16,10 @@ kind: Deployment
 metadata:
   name: qwen-flash
 spec:
-  replicas: 1
+  # TEMP 2026-10-17: 0 again. Starting vLLM hung node-10 (DGX Spark, unified
+  # memory) within minutes, while Longhorn was rebuilding onto it; same as the
+  # three hard resets the night before. Keep at 0 until rebuilds finish.
+  replicas: 0
   # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
