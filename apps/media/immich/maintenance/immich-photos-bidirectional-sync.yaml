@@ -7,7 +7,8 @@ metadata:
     app.kubernetes.io/name: immich-photos-migration
     app.kubernetes.io/component: bidirectional-sync
 spec:
-  suspend: false
+  # TEMP 2026-10-17: paused while immich-photos-longhorn is refilled from the NAS.
+  suspend: true
   # A full stat pass over ~8.2 TB is expensive on the NAS; every 6 hours keeps
   # the two copies close without hammering it.
   schedule: "17 */6 * * *"
