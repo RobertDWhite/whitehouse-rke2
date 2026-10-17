@@ -34,12 +34,14 @@ spec:
               port: 8084
             initialDelaySeconds: 10
             periodSeconds: 15
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /
               port: 8084
             initialDelaySeconds: 20
             periodSeconds: 30
+            timeoutSeconds: 5
             failureThreshold: 3
           env:
             - name: FLASK_RUN_HOST
