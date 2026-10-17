@@ -61,6 +61,14 @@ spec:
 
             - name: IMMICH_WORKERS_INCLUDE
               value: "microservices"
+          # node-14 is a control-plane node. CUDA init fails in this pod, so ffmpeg
+          # transcodes on the CPU; uncapped it took 21+ cores and starved
+          # kube-apiserver/etcd (load ~150, apiserver restart loop, 2026-10-17).
+          resources:
+            requests:
+              cpu: 500m
+            limits:
+              cpu: "8"
           volumeMounts:
             - name: upload
               mountPath: /usr/src/app/upload
