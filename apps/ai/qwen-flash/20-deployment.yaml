@@ -16,10 +16,11 @@ kind: Deployment
 metadata:
   name: qwen-flash
 spec:
-  # TEMP 2026-10-17: 0 again. Starting vLLM hung node-10 (DGX Spark, unified
-  # memory) within minutes, while Longhorn was rebuilding onto it; same as the
-  # three hard resets the night before. Keep at 0 until rebuilds finish.
-  replicas: 0
+  # node-10 needs /etc/sysctl.d/90-gb10-unified-memory.conf (vm.dirty_bytes=1G,
+  # vm.dirty_background_bytes=256M, vm.min_free_kbytes=1G). Without it, Longhorn
+  # rebuild writes filled up to 20% of the unified pool with dirty pages and the
+  # node hung with vLLM loaded (2026-10-16/17).
+  replicas: 1
   # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
