@@ -16,7 +16,9 @@ kind: Deployment
 metadata:
   name: qwen-flash
 spec:
-  replicas: 1
+  # TEMP 2026-10-17: 0 while node-13 is rebuilt. node-10 (DGX Spark, unified
+  # memory) hard-reset 3x under vLLM + Longhorn rebuild load. Restore to 1 after.
+  replicas: 0
   # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
