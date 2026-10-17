@@ -1,0 +1,41 @@
+# GL.iNet Comet KVM (Pro XG port 2) proxied through the gateway so it presents
+# the trusted *.internal.white.fm wildcard instead of its self-signed cert.
+# Same pattern as 80-routes-esxi.yaml: Envoy terminates TLS and re-originates
+# HTTPS to the device with insecureSkipVerify. The web console and terminal use
+# websockets (/api/ws, /extras/webterm/ttyd/ws), so the route must not time
+# them out.
+#
+# Direct IP endpoint — NOT fqdn: kvm.internal.white.fm points at the gateway
+# VIP, so an fqdn endpoint would loop back through Envoy.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: kvm-tls
+  namespace: external-services
+spec:
+  endpoints:
+    - ip:
+        address: 10.100.2.85
+        port: 443
+  tls:
+    insecureSkipVerify: true
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: kvm-internal
+  namespace: external-services
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - kvm.internal.white.fm
+  rules:
+    - backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: kvm-tls
+      timeouts:
+        request: "0s"

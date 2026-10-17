@@ -5,7 +5,7 @@ HDMI + USB. Use it when the node is `NotReady` and SSH/ping are dead.
 
 | | |
 |---|---|
-| Web UI | https://10.100.2.86 (Pro XG switch, port 2) |
+| Web UI | https://kvm.internal.white.fm (via the gateway; device is 10.100.2.85, Pro XG switch port 2) |
 | Credentials | 1Password → "GLKVM Comet (node-12)" (never in this repo) |
 | Power control | **none** (no ATX board). Reboot = magic SysRq, or a physical button press |
 | Root shell on the KVM | Web UI → Terminal, or ttyd at `/extras/webterm/ttyd/ws` |
@@ -18,7 +18,7 @@ rejected and the device stays in first-run setup (`/api/init/is_inited` → `fal
 1. Open the web UI and look at the console. Or use the API:
    - `POST /api/auth/login` (form `user`, `passwd`) → `auth_token` cookie.
    - `GET /api/streamer/snapshot` returns **503 unless a client is streaming**,
-     so hold `wss://10.100.2.86/api/ws?stream=1` open while you take the snapshot.
+     so hold `wss://kvm.internal.white.fm/api/ws?stream=1` open while you take the snapshot.
 2. Press Enter, then **Ctrl+Alt+F2**:
    - Login prompt appears → userspace is alive. Log in and investigate.
    - Blank tty with only a cursor → kernel alive, userspace wedged. Reboot it.
