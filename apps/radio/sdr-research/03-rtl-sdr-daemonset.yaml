@@ -88,7 +88,9 @@ spec:
               # serial lookup. Find the correct index by parsing enumeration.
               DEV_INDEX=""
               for i in 0 1 2 3; do
-                INFO=$(rtl_eeprom -d $i 2>&1) || continue
+                # rtl_eeprom exits 1 even after a successful read (current
+                # legacycode/rtlsdr:latest), so match on its output only.
+                INFO=$(rtl_eeprom -d $i 2>&1 || true)
                 if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
                   DEV_INDEX=$i
                   break
