@@ -38,3 +38,23 @@ spec:
   concurrency: 4
   labels:
     type: hourly
+---
+# immich-photos-longhorn is a mirror of the Synology PhotoMaster share, so it
+# needs no snapshots or backups of its own. Longhorn puts any volume without a
+# recurring-job label into "default"; on this 5 TB HDD volume the hourly
+# snapshots piled up (92) and the purge before a rebuild never finished
+# (2026-10-17). Label its Volume CR with
+#   recurring-job-group.longhorn.io/immich-photos: enabled
+# to take it out of "default". Weekly trim is the only job it gets.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: immich-photos-trim
+  namespace: longhorn-system
+spec:
+  cron: "0 5 * * 0"        # Sundays 05:00 UTC
+  task: filesystem-trim
+  groups:
+    - immich-photos
+  retain: 0
+  concurrency: 1
