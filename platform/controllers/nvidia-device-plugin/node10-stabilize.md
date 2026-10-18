@@ -131,6 +131,26 @@ grep . /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
 
 (Not persistent across reboot by design — remove once fans are in.)
 
+## 6. Cap dirty page cache (added 2026-10-17)
+
+With vLLM loaded, node-10 hung (and the night before hard-reset three times)
+while Longhorn rebuilds wrote to its disks. The default `vm.dirty_ratio=20`
+lets about 24 GB of the 128 GB unified pool fill with dirty pages, which CUDA
+cannot reclaim fast enough. Keep dirty memory small and a free floor for GPU
+allocations:
+
+```sh
+cat > /etc/sysctl.d/90-gb10-unified-memory.conf <<'EOF2'
+vm.dirty_bytes = 1073741824
+vm.dirty_background_bytes = 268435456
+vm.min_free_kbytes = 1048576
+EOF2
+sysctl -p /etc/sysctl.d/90-gb10-unified-memory.conf
+```
+
+qwen-flash then ran stable under the same rebuild load. Keep general app pods
+off node-10 too (its `dedicated=llm` taint is only PreferNoSchedule).
+
 ## 5. Monitor for a few days
 
 From any machine with cluster access:
