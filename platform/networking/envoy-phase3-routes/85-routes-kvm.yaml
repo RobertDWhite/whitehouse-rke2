@@ -3,7 +3,11 @@
 # Same pattern as 80-routes-esxi.yaml: Envoy terminates TLS and re-originates
 # HTTPS to the device with insecureSkipVerify. The web console and terminal use
 # websockets (/api/ws, /extras/webterm/ttyd/ws), so the route must not time
-# them out.
+# them out. The video is WebRTC signalled over wss:///janus/ws.
+#
+# alpnProtocols pins the upstream to HTTP/1.1. The device's nginx accepts h2,
+# and Envoy's auto protocol selection would carry websocket upgrades over h2,
+# which nginx rejects with 400, so the console loads but the video never does.
 #
 # Direct IP endpoint — NOT fqdn: kvm.internal.white.fm points at the gateway
 # VIP, so an fqdn endpoint would loop back through Envoy.
@@ -19,6 +23,8 @@ spec:
         port: 443
   tls:
     insecureSkipVerify: true
+    alpnProtocols:
+      - http/1.1
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
