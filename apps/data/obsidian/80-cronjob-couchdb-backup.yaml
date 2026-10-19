@@ -53,11 +53,15 @@ spec:
                   URL=http://couchdb.obsidian.svc:5984
                   STAMP=$(date -u +%Y%m%dT%H%M%SZ)
                   AUTH="$COUCHDB_USER:$COUCHDB_PASSWORD"
-                  for db in $(curl -sf -u "$AUTH" "$URL/_all_dbs" | jq -r '.[] | select(startswith("_") | not)'); do
+                  # Fail here (and skip the raw-file backup) if CouchDB can't
+                  # list its DBs; a failing $(...) in a for list doesn't trip set -e.
+                  dbs=$(curl -sf -u "$AUTH" "$URL/_all_dbs" | jq -er '.[] | select(startswith("_") | not)')
+                  [ -n "$dbs" ] || { echo "no databases to export"; exit 1; }
+                  for db in $dbs; do
                     enc=$(printf '%s' "$db" | jq -sRr @uri)
                     out="/export/$(printf "%s" "$db" | tr / _)-${STAMP}.json"
                     curl -sf -u "$AUTH" -o "$out" "$URL/$enc/_all_docs?include_docs=true&attachments=true"
-                    echo "$db: $(jq '.rows | length' "$out") docs, $(du -h "$out" | cut -f1)"
+                    echo "$db: $(jq -e '.rows | length' "$out") docs, $(du -h "$out" | cut -f1)"
                   done
               resources:
                 requests:
@@ -80,7 +84,16 @@ spec:
                 - |
                   set -eu
                   restic unlock
-                  restic backup /data /export --tag hourly --host obsidian-couchdb --retry-lock 10m
+                  rc=0
+                  restic backup /data /export --tag hourly --host obsidian-couchdb --retry-lock 10m || rc=$?
+                  if [ "$rc" -eq 3 ]; then
+                    # Snapshot saved but some files were unreadable: keep it for
+                    # forensics, but drop the hourly tag so restores skip it.
+                    restic tag --host obsidian-couchdb --tag hourly --add partial --remove hourly latest
+                    echo "backup was partial (unreadable source files) - retagged 'partial'"
+                    exit 3
+                  fi
+                  [ "$rc" -eq 0 ] || exit "$rc"
                   restic snapshots --latest 1 --host obsidian-couchdb
               env:
                 - name: RESTIC_REPOSITORY
