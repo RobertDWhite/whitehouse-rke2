@@ -19,18 +19,9 @@ spec:
         # Roll the pod when the ini changes (subPath mounts don't hot-update).
         obsidian.white.fm/config-rev: "2"
     spec:
-      affinity:
-        nodeAffinity:
-          # Keep off the LLM node, the transient GPU node, and node-12.
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values: [rke2-node-10, rke2-node-12, rke2-node-50]
-                  - key: kubernetes.io/arch
-                    operator: In
-                    values: [amd64]
+      # Pinned to node-11 while node-14 is wiped (2026-10-19).
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-11
       securityContext:
         runAsNonRoot: true
         runAsUser: 5984
