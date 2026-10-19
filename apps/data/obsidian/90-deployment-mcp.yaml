@@ -1,0 +1,181 @@
+# MCP server for agents: reads and writes notes straight into the LiveSync
+# CouchDB database (es617/obsidian-sync-mcp, built on livesync-commonlib, so
+# chunks and E2E encryption match the plugin). The search index and OAuth state
+# live in an emptyDir; it rebuilds from CouchDB on start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: obsidian-mcp
+  namespace: obsidian
+  labels:
+    app: obsidian-mcp
+spec:
+  # 0 until COUCHDB_PASSPHRASE is in the Secret (./set-mcp-passphrase.sh).
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: obsidian-mcp
+  template:
+    metadata:
+      labels:
+        app: obsidian-mcp
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # node-10: LLM-reserved, node-14: being wiped, node-50: transient.
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-10, rke2-node-14, rke2-node-50]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mcp
+          image: ghcr.io/es617/obsidian-sync-mcp
+          # Without the passphrase the server would write plaintext notes into
+          # an E2EE vault, so refuse to start until it is set.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              [ -n "${COUCHDB_PASSPHRASE:-}" ] || { echo "COUCHDB_PASSPHRASE is empty: run ./set-mcp-passphrase.sh"; exit 1; }
+              [ -n "${COUCHDB_ID_DERIVATION_KEY:-}" ] || unset COUCHDB_ID_DERIVATION_KEY
+              exec node dist/main.js
+          envFrom:
+            - secretRef:
+                name: obsidian-mcp
+          env:
+            - name: COUCHDB_URL
+              value: http://couchdb.obsidian.svc:5984
+            - name: COUCHDB_DATABASE
+              value: obsidian
+            - name: VAULT_NAME
+              value: obsidian
+            - name: BASE_URL
+              value: https://obsidian-mcp.internal.white.fm
+            - name: PORT
+              value: "8787"
+            - name: DATA_DIR
+              value: /data
+            - name: HOME
+              value: /tmp
+            - name: DISPLAY_TIMEZONE
+              value: America/New_York
+          ports:
+            - name: http
+              containerPort: 8787
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: obsidian-mcp
+  namespace: obsidian
+spec:
+  selector:
+    app: obsidian-mcp
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: obsidian-mcp-internal
+  namespace: obsidian
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - obsidian-mcp.internal.white.fm
+  rules:
+    - timeouts:
+        # Streamable HTTP keeps SSE responses open.
+        request: 3600s
+        backendRequest: 3600s
+      backendRefs:
+        - name: obsidian-mcp
+          port: 8787
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: obsidian-mcp-internal-source-cidrs
+  namespace: obsidian
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: obsidian-mcp-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan-and-tailnet
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-obsidian-mcp
+  namespace: obsidian
+spec:
+  podSelector:
+    matchLabels:
+      app: obsidian-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - port: 8787
+          protocol: TCP

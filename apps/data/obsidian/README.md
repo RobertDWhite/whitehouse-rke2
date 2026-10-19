@@ -8,6 +8,27 @@ LiveSync settings: URI above, user `admin`, database `obsidian`, password from
 `sops -d 11-secret-couchdb-admin.sops.yaml`. Keep End-to-End Encryption on in
 the plugin.
 
+## MCP server for agents
+
+`obsidian-mcp` ([es617/obsidian-sync-mcp](https://github.com/es617/obsidian-sync-mcp))
+gives agents read/write tools (`search_notes`, `read_note`, `write_note`,
+`edit_note`, `move_note`, `delete_note`, `list_*`) directly on the CouchDB
+database, at `https://obsidian-mcp.internal.white.fm/mcp`. It uses LiveSync's
+own library, so its notes are chunked and E2E-encrypted like the plugin's and
+sync to every device. It logs in to CouchDB as `obsidian-mcp`, a non-admin user
+that is the only member of `obsidian` (created by `couchdb-init`).
+
+- Secret `13-secret-obsidian-mcp.sops.yaml`: `MCP_AUTH_TOKEN` (bearer token for
+  clients), the CouchDB user's password, and the vault's E2EE passphrase and
+  optional `sls-id-v1:` recovery code. Set those two with `./set-mcp-passphrase.sh`
+  (nothing is echoed). The pod refuses to start without the passphrase.
+- Claude Code: `claude mcp add --scope user --transport http obsidian
+  https://obsidian-mcp.internal.white.fm/mcp --header "Authorization: Bearer $(sops -d
+  13-secret-obsidian-mcp.sops.yaml | awk '/MCP_AUTH_TOKEN:/{print $2}')"`.
+  Claude apps that only do OAuth get a password page; the password is the same token.
+- No conflict resolution (last write wins), text notes only, and agents can
+  delete. The hourly restic snapshots are the undo.
+
 ## Backups
 
 restic repo on the Synology: `10.100.1.20:/volume1/longhorn-backups/obsidian-restic`
