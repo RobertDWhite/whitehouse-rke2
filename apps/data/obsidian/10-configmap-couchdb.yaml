@@ -16,6 +16,8 @@ data:
 
     [chttpd]
     require_valid_user = true
+    ; Let the kubelet probe /_up without credentials; everything else needs auth.
+    require_valid_user_except_for_up = true
     max_http_request_size = 4294967296
     enable_cors = true
 
