@@ -2,7 +2,7 @@
 # NUT itself runs on host systemd; these pods only reconcile config/state so the
 # UPS graceful-shutdown path stays independent of cluster health.
 #
-#   nut-installer-server  -> rke2-node-12 only (the node with the UPS on USB)
+#   nut-installer-server  -> rke2-node-15 only (the node with the UPS on USB)
 #   nut-installer-client  -> every other node (upsmon secondary)
 ---
 apiVersion: apps/v1
@@ -36,7 +36,7 @@ spec:
               - matchExpressions:
                   - key: kubernetes.io/hostname
                     operator: In
-                    values: [rke2-node-12]
+                    values: [rke2-node-15]
       containers:
         - name: reconcile
           image: busybox:1.36
@@ -94,7 +94,7 @@ spec:
               - matchExpressions:
                   - key: kubernetes.io/hostname
                     operator: NotIn
-                    values: [rke2-node-12]
+                    values: [rke2-node-15]
       containers:
         - name: reconcile
           image: busybox:1.36

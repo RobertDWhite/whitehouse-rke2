@@ -19,7 +19,7 @@ cluster itself is degraded, and the config is still declarative + self-healing.
         Eaton 9PX 2000 RT
               │ USB
               ▼
-      rke2-node-12  ── NUT server (usbhid-ups + upsd :3493 + upsmon primary)
+      rke2-node-15  ── NUT server (usbhid-ups + upsd :3493 + upsmon primary)
               │ TCP 3493 over the LAN
    ┌──────────┼───────────────┬───────────────┐
    ▼          ▼               ▼               ▼
@@ -28,11 +28,11 @@ cluster itself is degraded, and the config is still declarative + self-healing.
  node-15                   secondary)       client, monuser)
 ```
 
-- **`nut-installer-server`** DaemonSet — pinned to `rke2-node-12` (the node with
+- **`nut-installer-server`** DaemonSet — pinned to `rke2-node-15` (the node with
   the UPS on USB). Installs `nut`, writes the server config, enables the driver +
   `upsd` + primary `upsmon`.
 - **`nut-installer-client`** DaemonSet — every other node. Installs `nut-client`,
-  writes an `upsmon` secondary pointed at `ups@10.99.5.12`.
+  writes an `upsmon` secondary pointed at `ups@10.99.5.15`.
 
 Both run [`files/reconcile.sh`](files/reconcile.sh), which `nsenter`s into PID 1,
 writes config only when it differs (restarting NUT on change), and loops every
@@ -42,7 +42,7 @@ writes config only when it differs (restarting NUT on change), and loops every
 
 Timing lives in [`files/server-upssched.conf`](files/server-upssched.conf):
 on battery for **180 s continuously** → `upsmon -c fsd` → coordinated shutdown
-(secondaries first, node-12 last). Power restored before 180 s cancels the timer,
+(secondaries first, node-15 last). Power restored before 180 s cancels the timer,
 so brief blips are ignored. 180 s is well short of the ~11 min runtime, leaving
 headroom for a clean stop. Change the `START-TIMER` value to adjust.
 
@@ -69,12 +69,12 @@ commit — the next reconcile pass rewrites and restarts NUT.
 ## Synology
 
 Not managed here (it's an appliance). Control Panel → Hardware & Power → UPS →
-Enable UPS support → *Network UPS server* → `10.99.5.12` (auth `monuser`/`secret`).
+Enable UPS support → *Network UPS server* → `10.99.5.15` (auth `monuser`/`secret`).
 
 ## Metrics / Grafana
 
 `upsd` permits anonymous `LIST VAR`, so a plain exporter is enough — no credentials.
-`nut-exporter` (Deployment + Service in `observability`) reads `ups@10.99.5.12` and
+`nut-exporter` (Deployment + Service in `observability`) reads `ups@10.99.5.15` and
 Prometheus scrapes it as job `nut`; the dashboard is **UPS / Power** (`ups-power`).
 Both live in `observability/observability/`. The exporter only exposes a thin
 default subset of variables, so the ones worth graphing are named explicitly in
@@ -83,7 +83,7 @@ default subset of variables, so the ones worth graphing are named explicitly in
 ## Verify
 
 ```bash
-# on rke2-node-12:
+# on rke2-node-15:
 upsc ups                    # OL = online
 ss -tnp | grep :3493        # one row per secondary + the Synology + localhost
 # pod logs:

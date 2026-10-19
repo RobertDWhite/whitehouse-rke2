@@ -75,8 +75,8 @@ reconcile_client() {
     log "client config changed -> restarting upsmon"
     $HOST systemctl restart nut-monitor || true
   fi
-  $HOST sh -c 'upsc ups@10.99.5.12 ups.status 2>/dev/null' >/dev/null 2>&1 \
-    || log "WARN: cannot read ups@10.99.5.12 yet"
+  $HOST sh -c 'upsc ups@10.99.5.15 ups.status 2>/dev/null' >/dev/null 2>&1 \
+    || log "WARN: cannot read ups@10.99.5.15 yet"
 }
 
 log "starting reconcile loop (interval ${INTERVAL}s)"
