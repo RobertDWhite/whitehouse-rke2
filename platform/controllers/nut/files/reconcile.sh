@@ -57,6 +57,10 @@ reconcile_server() {
         nut-server nut-monitor >/dev/null 2>&1 || true
   if [ "${CHANGED:-0}" = 1 ]; then
     log "server config changed -> restarting NUT"
+    # A UPS plugged in before the nut package was installed keeps root:root
+    # on its USB node; re-run udev so 62-nut-usbups.rules gives it to nut.
+    $HOST sh -c 'udevadm control --reload-rules && udevadm trigger --subsystem-match=usb --action=add' || true
+    sleep 2
     $HOST systemctl restart nut-driver.target nut-server nut-monitor || true
   fi
   $HOST sh -c 'upsc ups ups.status 2>/dev/null' >/dev/null 2>&1 \
