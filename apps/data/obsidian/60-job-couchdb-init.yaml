@@ -1,4 +1,5 @@
-# Idempotent single-node setup: system DBs plus the LiveSync database.
+# Idempotent single-node setup: system DBs plus the LiveSync database, and a
+# non-admin user for the MCP server that is the database's only member.
 # PUT returns 201/202 when created and 412 when it already exists.
 apiVersion: batch/v1
 kind: Job
@@ -25,6 +26,17 @@ spec:
           envFrom:
             - secretRef:
                 name: couchdb-admin
+          env:
+            - name: MCP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: obsidian-mcp
+                  key: COUCHDB_USER
+            - name: MCP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: obsidian-mcp
+                  key: COUCHDB_PASSWORD
           command: ["/bin/sh", "-c"]
           args:
             - |
@@ -42,6 +54,19 @@ spec:
                   *)       echo "$db: unexpected HTTP $code"; exit 1 ;;
                 esac
               done
+              # MCP user: create it, or reset its password to the Secret's value.
+              AUTH="$COUCHDB_USER:$COUCHDB_PASSWORD"
+              uid="org.couchdb.user:$MCP_USER"
+              rev=$(curl -s -u "$AUTH" "$URL/_users/$uid" | jq -r '._rev // empty')
+              jq -n --arg n "$MCP_USER" --arg p "$MCP_PASSWORD" --arg r "$rev" \
+                '{_id: ("org.couchdb.user:" + $n), name: $n, password: $p, roles: [], type: "user"}
+                 + (if $r == "" then {} else {_rev: $r} end)' |
+                curl -sf -u "$AUTH" -X PUT -H 'Content-Type: application/json' --data-binary @- "$URL/_users/$uid" >/dev/null
+              echo "user $MCP_USER: ok"
+              # The MCP user is the only member; server admins (LiveSync devices) always have access.
+              jq -n --arg n "$MCP_USER" '{admins: {names: [], roles: []}, members: {names: [$n], roles: []}}' |
+                curl -sf -u "$AUTH" -X PUT -H 'Content-Type: application/json' --data-binary @- "$URL/obsidian/_security" >/dev/null
+              echo "obsidian/_security: ok"
           resources:
             requests:
               cpu: 10m
