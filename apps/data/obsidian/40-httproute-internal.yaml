@@ -1,0 +1,43 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: obsidian-internal
+  namespace: obsidian
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - obsidian.internal.white.fm
+  rules:
+    - timeouts:
+        # Large initial syncs and long-poll _changes feeds.
+        request: 3600s
+        backendRequest: 3600s
+      backendRefs:
+        - name: couchdb
+          port: 5984
+---
+# Internal-only: LAN (RFC1918) and tailnet (CGNAT) sources, deny everything else.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: obsidian-internal-source-cidrs
+  namespace: obsidian
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: obsidian-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan-and-tailnet
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10

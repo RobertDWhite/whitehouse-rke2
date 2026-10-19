@@ -1146,6 +1146,34 @@ data:
             annotations:
               summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has had no successful run in >24h (or ever) — pipeline is silently broken"
 
+      - name: obsidian.couchdb
+        interval: 2m
+        rules:
+          # Hourly restic backup to the Synology. 3h = two missed runs. The
+          # second branch covers a CronJob that has never succeeded at all.
+          - alert: ObsidianBackupStale
+            expr: |
+              (time() - kube_cronjob_status_last_successful_time{namespace="obsidian", cronjob="couchdb-backup"}) > 10800
+              or
+              (
+                absent(kube_cronjob_status_last_successful_time{namespace="obsidian", cronjob="couchdb-backup"})
+                and on() ((time() - kube_cronjob_created{namespace="obsidian", cronjob="couchdb-backup"}) > 10800)
+              )
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "obsidian/couchdb-backup has had no successful run in >3h (schedule is hourly) — Obsidian vault backups to the Synology are not happening"
+
+          - alert: ObsidianCouchDBNotReady
+            expr: |
+              kube_statefulset_status_replicas_ready{namespace="obsidian", statefulset="couchdb"} < 1
+            for: 10m
+            labels:
+              severity: critical
+            annotations:
+              summary: "obsidian/couchdb-0 is not Ready — Obsidian LiveSync is down"
+
       - name: fleet.availability
         rules:
           - alert: FleetDown

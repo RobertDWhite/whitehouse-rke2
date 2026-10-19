@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: couchdb-backup-prune
+  namespace: obsidian
+spec:
+  schedule: "30 3 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app: couchdb-backup-prune
+        spec:
+          restartPolicy: Never
+          affinity:
+            nodeAffinity:
+              # The NFS export only allows the 10.99.5.0/24 nodes.
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values: [rke2-node-10, rke2-node-50]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 5984
+            runAsGroup: 5984
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              image: restic/restic
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  restic unlock
+                  restic forget --host obsidian-couchdb \
+                    --keep-hourly 48 --keep-daily 14 --keep-weekly 8 --keep-monthly 12 \
+                    --prune --retry-lock 30m
+                  restic check --retry-lock 30m
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: /repo
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic
+                      key: RESTIC_PASSWORD
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: nfs-root
+                  mountPath: /repo
+                  subPath: obsidian-restic
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: cache
+              emptyDir: {}
+            - name: nfs-root
+              nfs:
+                server: 10.100.1.20
+                path: /volume1/longhorn-backups

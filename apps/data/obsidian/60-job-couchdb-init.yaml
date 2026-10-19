@@ -1,0 +1,54 @@
+# Idempotent single-node setup: system DBs plus the LiveSync database.
+# PUT returns 201/202 when created and 412 when it already exists.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: couchdb-init
+  namespace: obsidian
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 5984
+        runAsGroup: 5984
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: registry.gitlab.com/gitlab-ci-utils/curl-jq
+          envFrom:
+            - secretRef:
+                name: couchdb-admin
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              URL=http://couchdb.obsidian.svc:5984
+              for i in $(seq 1 60); do
+                curl -sf "$URL/_up" >/dev/null && break
+                echo "waiting for couchdb ($i)"; sleep 5
+              done
+              for db in _users _replicator obsidian; do
+                code=$(curl -s -o /dev/null -w '%{http_code}' -u "$COUCHDB_USER:$COUCHDB_PASSWORD" -X PUT "$URL/$db")
+                case "$code" in
+                  201|202) echo "$db: created" ;;
+                  412)     echo "$db: already exists" ;;
+                  *)       echo "$db: unexpected HTTP $code"; exit 1 ;;
+                esac
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

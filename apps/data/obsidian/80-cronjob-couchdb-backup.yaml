@@ -1,0 +1,129 @@
+# Hourly restic backup to the Synology:
+#   /data    raw CouchDB files (PVC mounted read-only; append-only, safe while live)
+#   /export  logical _all_docs dump of every non-system DB (format-independent)
+# The Longhorn RWO volume is attached to one node, so podAffinity puts this pod
+# on the same node as couchdb-0 to share it.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: couchdb-backup
+  namespace: obsidian
+spec:
+  schedule: "0 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3000
+      template:
+        metadata:
+          labels:
+            app: couchdb-backup
+        spec:
+          restartPolicy: Never
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: couchdb
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 5984
+            runAsGroup: 5984
+            fsGroup: 5984
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: export
+              image: registry.gitlab.com/gitlab-ci-utils/curl-jq
+              envFrom:
+                - secretRef:
+                    name: couchdb-admin
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  URL=http://couchdb.obsidian.svc:5984
+                  STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+                  AUTH="$COUCHDB_USER:$COUCHDB_PASSWORD"
+                  for db in $(curl -sf -u "$AUTH" "$URL/_all_dbs" | jq -r '.[] | select(startswith("_") | not)'); do
+                    enc=$(printf '%s' "$db" | jq -sRr @uri)
+                    out="/export/$(printf "%s" "$db" | tr / _)-${STAMP}.json"
+                    curl -sf -u "$AUTH" -o "$out" "$URL/$enc/_all_docs?include_docs=true&attachments=true"
+                    echo "$db: $(jq '.rows | length' "$out") docs, $(du -h "$out" | cut -f1)"
+                  done
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: export
+                  mountPath: /export
+          containers:
+            - name: restic
+              image: restic/restic
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  restic unlock
+                  restic backup /data /export --tag hourly --host obsidian-couchdb --retry-lock 10m
+                  restic snapshots --latest 1 --host obsidian-couchdb
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: /repo
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic
+                      key: RESTIC_PASSWORD
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: export
+                  mountPath: /export
+                  readOnly: true
+                - name: nfs-root
+                  mountPath: /repo
+                  subPath: obsidian-restic
+                - name: cache
+                  mountPath: /cache
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: data-couchdb-0
+                readOnly: true
+            - name: export
+              emptyDir: {}
+            - name: cache
+              emptyDir: {}
+            - name: nfs-root
+              nfs:
+                server: 10.100.1.20
+                path: /volume1/longhorn-backups
