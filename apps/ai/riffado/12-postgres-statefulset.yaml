@@ -29,16 +29,9 @@ spec:
       labels:
         app: riffado-postgres
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-                      - rke2-node-11
-                      - rke2-node-50
+      # Pinned to node-11 while node-14 is wiped (2026-10-19).
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-11
       securityContext:
         runAsNonRoot: true
         runAsUser: 70

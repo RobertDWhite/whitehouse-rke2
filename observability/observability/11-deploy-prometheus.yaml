@@ -18,8 +18,9 @@ spec:
       serviceAccountName: prometheus
       securityContext:
         fsGroup: 65534
+      # Pinned to node-11 while node-14 is wiped (2026-10-19).
       nodeSelector:
-        observability: "true"
+        kubernetes.io/hostname: rke2-node-11
       containers:
         - name: prometheus
           image: prom/prometheus
