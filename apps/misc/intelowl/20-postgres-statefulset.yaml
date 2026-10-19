@@ -15,9 +15,10 @@ spec:
       labels:
         app.kubernetes.io/name: intelowl-postgres
     spec:
-      # Pinned to node-11 while node-14 is wiped (2026-10-19).
+      # Off node-14 while it is wiped (2026-10-19). node-11 was at its 110-pod
+      # limit; node-13 holds one of this volume's replicas.
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-11
+        kubernetes.io/hostname: rke2-node-13
       containers:
         - name: postgres
           image: postgres
