@@ -320,7 +320,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-          "expr": "sum(rate({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__rate_interval])) * 60",
+          "expr": "sum(rate({namespace=\"envoy-gateway-system\", container=\"envoy\"} | json | __error__=\"\" | _authority=~\"$hostname\" [$__auto])) * 60",
           "hide": false,
           "legendFormat": "req/min",
           "queryType": "range",
