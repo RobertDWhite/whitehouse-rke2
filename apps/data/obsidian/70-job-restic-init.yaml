@@ -1,0 +1,95 @@
+# Creates the restic repo on the Synology (Longhorn's backup export, in its own
+# obsidian-restic/ dir beside Longhorn's backupstore/). Skipped if it exists.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restic-init
+  namespace: obsidian
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        nodeAffinity:
+          # The NFS export only allows the 10.99.5.0/24 nodes.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-10, rke2-node-50]
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Root only to hand the repo dir to uid 5984; everything else is non-root.
+        - name: repo-dir
+          image: restic/restic
+          command: ["/bin/sh", "-c", "mkdir -p /nfs/obsidian-restic && chown 5984:5984 /nfs/obsidian-restic && chmod 0700 /nfs/obsidian-restic"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: nfs-root
+              mountPath: /nfs
+      containers:
+        - name: init
+          image: restic/restic
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              if restic cat config >/dev/null 2>&1; then
+                echo "restic repository already initialised"
+              else
+                restic init
+              fi
+          env:
+            - name: RESTIC_REPOSITORY
+              value: /repo
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restic
+                  key: RESTIC_PASSWORD
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 5984
+            runAsGroup: 5984
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: nfs-root
+              mountPath: /repo
+              subPath: obsidian-restic
+            - name: cache
+              mountPath: /cache
+      volumes:
+        - name: nfs-root
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/longhorn-backups
+        - name: cache
+          emptyDir: {}

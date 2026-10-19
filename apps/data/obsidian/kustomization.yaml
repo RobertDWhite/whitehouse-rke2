@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 10-configmap-couchdb.yaml
+  - 20-statefulset-couchdb.yaml
+  - 30-service.yaml
+  - 40-httproute-internal.yaml
+  - 50-networkpolicy.yaml
+  - 60-job-couchdb-init.yaml
+  - 70-job-restic-init.yaml
+  - 80-cronjob-couchdb-backup.yaml
+  - 81-cronjob-couchdb-backup-prune.yaml
+
+generators:
+  - ksops.yaml
+
+images:
+  - name: couchdb
+    newTag: "3.5.3@sha256:3611ce43bd32fe2368997fd41ec6e7270ec8d84aa5fc13c9828e5b15fd6bafe8"
+  - name: restic/restic
+    newTag: "0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510"
+  - name: registry.gitlab.com/gitlab-ci-utils/curl-jq
+    newTag: "3.2.1@sha256:969be131c354aeb031ac1351815e3c7b0891dab1db61bc682e1cfbc090a00d79"
