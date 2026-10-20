@@ -4,6 +4,21 @@ Local AI image generation on `rke2-node-50` (RTX 5090), reachable at
 `https://invokeai.internal.white.fm`. **This is the default front door for image
 generation**; ComfyUI stays deployed alongside as the node-graph power tool.
 
+## On demand
+
+InvokeAI runs at **0 replicas** and is started only when wanted, so it does not
+hold a 5090 time-slice, or VRAM after a generation, while idle. Argo ignores
+`/spec/replicas` on this Deployment (`argo-cd/applications/invokeai-app.yaml`),
+so a manual scale sticks until the next manual scale.
+
+```sh
+kubectl -n invokeai scale deployment/invokeai --replicas=1   # start (~1-2 min)
+kubectl -n invokeai scale deployment/invokeai --replicas=0   # stop when done
+```
+
+The site returns a gateway error through the Authentik outpost while it is scaled
+down, and the exporter reports `invokeai_up 0`.
+
 ## Why this alongside ComfyUI
 
 InvokeAI is a form-based UI — prompt box, settings sidebar, gallery — plus a

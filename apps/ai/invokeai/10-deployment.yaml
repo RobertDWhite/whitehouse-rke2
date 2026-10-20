@@ -13,7 +13,10 @@ metadata:
   labels:
     app: invokeai
 spec:
-  replicas: 1
+  # On demand: scaled up by hand when wanted, back to 0 after, so it does not sit
+  # on a 5090 time-slice (and any VRAM its model cache holds) while unused. Argo
+  # ignores /spec/replicas for this Deployment. See README.md.
+  replicas: 0
   strategy:
     # RWO volumes on one node — the old pod must release them before the new one binds.
     type: Recreate

@@ -1,0 +1,155 @@
+# Speaker-aware transcription for Riffado: Microsoft VibeVoice-ASR behind an
+# OpenAI-compatible /v1/audio/transcriptions, from
+# https://github.com/swallace17/vibevoice-k8s (f5fb110). Recordings over 35 min
+# are split near pauses and speakers are matched across chunks.
+#
+# On demand only: replicas is 0 here and Argo ignores /spec/replicas, so it is
+# scaled up for a transcription and back down after (see README.md). speaches
+# stays the default provider for Plaud sync.
+#
+# A request loads the model (~21.5 GiB VRAM peak) and frees it when done. The 5090
+# has no VRAM isolation, so the unload-ollama init container evicts whatever
+# ollama-5090 has resident (up to 2h keep-alive) before this starts.
+#
+# Image built on node-50 with BuildKit and imported straight into its containerd
+# (registry.internal.white.fm is too full for it), hence imagePullPolicy: Never.
+# See README.md to rebuild.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vibevoice
+  namespace: riffado
+  labels:
+    app: vibevoice
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vibevoice
+  template:
+    metadata:
+      labels:
+        app: vibevoice
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        # Seed the cache with the pinned model and the Qwen tokenizer (not Qwen's
+        # weights). No-op once present.
+        - name: download-models
+          image: registry.internal.white.fm/vibevoice-k8s:0.1.0-f5fb110
+          imagePullPolicy: Never
+          command: [/app/.venv/bin/python, /app/download_models.py]
+          env:
+            - {name: HOME, value: /tmp}
+          volumeMounts:
+            - {name: models, mountPath: /cache/huggingface}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 2Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+        # Free the 5090 for the run: unload every model ollama-5090 has resident.
+        # Never fails the pod; if ollama is down there is nothing to free.
+        - name: unload-ollama
+          image: registry.internal.white.fm/vibevoice-k8s:0.1.0-f5fb110
+          imagePullPolicy: Never
+          command: [/app/.venv/bin/python, -c]
+          args:
+            - |
+              import json, urllib.request
+              base = "http://ollama-5090.ai-stack.svc.cluster.local:11434"
+              try:
+                  ps = json.load(urllib.request.urlopen(base + "/api/ps", timeout=10))
+                  for m in ps.get("models", []):
+                      body = json.dumps({"model": m["name"], "keep_alive": 0}).encode()
+                      urllib.request.urlopen(urllib.request.Request(
+                          base + "/api/generate", data=body,
+                          headers={"Content-Type": "application/json"}), timeout=60)
+                      print("unloaded", m["name"])
+              except Exception as e:
+                  print("ollama unload skipped:", e)
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: api
+          image: registry.internal.white.fm/vibevoice-k8s:0.1.0-f5fb110
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8765
+          env:
+            - {name: HOME, value: /tmp}
+            - {name: NUMBA_CACHE_DIR, value: /tmp/numba}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - name: TRANSCRIPTION_API_KEY
+              valueFrom:
+                secretKeyRef: {name: riffado-env, key: VIBEVOICE_API_KEY}
+          resources:
+            # The worker loads the 16 GiB bf16 weights into RAM before moving them
+            # to the GPU. node-50 has 47 GiB in total.
+            requests:
+              cpu: "2"
+              memory: 16Gi
+            limits:
+              cpu: "8"
+              memory: 30Gi
+              nvidia.com/gpu: 1
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          volumeMounts:
+            - {name: models, mountPath: /cache/huggingface}
+            - {name: tmp, mountPath: /tmp}
+            - {name: shm, mountPath: /dev/shm}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: vibevoice-models
+        # Uploaded audio and the decoded 16 kHz PCM (~230 MB per hour) live here
+        # for the length of one request.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 10Gi
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
