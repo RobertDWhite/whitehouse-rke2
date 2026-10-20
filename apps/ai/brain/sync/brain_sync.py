@@ -44,6 +44,13 @@ INTERVAL = int(os.environ.get("SYNC_INTERVAL_SECONDS", "120"))
 # Riffado details are only re-fetched when a recording changes; this forces a
 # full re-render now and then in case a summary lands without bumping updated_at.
 FULL_RESYNC_SECONDS = int(os.environ.get("FULL_RESYNC_SECONDS", "21600"))
+# Pages/<site>/ in the repo is the source of truth for <site>.pages.internal.white.fm.
+PAGES_MCP_URL = os.environ.get("PAGES_MCP_URL", "http://pages.pages.svc.cluster.local:8080/mcp")
+PAGES_MCP_HOST = os.environ.get("PAGES_MCP_HOST", "pages-mcp.internal.white.fm")
+PAGES_MCP_TOKEN = os.environ.get("PAGES_MCP_TOKEN", "")
+# Redeploy unchanged sites this often so edits made straight to the pages host
+# don't stick: the repo always wins.
+PAGES_REDEPLOY_SECONDS = int(os.environ.get("PAGES_REDEPLOY_SECONDS", "1800"))
 MAX_COMMIT_BYTES = int(os.environ.get("MAX_COMMIT_BYTES", str(4 * 1024 * 1024)))
 DRY_RUN = os.environ.get("DRY_RUN", "") == "1"
 RUN_ONCE = os.environ.get("RUN_ONCE", "") == "1"
@@ -53,12 +60,14 @@ AUTHOR = {"name": "brain-sync", "email": "brain-sync@whitematter.tech"}
 MEERKAT_DIR = "Meerkat"
 RIFFADO_DIR = "Riffado"
 RIFFADO_INDEX = f"{RIFFADO_DIR}/.index.json"
+PAGES_DIR = "Pages"
+SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 log = logging.getLogger("brain-sync")
 
 STATE = {
-    "last_success": {"meerkat": 0.0, "riffado": 0.0},
-    "last_error": {"meerkat": 0.0, "riffado": 0.0},
+    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0},
+    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0},
     "files_written": 0,
     "commits": 0,
 }
@@ -455,23 +464,33 @@ def list_tree(prefix):
     entry = next((e for e in root["tree"] if e["path"] == prefix and e["type"] == "tree"), None)
     if not entry:
         return {}
+    return {f"{prefix}/{p}": sha for p, sha in tree_blobs(entry["sha"]).items()}
+
+
+def tree_blobs(tree_sha):
+    """{relative path: blob_sha} for every file below a git tree."""
     out, page = {}, 1
     while True:
-        data = forgejo("GET", f"/repos/{REPO}/git/trees/{entry['sha']}?recursive=true&per_page=1000&page={page}")
+        data = forgejo("GET", f"/repos/{REPO}/git/trees/{tree_sha}?recursive=true&per_page=1000&page={page}")
         for e in data.get("tree") or []:
             if e["type"] == "blob":
-                out[f"{prefix}/{e['path']}"] = e["sha"]
+                out[e["path"]] = e["sha"]
         if not data.get("truncated") or not data.get("tree"):
             return out
         page += 1
 
 
 def read_raw(path):
+    data = read_bytes(path)
+    return data.decode() if data is not None else None
+
+
+def read_bytes(path):
     req = urllib.request.Request(f"{FORGEJO_URL}/api/v1/repos/{REPO}/raw/{urllib.parse.quote(path)}?ref={BRANCH}")
     req.add_header("Authorization", f"token {FORGEJO_TOKEN}")
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            return resp.read().decode()
+            return resp.read()
     except urllib.error.HTTPError as e:
         if e.code == 404:
             return None
@@ -545,8 +564,88 @@ def sync_riffado():
         _last_full = time.time()
 
 
+# ------------------------------------------------------------------- Pages
+
+
+def mcp_call(tool, arguments):
+    """Call one tool on the pages MCP server (streamable HTTP, stdlib only)."""
+
+    def post(body, session=None):
+        req = urllib.request.Request(PAGES_MCP_URL, data=json.dumps(body).encode(), method="POST")
+        req.add_header("Authorization", f"Bearer {PAGES_MCP_TOKEN}")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("Accept", "application/json, text/event-stream")
+        # The pages server only exposes /mcp on its control-plane host.
+        req.add_header("Host", PAGES_MCP_HOST)
+        if session:
+            req.add_header("Mcp-Session-Id", session)
+            req.add_header("MCP-Protocol-Version", "2025-06-18")
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            sid = resp.headers.get("mcp-session-id") or session
+            ctype = resp.headers.get("Content-Type", "")
+            raw = resp.read().decode()
+        if not raw.strip():
+            return sid, None
+        if "text/event-stream" in ctype:
+            msgs = [json.loads(line[5:]) for line in raw.splitlines() if line.startswith("data:") and line[5:].strip()]
+            return sid, next((m for m in reversed(msgs) if "id" in m), None)
+        return sid, json.loads(raw)
+
+    sid, init = post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {},
+        "clientInfo": {"name": "brain-sync", "version": "1"}}})
+    if not init or "error" in init:
+        raise RuntimeError(f"pages MCP initialize failed: {init}")
+    post({"jsonrpc": "2.0", "method": "notifications/initialized"}, sid)
+    _, res = post({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                   "params": {"name": tool, "arguments": arguments}}, sid)
+    if not res or "error" in res:
+        raise RuntimeError(f"pages MCP {tool} failed: {res and res.get('error')}")
+    result = res.get("result") or {}
+    text = " ".join(c.get("text", "") for c in result.get("content") or [] if c.get("type") == "text")
+    if result.get("isError"):
+        raise RuntimeError(f"pages MCP {tool}: {text[:500]}")
+    return result.get("structuredContent") or text
+
+
+_pages_deployed = {}  # site -> (tree sha, deployed at)
+
+
+def sync_pages():
+    root = forgejo("GET", f"/repos/{REPO}/git/trees/{BRANCH}")
+    entry = next((e for e in (root or {}).get("tree") or [] if e["path"] == PAGES_DIR and e["type"] == "tree"), None)
+    if not entry:
+        return
+    sites = forgejo("GET", f"/repos/{REPO}/git/trees/{entry['sha']}") or {}
+    for e in sites.get("tree") or []:
+        if e["type"] != "tree":
+            continue
+        name = e["path"]
+        if not SITE_NAME_RE.match(name):
+            log.warning("pages: skipping %s/%s: not a valid site name", PAGES_DIR, name)
+            continue
+        prev = _pages_deployed.get(name)
+        if prev and prev[0] == e["sha"] and time.time() - prev[1] < PAGES_REDEPLOY_SECONDS:
+            continue
+        files = []
+        for rel in sorted(tree_blobs(e["sha"])):
+            data = read_bytes(f"{PAGES_DIR}/{name}/{rel}")
+            if data is not None:
+                files.append({"path": rel, "content": base64.b64encode(data).decode(), "encoding": "base64"})
+        if not files:
+            continue
+        reason = "changed" if prev and prev[0] != e["sha"] else ("startup" if not prev else "periodic")
+        if DRY_RUN:
+            log.info("[dry-run] pages: would deploy %s (%d files, %s)", name, len(files), reason)
+        else:
+            mcp_call("deploy_site", {"name": name, "files": files, "replace": True})
+            log.info("pages: deployed %s (%d files, %s)", name, len(files), reason)
+        _pages_deployed[name] = (e["sha"], time.time())
+
+
 def cycle():
-    for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN)):
+    for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN),
+                              ("pages", sync_pages, PAGES_MCP_TOKEN)):
         if not enabled:
             continue
         try:

@@ -32,3 +32,28 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
+---
+# brain-sync deploys Pages/<site>/ from the Forgejo brain repo through the MCP
+# endpoint (the repo is the source of truth for those sites).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-brain-sync
+  namespace: pages
+spec:
+  podSelector:
+    matchLabels:
+      app: pages
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brain
+          podSelector:
+            matchLabels:
+              app: brain-sync
+      ports:
+        - port: 8080
+          protocol: TCP
