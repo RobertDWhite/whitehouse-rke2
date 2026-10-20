@@ -20,6 +20,9 @@ spec:
     spec:
       backoffLimit: 2
       template:
+        metadata:
+          labels:
+            velero.io/exclude-from-backup: "true"
         spec:
           restartPolicy: OnFailure
           # Same pin as immich-photos-initial-sync: node-13/15 fail RWX writes
