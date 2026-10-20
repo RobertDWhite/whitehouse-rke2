@@ -41,19 +41,23 @@ spec:
       - observability
       - postfix
       - adsb
-      - cybether
       - cloudflare
       - crowdsec
       - falco
       - immich
       - openhamclock
       - portainer
+    # CronJob pod templates carry velero.io/exclude-from-backup: "true". A job
+    # pod that is running when the backup starts and exits mid-run failed the
+    # whole backup ("error getting client pod ... not found"). Their volumes
+    # are either shared with a long-running pod that is backed up through it,
+    # or hold dumps that only got backed up when a run happened to overlap.
     # Skips NFS (NAS shares - copying them back onto the same NAS only burns
     # hours) and emptyDir scratch volumes. See volume-policy.yaml.
     resourcePolicy:
       kind: configmap
       name: velero-volume-policy
-    # Velero here is v1.13.2 with ONLY velero-plugin-for-aws loaded and no
+    # Velero (v1.18) runs with ONLY velero-plugin-for-aws loaded and no
     # `features: EnableCSI`, so there is no CSI plugin and no VolumeSnapshotter:
     # snapshotVolumes/snapshotMoveData could never do anything except log
     # "unable to get valid VolumeSnapshotter for velero.io/csi" once per PVC.
