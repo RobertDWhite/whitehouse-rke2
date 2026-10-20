@@ -27,10 +27,11 @@ spec:
           automountServiceAccountToken: false
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            # Lets the non-root container read the deploy key (mode 0440, group 1000).
-            fsGroup: 1000
+            # alpine's "nobody": ssh refuses to run for a uid with no passwd entry.
+            runAsUser: 65534
+            runAsGroup: 65534
+            # Lets the non-root container read the deploy key (mode 0440).
+            fsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
           containers:
