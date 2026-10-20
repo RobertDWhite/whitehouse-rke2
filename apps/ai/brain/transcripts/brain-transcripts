@@ -1,0 +1,577 @@
+#!/usr/bin/env python3
+"""brain-transcripts: push Claude Code and Codex chat transcripts to the brain repo.
+
+Used as a Claude Code / Codex hook (reads the hook JSON on stdin):
+    brain-transcripts hook claude      # Stop and SessionEnd
+    brain-transcripts hook codex       # Stop
+Manual:
+    brain-transcripts push <transcript.jsonl> [--tool claude|codex]
+    brain-transcripts backfill [--dry-run] [--out DIR]
+
+Each session becomes one Markdown note in WhiteHouse/brain:
+    Agents/Claude/<YYYY>/<YYYY-MM-DD> <title> (<id8>).md
+    Agents/Codex/<YYYY>/<YYYY-MM-DD> <title> (<id8>).md
+holding the user's messages, the agent's replies and a collapsed list of the
+tool calls. Tool output and hidden reasoning are left out, and anything that
+looks like a credential is redacted.
+
+Hooks return immediately: a detached child waits DEBOUNCE seconds and pushes
+only if no newer turn arrived in the meantime, so a busy session produces one
+commit a couple of minutes after it goes quiet. SessionEnd pushes right away.
+
+Token: macOS Keychain item "brain-transcripts" (account "forgejo"), a Forgejo
+token for the brain-sync bot with write:repository on WhiteHouse/brain.
+"""
+
+import base64
+import glob
+import hashlib
+import json
+import os
+import re
+import sqlite3
+import ssl
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
+
+FORGEJO = os.environ.get("BRAIN_FORGEJO_URL", "https://git.internal.white.fm").rstrip("/")
+REPO = os.environ.get("BRAIN_REPO", "WhiteHouse/brain")
+BRANCH = os.environ.get("BRAIN_BRANCH", "main")
+DEBOUNCE = int(os.environ.get("BRAIN_TRANSCRIPTS_DEBOUNCE", "120"))
+STATE_DIR = os.path.expanduser("~/.local/state/brain-transcripts")
+LOG = os.path.join(STATE_DIR, "log.txt")
+AUTHOR = {"name": "brain-transcripts", "email": "brain-sync@whitematter.tech"}
+HOST = os.uname().nodename.split(".")[0]
+CODEX_HOME = os.path.expanduser(os.environ.get("CODEX_HOME", "~/.codex"))
+CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
+MAX_TOOL_LINE = 240
+
+try:
+    from zoneinfo import ZoneInfo
+
+    LOCAL_TZ = ZoneInfo("America/New_York")
+except Exception:
+    LOCAL_TZ = None
+
+
+def log(msg):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    with open(LOG, "a") as fh:
+        fh.write(f"{datetime.now().isoformat(timespec='seconds')} {msg}\n")
+
+
+# ------------------------------------------------------------------ redaction
+
+SECRET_PATTERNS = [
+    (re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----", re.S), "[REDACTED PRIVATE KEY]"),
+    (re.compile(r"AGE-SECRET-KEY-1[0-9A-Z]{20,}"), "[REDACTED]"),
+    (re.compile(r"\b(sk-ant-[A-Za-z0-9_\-]{20,}|sk-[A-Za-z0-9_\-]{20,})"), "[REDACTED]"),
+    (re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_\-]{20,})"), "[REDACTED]"),
+    (re.compile(r"\b(xox[abposr]-[A-Za-z0-9\-]{10,}|hf_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})"), "[REDACTED]"),
+    (re.compile(r"\b(op_[A-Za-z0-9]{24,}|meerkat_[A-Za-z0-9_\-]{16,}|whsec_[A-Za-z0-9]{16,})"), "[REDACTED]"),
+    (re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"), "[REDACTED JWT]"),
+    (re.compile(r"(?i)\b(authorization:\s*(?:bearer|token|basic)\s+)[A-Za-z0-9._~+/=\-]{12,}"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)\b((?:api[_-]?key|token|secret|password|passwd|pwd)[\"']?\s*[:=]\s*[\"']?)(?![$<{\[])[^\s\"'`,;]{8,}"), r"\1[REDACTED]"),
+    (re.compile(r"(https?://[^/\s:@]+:)[^@\s/]{6,}@"), r"\1[REDACTED]@"),
+    # License keys (ESXi, Windows, ...): five dash-separated groups of five.
+    (re.compile(r"\b[A-Z0-9]{5}(?:-[A-Z0-9]{5}){4}\b"), "[REDACTED KEY]"),
+    (re.compile(r"(?i)(--(?:password|passwd|token|secret|api-key|key)[= ])(?![$<{])\S{6,}"), r"\1[REDACTED]"),
+]
+
+
+def redact(text):
+    for pat, repl in SECRET_PATTERNS:
+        text = pat.sub(repl, text)
+    return text
+
+
+# ------------------------------------------------------------------ helpers
+
+
+def parse_ts(v):
+    if not v:
+        return None
+    try:
+        dt = datetime.fromisoformat(re.sub(r"(\.\d{6})\d+", r"\1", v.replace("Z", "+00:00")))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(LOCAL_TZ) if LOCAL_TZ else dt
+
+
+def safe_name(text, limit=90):
+    text = re.sub(r"\s*:\s+", " - ", text or "")
+    text = re.sub(r'[\\/:*?"<>|#^\[\]\x00-\x1f]', "-", text).strip()
+    text = re.sub(r"\s+", " ", text)
+    return text[:limit].rstrip(" .-") or "Untitled"
+
+
+def one_line(text, n=MAX_TOOL_LINE):
+    text = re.sub(r"\s+", " ", text or "").strip()
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def yaml_value(v):
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(json.dumps(x, ensure_ascii=False) for x in v) + "]"
+    if isinstance(v, (bool, int, float)):
+        return json.dumps(v)
+    return json.dumps(str(v), ensure_ascii=False)
+
+
+def strip_wrappers(text):
+    """Pull the real request out of harness wrappers (T3 Code, IDE context)."""
+    m = re.search(r"<user_request>\s*(.*?)\s*</user_request>", text, re.S)
+    if m:
+        text = m.group(1)
+    text = re.sub(r"<(t3_code_instructions|environment_context|runtime_info|pull_request_linking|system-reminder|"
+                  r"local-command-caveat|command-name|command-message|command-args|local-command-stdout|"
+                  r"user_instructions|ide_selection|ide_opened_file)>.*?</\1>", "", text, flags=re.S)
+    return text.strip()
+
+
+# ------------------------------------------------------------------ parsing
+
+
+def parse_claude(path):
+    s = {"tool": "claude", "id": os.path.basename(path)[:-6], "title": None, "cwd": None, "branch": None,
+         "model": None, "start": None, "end": None, "turns": [], "entrypoint": None}
+    cur_tools = []
+
+    def flush_tools():
+        if cur_tools and s["turns"] and s["turns"][-1]["role"] == "assistant":
+            s["turns"][-1]["tools"].extend(cur_tools)
+        elif cur_tools:
+            s["turns"].append({"role": "assistant", "text": "", "tools": list(cur_tools), "ts": None})
+        cur_tools.clear()
+
+    with open(path, errors="replace") as fh:
+        for line in fh:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            t = d.get("type")
+            if t == "ai-title" and d.get("aiTitle"):
+                s["title"] = d["aiTitle"]
+            elif t == "custom-title" and d.get("customTitle"):
+                s["title"] = d["customTitle"]
+            elif t == "summary" and d.get("summary") and not s["title"]:
+                s["title"] = d["summary"]
+            if t not in ("user", "assistant") or d.get("isSidechain") or d.get("isMeta"):
+                continue
+            ts = d.get("timestamp")
+            s["start"] = s["start"] or ts
+            s["end"] = ts or s["end"]
+            s["cwd"] = s["cwd"] or d.get("cwd")
+            s["branch"] = d.get("gitBranch") or s["branch"]
+            s["entrypoint"] = s["entrypoint"] or d.get("entrypoint")
+            msg = d.get("message") or {}
+            content = msg.get("content")
+            if t == "assistant":
+                s["model"] = msg.get("model") or s["model"]
+                blocks = content if isinstance(content, list) else [{"type": "text", "text": content or ""}]
+                text = "\n\n".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+                for b in blocks:
+                    if b.get("type") == "tool_use":
+                        inp = b.get("input") or {}
+                        desc = inp.get("command") or inp.get("file_path") or inp.get("pattern") or inp.get("url") \
+                            or inp.get("description") or inp.get("query") or inp.get("prompt") or ""
+                        if not isinstance(desc, str):
+                            desc = json.dumps(desc)
+                        cur_tools.append(f"{b.get('name')}: {one_line(desc)}")
+                if text:
+                    flush_tools()
+                    s["turns"].append({"role": "assistant", "text": text, "tools": [], "ts": ts})
+            else:
+                if d.get("toolUseResult") is not None:
+                    continue
+                if isinstance(content, list):
+                    if any(b.get("type") == "tool_result" for b in content):
+                        continue
+                    text = "\n\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                else:
+                    text = content or ""
+                text = strip_wrappers(text)
+                if not text or text.startswith("[Request interrupted"):
+                    continue
+                flush_tools()
+                s["turns"].append({"role": "user", "text": text, "tools": [], "ts": ts})
+    flush_tools()
+    return s
+
+
+def codex_thread_title(thread_id):
+    db = os.path.join(CODEX_HOME, "state_5.sqlite")
+    if not os.path.exists(db):
+        return None
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
+        row = con.execute("select title from threads where id = ?", (thread_id,)).fetchone()
+        con.close()
+    except sqlite3.Error:
+        return None
+    title = (row or [None])[0]
+    return None if not title or title.lstrip().startswith("<") else title
+
+
+def parse_codex(path):
+    s = {"tool": "codex", "id": None, "title": None, "cwd": None, "branch": None, "model": None,
+         "start": None, "end": None, "turns": [], "source": None}
+    cur_tools = []
+
+    def flush_tools():
+        if cur_tools and s["turns"] and s["turns"][-1]["role"] == "assistant":
+            s["turns"][-1]["tools"].extend(cur_tools)
+        elif cur_tools:
+            s["turns"].append({"role": "assistant", "text": "", "tools": list(cur_tools), "ts": None})
+        cur_tools.clear()
+
+    with open(path, errors="replace") as fh:
+        for line in fh:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            p = d.get("payload") or {}
+            ts = d.get("timestamp")
+            if d.get("type") == "session_meta":
+                s["id"] = p.get("id") or p.get("session_id")
+                s["cwd"] = p.get("cwd")
+                s["source"] = p.get("source")
+                s["start"] = p.get("timestamp") or ts
+                s["branch"] = (p.get("git") or {}).get("branch")
+            elif d.get("type") == "turn_context":
+                s["model"] = p.get("model") or s["model"]
+            elif d.get("type") == "event_msg" and p.get("type") == "thread_settings_applied":
+                s["model"] = (p.get("thread_settings") or {}).get("model") or s["model"]
+            elif d.get("type") == "event_msg" and p.get("type") == "item_completed":
+                it = p.get("item") or {}
+                kind = it.get("type")
+                s["end"] = ts or s["end"]
+                if kind == "UserMessage":
+                    text = "\n\n".join(c.get("text", "") for c in it.get("content") or [] if c.get("text"))
+                    text = strip_wrappers(text)
+                    if text:
+                        flush_tools()
+                        s["turns"].append({"role": "user", "text": text, "tools": [], "ts": ts})
+                elif kind == "AgentMessage":
+                    text = "\n\n".join(c.get("text", "") for c in it.get("content") or [] if c.get("text")).strip()
+                    if text:
+                        flush_tools()
+                        s["turns"].append({"role": "assistant", "text": text, "tools": [], "ts": ts})
+                elif kind == "CommandExecution":
+                    cmd = it.get("command")
+                    if isinstance(cmd, list):
+                        cmd = cmd[-1] if len(cmd) >= 3 and cmd[1] in ("-lc", "-c") else " ".join(cmd)
+                    cur_tools.append(f"shell: {one_line(cmd or '')}")
+                elif kind == "McpToolCall":
+                    args = one_line(json.dumps(it.get("arguments") or {}), 160)
+                    cur_tools.append(f"{it.get('server')}.{it.get('tool')}: {args}")
+                elif kind == "Extension":
+                    q = it.get("query") or (it.get("action") or {}).get("query") or ""
+                    cur_tools.append(f"{it.get('kind')}: {one_line(str(q))}")
+    flush_tools()
+    thread_id = s["id"] or re.sub(r".*-([0-9a-f-]{36})\.jsonl$", r"\1", path)
+    s["title"] = codex_thread_title(thread_id)
+    # A thread continued in a second rollout file ("<thread>_<child>.jsonl")
+    # gets its own note, keyed by the child id.
+    child = re.search(r"_([0-9a-f]{8}-[0-9a-f-]{27})\.jsonl$", path)
+    s["id"] = child.group(1) if child else thread_id
+    return s
+
+
+# ------------------------------------------------------------------ rendering
+
+
+def session_title(s):
+    if s["title"]:
+        return one_line(s["title"].split("\n", 1)[0], 90)
+    first = next((t["text"] for t in s["turns"] if t["role"] == "user"), "")
+    first = re.sub(r"[#*`>_\[\]]", "", first.split("\n", 1)[0]).strip()
+    return one_line(first, 80) or "Untitled session"
+
+
+def render(s):
+    title = redact(session_title(s))
+    start, end = parse_ts(s["start"]), parse_ts(s["end"])
+    user_turns = sum(1 for t in s["turns"] if t["role"] == "user")
+    fm = {
+        "source": s["tool"],
+        "session_id": s["id"],
+        "title": title,
+        "started": start.isoformat(timespec="minutes") if start else "",
+        "ended": end.isoformat(timespec="minutes") if end else "",
+        "host": HOST,
+        "cwd": s.get("cwd") or "",
+        "git_branch": s.get("branch") or "",
+        "model": s.get("model") or "",
+        "user_messages": user_turns,
+        "tags": ["agent-session", s["tool"]],
+    }
+    out = ["---"] + [f"{k}: {yaml_value(v)}" for k, v in fm.items() if v not in ("", None, [])] + ["---"]
+    out += [f"<!-- Generated by brain-transcripts from a {s['tool']} session on {HOST}; rewritten as the session continues. -->",
+            "", f"# {title}", ""]
+    meta = " · ".join(x for x in [
+        "Claude Code" if s["tool"] == "claude" else "Codex",
+        start.strftime("%a %b %-d, %Y %-I:%M %p") if start else "",
+        os.path.basename(s.get("cwd") or "") and f"`{os.path.basename(s['cwd'])}`",
+        s.get("model") or "",
+    ] if x)
+    out += [f"*{meta}*"]
+    for t in s["turns"]:
+        if t["role"] == "user":
+            out += ["", "## 🧑 Robert", "", t["text"]]
+        else:
+            if t["text"]:
+                out += ["", "### 🤖 Agent", "", t["text"]]
+            if t["tools"]:
+                out += ["", f"<details><summary>{len(t['tools'])} tool call{'s' if len(t['tools']) != 1 else ''}</summary>",
+                        "", *[f"- `{x.replace('`', 'ʼ')}`" for x in t["tools"]], "", "</details>"]
+    return redact("\n".join(out).rstrip() + "\n")
+
+
+def repo_path(s):
+    start = parse_ts(s["start"]) or datetime.now()
+    folder = "Claude" if s["tool"] == "claude" else "Codex"
+    return f"Agents/{folder}/{start:%Y}/{start:%Y-%m-%d} {safe_name(session_title(s))} ({s["id"].replace("-", "")[-8:]}).md"
+
+
+def worth_keeping(s):
+    if s["tool"] == "codex" and isinstance(s.get("source"), dict):
+        return False  # guardian reviews and other spawned sub-agents
+    return any(t["role"] == "user" for t in s["turns"]) and any(t["role"] == "assistant" for t in s["turns"])
+
+
+# ------------------------------------------------------------------ Forgejo
+
+
+def token():
+    tok = os.environ.get("BRAIN_TRANSCRIPTS_TOKEN")
+    if tok:
+        return tok
+    return subprocess.run(["security", "find-generic-password", "-s", "brain-transcripts", "-a", "forgejo", "-w"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def ssl_ctx():
+    for ca in ("/etc/ssl/cert.pem", "/opt/homebrew/etc/ca-certificates/cert.pem"):
+        if os.path.exists(ca):
+            return ssl.create_default_context(cafile=ca)
+    return ssl.create_default_context()
+
+
+def api(method, path, body=None):
+    req = urllib.request.Request(f"{FORGEJO}/api/v1{path}", method=method,
+                                 data=json.dumps(body).encode() if body is not None else None)
+    req.add_header("Authorization", f"token {token()}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=60, context=ssl_ctx()) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise RuntimeError(f"{method} {path} -> {e.code}: {e.read()[:300].decode(errors='replace')}") from None
+
+
+def remote_sha(path):
+    quoted = "/".join(urllib.parse.quote(p) for p in path.split("/"))
+    data = api("GET", f"/repos/{REPO}/contents/{quoted}?ref={BRANCH}")
+    return data.get("sha") if isinstance(data, dict) else None
+
+
+def blob_sha(b):
+    return hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
+
+
+def state_file(tool, sid):
+    return os.path.join(STATE_DIR, f"{tool}-{sid}.json")
+
+
+def load_state(tool, sid):
+    try:
+        with open(state_file(tool, sid)) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(tool, sid, st):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    tmp = state_file(tool, sid) + ".tmp"
+    with open(tmp, "w") as fh:
+        json.dump(st, fh)
+    os.replace(tmp, state_file(tool, sid))
+
+
+def build_ops(s, st):
+    """Change-file ops to bring the repo copy of session s up to date ([] if current)."""
+    content = render(s).encode()
+    # The path is fixed the first time a session is pushed, so a later title
+    # change shows up in the note but never renames or duplicates the file.
+    path = st.get("path") or repo_path(s)
+    new_sha = blob_sha(content)
+    if st.get("sha") == new_sha:
+        return [], path, new_sha
+    op = {"path": path, "content": base64.b64encode(content).decode()}
+    existing = st.get("sha") or remote_sha(path)
+    op.update({"operation": "update", "sha": existing} if existing else {"operation": "create"})
+    return [op], path, new_sha
+
+
+def commit(ops, message):
+    api("POST", f"/repos/{REPO}/contents", {"branch": BRANCH, "message": message,
+                                            "author": AUTHOR, "committer": AUTHOR, "files": ops})
+
+
+def push_session(path, tool):
+    s = parse_claude(path) if tool == "claude" else parse_codex(path)
+    if not worth_keeping(s):
+        return None
+    st = load_state(tool, s["id"])
+    try:
+        ops, rpath, sha = build_ops(s, st)
+        if ops:
+            commit(ops, f"{tool}: {session_title(s)[:60]}")
+    except RuntimeError as e:
+        if "sha" in str(e).lower() or " 409" in str(e) or " 422" in str(e):
+            st.pop("sha", None)  # edited remotely; re-read the current sha and retry once
+            ops, rpath, sha = build_ops(s, st)
+            if ops:
+                commit(ops, f"{tool}: {session_title(s)[:60]}")
+        else:
+            raise
+    save_state(tool, s["id"], {"path": rpath, "sha": sha, "pushed_at": time.time()})
+    return rpath if ops else None
+
+
+# ------------------------------------------------------------------ hook entry
+
+
+def find_codex_rollout(sid):
+    hits = glob.glob(os.path.join(CODEX_HOME, "sessions", "**", f"*{sid}.jsonl"), recursive=True)
+    return max(hits, key=os.path.getmtime) if hits else None
+
+
+def hook(tool):
+    try:
+        data = json.load(sys.stdin)
+    except ValueError:
+        data = {}
+    sid = data.get("session_id") or data.get("thread_id") or ""
+    path = data.get("transcript_path") or (find_codex_rollout(sid) if tool == "codex" and sid else None)
+    if not path or not os.path.exists(path):
+        return
+    event = data.get("hook_event_name") or ""
+    delay = 0 if event == "SessionEnd" else DEBOUNCE
+    key = re.sub(r"[^A-Za-z0-9_-]", "", sid or os.path.basename(path))
+    os.makedirs(STATE_DIR, exist_ok=True)
+    marker = os.path.join(STATE_DIR, f"pending-{tool}-{key}")
+    nonce = f"{time.time()}-{os.getpid()}"
+    with open(marker, "w") as fh:
+        fh.write(nonce)
+    # Detach so the agent never waits on the network.
+    if os.fork():
+        return
+    os.setsid()
+    if os.fork():
+        os._exit(0)
+    devnull = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(devnull, fd)
+    try:
+        time.sleep(delay)
+        try:
+            with open(marker) as fh:
+                if fh.read() != nonce:
+                    os._exit(0)  # a newer turn will push instead
+        except OSError:
+            pass
+        pushed = push_session(path, tool)
+        if pushed:
+            log(f"pushed {pushed}")
+        try:
+            with open(marker) as fh:
+                if fh.read() == nonce:
+                    os.remove(marker)
+        except OSError:
+            pass
+    except Exception as e:  # never surface errors into the agent session
+        log(f"error {tool} {path}: {e}")
+    os._exit(0)
+
+
+def all_transcripts():
+    for p in glob.glob(os.path.join(CLAUDE_PROJECTS, "*", "*.jsonl")):
+        yield p, "claude"
+    for p in glob.glob(os.path.join(CODEX_HOME, "sessions", "**", "*.jsonl"), recursive=True):
+        yield p, "codex"
+
+
+def backfill(dry_run=False, out=None):
+    batch, size, n = [], 0, 0
+    pending_state = []
+    for p, tool in sorted(all_transcripts()):
+        s = parse_claude(p) if tool == "claude" else parse_codex(p)
+        if not worth_keeping(s):
+            continue
+        st = load_state(tool, s["id"])
+        if out:
+            dest = os.path.join(out, st.get("path") or repo_path(s))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with open(dest, "w") as fh:
+                fh.write(render(s))
+            n += 1
+            continue
+        ops, rpath, sha = build_ops(s, st)
+        if not ops:
+            continue
+        n += 1
+        if dry_run:
+            print(ops[0]["operation"], rpath)
+            continue
+        batch += ops
+        pending_state.append((tool, s["id"], {"path": rpath, "sha": sha, "pushed_at": time.time()}))
+        size += len(ops[0]["content"])
+        if size > 4 * 1024 * 1024:
+            commit(batch, f"agents: backfill {len(batch)} sessions")
+            for args in pending_state:
+                save_state(*args)
+            batch, size, pending_state = [], 0, []
+    if batch and not dry_run:
+        commit(batch, f"agents: backfill {len(batch)} sessions")
+        for args in pending_state:
+            save_state(*args)
+    print(f"{n} sessions {'rendered' if out else 'would change' if dry_run else 'pushed'}")
+
+
+def main():
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == "hook" and args[1] in ("claude", "codex"):
+        try:
+            hook(args[1])
+        except Exception as e:
+            log(f"hook error: {e}")
+        return
+    if args and args[0] == "push" and len(args) >= 2:
+        tool = args[3] if len(args) >= 4 and args[2] == "--tool" else ("codex" if "/.codex/" in args[1] else "claude")
+        print(push_session(args[1], tool) or "no change")
+        return
+    if args and args[0] == "backfill":
+        out = args[args.index("--out") + 1] if "--out" in args else None
+        backfill(dry_run="--dry-run" in args, out=out)
+        return
+    print(__doc__)
+    sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()
