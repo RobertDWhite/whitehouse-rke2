@@ -57,7 +57,7 @@ You only need to add Plex:
    ```
 3. **Add the DNS record:** add `media-mcp.internal.white.fm` to
    `technitium/35-zones-secret.sops.yaml` pointing at the gateway IP (same as
-   `monica-mcp.internal.white.fm`).
+   `meerkat-mcp.internal.white.fm`).
 4. Commit + push; ArgoCD syncs the `media-mcp` Application.
 
 ### FileBot on Synology
