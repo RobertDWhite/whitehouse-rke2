@@ -5,6 +5,12 @@
 #   protects against nothing the NAS's own snapshots don't, and turned the
 #   nightly run into a multi-hour crawl that hit itemOperationTimeout.
 # - emptyDir volumes (dshm, tmp, caches) are scratch space by definition.
+# - Immich's Longhorn media copies (uploads ~2 TB, photo library ~8 TB) are
+#   copies of NAS data. Uploads sync to the Synology hourly
+#   (immich-upload-to-synology-sync), and the photo library is filled from the
+#   NAS. Copying them through kopia never finished: the weekly run sat on 2 TB
+#   for hours, blocked every later backup, and loaded node-14's disks. Immich's
+#   Postgres (longhorn-immich-db) is still backed up.
 #
 # Longhorn / local-path / Synology-CSI volumes are still file-system backed up
 # via defaultVolumesToFsBackup.
@@ -24,5 +30,11 @@ data:
       - conditions:
           volumeTypes:
             - emptyDir
+        action:
+          type: skip
+      - conditions:
+          storageClass:
+            - longhorn-immich-media
+            - longhorn-immich-photos
         action:
           type: skip
