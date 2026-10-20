@@ -8,7 +8,7 @@ database on 2026-08-06. Argo CD deploys everything here; no manual apply step.
 1. `fleets/*.yml` + `lib/**` are packaged into ConfigMaps by the
    `configMapGenerator` entries in `../kustomization.yaml` (content-hashed, so
    any edit rolls the Job/CronJob references).
-2. Secrets (API token, enroll secrets, Wi-Fi PSKs, watch enroll secret) live in
+2. Secrets (API token, Wi-Fi PSKs, watch enroll secret) live in
    `../23-secret-gitops.sops.yaml` (KSOPS/age). Edit with
    `sops apps/misc/fleet/23-secret-gitops.sops.yaml`.
 3. `../46-job-gitops-apply.yaml` — Argo PostSync hook: `fleetctl gitops` runs on
@@ -16,10 +16,22 @@ database on 2026-08-06. Argo CD deploys everything here; no manual apply step.
 4. `../45-cronjob-gitops.yaml` — nightly (03:30) run: refreshes unpinned
    Fleet-maintained / App Store app versions to latest without a repo change.
 
-Both jobs use the fleet-self-hosted image (kustomize `images:` pin) because
-upstream fleetctl rejects the fork's tvOS/watchOS keys. The image must contain
-`fleetctl` — added to `tools/fleet-docker/Dockerfile` + the publish workflow in
-the fleet-self-hosted repo.
+Both jobs use `registry.internal.white.fm/fleetctl-self-hosted` (kustomize
+`images:` pin), a fleetctl-only image built from the fleet-self-hosted fork so
+it understands the fork's tvOS/watchOS keys. Upstream fleetctl rejects them, and
+the server image does not ship fleetctl. Source: branch `fleetctl/server-compat`
+in RobertDWhite/fleet-self-hosted. It is the codex/apple-fleet-workspace tip plus
+one patch: leave out `deadline_days`, which the deployed server rejects. Rebuild
+with `CGO_ENABLED=0 GOOS=linux GOARCH=<arch> go build -o fleetctl-<arch>
+./cmd/fleetctl` for amd64 and arm64, then use `docker buildx --push` with an
+alpine Dockerfile that copies `fleetctl-${TARGETARCH}` to /usr/bin/fleetctl.
+fleetctl reads the server address and token only from its config file, so each
+job runs `fleetctl config set` from `FLEET_URL`/`FLEET_API_TOKEN` first.
+
+Software is declared as unpinned `fleet_maintained_apps`, matching how it is
+installed in Fleet. Custom `packages:` can't express Fleet-maintained `.dmg`
+apps. Enroll secrets are UI-owned: Fleet's GitOps exception for `secrets` is
+on, so the fleet files must not contain a `secrets:` key.
 
 Manual run: `kubectl create job -n fleet --from=cronjob/fleet-gitops gitops-manual`
 
