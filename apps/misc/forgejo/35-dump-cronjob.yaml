@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: forgejo-dump
+  namespace: forgejo
+spec:
+  # Nightly `forgejo dump` (repos, LFS, attachments, SQLite DB, app.ini) to the
+  # Synology at Personal/Forgejo/dumps, 14-day retention. Runs at 02:15, ahead
+  # of Velero's 03:00 daily-critical run. The data PVC is Longhorn RWO, so the
+  # job is pinned to whichever node is running Forgejo (RWO is per node, not
+  # per pod).
+  schedule: "15 2 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: forgejo-dump
+        spec:
+          restartPolicy: OnFailure
+          enableServiceLinks: false
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: forgejo
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          containers:
+            - name: dump
+              image: codeberg.org/forgejo/forgejo
+              command: [sh, -ec]
+              args:
+                - |
+                  umask 077
+                  mkdir -p /backups/tmp
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  forgejo dump --config /etc/gitea/app.ini --work-path /var/lib/gitea \
+                    --tempdir /backups/tmp --skip-log --type tar.gz \
+                    --file "/backups/forgejo-${stamp}.tar.gz"
+                  find /backups -maxdepth 1 -type f -name 'forgejo-*.tar.gz' -mtime +14 -delete
+                  ls -la /backups | tail -n 3
+              env:
+                - name: GITEA_WORK_DIR
+                  value: /var/lib/gitea
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/gitea
+                  subPath: data
+                  readOnly: true
+                - name: data
+                  mountPath: /etc/gitea
+                  subPath: config
+                  readOnly: true
+                - name: nas
+                  mountPath: /backups
+                  subPath: Forgejo/dumps
+              resources:
+                requests: {cpu: 100m, memory: 128Mi}
+                limits: {memory: 1Gi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: forgejo-data
+            - name: nas
+              persistentVolumeClaim:
+                claimName: forgejo-nas

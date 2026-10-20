@@ -1,0 +1,45 @@
+# Internal only (LAN / tailnet). Deliberately no public route or Cloudflare
+# tunnel entry - the vault does not need to be on the internet.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: forgejo-internal
+  namespace: forgejo
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - git.internal.white.fm
+  rules:
+    - timeouts:
+        # Large clones / LFS pushes.
+        request: 900s
+        backendRequest: 900s
+      backendRefs:
+        - name: forgejo
+          port: 80
+---
+# Same guard as obsidian: LAN (RFC1918) and tailnet (CGNAT) sources only.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: forgejo-internal-source-cidrs
+  namespace: forgejo
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: forgejo-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan-and-tailnet
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
