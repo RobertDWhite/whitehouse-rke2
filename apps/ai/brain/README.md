@@ -45,3 +45,25 @@ kubectl -n brain exec deploy/brain-sync -- python3 -c \
 
 Metrics: `brain_sync_last_success_timestamp_seconds{source}`; alerts
 `BrainSyncStale` and `BrainSyncDown` in `cluster-alerts.yml`.
+
+## ww-mirror
+
+CronJob (every 15 min) that mirrors the private GitHub repo
+a private GitHub repo into the brain repo under
+`<mirror dir>` (script: `ww-mirror/mirror.sh`).
+
+- It checks the upstream head with `git ls-remote` and does nothing unless it
+  moved past the commit recorded in `<mirror dir>/.source-commit`.
+- On a change it replaces the folder with the upstream tree (minus `.git`,
+  `.github` and `.DS_Store`) and pushes one commit as `ww-mirror`. Only that
+  folder is checked out (sparse, blobless clone), so nothing else in the repo
+  is touched.
+- GitHub access: read-only deploy key "whitehouse-rke2 brain mirror
+  (read-only)" on that repo only (revoke under the repo's Settings -> Deploy
+  keys). `ww-mirror/known_hosts` pins github.com's ed25519 host key, checked
+  against `api.github.com/meta`.
+- Forgejo access: `brain-sync` bot token `ww-mirror`.
+- Secret: `12-ww-mirror-secret.sops.yaml` (`deploy-key`, `FORGEJO_TOKEN`).
+
+The folder is a one-way mirror: edit the source repo, not in the
+brain repo. Run now: `kubectl -n brain create job --from=cronjob/ww-mirror ww-mirror-manual`.
