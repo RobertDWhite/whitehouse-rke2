@@ -15,30 +15,25 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      imagePullSecrets:
-        - name: ghcr-pull
       containers:
         - name: gitops
-          image: fleetdm/fleet
+          image: registry.internal.white.fm/fleetctl-self-hosted
           command:
-            - fleetctl
-            - gitops
-            - -f
-            - /gitops/fleets/servers-rke2-nodes.yml
-            - -f
-            - /gitops/fleets/servers-linux.yml
-            - -f
-            - /gitops/fleets/windows-fixed-purpose.yml
-            - -f
-            - /gitops/fleets/family-macos.yml
-            - -f
-            - /gitops/fleets/family-iphones.yml
-            - -f
-            - /gitops/fleets/family-ipads.yml
-            - -f
-            - /gitops/fleets/family-apple-tvs.yml
-            - -f
-            - /gitops/fleets/family-watches.yml
+            - sh
+            - -ec
+            - |
+              # fleetctl only reads the server address and token from its config
+              # file, not the environment.
+              fleetctl config set --address "$FLEET_URL" --token "$FLEET_API_TOKEN" >/dev/null
+              exec fleetctl gitops \
+                -f /gitops/fleets/servers-rke2-nodes.yml \
+                -f /gitops/fleets/servers-linux.yml \
+                -f /gitops/fleets/windows-fixed-purpose.yml \
+                -f /gitops/fleets/family-macos.yml \
+                -f /gitops/fleets/family-iphones.yml \
+                -f /gitops/fleets/family-ipads.yml \
+                -f /gitops/fleets/family-apple-tvs.yml \
+                -f /gitops/fleets/family-watches.yml
           envFrom:
             - secretRef:
                 name: fleet-gitops-secrets
@@ -58,15 +53,6 @@ spec:
             - name: apple-declarations
               mountPath: /gitops/lib/apple/declarations
               readOnly: true
-            - name: apple-software
-              mountPath: /gitops/lib/apple/software
-              readOnly: true
-            - name: windows-profiles
-              mountPath: /gitops/lib/windows/profiles
-              readOnly: true
-            - name: windows-software
-              mountPath: /gitops/lib/windows/software
-              readOnly: true
       volumes:
         - name: fleets
           configMap:
@@ -77,12 +63,3 @@ spec:
         - name: apple-declarations
           configMap:
             name: fleet-gitops-apple-declarations
-        - name: apple-software
-          configMap:
-            name: fleet-gitops-apple-software
-        - name: windows-profiles
-          configMap:
-            name: fleet-gitops-windows-profiles
-        - name: windows-software
-          configMap:
-            name: fleet-gitops-windows-software
