@@ -1,0 +1,50 @@
+name: "Family - iPads"
+settings:
+  features:
+    historical_data:
+      uptime: true
+      vulnerabilities: false
+    enable_host_users: true
+    enable_software_inventory: true
+  secrets:
+  - secret: $FLEET_ENROLL_SECRET_FAMILY_IPADS
+agent_options:
+  config:
+    options:
+      pack_delimiter: /
+      logger_tls_period: 10
+      distributed_plugin: tls
+      disable_distributed: false
+      logger_tls_endpoint: /api/osquery/log
+      distributed_interval: 10
+      distributed_tls_max_attempts: 3
+    decorators:
+      load:
+      - SELECT uuid AS host_uuid FROM system_info;
+      - SELECT hostname AS hostname FROM system_info;
+  overrides: {}
+controls:
+  apple_settings:
+    configuration_profiles:
+    - path: ../lib/apple/profiles/encrypted-dns.mobileconfig
+    - path: ../lib/apple/profiles/managed-wi-fi.mobileconfig
+policies: []
+reports: []
+software:
+  app_store_apps:
+    - app_store_id: "1477317200"  # DailyWire+
+      platform: ipados
+    - app_store_id: "1136220934"  # Infuse
+      platform: ipados
+    - app_store_id: "383457673"  # Plex: Find Movies and TV Shows
+      platform: ipados
+    - app_store_id: "1459531037"  # Providence Bible Fellowship
+      platform: ipados
+    - app_store_id: "6737065958"  # Sola Coffea
+      platform: ipados
+    - app_store_id: "1057750338"  # UniFi
+      platform: ipados
+    - app_store_id: "1392492235"  # UniFi Protect
+      platform: ipados
+    - app_store_id: "955626407"  # VPN by Private Internet Access
+      platform: ipados
