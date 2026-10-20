@@ -36,7 +36,10 @@ data:
           # (e.g. 5090 CUDA OOM when another pod holds the VRAM) answers the
           # POST with a 500; without these nginx never retries a POST on a
           # backup and every LLM consumer fails.
-          proxy_next_upstream error timeout http_500 http_502 http_503 http_504 non_idempotent;
+          # http_404: a model pulled only on the 5090 (e.g. qwen2.5vl:7b for the
+          # HA doorbell) gets "model not found" 404 from the Mac; fall through to
+          # the 5090 instead of returning it. 404s don't count toward max_fails.
+          proxy_next_upstream error timeout http_404 http_500 http_502 http_503 http_504 non_idempotent;
           proxy_next_upstream_tries 3;
           proxy_connect_timeout  5s;
           # Keep the long cold-load window because requests can fall back to
