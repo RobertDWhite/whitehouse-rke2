@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: forgejo
+  template:
+    metadata:
+      labels:
+        app: forgejo
+    spec:
+      # Rootless image: runs as uid/gid 1000, app.ini is generated from the
+      # FORGEJO__section__KEY env vars below on every start.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      enableServiceLinks: false
+      containers:
+        - name: forgejo
+          image: codeberg.org/forgejo/forgejo
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: FORGEJO__server__DOMAIN
+              value: git.internal.white.fm
+            - name: FORGEJO__server__ROOT_URL
+              value: https://git.internal.white.fm/
+            - name: FORGEJO__server__HTTP_PORT
+              value: "3000"
+            # Git over HTTPS with per-user/per-agent access tokens only.
+            - name: FORGEJO__server__DISABLE_SSH
+              value: "true"
+            - name: FORGEJO__server__LFS_START_SERVER
+              value: "true"
+            - name: FORGEJO__database__DB_TYPE
+              value: sqlite3
+            - name: FORGEJO__database__SQLITE_JOURNAL_MODE
+              value: WAL
+            - name: FORGEJO__security__INSTALL_LOCK
+              value: "true"
+            # Accounts come from Authentik (OIDC auth source "authentik",
+            # added with `forgejo admin auth add-oauth`). No local sign-up.
+            - name: FORGEJO__service__DISABLE_REGISTRATION
+              value: "false"
+            - name: FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION
+              value: "true"
+            - name: FORGEJO__service__REQUIRE_SIGNIN_VIEW
+              value: "true"
+            - name: FORGEJO__service__DEFAULT_KEEP_EMAIL_PRIVATE
+              value: "true"
+            - name: FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION
+              value: "true"
+            - name: FORGEJO__oauth2_client__USERNAME
+              value: nickname
+            - name: FORGEJO__oauth2_client__ACCOUNT_LINKING
+              value: login
+            - name: FORGEJO__openid__ENABLE_OPENID_SIGNIN
+              value: "false"
+            - name: FORGEJO__repository__DEFAULT_PRIVATE
+              value: private
+            - name: FORGEJO__repository__FORCE_PRIVATE
+              value: "true"
+            - name: FORGEJO__actions__ENABLED
+              value: "false"
+            - name: FORGEJO__mailer__ENABLED
+              value: "true"
+            - name: FORGEJO__mailer__PROTOCOL
+              value: smtp
+            - name: FORGEJO__mailer__SMTP_ADDR
+              value: postfix.postfix.svc.cluster.local
+            - name: FORGEJO__mailer__SMTP_PORT
+              value: "25"
+            - name: FORGEJO__mailer__FROM
+              value: forgejo@whitematter.tech
+            - name: FORGEJO__log__LEVEL
+              value: Info
+            - name: FORGEJO__time__DEFAULT_UI_LOCATION
+              value: America/New_York
+          volumeMounts:
+            # Config lives on the volume too so the dump CronJob, which mounts
+            # the same PVC, reads the same app.ini.
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+            - name: data
+              mountPath: /etc/gitea
+              subPath: config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: forgejo-data

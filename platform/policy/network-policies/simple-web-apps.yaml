@@ -492,6 +492,33 @@ spec:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
 
 ---
+# ======================== FORGEJO ========================
+# Private git for the vault / agent notes. Reached only through the internal
+# gateway; agents and ingest jobs use the HTTPS route with access tokens.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: forgejo}
+spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-all-egress, namespace: forgejo}
+spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allow-ingress, namespace: forgejo}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
+
+---
 # ======================== MEERKAT ========================
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

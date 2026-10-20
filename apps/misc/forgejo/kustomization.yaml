@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: forgejo
+
+# The data PVC (forgejo-data) lives in platform/storage/storage/forgejo.
+resources:
+  - 00-namespace.yaml
+  - 14-pv-nas.yaml
+  - 15-pvc-nas.yaml
+  - 30-deployment.yaml
+  - 35-dump-cronjob.yaml
+  - 40-service.yaml
+  - 53-httproute-internal.yaml
+
+images:
+  - name: codeberg.org/forgejo/forgejo
+    newTag: "17.0.0-rootless@sha256:6554520f7574602100b7d6620c6ac5b18cec30325f823777497eac36234f5cf8"

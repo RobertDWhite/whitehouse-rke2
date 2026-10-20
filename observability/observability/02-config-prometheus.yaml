@@ -1058,6 +1058,33 @@ data:
             annotations:
               summary: "No successful Velero backup in >48 hours"
 
+          # PartiallyFailed runs do not touch velero_backup_failure_total, so
+          # VeleroBackupFailed stayed quiet from 2026-10-13 to 2026-10-19 while
+          # every daily-critical run timed out with 5-102 errors (leaked
+          # node-agent data-path slots on node-14, node-11 at the pod cap).
+          - alert: VeleroBackupPartiallyFailed
+            expr: |
+              increase(velero_backup_partial_failure_total[24h]) > 0
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Velero schedule {{ $labels.schedule }} finished PartiallyFailed in the last 24h"
+              description: "Run `velero backup describe <name> --details` (kubectl -n velero exec deploy/velero -- /velero ...). Stuck PodVolumeBackups in Prepared on one node usually mean leaked node-agent slots: restart that node's node-agent pod."
+
+          # VeleroBackupStale needs a last_successful_timestamp series, and a
+          # schedule that has not fully succeeded since the server last
+          # restarted has none - daily-critical was in exactly that state.
+          - alert: VeleroScheduleNeverSucceeded
+            expr: |
+              velero_backup_attempt_total{schedule!=""}
+                unless on(schedule) velero_backup_last_successful_timestamp
+            for: 26h
+            labels:
+              severity: critical
+            annotations:
+              summary: "Velero schedule {{ $labels.schedule }} has had no successful backup since the server started"
+
       - name: cluster.certificates
         interval: 15m
         rules:
