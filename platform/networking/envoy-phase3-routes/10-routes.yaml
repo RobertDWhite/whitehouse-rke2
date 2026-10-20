@@ -449,23 +449,6 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: monica-public
-  namespace: authentik
-spec:
-  parentRefs:
-    - name: main
-      namespace: envoy-gateway-system
-      sectionName: https-white-fm
-  hostnames:
-    - monica.white.fm
-  rules:
-    - backendRefs:
-        - name: authentik-server
-          port: 80
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
   name: everydocs-public
   namespace: authentik
 spec:

@@ -388,12 +388,12 @@ pages:
         - title: Longhorn
           url: https://longhorn.internal.white.fm
           icon: di:longhorn
-        - title: Rancher
-          url: https://rancher.white.fm
-          icon: di:rancher
         - title: Falco
           url: https://falco.internal.white.fm
           icon: di:falco
+        - title: KVM
+          url: https://kvm.internal.white.fm
+          icon: mdi:monitor-shimmer
       - title: Networking
         links:
         - title: Technitium
@@ -405,11 +405,23 @@ pages:
         - title: Headplane
           url: https://headplane.internal.white.fm
           icon: di:headscale
+        - title: UniFi
+          url: https://unifi.internal.white.fm
+          icon: di:unifi
       - title: Media
         links:
+        - title: Jellyfin
+          url: https://jellyfin.internal.white.fm
+          icon: di:jellyfin
+        - title: Plex
+          url: https://plex.internal.white.fm
+          icon: di:plex
         - title: Tautulli
           url: https://tautulli.internal.white.fm
           icon: di:tautulli
+        - title: Jellystat
+          url: https://jellystat.internal.white.fm
+          icon: di:jellystat
         - title: HDHomeRun
           url: http://10.100.7.30
           icon: di:hdhomerun
@@ -469,6 +481,12 @@ pages:
         - title: Element
           url: https://element.internal.white.fm
           icon: di:element
+        - title: Cinny
+          url: https://cinny.internal.white.fm
+          icon: di:cinny
+        - title: FluffyChat
+          url: https://fluffychat.internal.white.fm
+          icon: di:fluffychat
         - title: Mastodon
           url: https://mastodon.internal.whitematter.tech
           icon: di:mastodon
@@ -478,9 +496,6 @@ pages:
         - title: FreshRSS
           url: https://rss.internal.white.fm
           icon: di:freshrss
-        - title: ZNC
-          url: https://znc.white.fm
-          icon: mdi:chat-processing
       - title: AI & Research
         links:
         - title: Open WebUI
@@ -489,6 +504,18 @@ pages:
         - title: Ollama
           url: https://ollama.internal.white.fm
           icon: di:ollama
+        - title: ComfyUI
+          url: https://comfyui.internal.white.fm
+          icon: di:comfyui
+        - title: InvokeAI
+          url: https://invokeai.internal.white.fm
+          icon: mdi:image-auto-adjust
+        - title: OpenCode
+          url: https://opencode.internal.white.fm
+          icon: mdi:code-braces
+        - title: Riffado
+          url: https://riffado.internal.white.fm
+          icon: mdi:microphone-message
         - title: SDR Research
           url: https://sdr.internal.white.fm
           icon: mdi:antenna
@@ -555,6 +582,12 @@ pages:
         - title: Scrypted
           url: https://scrypted.internal.white.fm
           icon: di:scrypted
+        - title: Double Take
+          url: https://double-take.internal.white.fm
+          icon: di:double-take
+        - title: CompreFace
+          url: https://compreface.internal.white.fm
+          icon: mdi:face-recognition
       - title: Apps
         links:
         - title: Weather
@@ -578,6 +611,9 @@ pages:
         - title: Homeschool
           url: https://homeschool.internal.white.fm
           icon: mdi:school
+        - title: Condo
+          url: https://condo.internal.white.fm
+          icon: mdi:office-building
         - title: MySpeed
           url: https://speed.internal.white.fm
           icon: di:myspeed
@@ -599,24 +635,15 @@ pages:
         - title: Homarr
           url: https://homarr.internal.white.fm
           icon: di:homarr
-        - title: Wallabag
-          url: https://wallabag.internal.white.fm
-          icon: di:wallabag
-        - title: Monica
-          url: https://monica.internal.white.fm
-          icon: di:monica
+        - title: Meerkat
+          url: https://meerkat.internal.white.fm
+          icon: mdi:account-heart
         - title: Ancestry (Gramps)
           url: https://ancestry.internal.white.fm
           icon: di:gramps
-        - title: EveryDocs
-          url: https://everydocs.internal.white.fm
-          icon: mdi:file-document-multiple
         - title: Fleet
           url: https://fleet.internal.white.fm
           icon: di:fleet
-        - title: Headplane
-          url: https://headplane.internal.white.fm
-          icon: di:headscale
         - title: Nitter
           url: https://nitter.internal.white.fm
           icon: di:nitter
@@ -629,9 +656,6 @@ pages:
         - title: Gibt es Gott?
           url: https://gibt-es-gott.internal.white.fm
           icon: mdi:cross
-        - title: Homepage
-          url: https://homepage.internal.white.fm
-          icon: di:homepage
       - title: Pages
         links:
         - title: Index
@@ -692,9 +716,6 @@ pages:
         - title: Prowlarr
           url: https://prowlarr.internal.white.fm
           icon: di:prowlarr
-        - title: SABnzbd
-          url: https://sabnzbd.white.fm
-          icon: di:sabnzbd
         - title: YT-DLP
           url: https://ytdl.internal.white.fm
           icon: di:yt-dlp
@@ -731,6 +752,9 @@ pages:
           icon: mdi:radio-tower
       - title: Developer
         links:
+        - title: Forgejo
+          url: https://git.internal.white.fm
+          icon: di:forgejo
         - title: GitHub
           url: https://github.com
           icon: si:github
@@ -745,7 +769,7 @@ pages:
           url: https://www.chase.com
           icon: si:chase
         - title: Amex
-          url: https://www.amex.com
+          url: https://www.americanexpress.com
           icon: si:americanexpress
         - title: Capital One
           url: https://myaccounts.capitalone.com
@@ -1069,30 +1093,6 @@ pages:
           title: U.S. Gov
         - url: ${FRESHRSS_URL}/i/?a=rss&get=c_5&token=${FRESHRSS_TOKEN}&nb=15
           title: State Gov
-    - type: custom-api
-      title: Monica Contacts
-      title-url: https://monica.internal.white.fm
-      cache: 1h
-      # Monica v5 has no reminders API; show recent contacts from the vault instead.
-      url: ${MONICA_URL}/api/vaults/019dc2ab-e6bc-70c8-a9ae-a911a9b9ea29/contacts?limit=15
-      headers:
-        Authorization: Bearer ${MONICA_TOKEN}
-        Accept: application/json
-      template: |-
-        {{ $c := .JSON.Array "data" }}
-        {{ if eq (len $c) 0 }}
-          <p class="color-subdue">No contacts (or MONICA_TOKEN unset).</p>
-        {{ else }}
-        <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
-          {{ range $c }}
-          {{ $fn := .String "first_name" }}{{ $ln := .String "last_name" }}{{ $nick := .String "nickname" }}
-          <li class="flex justify-between gap-10">
-            <span class="text-truncate">{{ if or $fn $ln }}{{ $fn }} {{ $ln }}{{ else }}{{ $nick }}{{ end }}</span>
-            {{ if $nick }}<span class="shrink-0 size-h6 color-subdue">{{ $nick }}</span>{{ end }}
-          </li>
-          {{ end }}
-        </ul>
-        {{ end }}
 - name: Media
   columns:
   - size: small
@@ -2782,7 +2782,6 @@ pages:
         - argoproj/argo-cd
         - Radarr/Radarr
         - Sonarr/Sonarr
-        - Readarr/Readarr
         - morpheus65535/bazarr
         - Prowlarr/Prowlarr
         - advplyr/audiobookshelf

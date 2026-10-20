@@ -256,8 +256,7 @@ A fleet of self-built [Model Context Protocol](https://modelcontextprotocol.io/)
 | **jetlog-mcp** | `jetlog` flight log | Read/add/analyze flights, parse boarding passes, enrich, airport/airline lookup, statistics |
 | **media-mcp** | Plex, Tautulli, the *arr stack & FileBot | Search libraries, sessions, queues, history, recently-added, indexer stats, and controlled FileBot CLI operations |
 | **clean-audio-mcp** | Whisper (speaches) + ffmpeg/mkvmerge on the media share | Transcribe a movie's dialogue, log profanity, and write a muted "English (Clean)" audio (and redacted subtitle) sidecar that Jellyfin offers as an alternate track |
-| **meerkat-mcp** | Meerkat CRM (REST API) | Contacts, notes, activities, reminders, and relationships — Meerkat is the Monica replacement |
-| **monica-mcp** | Monica CRM (CardDAV/CalDAV) | Contacts, important dates, tasks (via `/dav`, since Monica v5 dropped REST); kept while Monica is still deployed |
+| **meerkat-mcp** | Meerkat CRM (REST API) | Contacts, notes, activities, reminders, and relationships |
 | **nodebyte-mcp** | `nodebyte` inventory | Add/search/update inventory nodes (devices, sites, services), stats, and team listing |
 | **sdr-research MCP** | SDR pipeline API | Query recordings, transcripts, decoded packets, and signal activity |
 
@@ -289,7 +288,7 @@ Apps are grouped under `apps/` by domain. A non-exhaustive map:
 - **social/** — Matrix stack, Mastodon stack, Nitter, Convos
 - **radio/** — sdr-research, adsb-stack, astronomy, ground-station, keeptrack, openhamclock
 - **home/** — Homepage, Homarr, Glance, Homebridge, Scrypted, face-recognition, condo, homeschool, backoffice, hub, nodebyte
-- **misc/** — Fleet (device management, incl. VPP app version refresh), FreshRSS, SearXNG, Wallabag, Listmonk, Postfix (SMTP relay), ntfy, Meerkat, Monica, MISP, IntelOwl, Yeti, CyberChef, Gramps, gibt-es-gott, hermes, raven, watch-badges
+- **misc/** — Fleet (device management, incl. VPP app version refresh), FreshRSS, SearXNG, Wallabag, Listmonk, Postfix (SMTP relay), ntfy, Meerkat, MISP, IntelOwl, Yeti, CyberChef, Gramps, gibt-es-gott, hermes, raven, watch-badges
 
 ---
 

@@ -548,41 +548,6 @@ spec:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: brain}}
 
 ---
-# ======================== MONICA ========================
-# Has internal mysql + postgres → needs intra-namespace ingress
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: default-deny, namespace: monica}
-spec: {podSelector: {}, policyTypes: [Ingress, Egress]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-all-egress, namespace: monica}
-spec: {podSelector: {}, policyTypes: [Egress], egress: [{}]}
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-intra-namespace, namespace: monica}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress: [{from: [{podSelector: {}}]}]
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata: {name: allow-ingress, namespace: monica}
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: authentik}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: uptime-kuma}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}
-        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monica-mcp}}
-
----
 # ======================== NITTER ========================
 # Has internal redis → needs intra-namespace ingress
 apiVersion: networking.k8s.io/v1
