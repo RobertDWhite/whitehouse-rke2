@@ -42,15 +42,6 @@ configMapGenerator:
   - name: fleet-gitops-apple-declarations
     files:
       - gitops/lib/apple/declarations/watchos-enrollment.json
-  - name: fleet-gitops-apple-software
-    files:
-      - gitops/lib/apple/software/balena-etcher.package.yml
-  - name: fleet-gitops-windows-profiles
-    files:
-      - gitops/lib/windows/profiles/windows-os-updates.xml
-  - name: fleet-gitops-windows-software
-    files:
-      - gitops/lib/windows/software/1password.package.yml
 
 patches:
   - path: 80-patch-fleet-env.yaml
@@ -91,6 +82,9 @@ images:
     newTag: "v0.20.0"
   - name: busybox
     newTag: "1.38"
+  - name: registry.internal.white.fm/fleetctl-self-hosted
+    newTag: "ae83040f"
+    digest: sha256:06afab051887d4ba7e5267948c2417a30bdb8c5a074b95d2c76d060ef082df2f
   - name: fleetdm/fleet
     newName: ghcr.io/robertdwhite/fleet-self-hosted
     newTag: 5c7976e5e1-amd64
