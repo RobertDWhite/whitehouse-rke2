@@ -6,8 +6,6 @@ settings:
       vulnerabilities: false
     enable_host_users: true
     enable_software_inventory: true
-  secrets:
-  - secret: $FLEET_ENROLL_SECRET_FAMILY_MACOS
 agent_options:
   config:
     options:
@@ -31,5 +29,5 @@ controls:
 policies: []
 reports: []
 software:
-  packages:
-    - path: ../lib/apple/software/balena-etcher.package.yml
+  fleet_maintained_apps:
+    - slug: balenaetcher/darwin
