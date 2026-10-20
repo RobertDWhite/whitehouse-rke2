@@ -1,0 +1,66 @@
+# Mirrors github.com/Wallace-White/customer-context into the Forgejo brain
+# repo under "Wallace and White/" (script: ww-mirror/mirror.sh). Reads GitHub
+# with a read-only deploy key on that one repo; writes as the brain-sync bot.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ww-mirror
+  namespace: brain
+spec:
+  schedule: "*/15 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: ww-mirror
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: mirror
+              image: alpine/git
+              command: [sh, /config/mirror.sh]
+              env:
+                - name: FORGEJO_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: ww-mirror, key: FORGEJO_TOKEN}
+              volumeMounts:
+                - {name: config, mountPath: /config, readOnly: true}
+                - {name: secrets, mountPath: /secrets, readOnly: true}
+                - {name: tmp, mountPath: /tmp}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: 500m, memory: 256Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: config
+              configMap:
+                name: ww-mirror
+            - name: secrets
+              secret:
+                secretName: ww-mirror
+                defaultMode: 0400
+                items:
+                  - {key: deploy-key, path: deploy-key}
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi
