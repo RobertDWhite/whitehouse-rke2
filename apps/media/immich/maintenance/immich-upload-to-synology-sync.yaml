@@ -18,6 +18,9 @@ spec:
     spec:
       backoffLimit: 2
       template:
+        metadata:
+          labels:
+            velero.io/exclude-from-backup: "true"
         spec:
           restartPolicy: OnFailure
           securityContext:
