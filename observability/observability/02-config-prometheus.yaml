@@ -331,6 +331,19 @@ data:
       # =========================
       # glacier namespace metrics
       # =========================
+      - job_name: brain-sync
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [brain]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: brain-sync
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: metrics
+
       - job_name: glacier
         kubernetes_sd_configs:
           - role: endpoints
@@ -1084,6 +1097,25 @@ data:
               severity: critical
             annotations:
               summary: "Velero schedule {{ $labels.schedule }} has had no successful backup since the server started"
+
+      - name: cluster.brain-sync
+        rules:
+          - alert: BrainSyncStale
+            expr: |
+              (time() - max by (source) (brain_sync_last_success_timestamp_seconds)) > 1800
+            for: 15m
+            labels:
+              severity: warning
+            annotations:
+              summary: "brain-sync has not mirrored {{ $labels.source }} into the Forgejo brain repo for over 30 minutes"
+              description: "Check: kubectl -n brain logs deploy/brain-sync --tail=50"
+          - alert: BrainSyncDown
+            expr: absent(up{job="brain-sync"} == 1)
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "brain-sync (Meerkat/Riffado -> Forgejo brain repo) is not running or not scraped"
 
       - name: cluster.certificates
         interval: 15m

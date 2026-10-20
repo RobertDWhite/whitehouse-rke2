@@ -1,0 +1,78 @@
+# brain-sync: mirrors Meerkat contacts and Riffado recordings into the Forgejo
+# repo WhiteHouse/brain as Markdown. Script lives in sync/brain_sync.py.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brain-sync
+  namespace: brain
+  labels:
+    app: brain-sync
+spec:
+  replicas: 1
+  # Two copies would race each other's commits.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: brain-sync
+  template:
+    metadata:
+      labels:
+        app: brain-sync
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: brain-sync
+          image: python
+          command: [python3, -u, /app/brain_sync.py]
+          ports:
+            - name: metrics
+              containerPort: 8080
+          env:
+            - name: TZ
+              value: America/New_York
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: BRAIN_REPO
+              value: WhiteHouse/brain
+            - name: FORGEJO_URL
+              value: http://forgejo.forgejo.svc.cluster.local
+            - name: MEERKAT_URL
+              value: http://meerkat.meerkat.svc.cluster.local
+            - name: RIFFADO_URL
+              value: http://riffado.riffado.svc.cluster.local:3000
+            - name: SYNC_INTERVAL_SECONDS
+              value: "120"
+          envFrom:
+            - secretRef:
+                name: brain-sync-env
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+          readinessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 10
+            periodSeconds: 60
+            failureThreshold: 5
+          resources:
+            requests: {cpu: 10m, memory: 48Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: script
+          configMap:
+            name: brain-sync-script

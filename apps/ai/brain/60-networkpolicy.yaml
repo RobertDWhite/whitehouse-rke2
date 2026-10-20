@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: brain
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Prometheus scrapes /metrics; Riffado and Forgejo webhooks may POST /trigger.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-brain-sync
+  namespace: brain
+spec:
+  podSelector:
+    matchLabels:
+      app: brain-sync
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: riffado
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+      ports:
+        - port: 8080
+          protocol: TCP

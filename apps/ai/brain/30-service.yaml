@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: brain-sync
+  namespace: brain
+  labels:
+    app: brain-sync
+spec:
+  selector:
+    app: brain-sync
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics
