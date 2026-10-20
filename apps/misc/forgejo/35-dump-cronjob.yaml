@@ -45,7 +45,7 @@ spec:
                   umask 077
                   mkdir -p /backups/tmp
                   stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-                  forgejo dump --config /etc/gitea/app.ini --work-path /var/lib/gitea \
+                  forgejo dump --config /var/lib/gitea/custom/conf/app.ini --work-path /var/lib/gitea \
                     --tempdir /backups/tmp --skip-log --type tar.gz \
                     --file "/backups/forgejo-${stamp}.tar.gz"
                   find /backups -maxdepth 1 -type f -name 'forgejo-*.tar.gz' -mtime +14 -delete
@@ -57,10 +57,6 @@ spec:
                 - name: data
                   mountPath: /var/lib/gitea
                   subPath: data
-                  readOnly: true
-                - name: data
-                  mountPath: /etc/gitea
-                  subPath: config
                   readOnly: true
                 - name: nas
                   mountPath: /backups
