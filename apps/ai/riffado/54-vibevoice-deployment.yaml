@@ -11,8 +11,9 @@
 # has no VRAM isolation, so the unload-ollama init container evicts whatever
 # ollama-5090 has resident (up to 2h keep-alive) before this starts.
 #
-# Image built on node-50 with BuildKit and imported straight into its containerd
-# (registry.internal.white.fm is too full for it), hence imagePullPolicy: Never.
+# Image built on node-50 with BuildKit, imported straight into its containerd and
+# pinned against image GC (the registry is too full for it), hence
+# imagePullPolicy: Never.
 # See README.md to rebuild.
 apiVersion: apps/v1
 kind: Deployment
@@ -63,7 +64,7 @@ spec:
             - {name: HOME, value: /tmp}
           volumeMounts:
             - {name: models, mountPath: /cache/huggingface}
-            - {name: tmp, mountPath: /tmp}
+            - {name: models, mountPath: /tmp, subPath: tmp}
           resources:
             requests: {cpu: 250m, memory: 512Mi}
             limits: {memory: 2Gi}
@@ -134,7 +135,9 @@ spec:
             failureThreshold: 4
           volumeMounts:
             - {name: models, mountPath: /cache/huggingface}
-            - {name: tmp, mountPath: /tmp}
+            # Uploaded audio and decoded PCM for one request. On the NVMe PVC:
+            # node-50's root disk (where emptyDirs live) is ~89% full.
+            - {name: models, mountPath: /tmp, subPath: tmp}
             - {name: shm, mountPath: /dev/shm}
           securityContext:
             allowPrivilegeEscalation: false
@@ -144,11 +147,6 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: vibevoice-models
-        # Uploaded audio and the decoded 16 kHz PCM (~230 MB per hour) live here
-        # for the length of one request.
-        - name: tmp
-          emptyDir:
-            sizeLimit: 10Gi
         - name: shm
           emptyDir:
             medium: Memory

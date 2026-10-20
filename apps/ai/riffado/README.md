@@ -97,5 +97,9 @@ buildctl-daemonless.sh build --frontend=dockerfile.v0 \
 
 Then on node-50:
 `ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import vibevoice.tar`
-(`ctr` lives under `/var/lib/rancher/rke2/data/*/bin/`). Remove the tarball and
-BuildKit state afterwards, and update the tag in `54-vibevoice-deployment.yaml`.
+(`ctr` lives under `/var/lib/rancher/rke2/data/*/bin/`), then pin it so kubelet
+image GC leaves it alone while the Deployment is at 0 replicas:
+`ctr ... images label <image> io.cri-containerd.pinned=pinned`. Remove the
+tarball and BuildKit state afterwards, and update the tag in
+`54-vibevoice-deployment.yaml`. node-50's root disk was 89% full after the
+first import (2026-10-20), and GC starts at 85%.
