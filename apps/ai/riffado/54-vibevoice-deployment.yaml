@@ -1,6 +1,6 @@
 # Speaker-aware transcription for Riffado: Microsoft VibeVoice-ASR behind an
 # OpenAI-compatible /v1/audio/transcriptions, from
-# https://github.com/swallace17/vibevoice-k8s (f5fb110). Recordings over 35 min
+# https://github.com/swallace17/vibevoice-k8s (f5fb110). Recordings over 12 min
 # are split near pauses and speakers are matched across chunks.
 #
 # On demand only: replicas is 0 here and Argo ignores /spec/replicas, so it is
@@ -110,6 +110,11 @@ spec:
             - {name: HOME, value: /tmp}
             - {name: NUMBA_CACHE_DIR, value: /tmp/numba}
             - {name: HF_HUB_OFFLINE, value: "1"}
+            # 10-minute chunks instead of the upstream 30/35. The 5090 is shared, so a
+            # 30-minute chunk ran out of room, spent ~15 min failing, then split
+            # into thirds anyway (2026-10-20, with ollama-5090 holding a vision model).
+            - {name: VIBEVOICE_CHUNK_TARGET_SECONDS, value: "600"}
+            - {name: VIBEVOICE_CHUNK_MAX_SECONDS, value: "720"}
             - name: TRANSCRIPTION_API_KEY
               valueFrom:
                 secretKeyRef: {name: riffado-env, key: VIBEVOICE_API_KEY}
