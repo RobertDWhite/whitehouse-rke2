@@ -9,18 +9,18 @@ data:
     http {
       log_format ollama '$remote_addr [$time_local] "$request" $status $request_time';
 
-      # The Mac mini (M4 Pro 48GB, MiniTheertWhite, brew ollama via launchd
-      # fm.white.ollama) is primary: qwen3.8:27b responds reliably there. The
-      # 5090 is backup while node-50's disk pressure and model latency are
-      # investigated. The Spark's Ollama was retired 2026-10-14; the GB10 now
-      # runs Qwen3.8-Flash-Next (apps/ai/qwen-flash).
-      # max_fails=0 on the backup: never eject it. Otherwise a cold-model load
-      # (briefly not accepting connections) trips the default max_fails=1 and,
-      # with the primary down, every queued request gets an instant
-      # "no live upstreams" 502 for the fail_timeout window.
+      # The 5090 (node-50) is primary. The Mac mini (M4 Pro 48GB, MiniTheertWhite,
+      # brew ollama via launchd fm.white.ollama) is backup and also serves the
+      # models only it has (qwen3.8:27b): the 5090 answers those with a 404 and
+      # the request falls through (see http_404 below). The Spark's Ollama was
+      # retired 2026-10-14; the GB10 now runs Qwen3.8-Flash-Next (apps/ai/qwen-flash).
+      # max_fails=0 on both: never eject a backend. Otherwise a cold-model load
+      # (briefly not accepting connections) trips the default max_fails=1 and
+      # every queued request gets an instant "no live upstreams" 502 for the
+      # fail_timeout window.
       upstream ollama_backends {
-        server 10.100.0.70:11434 max_fails=0;
-        server ollama-5090.ai-stack.svc.cluster.local:11434 backup max_fails=0;
+        server ollama-5090.ai-stack.svc.cluster.local:11434 max_fails=0;
+        server 10.100.0.70:11434 backup max_fails=0;
       }
 
       server {
@@ -36,14 +36,14 @@ data:
           # (e.g. 5090 CUDA OOM when another pod holds the VRAM) answers the
           # POST with a 500; without these nginx never retries a POST on a
           # backup and every LLM consumer fails.
-          # http_404: a model pulled only on the 5090 (e.g. qwen2.5vl:7b for the
-          # HA doorbell) gets "model not found" 404 from the Mac; fall through to
-          # the 5090 instead of returning it. 404s don't count toward max_fails.
+          # http_404: a model the 5090 doesn't have (e.g. qwen3.8:27b) gets
+          # "model not found" 404; fall through to the Mac instead of returning
+          # it. 404s don't count toward max_fails.
           proxy_next_upstream error timeout http_404 http_500 http_502 http_503 http_504 non_idempotent;
           proxy_next_upstream_tries 3;
           proxy_connect_timeout  5s;
-          # Keep the long cold-load window because requests can fall back to
-          # the 5090, whose model files are on network-backed storage.
+          # Keep the long cold-load window: the 5090's model files are on
+          # network-backed storage, so a cold load can take minutes.
           proxy_read_timeout    900s;
           proxy_send_timeout    900s;
           proxy_set_header Host $host;
