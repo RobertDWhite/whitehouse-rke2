@@ -91,10 +91,11 @@ spec:
               value: "false"
             - name: BACKGROUND_SYNC_ENABLED
               value: "true"
-            # Whisper on the 5090 handles a one-hour recording in a minute or
-            # two, but keep the upstream 60 min ceiling for long meetings.
+            # Whisper does an hour of audio in a minute or two, but VibeVoice
+            # works through a multi-hour recording in one synchronous request;
+            # match its six-hour processing cap.
             - name: WHISPER_REQUEST_TIMEOUT_MS
-              value: "3600000"
+              value: "21600000"
             - name: TZ
               value: America/New_York
           volumeMounts:

@@ -78,6 +78,26 @@ spec:
         - port: 8000
           protocol: TCP
 ---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-vibevoice
+  namespace: riffado
+spec:
+  podSelector:
+    matchLabels:
+      app: vibevoice
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: riffado
+      ports:
+        - port: 8765
+          protocol: TCP
+---
 # brain-sync reads recordings over the v1 API (read-only API key) and
 # mirrors them into the Forgejo brain repo.
 apiVersion: networking.k8s.io/v1
