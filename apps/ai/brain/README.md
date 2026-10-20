@@ -20,6 +20,14 @@ change-files API (author `brain-sync`). It only ever touches `Meerkat/` and
 the top; edit the source app, not the note. A contact or recording deleted at
 the source is deleted from the repo.
 
+It also publishes in the other direction: each folder `Pages/<site>/` in the
+repo is the source of truth for `https://<site>.pages.internal.white.fm/`.
+When a folder's git tree changes, brain-sync deploys it through the pages MCP
+`deploy_site` tool (replacing the whole site), and it redeploys every 30 minutes
+so edits made straight to the pages host don't stick. Removing a folder does not
+delete the site. Sites without a folder are untouched and still managed over
+MCP. The first site moved this way is `career`.
+
 Riffado recordings are only re-fetched when their `updated_at` or
 transcript/summary flags change (tracked in `Riffado/.index.json`), with a full
 re-render every 6 hours. `POST /trigger` on the service (port 8080) runs a cycle
@@ -32,6 +40,8 @@ show up within seconds instead of within 2 minutes.
 - `FORGEJO_TOKEN`: token of the Forgejo user `brain-sync` (restricted account,
   write collaborator on `WhiteHouse/brain` only, scope `write:repository`).
 - `MEERKAT_TOKEN`: Meerkat API token (same one meerkat-mcp uses).
+- `PAGES_MCP_TOKEN`: the pages MCP bearer token (same value as
+  `apps/ai/pages/11-secret.sops.yaml`).
 - `RIFFADO_TOKEN`: read-only Riffado API key named "brain-sync (Forgejo brain
   repo)"; revoke it under Riffado Settings -> API Keys.
 
