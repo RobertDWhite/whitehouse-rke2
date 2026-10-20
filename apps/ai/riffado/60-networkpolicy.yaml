@@ -77,3 +77,28 @@ spec:
       ports:
         - port: 8000
           protocol: TCP
+---
+# brain-sync reads recordings over the v1 API (read-only API key) and
+# mirrors them into the Forgejo brain repo.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-brain-sync
+  namespace: riffado
+spec:
+  podSelector:
+    matchLabels:
+      app: riffado
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brain
+          podSelector:
+            matchLabels:
+              app: brain-sync
+      ports:
+        - port: 3000
+          protocol: TCP
