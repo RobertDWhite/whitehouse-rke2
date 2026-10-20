@@ -1,0 +1,18 @@
+# VibeVoice-ASR weights (16.2 GiB) + the Qwen tokenizer. local-path puts this on
+# node-50's NVMe (/opt/local-path-provisioner), not its nearly full root disk.
+# The worker reloads the model from here on every request, so it has to be
+# node-local: over Longhorn each transcription would start with a network read.
+# WaitForFirstConsumer: stays Pending until vibevoice is first scaled up.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vibevoice-models
+  namespace: riffado
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 40Gi

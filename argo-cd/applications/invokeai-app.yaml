@@ -19,3 +19,12 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # invokeai is scaled up by hand when wanted; keep Argo off its replicas.
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: invokeai
+      namespace: invokeai
+      jsonPointers:
+        - /spec/replicas

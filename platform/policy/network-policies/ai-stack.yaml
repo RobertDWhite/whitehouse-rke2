@@ -232,5 +232,13 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: openclaw
+        # Riffado's VibeVoice unloads ollama-5090's models before it starts so
+        # both don't need the 5090's VRAM at once.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: riffado
+          podSelector:
+            matchLabels:
+              app: vibevoice
       ports:
         - {protocol: TCP, port: 11434}
