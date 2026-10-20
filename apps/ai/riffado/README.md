@@ -50,8 +50,9 @@ matters, `vibevoice` runs Microsoft's
 [VibeVoice-ASR](https://huggingface.co/microsoft/VibeVoice-ASR) through
 [swallace17/vibevoice-k8s](https://github.com/swallace17/vibevoice-k8s) at
 `f5fb110`. It returns `[hh:mm:ss] Speaker N` blocks in the transcript text. It
-splits recordings over 35 minutes near pauses and matches voices across the
-chunks. Speaker numbers are anonymous and apply to one recording only.
+splits recordings over 12 minutes into ~10-minute chunks near pauses and matches
+voices across the chunks. Speaker numbers are anonymous and apply to one
+recording only.
 
 It is **off by default** (Argo ignores its replicas). Its model peaks at
 ~21.5 GiB of VRAM on the 5090 alongside everything else on node-50. Plaud sync
