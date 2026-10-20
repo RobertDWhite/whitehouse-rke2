@@ -29,6 +29,8 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
+            # Lets the non-root container read the deploy key (mode 0440, group 1000).
+            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -58,7 +60,7 @@ spec:
             - name: secrets
               secret:
                 secretName: ww-mirror
-                defaultMode: 0400
+                defaultMode: 0440
                 items:
                   - {key: deploy-key, path: deploy-key}
             - name: tmp
