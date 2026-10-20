@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: forgejo-nas
+  namespace: forgejo
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: pv-forgejo-nas
+  resources:
+    requests:
+      storage: 1Ti
