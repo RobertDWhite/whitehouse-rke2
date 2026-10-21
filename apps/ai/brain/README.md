@@ -6,17 +6,19 @@ Forgejo repo `WhiteHouse/brain` (https://git.internal.white.fm/WhiteHouse/brain)
 ## brain-sync
 
 `sync/brain_sync.py` (standard-library Python, shipped as a ConfigMap) mirrors
-two sources into that repo every 2 minutes:
+three sources into that repo (Meerkat and Riffado every 2 minutes, HubSpot
+every 10):
 
 | Source | Repo path | What |
 | --- | --- | --- |
 | Meerkat | `Meerkat/People/<Name>.md` | One note per contact: details, relationships (as `[[wikilinks]]`), notes, activities, reminders. |
 | Riffado | `Riffado/<year>/<date> <title>.md` | One note per recording: summary, key points, action items, full transcript. |
+| HubSpot | `<hubspot dir>{Companies,Contacts,Deals}/<Name>.md` | One note per record, linked to each other, with a timeline of logged notes, calls, meetings and tasks. Meeting passwords and dial-in PINs are redacted. |
 
 Each cycle renders every file it owns, compares git blob hashes with the repo,
 and pushes only the differences as a single commit through Forgejo's
-change-files API (author `brain-sync`). It only ever touches `Meerkat/` and
-`Riffado/`; everything else in the repo is yours. Generated files say so at
+change-files API (author `brain-sync`). It only ever touches `Meerkat/`,
+`Riffado/` and `<hubspot dir>`; everything else in the repo is yours. Generated files say so at
 the top; edit the source app, not the note. A contact or recording deleted at
 the source is deleted from the repo.
 
@@ -27,6 +29,19 @@ When a folder's git tree changes, brain-sync deploys it through the pages MCP
 so edits made straight to the pages host don't stick. Removing a folder does not
 delete the site. Sites without a folder are untouched and still managed over
 MCP.
+
+Recordings can be tied to a business or project with `.brain/routes.json` in
+the brain repo (edit it there, no deploy needed):
+
+```json
+[{"note": "<folder>/<hub note>",
+  "match": ["<regex>"], "ids": ["<riffado id>"],
+  "tags": ["<tag>"]}]
+```
+
+A recording whose title, summary or transcript matches a `match` regex
+(case-insensitive), or whose id is listed, gets a `**Related:**` link to
+`note` and the rule's tags. Changing the file re-renders every recording once.
 
 Riffado recordings are only re-fetched when their `updated_at` or
 transcript/summary flags change (tracked in `Riffado/.index.json`), with a full
@@ -42,6 +57,10 @@ show up within seconds instead of within 2 minutes.
 - `MEERKAT_TOKEN`: Meerkat API token (same one meerkat-mcp uses).
 - `PAGES_MCP_TOKEN`: the pages MCP bearer token (same value as
   `apps/ai/pages/11-secret.sops.yaml`).
+- `HUBSPOT_TOKEN`: HubSpot service key for the portal (CRM
+  read scopes: contacts, companies, deals, notes, calls, meetings, tasks).
+  Copy in 1Password vault RKE2, "hubspot service token". Rotate it in HubSpot
+  under Development -> Keys -> Service keys.
 - `RIFFADO_TOKEN`: read-only Riffado API key named "brain-sync (Forgejo brain
   repo)"; revoke it under Riffado Settings -> API Keys.
 
@@ -65,7 +84,8 @@ a private GitHub repo into the brain repo under
 - It checks the upstream head with `git ls-remote` and does nothing unless it
   moved past the commit recorded in `<mirror dir>/.source-commit`.
 - On a change it replaces the folder with the upstream tree (minus `.git`,
-  `.github` and `.DS_Store`) and pushes one commit as `ww-mirror`. Only that
+  `.github` and `.DS_Store`), leaving `HubSpot/` alone (brain-sync renders it;
+  see `KEEP_DIRS` in the script), and pushes one commit as `ww-mirror`. Only that
   folder is checked out (sparse, blobless clone), so nothing else in the repo
   is touched.
 - GitHub access: read-only deploy key "whitehouse-rke2 brain mirror
