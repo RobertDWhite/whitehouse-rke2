@@ -1,16 +1,14 @@
 #!/bin/sh
 # Mirror github.com/Wallace-White/customer-context into the Forgejo brain repo
-# under "Wallace and White/". One commit per upstream change; no-op otherwise.
+# under "Wallace and White/Customer Context/". One commit per upstream change; no-op otherwise.
 set -eu
 umask 077
 
 SRC="${SRC_REPO:-git@github.com:Wallace-White/customer-context.git}"
 SRC_BRANCH="${SRC_BRANCH:-main}"
-DEST="${DEST_DIR:-Wallace and White}"
+DEST="${DEST_DIR:-Wallace and White/Customer Context}"
 BRAIN="${BRAIN_URL:-http://forgejo.forgejo.svc.cluster.local/WhiteHouse/brain.git}"
 WORK="${WORK_DIR:-/tmp/work}"
-# Subfolders other writers own (brain-sync renders HubSpot here); never replaced.
-KEEP="${KEEP_DIRS:-HubSpot}"
 
 export HOME="$WORK/home"
 mkdir -p "$HOME"
@@ -38,16 +36,9 @@ fi
 
 git clone -q --depth 1 --branch "$SRC_BRANCH" "$SRC" "$WORK/src"
 subject=$(git -C "$WORK/src" log -1 --format=%s)
+rm -rf "$DEST"
 mkdir -p "$DEST"
-for entry in "$DEST"/* "$DEST"/.[!.]*; do
-  [ -e "$entry" ] || continue
-  case " $KEEP " in *" ${entry##*/} "*) continue ;; esac
-  rm -rf "$entry"
-done
-excludes=""
-for k in $KEEP; do excludes="$excludes --exclude=./$k"; done
-# shellcheck disable=SC2086
-(cd "$WORK/src" && tar --exclude=./.git --exclude=./.github --exclude='*.DS_Store' $excludes -cf - .) | tar -xf - -C "$DEST"
+(cd "$WORK/src" && tar --exclude=./.git --exclude=./.github --exclude='*.DS_Store' -cf - .) | tar -xf - -C "$DEST"
 cat > "$DEST/.source-commit" <<EOT
 $head
 EOT
