@@ -56,16 +56,37 @@ recording only.
 
 It is **off by default** (Argo ignores its replicas). Its model peaks at
 ~21.5 GiB of VRAM on the 5090 alongside everything else on node-50. Plaud sync
-keeps going to speaches. To transcribe a recording with it:
+keeps going to speaches. To transcribe recordings with it, run
+[`scripts/vibevoice-batch.py`](scripts/vibevoice-batch.py) from a machine
+with cluster access:
 
-1. `kubectl -n riffado scale deployment/vibevoice --replicas=1` and wait for
-   Ready. The `unload-ollama` init container evicts ollama-5090's resident
-   model first. The first start downloads ~16 GiB of weights to the NVMe.
-2. In Riffado, set **VibeVoice** as the default transcription provider, click
-   **Re-transcribe** on the recording, then set speaches back as default.
-   v0.6.4's re-transcribe API takes a `providerId`, but it needs a browser
-   session and the UI has no picker.
-3. `kubectl -n riffado scale deployment/vibevoice --replicas=0`.
+```sh
+kubectl -n ai-stack port-forward svc/ollama-5090 11434:11434 &
+python3 apps/ai/riffado/scripts/vibevoice-batch.py              # all not yet on VibeVoice
+python3 apps/ai/riffado/scripts/vibevoice-batch.py <id> [<id>]  # these, even if done
+```
+
+It scales vibevoice up, transcribes each recording, re-runs every summary,
+then scales vibevoice back to 0. The first start downloads ~16 GiB of
+weights to the NVMe. Riffado lists these transcripts with provider `browser`
+and model `vibevoice-asr`.
+
+**Why not Riffado's Re-transcribe button:** v0.6.4 runs on Bun, and its
+provider requests are cut off after ~4-5 minutes whatever
+`WHISPER_REQUEST_TIMEOUT_MS` says. The OpenAI SDK then retries into
+VibeVoice's single-request lock (HTTP 429) and the job is lost. The button
+only works for recordings of about 10 minutes or less. The script instead
+runs a detached Bun job in the Riffado pod that posts the audio to VibeVoice
+with no timeout and saves the result through Riffado's own
+`transcription/from-browser` endpoint. Summaries hit the same cutoff, but the
+SDK's retry usually succeeds; a 90-minute summary took 14 minutes
+(2026-10-20).
+
+Throughput on 2026-10-20, sharing the 5090: 16-57 min recordings took 2-7 min
+each. Chunks where the model loops until it hits its output limit take ~15 min
+before they are split and retried; 38 and 90 min recordings took 31 and 29 min.
+Long recordings over-split speakers (11 labels for 90 min), because
+cross-chunk matching only merges confident matches.
 
 Riffado provider (one-time): Custom, base URL
 `http://vibevoice.riffado.svc.cluster.local/v1`, model **`vibevoice-asr`**
