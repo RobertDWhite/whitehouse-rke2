@@ -43,6 +43,11 @@ A recording whose title, summary or transcript matches a `match` regex
 (case-insensitive), or whose id is listed, gets a `**Related:**` link to
 `note` and the rule's tags. Changing the file re-renders every recording once.
 
+`.brain/corrections.json` fixes names that transcription keeps getting wrong
+(`{"<misheard>": "<correct>"}`): whole-word, case-insensitive replacements
+applied to recording titles, summaries and transcripts before rendering and
+routing.
+
 Riffado recordings are only re-fetched when their `updated_at` or
 transcript/summary flags change (tracked in `Riffado/.index.json`), with a full
 re-render every 6 hours. `POST /trigger` on the service (port 8080) runs a cycle

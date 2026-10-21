@@ -71,6 +71,8 @@ HUBSPOT_DIR = "<hubspot dir>"
 # Repo-owned routing rules: recordings matching a rule link to that rule's hub
 # note (e.g. a business folder) and get its tags. Edit the file in the repo.
 ROUTES_FILE = ".brain/routes.json"
+# Repo-owned fixes for words transcription keeps getting wrong: {"wrong": "right"}.
+CORRECTIONS_FILE = ".brain/corrections.json"
 SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 log = logging.getLogger("brain-sync")
@@ -405,6 +407,43 @@ def load_routes():
     return compiled, hashlib.sha1(raw.encode()).hexdigest()[:12]
 
 
+def load_corrections():
+    """[(compiled regex, replacement)] from CORRECTIONS_FILE, plus a digest for change detection."""
+    raw = read_raw(CORRECTIONS_FILE)
+    if not raw:
+        return [], ""
+    try:
+        pairs = [(re.compile(r"\b" + re.escape(wrong) + r"\b", re.I), right)
+                 for wrong, right in json.loads(raw).items() if wrong and right]
+    except (ValueError, AttributeError) as e:
+        log.warning("ignoring %s: %s", CORRECTIONS_FILE, e)
+        return [], ""
+    return pairs, hashlib.sha1(raw.encode()).hexdigest()[:12]
+
+
+def correct(text, corrections):
+    for rx, right in corrections:
+        text = rx.sub(lambda _m: right, text)
+    return text
+
+
+def correct_recording(d, corrections):
+    """Apply corrections to the title, summary and transcript before rendering."""
+    if not corrections:
+        return d
+    d = dict(d, title=correct(d.get("title") or "", corrections) or d.get("title"))
+    s = dict(d.get("summary") or {})
+    if s.get("text"):
+        s["text"] = correct(s["text"], corrections)
+    for k in ("key_points", "action_items"):
+        if s.get(k):
+            s[k] = [correct(x, corrections) for x in s[k]]
+    t = dict(d.get("transcript") or {})
+    if t.get("text"):
+        t["text"] = correct(t["text"], corrections)
+    return dict(d, summary=s or d.get("summary"), transcript=t or d.get("transcript"))
+
+
 def route_links(routes, rid, *texts):
     hay = "\n".join(t for t in texts if t)
     hits = [r for r in routes if rid in (r.get("ids") or []) or any(rx.search(hay) for rx in r["_re"])]
@@ -459,13 +498,14 @@ def render_riffado(current_files, full):
     except ValueError:
         index = {}
     routes, routes_sig = load_routes()
+    corrections, corrections_sig = load_corrections()
     recs = list_recordings()
     paths = assign_paths(recs, recording_base, lambda r: r["id"], RIFFADO_DIR)
     files, keep, new_index = {}, set(), {}
     fetched = 0
     for r in recs:
-        # Editing the routes re-renders every recording once.
-        path, sig = paths[r["id"]], f"{recording_sig(r)}|{routes_sig}"
+        # Editing the routes or corrections re-renders every recording once.
+        path, sig = paths[r["id"]], f"{recording_sig(r)}|{routes_sig}|{corrections_sig}"
         prev = index.get(r["id"]) or {}
         if not full and prev.get("sig") == sig and prev.get("path") == path and path in current_files:
             keep.add(path)
@@ -473,7 +513,7 @@ def render_riffado(current_files, full):
             detail = riffado_get(f"/recordings/{r['id']}")
             if not detail:
                 continue
-            files[path] = render_recording(detail, routes)
+            files[path] = render_recording(correct_recording(detail, corrections), routes)
             fetched += 1
         new_index[r["id"]] = {"path": path, "sig": sig}
     files[RIFFADO_INDEX] = json.dumps(new_index, indent=1, sort_keys=True) + "\n"
