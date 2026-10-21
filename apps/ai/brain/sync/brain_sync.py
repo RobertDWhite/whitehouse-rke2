@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""brain-sync: mirror Meerkat and Riffado into the Forgejo brain repo as Markdown.
+"""brain-sync: mirror Meerkat, Riffado and HubSpot into the Forgejo brain repo as Markdown.
 
 Every cycle it renders the full set of files it owns (everything under
-Meerkat/ and Riffado/), compares git blob hashes against the repo, and pushes
-only the differences as one commit through Forgejo's change-files API. Files
-outside those two folders are never touched.
+Meerkat/, Riffado/ and Wallace and White/HubSpot/), compares git blob hashes
+against the repo, and pushes only the differences as one commit through
+Forgejo's change-files API. Files outside those folders are never touched.
 
 Standard library only, so it runs on the stock python image.
 """
 
 import base64
 import hashlib
+import html
 import json
 import logging
 import os
@@ -51,6 +52,11 @@ PAGES_MCP_TOKEN = os.environ.get("PAGES_MCP_TOKEN", "")
 # Redeploy unchanged sites this often so edits made straight to the pages host
 # don't stick: the repo always wins.
 PAGES_REDEPLOY_SECONDS = int(os.environ.get("PAGES_REDEPLOY_SECONDS", "1800"))
+# HubSpot (Wallace & White portal), read with a service key. A full pull is ~25
+# requests, so it simply re-renders everything every HUBSPOT_INTERVAL_SECONDS.
+HUBSPOT_URL = os.environ.get("HUBSPOT_URL", "https://api.hubapi.com").rstrip("/")
+HUBSPOT_TOKEN = os.environ.get("HUBSPOT_TOKEN", "")
+HUBSPOT_INTERVAL = int(os.environ.get("HUBSPOT_INTERVAL_SECONDS", "600"))
 MAX_COMMIT_BYTES = int(os.environ.get("MAX_COMMIT_BYTES", str(4 * 1024 * 1024)))
 DRY_RUN = os.environ.get("DRY_RUN", "") == "1"
 RUN_ONCE = os.environ.get("RUN_ONCE", "") == "1"
@@ -61,13 +67,17 @@ MEERKAT_DIR = "Meerkat"
 RIFFADO_DIR = "Riffado"
 RIFFADO_INDEX = f"{RIFFADO_DIR}/.index.json"
 PAGES_DIR = "Pages"
+HUBSPOT_DIR = "Wallace and White/HubSpot"
+# Repo-owned routing rules: recordings matching a rule link to that rule's hub
+# note (e.g. a business folder) and get its tags. Edit the file in the repo.
+ROUTES_FILE = ".brain/routes.json"
 SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 log = logging.getLogger("brain-sync")
 
 STATE = {
-    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0},
-    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0},
+    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0},
+    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0},
     "files_written": 0,
     "commits": 0,
 }
@@ -381,11 +391,35 @@ def recording_base(r):
     return f"{day[:4]}/{day} {safe_name(title)}"
 
 
-def render_recording(d):
+def load_routes():
+    """Rules from ROUTES_FILE: [{"note": path, "match": [regex...], "ids": [...], "tags": [...]}]."""
+    raw = read_raw(ROUTES_FILE)
+    if not raw:
+        return [], ""
+    try:
+        rules = json.loads(raw)
+        compiled = [dict(r, _re=[re.compile(m, re.I) for m in r.get("match") or []]) for r in rules if r.get("note")]
+    except (ValueError, re.error, AttributeError) as e:
+        log.warning("ignoring %s: %s", ROUTES_FILE, e)
+        return [], ""
+    return compiled, hashlib.sha1(raw.encode()).hexdigest()[:12]
+
+
+def route_links(routes, rid, *texts):
+    hay = "\n".join(t for t in texts if t)
+    hits = [r for r in routes if rid in (r.get("ids") or []) or any(rx.search(hay) for rx in r["_re"])]
+    links = [f"[[{r['note'].removesuffix('.md')}|{r['note'].removesuffix('.md').rsplit('/', 1)[-1]}]]" for r in hits]
+    tags = [t for r in hits for t in r.get("tags") or []]
+    return links, tags
+
+
+def render_recording(d, routes=()):
     title = d.get("title") or "Untitled recording"
     t = d.get("transcript") or {}
     s = d.get("summary") or {}
     device = (d.get("device") or {}).get("name")
+    related, extra_tags = route_links(routes, d["id"], title, s.get("text"), "\n".join(s.get("key_points") or []),
+                                      t.get("text"))
     fm = {
         "source": "riffado",
         "riffado_id": d["id"],
@@ -398,10 +432,13 @@ def render_recording(d):
         "summary_model": s.get("model"),
         "updated_at": d.get("updated_at"),
         "url": f"{RIFFADO_UI}/recordings/{d['id']}",
-        "tags": ["recording", "riffado"],
+        "related": related,
+        "tags": ["recording", "riffado"] + extra_tags,
     }
     meta = " · ".join(x for x in [fmt_human(d.get("recorded_at")), fmt_duration(d.get("duration_ms")), device] if x)
     out = [frontmatter(fm), GENERATED.format(src="Riffado"), "", f"# {title}", "", f"*{meta}*"]
+    if related:
+        out += ["", "**Related:** " + ", ".join(related)]
     if clean_block(s.get("text")):
         out += ["", "## Summary", "", clean_block(s.get("text"))]
     if s.get("key_points"):
@@ -421,12 +458,14 @@ def render_riffado(current_files, full):
         index = json.loads(current_files.get(RIFFADO_INDEX) or "{}")
     except ValueError:
         index = {}
+    routes, routes_sig = load_routes()
     recs = list_recordings()
     paths = assign_paths(recs, recording_base, lambda r: r["id"], RIFFADO_DIR)
     files, keep, new_index = {}, set(), {}
     fetched = 0
     for r in recs:
-        path, sig = paths[r["id"]], recording_sig(r)
+        # Editing the routes re-renders every recording once.
+        path, sig = paths[r["id"]], f"{recording_sig(r)}|{routes_sig}"
         prev = index.get(r["id"]) or {}
         if not full and prev.get("sig") == sig and prev.get("path") == path and path in current_files:
             keep.add(path)
@@ -434,7 +473,7 @@ def render_riffado(current_files, full):
             detail = riffado_get(f"/recordings/{r['id']}")
             if not detail:
                 continue
-            files[path] = render_recording(detail)
+            files[path] = render_recording(detail, routes)
             fetched += 1
         new_index[r["id"]] = {"path": path, "sig": sig}
     files[RIFFADO_INDEX] = json.dumps(new_index, indent=1, sort_keys=True) + "\n"
@@ -449,6 +488,252 @@ def render_riffado(current_files, full):
     return files, keep
 
 
+# ------------------------------------------------------------------ HubSpot
+
+
+HS_PROPS = {
+    "companies": ["name", "domain", "website", "industry", "phone", "address", "city", "state", "zip",
+                  "description", "lifecyclestage", "numberofemployees", "annualrevenue", "createdate",
+                  "hs_lastmodifieddate"],
+    "contacts": ["firstname", "lastname", "email", "phone", "mobilephone", "jobtitle", "company",
+                 "lifecyclestage", "hs_lead_status", "city", "state", "website", "createdate", "lastmodifieddate"],
+    "deals": ["dealname", "amount", "dealstage", "pipeline", "closedate", "createdate", "dealtype",
+              "description", "hs_lastmodifieddate"],
+    "notes": ["hs_note_body", "hs_timestamp"],
+    "calls": ["hs_call_title", "hs_call_body", "hs_call_direction", "hs_call_status", "hs_call_duration",
+              "hs_timestamp"],
+    "meetings": ["hs_meeting_title", "hs_meeting_body", "hs_internal_meeting_notes", "hs_meeting_outcome",
+                 "hs_meeting_start_time", "hs_timestamp"],
+    "tasks": ["hs_task_subject", "hs_task_body", "hs_task_status", "hs_task_priority", "hs_timestamp"],
+}
+HS_ASSOC = {
+    "contacts": ["companies", "deals"],
+    "deals": ["companies", "contacts"],
+    "notes": ["contacts", "companies", "deals"],
+    "calls": ["contacts", "companies", "deals"],
+    "meetings": ["contacts", "companies", "deals"],
+    "tasks": ["contacts", "companies", "deals"],
+}
+SECRET_RE = re.compile(r"(?i)\b(password|passcode|pwd|pin|access code)(\s*[:=]\s*)[^\s&<]+")
+
+
+def hubspot_get(path):
+    return http_json("GET", f"{HUBSPOT_URL}{path}", HUBSPOT_TOKEN)
+
+
+def hs_list(obj):
+    out, after = [], None
+    while True:
+        q = f"/crm/v3/objects/{obj}?limit=100&properties={','.join(HS_PROPS[obj])}"
+        if HS_ASSOC.get(obj):
+            q += f"&associations={','.join(HS_ASSOC[obj])}"
+        if after:
+            q += f"&after={after}"
+        data = hubspot_get(q) or {}
+        out.extend(data.get("results") or [])
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        if not after:
+            return out
+
+
+def hs_assoc(rec, kind):
+    ids = [a["id"] for a in ((rec.get("associations") or {}).get(kind) or {}).get("results") or []]
+    return list(dict.fromkeys(ids))
+
+
+def html_to_text(text):
+    if not text:
+        return ""
+    if "<" in text:
+        text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+        text = re.sub(r"(?i)<li[^>]*>", "\n- ", text)
+        text = re.sub(r"(?i)</(p|div|h\d|li|tr|ul|ol|table)>", "\n", text)
+        text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text).replace("\xa0", " ")
+    text = "\n".join(line.strip() for line in text.replace("\r\n", "\n").split("\n"))
+    return SECRET_RE.sub(r"\1\2[redacted]", re.sub(r"\n{3,}", "\n\n", text)).strip()
+
+
+def fmt_money(v):
+    try:
+        return f"${float(v):,.2f}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def hs_engagement(kind, p):
+    """(timestamp, heading, body) for one note/call/meeting/task."""
+    ts = p.get("hs_timestamp") or p.get("hs_meeting_start_time") or ""
+    if kind == "notes":
+        return ts, "Note", html_to_text(p.get("hs_note_body"))
+    if kind == "calls":
+        bits = [x.title() for x in (p.get("hs_call_direction"), p.get("hs_call_status")) if x]
+        if p.get("hs_call_duration"):
+            bits.append(fmt_duration(int(p["hs_call_duration"])))
+        head = f"Call: {p.get('hs_call_title') or 'Call'}" + (f" ({', '.join(bits)})" if bits else "")
+        return ts, head, html_to_text(p.get("hs_call_body"))
+    if kind == "meetings":
+        head = f"Meeting: {p.get('hs_meeting_title') or 'Meeting'}"
+        if p.get("hs_meeting_outcome"):
+            head += f" ({p['hs_meeting_outcome'].title()})"
+        body = html_to_text(p.get("hs_meeting_body"))
+        notes = html_to_text(p.get("hs_internal_meeting_notes"))
+        return ts, head, "\n\n".join(x for x in (body, f"**Internal notes:** {notes}" if notes else "") if x)
+    status = " ✓" if p.get("hs_task_status") == "COMPLETED" else ""
+    return ts, f"Task: {p.get('hs_task_subject') or 'Task'}{status}", html_to_text(p.get("hs_task_body"))
+
+
+def render_timeline(entries):
+    out = []
+    for ts, head, body in sorted(entries, key=lambda e: e[0] or "", reverse=True):
+        out += ["", f"### {fmt_date(ts) or 'Undated'} — {safe_name(head, 140)}"]
+        if body:
+            out += ["", body]
+    return ["", "## Timeline", *out] if out else []
+
+
+def link(path, name):
+    return f"[[{path[:-3]}|{name}]]"
+
+
+def render_hubspot():
+    recs = {obj: hs_list(obj) for obj in HS_PROPS}
+    stages = {}
+    for pipe in (hubspot_get("/crm/v3/pipelines/deals") or {}).get("results") or []:
+        for st in pipe.get("stages") or []:
+            stages[(pipe["id"], st["id"])] = (pipe["label"], st["label"])
+
+    def company_name(c):
+        p = c["properties"]
+        return p.get("name") or p.get("domain") or f"Company {c['id']}"
+
+    def contact_name(c):
+        p = c["properties"]
+        full = " ".join(x.strip() for x in (p.get("firstname"), p.get("lastname")) if x and x.strip())
+        return full or p.get("email") or f"Contact {c['id']}"
+
+    def deal_name(d):
+        return d["properties"].get("dealname") or f"Deal {d['id']}"
+
+    by = {k: {r["id"]: r for r in recs[k]} for k in ("companies", "contacts", "deals")}
+    paths = {
+        "companies": assign_paths(recs["companies"], lambda c: safe_name(company_name(c)), lambda c: c["id"],
+                                  f"{HUBSPOT_DIR}/Companies"),
+        "contacts": assign_paths(recs["contacts"], lambda c: safe_name(contact_name(c)), lambda c: c["id"],
+                                 f"{HUBSPOT_DIR}/Contacts"),
+        "deals": assign_paths(recs["deals"], lambda d: safe_name(deal_name(d)), lambda d: d["id"],
+                              f"{HUBSPOT_DIR}/Deals"),
+    }
+    names = {"companies": company_name, "contacts": contact_name, "deals": deal_name}
+
+    # Associations are fetched from the contact/deal side; mirror them so both ends link.
+    links = {k: {i: {"companies": set(), "contacts": set(), "deals": set()} for i in by[k]} for k in by}
+
+    def connect(a, ai, b, bi):
+        if ai in links[a] and bi in links[b]:
+            links[a][ai][b].add(bi)
+            links[b][bi][a].add(ai)
+
+    for kind in ("contacts", "deals"):
+        for r in recs[kind]:
+            for other in HS_ASSOC[kind]:
+                for oid in hs_assoc(r, other):
+                    connect(kind, r["id"], other, oid)
+
+    timeline = {k: {i: [] for i in by[k]} for k in by}
+    for kind in ("notes", "calls", "meetings", "tasks"):
+        for e in recs[kind]:
+            entry = hs_engagement(kind, e["properties"])
+            for other in ("contacts", "companies", "deals"):
+                for oid in hs_assoc(e, other):
+                    if oid in timeline[other]:
+                        timeline[other][oid].append(entry)
+
+    def link_list(kind, ids):
+        items = sorted((names[kind](by[kind][i]), paths[kind][i]) for i in ids)
+        return [f"- {link(path, name)}" for name, path in items]
+
+    def section(title, kind, ids):
+        return ["", f"## {title}", *link_list(kind, ids)] if ids else []
+
+    def details(pairs):
+        rows = [f"- **{label}:** {val}" for label, val in pairs if val not in (None, "")]
+        return ["", "## Details", *rows] if rows else []
+
+    files = {}
+    for c in recs["companies"]:
+        p, i = c["properties"], c["id"]
+        name = company_name(c)
+        fm = {"source": "hubspot", "hubspot_id": i, "name": name, "domain": p.get("domain"),
+              "industry": p.get("industry"), "lifecycle_stage": p.get("lifecyclestage"),
+              "city": p.get("city"), "state": p.get("state"), "updated_at": p.get("hs_lastmodifieddate"),
+              "url": c.get("url"), "tags": ["company", "hubspot", "wallace-white"]}
+        out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
+        if html_to_text(p.get("description")):
+            out += ["", html_to_text(p.get("description"))]
+        address = ", ".join(x for x in (p.get("address"), p.get("city"), p.get("state"), p.get("zip")) if x)
+        out += details([("Website", p.get("website") or p.get("domain")), ("Phone", p.get("phone")),
+                        ("Address", address), ("Industry", p.get("industry")),
+                        ("Employees", p.get("numberofemployees")), ("Annual revenue", fmt_money(p.get("annualrevenue"))),
+                        ("Lifecycle stage", p.get("lifecyclestage")), ("Created", fmt_date(p.get("createdate")))])
+        out += section("Contacts", "contacts", links["companies"][i]["contacts"])
+        out += section("Deals", "deals", links["companies"][i]["deals"])
+        out += render_timeline(timeline["companies"][i])
+        files[paths["companies"][i]] = "\n".join(out).rstrip() + "\n"
+
+    for c in recs["contacts"]:
+        p, i = c["properties"], c["id"]
+        name = contact_name(c)
+        companies = [names["companies"](by["companies"][x]) for x in links["contacts"][i]["companies"]]
+        fm = {"source": "hubspot", "hubspot_id": i, "name": name, "email": p.get("email"),
+              "phones": [x for x in (p.get("phone"), p.get("mobilephone")) if x], "job_title": p.get("jobtitle"),
+              "organization": (companies[0] if companies else p.get("company")),
+              "lifecycle_stage": p.get("lifecyclestage"), "lead_status": p.get("hs_lead_status"),
+              "updated_at": p.get("lastmodifieddate"), "url": c.get("url"),
+              "tags": ["person", "hubspot", "wallace-white"]}
+        out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
+        role = " · ".join(x for x in (p.get("jobtitle"), p.get("company")) if x)
+        if role:
+            out += ["", role]
+        out += details([("Email", p.get("email")), ("Phone", p.get("phone")), ("Mobile", p.get("mobilephone")),
+                        ("Location", ", ".join(x for x in (p.get("city"), p.get("state")) if x)),
+                        ("Website", p.get("website")), ("Lifecycle stage", p.get("lifecyclestage")),
+                        ("Lead status", p.get("hs_lead_status")), ("Created", fmt_date(p.get("createdate")))])
+        out += section("Companies", "companies", links["contacts"][i]["companies"])
+        out += section("Deals", "deals", links["contacts"][i]["deals"])
+        out += render_timeline(timeline["contacts"][i])
+        files[paths["contacts"][i]] = "\n".join(out).rstrip() + "\n"
+
+    for d in recs["deals"]:
+        p, i = d["properties"], d["id"]
+        name = deal_name(d)
+        pipeline, stage = stages.get((p.get("pipeline"), p.get("dealstage")), (p.get("pipeline"), p.get("dealstage")))
+        fm = {"source": "hubspot", "hubspot_id": i, "name": name, "amount": fmt_money(p.get("amount")),
+              "pipeline": pipeline, "stage": stage, "close_date": fmt_date(p.get("closedate")),
+              "updated_at": p.get("hs_lastmodifieddate"), "url": d.get("url"),
+              "tags": ["deal", "hubspot", "wallace-white", f"deal-stage/{tagify(stage)}"]}
+        out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
+        if html_to_text(p.get("description")):
+            out += ["", html_to_text(p.get("description"))]
+        out += details([("Amount", fmt_money(p.get("amount"))), ("Pipeline", pipeline), ("Stage", stage),
+                        ("Type", p.get("dealtype")), ("Close date", fmt_date(p.get("closedate"))),
+                        ("Created", fmt_date(p.get("createdate")))])
+        out += section("Companies", "companies", links["deals"][i]["companies"])
+        out += section("Contacts", "contacts", links["deals"][i]["contacts"])
+        out += render_timeline(timeline["deals"][i])
+        files[paths["deals"][i]] = "\n".join(out).rstrip() + "\n"
+
+    files[f"{HUBSPOT_DIR}/README.md"] = (
+        "# HubSpot\n\n"
+        "Wallace & White's HubSpot CRM: one note per company, contact and deal, linked\n"
+        "to each other, with the notes, calls, meetings and tasks logged against them.\n"
+        "Written by `brain-sync` (whitehouse-rke2 `apps/ai/brain`) every few minutes;\n"
+        "edit records in HubSpot, not here.\n"
+    )
+    log.info("hubspot: %s", ", ".join(f"{len(v)} {k}" for k, v in recs.items()))
+    return files
+
+
 # --------------------------------------------------------------- repo sync
 
 
@@ -458,13 +743,15 @@ def blob_sha(content: bytes) -> str:
 
 def list_tree(prefix):
     """{path: blob_sha} for everything under prefix on BRANCH ({} if missing)."""
-    root = forgejo("GET", f"/repos/{REPO}/git/trees/{BRANCH}")
-    if not root:
+    tree = forgejo("GET", f"/repos/{REPO}/git/trees/{BRANCH}")
+    if not tree:
         raise RuntimeError(f"branch {BRANCH} of {REPO} not found")
-    entry = next((e for e in root["tree"] if e["path"] == prefix and e["type"] == "tree"), None)
-    if not entry:
-        return {}
-    return {f"{prefix}/{p}": sha for p, sha in tree_blobs(entry["sha"]).items()}
+    for part in prefix.split("/"):
+        entry = next((e for e in tree.get("tree") or [] if e["path"] == part and e["type"] == "tree"), None)
+        if not entry:
+            return {}
+        tree = forgejo("GET", f"/repos/{REPO}/git/trees/{entry['sha']}") or {}
+    return {f"{prefix}/{p}": sha for p, sha in tree_blobs(tree["sha"]).items()}
 
 
 def tree_blobs(tree_sha):
@@ -643,9 +930,20 @@ def sync_pages():
         _pages_deployed[name] = (e["sha"], time.time())
 
 
+_hubspot_last = 0.0
+
+
+def sync_hubspot():
+    global _hubspot_last
+    if time.time() - _hubspot_last < HUBSPOT_INTERVAL:
+        return
+    apply_changes(HUBSPOT_DIR, render_hubspot(), list_tree(HUBSPOT_DIR), label="hubspot")
+    _hubspot_last = time.time()
+
+
 def cycle():
     for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN),
-                              ("pages", sync_pages, PAGES_MCP_TOKEN)):
+                              ("hubspot", sync_hubspot, HUBSPOT_TOKEN), ("pages", sync_pages, PAGES_MCP_TOKEN)):
         if not enabled:
             continue
         try:
