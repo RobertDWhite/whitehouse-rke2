@@ -84,13 +84,13 @@ Metrics: `brain_sync_last_success_timestamp_seconds{source}`; alerts
 
 CronJob (every 15 min) that mirrors the private GitHub repo
 a private GitHub repo into the brain repo under
-`<mirror dir>` (script: `ww-mirror/mirror.sh`).
+`<mirror dir>` (script: `ww-mirror/mirror.sh`). Its
+sibling `<hubspot dir>` belongs to brain-sync.
 
 - It checks the upstream head with `git ls-remote` and does nothing unless it
-  moved past the commit recorded in `<mirror dir>/.source-commit`.
+  moved past the commit recorded in `<mirror dir>.source-commit`.
 - On a change it replaces the folder with the upstream tree (minus `.git`,
-  `.github` and `.DS_Store`), leaving `HubSpot/` alone (brain-sync renders it;
-  see `KEEP_DIRS` in the script), and pushes one commit as `ww-mirror`. Only that
+  `.github` and `.DS_Store`) and pushes one commit as `ww-mirror`. Only that
   folder is checked out (sparse, blobless clone), so nothing else in the repo
   is touched.
 - GitHub access: read-only deploy key "whitehouse-rke2 brain mirror
