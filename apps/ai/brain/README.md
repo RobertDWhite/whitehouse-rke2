@@ -101,6 +101,30 @@ mention when one of those addresses belongs to the entity, even if the name
 isn't in the text. Entities in `.brain/entities.json` may carry `emails` and
 `domains` too.
 
+It also writes back into Meerkat, so the brain is visible from a contact's
+page there (`MEERKAT_WRITEBACK=0` turns it off). After each entity rebuild, for
+every person entity backed by a Meerkat contact:
+
+- one **summary note** on the contact: links to the entity page (`BRAIN_UI`)
+  and other records, mention counts and last date per top-level folder,
+  upcoming and the `MEERKAT_RECENT` (12) most recent mentions. It's updated in
+  place when it changes, never duplicated.
+- one **activity** per past meeting or recording that mentions them (notes
+  under `MEERKAT_ACTIVITY_DIRS`, default `$CALENDAR_DIR,Riffado`), shared by
+  every contact it mentions, with the recording summary and links. Names in the
+  optional `meerkat_no_activities` list in `.brain/entities.json` (e.g. the
+  repo owner) get the summary note but no activities.
+
+At most `MEERKAT_WRITEBACK_MAX` (60) Meerkat writes per run, so a backfill
+spreads over several runs. Nothing is ever deleted in Meerkat.
+
+No loop: the summary note starts with `[brain] ` and every activity ends with a
+`[brain:<id>]` line (the id is a hash of the calendar event or recording id).
+Rendering `Meerkat/People/` skips marked notes and activities, so write-back
+never reaches the repo or the entity mentions, and the markers are how the next
+run finds what it wrote. Remove the marker from one in Meerkat and brain-sync
+treats it as yours (and writes a new one).
+
 Riffado recordings are only re-fetched when their `updated_at` or
 transcript/summary flags change (tracked in `Riffado/.index.json`), with a full
 re-render every 6 hours. `POST /trigger` on the service (port 8080) runs a cycle
