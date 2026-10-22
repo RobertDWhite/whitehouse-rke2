@@ -1,12 +1,14 @@
 #!/bin/sh
-# Mirror github.com/Wallace-White/customer-context into the Forgejo brain repo
-# under "Wallace and White/Customer Context/". One commit per upstream change; no-op otherwise.
+# Mirror a Git repo (SRC_REPO, read over ssh with a deploy key) into a folder of
+# the Forgejo brain repo (DEST_DIR). One commit per upstream change; no-op otherwise.
+# SRC_REPO, DEST_DIR and MIRROR_LABEL come from the SOPS secret.
 set -eu
 umask 077
 
-SRC="${SRC_REPO:-git@github.com:Wallace-White/customer-context.git}"
+SRC="${SRC_REPO:?SRC_REPO is required}"
 SRC_BRANCH="${SRC_BRANCH:-main}"
-DEST="${DEST_DIR:-Wallace and White/Customer Context}"
+DEST="${DEST_DIR:?DEST_DIR is required}"
+LABEL="${MIRROR_LABEL:-mirror}"
 BRAIN="${BRAIN_URL:-http://forgejo.forgejo.svc.cluster.local/WhiteHouse/brain.git}"
 WORK="${WORK_DIR:-/tmp/work}"
 
@@ -15,7 +17,7 @@ mkdir -p "$HOME"
 cp "${DEPLOY_KEY_FILE:-/secrets/deploy-key}" "$HOME/id"
 chmod 600 "$HOME/id"
 export GIT_SSH_COMMAND="ssh -i $HOME/id -o IdentitiesOnly=yes -o UserKnownHostsFile=${KNOWN_HOSTS:-/config/known_hosts} -o StrictHostKeyChecking=yes"
-git config --global user.name ww-mirror
+git config --global user.name repo-mirror
 git config --global user.email brain-sync@whitematter.tech
 git config --global credential.helper '!f() { echo username=brain-sync; echo "password=$FORGEJO_TOKEN"; }; f'
 
@@ -48,7 +50,7 @@ if git diff --cached --quiet; then
   echo "no content change at $head"
   exit 0
 fi
-git commit -q -m "wallace-white: mirror customer-context $(echo "$head" | cut -c1-8)" -m "$subject"
+git commit -q -m "$LABEL: mirror $(echo "$head" | cut -c1-8)" -m "$subject"
 for attempt in 1 2 3; do
   if git push -q origin HEAD:main; then
     echo "mirrored $head ($subject)"

@@ -2,9 +2,9 @@
 """brain-sync: mirror Meerkat, Riffado and HubSpot into the Forgejo brain repo as Markdown.
 
 Every cycle it renders the full set of files it owns (everything under
-Meerkat/, Riffado/ and Wallace and White/HubSpot/), compares git blob hashes
-against the repo, and pushes only the differences as one commit through
-Forgejo's change-files API. Files outside those folders are never touched.
+Meerkat/, Riffado/ and HUBSPOT_DIR), compares git blob hashes against the
+repo, and pushes only the differences as one commit through Forgejo's
+change-files API. Files outside those folders are never touched.
 
 Standard library only, so it runs on the stock python image.
 """
@@ -52,8 +52,8 @@ PAGES_MCP_TOKEN = os.environ.get("PAGES_MCP_TOKEN", "")
 # Redeploy unchanged sites this often so edits made straight to the pages host
 # don't stick: the repo always wins.
 PAGES_REDEPLOY_SECONDS = int(os.environ.get("PAGES_REDEPLOY_SECONDS", "1800"))
-# HubSpot (Wallace & White portal), read with a service key. A full pull is ~25
-# requests, so it simply re-renders everything every HUBSPOT_INTERVAL_SECONDS.
+# HubSpot, read with a service key. A full pull is a few dozen requests, so it
+# simply re-renders everything every HUBSPOT_INTERVAL_SECONDS.
 HUBSPOT_URL = os.environ.get("HUBSPOT_URL", "https://api.hubapi.com").rstrip("/")
 HUBSPOT_TOKEN = os.environ.get("HUBSPOT_TOKEN", "")
 HUBSPOT_INTERVAL = int(os.environ.get("HUBSPOT_INTERVAL_SECONDS", "600"))
@@ -67,7 +67,9 @@ MEERKAT_DIR = "Meerkat"
 RIFFADO_DIR = "Riffado"
 RIFFADO_INDEX = f"{RIFFADO_DIR}/.index.json"
 PAGES_DIR = "Pages"
-HUBSPOT_DIR = "Wallace and White/HubSpot"
+# Where HubSpot notes go and which extra tags they get: set in the SOPS secret.
+HUBSPOT_DIR = os.environ.get("HUBSPOT_DIR", "HubSpot").strip("/")
+HUBSPOT_TAGS = [t.strip() for t in os.environ.get("HUBSPOT_TAGS", "").split(",") if t.strip()]
 # Repo-owned routing rules: recordings matching a rule link to that rule's hub
 # note (e.g. a business folder) and get its tags. Edit the file in the repo.
 ROUTES_FILE = ".brain/routes.json"
@@ -707,7 +709,7 @@ def render_hubspot():
         fm = {"source": "hubspot", "hubspot_id": i, "name": name, "domain": p.get("domain"),
               "industry": p.get("industry"), "lifecycle_stage": p.get("lifecyclestage"),
               "city": p.get("city"), "state": p.get("state"), "updated_at": p.get("hs_lastmodifieddate"),
-              "url": c.get("url"), "tags": ["company", "hubspot", "wallace-white"]}
+              "url": c.get("url"), "tags": ["company", "hubspot", *HUBSPOT_TAGS]}
         out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
         if html_to_text(p.get("description")):
             out += ["", html_to_text(p.get("description"))]
@@ -730,7 +732,7 @@ def render_hubspot():
               "organization": (companies[0] if companies else p.get("company")),
               "lifecycle_stage": p.get("lifecyclestage"), "lead_status": p.get("hs_lead_status"),
               "updated_at": p.get("lastmodifieddate"), "url": c.get("url"),
-              "tags": ["person", "hubspot", "wallace-white"]}
+              "tags": ["person", "hubspot", *HUBSPOT_TAGS]}
         out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
         role = " · ".join(x for x in (p.get("jobtitle"), p.get("company")) if x)
         if role:
@@ -751,7 +753,7 @@ def render_hubspot():
         fm = {"source": "hubspot", "hubspot_id": i, "name": name, "amount": fmt_money(p.get("amount")),
               "pipeline": pipeline, "stage": stage, "close_date": fmt_date(p.get("closedate")),
               "updated_at": p.get("hs_lastmodifieddate"), "url": d.get("url"),
-              "tags": ["deal", "hubspot", "wallace-white", f"deal-stage/{tagify(stage)}"]}
+              "tags": ["deal", "hubspot", *HUBSPOT_TAGS, f"deal-stage/{tagify(stage)}"]}
         out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
         if html_to_text(p.get("description")):
             out += ["", html_to_text(p.get("description"))]
@@ -765,7 +767,7 @@ def render_hubspot():
 
     files[f"{HUBSPOT_DIR}/README.md"] = (
         "# HubSpot\n\n"
-        "Wallace & White's HubSpot CRM: one note per company, contact and deal, linked\n"
+        "HubSpot CRM: one note per company, contact and deal, linked\n"
         "to each other, with the notes, calls, meetings and tasks logged against them.\n"
         "Written by `brain-sync` (whitehouse-rke2 `apps/ai/brain`) every few minutes;\n"
         "edit records in HubSpot, not here.\n"

@@ -4,7 +4,7 @@ resources:
   - 00-namespace.yaml
   - 20-sync-deployment.yaml
   - 30-service.yaml
-  - 40-ww-mirror-cronjob.yaml
+  - 40-repo-mirror-cronjob.yaml
   - 60-networkpolicy.yaml
 
 generators:
@@ -15,13 +15,13 @@ configMapGenerator:
     namespace: brain
     files:
       - sync/brain_sync.py
-  - name: ww-mirror
+  - name: repo-mirror
     namespace: brain
     options:
       disableNameSuffixHash: true
     files:
-      - mirror.sh=ww-mirror/mirror.sh
-      - known_hosts=ww-mirror/known_hosts
+      - mirror.sh=repo-mirror/mirror.sh
+      - known_hosts=repo-mirror/known_hosts
 
 images:
   - name: python
