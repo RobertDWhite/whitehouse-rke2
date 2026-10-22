@@ -104,6 +104,17 @@ ENTITY_INTERVAL = int(os.environ.get("ENTITY_INTERVAL_SECONDS", "600"))
 ENTITY_MAX_MENTIONS = int(os.environ.get("ENTITY_MAX_MENTIONS", "300"))
 # Repo-owned fixes for words transcription keeps getting wrong: {"wrong": "right"}.
 CORRECTIONS_FILE = ".brain/corrections.json"
+# Write-back into Meerkat: a summary note per contact and an activity per meeting/recording.
+MEERKAT_WRITEBACK = os.environ.get("MEERKAT_WRITEBACK", "1") == "1"
+MEERKAT_WRITEBACK_MAX = int(os.environ.get("MEERKAT_WRITEBACK_MAX", "60"))  # Meerkat writes per run
+MEERKAT_ACTIVITY_DIRS = [d.strip().strip("/") for d in
+                         os.environ.get("MEERKAT_ACTIVITY_DIRS", f"{CALENDAR_DIR},{RIFFADO_DIR}").split(",") if d.strip()]
+MEERKAT_RECENT = int(os.environ.get("MEERKAT_RECENT", "12"))  # recent mentions listed in the summary note
+BRAIN_UI = os.environ.get("BRAIN_UI", "").rstrip("/")  # Forgejo web URL, for links in Meerkat
+# Everything brain-sync writes into Meerkat carries a marker, and render_contact skips
+# marked notes/activities, so write-back never flows back into the repo.
+WRITEBACK_MARK = "[brain] "  # first characters of the summary note
+WRITEBACK_KEY_RE = re.compile(r"\[brain:([0-9a-f]{12})\]")  # last line of each activity description
 SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 log = logging.getLogger("brain-sync")
@@ -310,6 +321,15 @@ def assign_paths(items, base_of, key_of, folder):
     return paths
 
 
+def is_writeback_note(n):
+    return (n.get("content") or "").startswith(WRITEBACK_MARK)
+
+
+def writeback_key(a):
+    m = WRITEBACK_KEY_RE.search(a.get("description") or "")
+    return m.group(1) if m else None
+
+
 def render_contact(c, names):
     name = contact_name(c)
     emails = [e.get("value") for e in (c.get("emails") or []) if e.get("value")] or (
@@ -384,13 +404,13 @@ def render_contact(c, names):
     if rels:
         out += ["", "## Relationships", *rels]
 
-    notes = sorted(c["_notes"], key=lambda n: n.get("date") or n.get("CreatedAt") or "", reverse=True)
+    notes = sorted((n for n in c["_notes"] if not is_writeback_note(n)), key=lambda n: n.get("date") or n.get("CreatedAt") or "", reverse=True)
     if notes:
         out += ["", "## Notes"]
         for n in notes:
             out += ["", f"### {fmt_date(n.get('date') or n.get('CreatedAt')) or 'Undated'}", "", clean_block(n.get("content"))]
 
-    acts = sorted(c["_activities"], key=lambda a: a.get("date") or "", reverse=True)
+    acts = sorted((a for a in c["_activities"] if not writeback_key(a)), key=lambda a: a.get("date") or "", reverse=True)
     if acts:
         out += ["", "## Activities"]
         for a in acts:
@@ -1091,6 +1111,9 @@ def note_date(path, fm):
     return m.group(1) if m else ""
 
 
+_entity_mentions = []  # [(entity, sorted mentions)] from the last render_entities
+
+
 def render_entities(files, cfg):
     items, cfg = collect_entities(files, cfg)
     by_id = {id(e): e for e in items}
@@ -1150,8 +1173,11 @@ def render_entities(files, cfg):
             mentions[eid].append((note_date(path, fm), path, str(title), snippet))
 
     files_out = {}
+    global _entity_mentions
+    _entity_mentions = []
     for e in items:
         ms = sorted(mentions[id(e)], key=lambda m: (m[0], m[1]), reverse=True)
+        _entity_mentions.append((e, ms))
         orgs = [by_id[i] for i in e["orgs"] if i in by_id]
         people = [by_id[i] for i in e.get("people", ()) if i in by_id]
         fm = {"type": e["kind"], "name": e["name"],
@@ -1979,8 +2005,13 @@ def apply_changes(prefix, desired, existing, keep=frozenset(), label=""):
     return len(ops)
 
 
+_meerkat_contacts = []  # last fetch, with child lists; write-back updates these in place
+
+
 def sync_meerkat():
-    files = render_meerkat(fetch_meerkat())
+    global _meerkat_contacts
+    _meerkat_contacts = fetch_meerkat()
+    files = render_meerkat(_meerkat_contacts)
     apply_changes(MEERKAT_DIR, files, list_tree(MEERKAT_DIR), label="meerkat")
 
 
@@ -2093,6 +2124,159 @@ def sync_hubspot():
 _entities_last = (0.0, "")
 
 
+# ------------------------------------------------------- Meerkat write-back
+
+
+def brain_url(path):
+    if not BRAIN_UI:
+        return ""
+    return f"{BRAIN_UI}/{REPO}/src/branch/{BRANCH}/" + urllib.parse.quote(path)
+
+
+def section_text(text, heading, limit):
+    """Plain text of a '## heading' section of a note, clipped."""
+    body = strip_frontmatter(text)
+    m = re.search(r"(?m)^## " + re.escape(heading) + r"\s*$", body)
+    if not m:
+        return ""
+    rest = body[m.end():]
+    end = re.search(r"(?m)^## ", rest)
+    return clip_text(re.sub(r"\n{3,}", "\n\n", rest[:end.start() if end else None]).strip(), limit)
+
+
+def writeback_plan(files, cfg):
+    """(summary note per Meerkat contact id, activity per meeting/recording) from the entity mentions."""
+    today = datetime.now(LOCAL_TZ).date().isoformat()
+    # People who'd get an activity for nearly everything (e.g. the owner): summary note only.
+    no_acts = {x.casefold() for x in cfg.get("meerkat_no_activities") or []}
+    notes, acts = {}, {}
+    for e, ms in _entity_mentions:
+        if e["kind"] != "person":
+            continue
+        ids = [parse_frontmatter(files.get(p, "")).get("meerkat_id") for p, label in e["records"] if label == "Meerkat"]
+        ids = [i for i in ids if isinstance(i, int)]
+        if not ids:
+            continue
+        top = lambda p: p.split("/", 1)[0]
+        counts, last = {}, {}
+        for date, p, _, _ in ms:
+            counts[top(p)] = counts.get(top(p), 0) + 1
+            if date and date <= today:
+                last[top(p)] = max(last.get(top(p), ""), date)
+        out = [WRITEBACK_MARK + "Brain summary. Updated automatically by brain-sync; edits here are overwritten.", ""]
+        if brain_url(e["path"]):
+            out.append(f"Brain page: {brain_url(e['path'])}")
+        for p, label in e["records"]:
+            if label != "Meerkat":
+                url = parse_frontmatter(files.get(p, "")).get("url") or brain_url(p)
+                out.append(f"{label}: {url}" if url else f"{label}: {p}")
+        if ms:
+            out += ["", f"Mentioned in {len(ms)} notes: " +
+                    ", ".join(f"{k} {v}" for k, v in sorted(counts.items(), key=lambda kv: -kv[1]))]
+            if last:
+                out.append("Last: " + ", ".join(f"{k} {v}" for k, v in sorted(last.items(), key=lambda kv: kv[1], reverse=True)))
+            upcoming = sorted((m for m in ms if m[0] > today), key=lambda m: m[0])[:5]
+            if upcoming:
+                out += ["", "Upcoming:"] + [f"- {d} · {top(p)} · {t}" for d, p, t, _ in upcoming]
+            recent = [m for m in ms if m[0] <= today][:MEERKAT_RECENT]
+            if recent:
+                out += ["", "Recent:"] + [f"- {d or 'undated'} · {top(p)} · {t}" for d, p, t, _ in recent]
+        else:
+            out += ["", "No notes mention them yet."]
+        text = "\n".join(out)
+        if len(text) > 4900:
+            text = text[:4900].rsplit("\n", 1)[0] + "\n…"
+        for i in ids:
+            notes[i] = text
+        if no_acts & {a.casefold() for a in e["aliases"]}:
+            continue
+        for date, p, title, _ in ms:
+            if not date or date > today or top(p) not in MEERKAT_ACTIVITY_DIRS:
+                continue
+            fm = parse_frontmatter(files.get(p, ""))
+            ident = str(fm.get("event_id") or fm.get("riffado_id") or p)
+            key = hashlib.sha1(ident.encode()).hexdigest()[:12]
+            if key not in acts:
+                when = parse_ts(str(fm.get("start") or fm.get("recorded_at") or date))
+                if when is None:
+                    when = datetime.fromisoformat(date).replace(tzinfo=LOCAL_TZ)
+                if when > datetime.now(LOCAL_TZ):  # later today: not an interaction yet
+                    continue
+                recording = bool(fm.get("riffado_id"))
+                desc = [section_text(files.get(p, ""), "Summary", 1200)] if recording else []
+                desc += [x for x in (fm.get("url"), brain_url(p)) if x]
+                desc.append(f"[brain:{key}]")
+                acts[key] = {"title": (("Recording: " if recording else "") + str(title))[:200],
+                             "location": str(fm.get("location") or "")[:300],
+                             "date": when.isoformat(timespec="seconds"),
+                             "description": "\n\n".join(d for d in desc if d)[-2000:], "cids": set()}
+            acts[key]["cids"].update(ids)
+    return notes, acts
+
+
+def meerkat_write(method, path, body):
+    if DRY_RUN:
+        log.info("[dry-run] meerkat %s %s", method, path)
+        return {}
+    r = http_json(method, f"{MEERKAT_URL}/api/v1{path}", MEERKAT_TOKEN, body)
+    time.sleep(MEERKAT_REQUEST_DELAY)
+    return r or {}
+
+
+def writeback_meerkat(notes, acts):
+    """Upsert summary notes and create/extend activities, at most MEERKAT_WRITEBACK_MAX writes."""
+    contacts = {c["ID"]: c for c in _meerkat_contacts}
+    budget, done = MEERKAT_WRITEBACK_MAX, {"notes": 0, "activities": 0}
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for cid, text in sorted(notes.items()):
+        c = contacts.get(cid)
+        if c is None:
+            continue
+        mine = [n for n in c.get("_notes") or [] if is_writeback_note(n)]
+        if mine and mine[0].get("content") == text:
+            continue
+        if budget <= 0:
+            break
+        body = {"content": text, "date": now, "contact_id": cid}
+        if mine:
+            meerkat_write("PUT", f"/notes/{mine[0]['ID']}", body)
+            mine[0]["content"] = text
+        else:
+            r = meerkat_write("POST", f"/contacts/{cid}/notes", body)
+            c.setdefault("_notes", []).append((r.get("note") or r) if r else {"content": text})
+        budget -= 1
+        done["notes"] += 1
+    existing = {}
+    for c in contacts.values():
+        for a in c.get("_activities") or []:
+            k = writeback_key(a)
+            if k:
+                existing.setdefault(k, {"a": a, "cids": set()})["cids"].add(c["ID"])
+    for key, act in sorted(acts.items(), key=lambda kv: kv[1]["date"], reverse=True):
+        cids = {i for i in act["cids"] if i in contacts}
+        ex = existing.get(key)
+        if not cids or (ex and cids <= ex["cids"]):
+            continue
+        if budget <= 0:
+            break
+        body = {k: act[k] for k in ("title", "description", "location", "date")}
+        body["contact_ids"] = sorted(cids | (ex["cids"] if ex else set()))
+        if ex:
+            meerkat_write("PUT", f"/activities/{ex['a']['ID']}", body)
+            a = ex["a"]
+        else:
+            r = meerkat_write("POST", "/activities", body)
+            a = (r.get("activity") or r) if r else dict(body)
+            existing[key] = {"a": a, "cids": set()}
+        for i in cids - existing[key]["cids"]:
+            contacts[i].setdefault("_activities", []).append(a)
+        existing[key]["cids"] |= cids
+        budget -= 1
+        done["activities"] += 1
+    if done["notes"] or done["activities"]:
+        log.info("meerkat write-back: %d summary notes, %d activities", done["notes"], done["activities"])
+
+
 def sync_entities():
     global _entities_last, _entity_pages
     root = forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}
@@ -2108,6 +2292,11 @@ def sync_entities():
     rendered = render_entities(files, cfg)
     apply_changes(ENTITIES_DIR, rendered, list_tree(ENTITIES_DIR), label="entities")
     _entity_pages = rendered
+    if MEERKAT_WRITEBACK and MEERKAT_TOKEN and _meerkat_contacts:
+        try:
+            writeback_meerkat(*writeback_plan(files, cfg))
+        except Exception:
+            log.exception("meerkat write-back failed")
     # Our own commit moves the head; remember that one so it doesn't re-trigger.
     after = ((forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}).get("commit") or {}).get("id") or head
     _entities_last = (time.time(), after)
