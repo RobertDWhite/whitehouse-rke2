@@ -23,5 +23,5 @@ end sub
 
 function streamUrl(args as Dynamic) as String
     if args <> invalid and args.contentId <> invalid and args.contentId <> "" then return args.contentId
-    return "https://screen.internal.white.fm/stream.m3u8"
+    return "http://10.99.5.60/stream.m3u8"
 end function
