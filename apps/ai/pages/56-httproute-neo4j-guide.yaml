@@ -1,0 +1,26 @@
+# The neo4j-guide site holds a Neo4j Browser guide and style file. The Browser
+# fetches both from the page's origin (neo4j.internal.white.fm), so this host
+# needs a CORS header. An exact hostname wins over the *.pages wildcard route,
+# so only this site gets it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pages-neo4j-guide
+  namespace: pages
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-pages-internal
+  hostnames:
+    - neo4j-guide.pages.internal.white.fm
+  rules:
+    - filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Access-Control-Allow-Origin
+                value: https://neo4j.internal.white.fm
+      backendRefs:
+        - name: pages
+          port: 8080
