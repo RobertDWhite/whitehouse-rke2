@@ -10,14 +10,16 @@ SOPS secrets or in the brain repo itself.
 ## brain-sync
 
 `sync/brain_sync.py` (standard-library Python, shipped as a ConfigMap) renders
-three sources into that repo as Markdown: Meerkat and Riffado every 2 minutes,
-HubSpot every 10.
+five sources into that repo as Markdown: Meerkat and Riffado every 2 minutes,
+HubSpot, Google Calendar and Gmail every 10.
 
 | Source | Repo path | What |
 | --- | --- | --- |
 | Meerkat | `Meerkat/People/<Name>.md` | One note per contact: details, relationships (as `[[wikilinks]]`), notes, activities, reminders. |
 | Riffado | `Riffado/<year>/<date> <title>.md` | One note per recording: summary, key points, action items, full transcript. |
 | HubSpot | `$HUBSPOT_DIR/{Companies,Contacts,Deals}/<Name>.md` | One note per record, linked to each other, with a timeline of logged notes, calls, meetings and tasks. Meeting passwords and dial-in PINs are redacted. |
+| Google Calendar | `$CALENDAR_DIR/<year>/<date> <title>.md` | One note per event on every calendar of the account, 90 days back to 60 ahead (single instances of recurring events; one note when an event is on several calendars). Time, location, organizer, attendees linked to their entity pages, description. Declined, cancelled and free/busy-only events are skipped; notes older than the window are kept. |
+| Gmail | `$EMAIL_DIR/<year>/<date> <subject>.md` | One note per thread (filed by its first message) where another participant is a known entity: an `emails` address of an entity page, or a `domains` entry of a company/business (public mail domains and no-reply senders don't count), plus what `.brain/google.json` adds or removes. Messages oldest first with From/To/Cc, plain text (HTML converted), quoted replies and obvious signatures stripped, each capped at `EMAIL_MAX_CHARS` (4000); attachment names only. |
 
 It also builds `$ENTITIES_DIR` (default `Entities/`): one page per person,
 company, business and property, discovered from the records above, from notes
@@ -54,6 +56,51 @@ editing either re-renders every recording once:
   case-insensitive replacements applied to recording titles, summaries and
   transcripts before rendering and routing.
 
+Free text from HubSpot, events and mail goes through one redaction pass:
+meeting passwords and `pwd=` URL parameters, passcodes, PINs, meeting ids,
+one-tap dial strings, and in mail also one-time/verification codes.
+
+Google access is read-only (`gmail.readonly`, `calendar.readonly`); nothing is
+ever modified. Gmail is incremental: each cycle lists the threads of the last
+`lookback_days` (default 180, minus the excluded categories), and only threads
+that are new or whose `historyId` moved get looked at (metadata first, the full
+thread only when it matches). At most `GMAIL_MAX_FETCH` (150) thread fetches per
+cycle, so a backfill spreads over several cycles and commits; per-minute quota
+errors are retried with backoff. Matched threads are tracked in
+`$EMAIL_DIR/.index.json` (path, historyId, participants); participants of
+threads that don't match stay in memory only, never in the repo. A thread note
+re-renders when its history moves or when the entity pages its participants
+link to change. Threads that age out of the window are kept while they still
+match; ones deleted or excluded inside the window are removed.
+
+`.brain/google.json` in the brain repo (all keys optional; content filters
+live there, not here):
+
+```json
+{
+  "include_domains": [], "include_addresses": [],
+  "exclude_domains": [], "exclude_addresses": [],
+  "exclude_labels": ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES",
+                     "CATEGORY_FORUMS", "SPAM", "TRASH"],
+  "lookback_days": 180,
+  "exclude_calendars": [],
+  "self_addresses": []
+}
+```
+
+`include_*` pull a thread in like an entity match; any participant in
+`exclude_*` keeps the whole thread out. `exclude_labels` takes label ids or
+names; a thread is skipped when every message carries one of them.
+`exclude_calendars` takes calendar ids or names. The mailbox's own addresses
+(the account, its send-as aliases, `self_addresses`) never count as a match,
+render as "Me", and don't count as entity mentions.
+
+Calendar and mail notes list participant addresses in their frontmatter
+(`attendees`, `participants`, `organizer`); entity pages count a note as a
+mention when one of those addresses belongs to the entity, even if the name
+isn't in the text. Entities in `.brain/entities.json` may carry `emails` and
+`domains` too.
+
 Riffado recordings are only re-fetched when their `updated_at` or
 transcript/summary flags change (tracked in `Riffado/.index.json`), with a full
 re-render every 6 hours. `POST /trigger` on the service (port 8080) runs a cycle
@@ -76,6 +123,15 @@ show up within seconds instead of within 2 minutes.
 - `HUBSPOT_DIR`, `HUBSPOT_TAGS`: target folder in the brain repo and extra
   tags (comma-separated) for HubSpot notes.
 - `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD`: used by brain-messages (below).
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`: the OAuth client (1Password,
+  vault RKE2). `GOOGLE_REFRESH_TOKEN`: refresh token for the mailbox with
+  scopes `gmail.readonly` and `calendar.readonly` only (1Password item
+  "Google brain-sync (Gmail+Calendar read-only)"). Revoke it in the Google
+  account under Security -> Third-party connections. Without these the Google
+  sources are skipped.
+- `GOOGLE_ACCOUNT`: the mailbox address (for Gmail links and "Me").
+  Optional: `CALENDAR_DIR` (default `Calendar`), `EMAIL_DIR` (default `Email`),
+  also read by brain-briefing.
 
 ### Ops
 
@@ -85,7 +141,8 @@ kubectl -n brain exec deploy/brain-sync -- python3 -c \
   "import urllib.request as u; u.urlopen(u.Request('http://localhost:8080/trigger', method='POST'))"
 ```
 
-Metrics: `brain_sync_last_success_timestamp_seconds{source}`; alerts
+Metrics: `brain_sync_last_success_timestamp_seconds{source}` (`google` covers
+calendar and mail); alerts
 `BrainSyncStale` and `BrainSyncDown` in `cluster-alerts.yml`.
 
 ## brain-mcp
@@ -138,7 +195,7 @@ standard-library Python) and pushes a short summary with a link to it to ntfy
 and a fuller one to the Brain Matrix room (see below).
 
 It downloads one archive of the repo and lists, each item linked to its note:
-reminders due or overdue and coming up, birthdays in the next 14 days, open CRM
+today's calendar, email awaiting a reply, reminders due or overdue and coming up, birthdays in the next 14 days, open CRM
 tasks and deals changed in the last 24h or closing soon (from `$HUBSPOT_DIR`),
 action items from recordings of the last 7 days, agent sessions of the last
 24h, and the entities with the most new mentions in the last 7 days. CRM items
@@ -147,8 +204,11 @@ are env vars at the top of the script.
 
 - Top priorities: optional. `LLM_URL` (OpenAI-compatible base) and `LLM_MODEL`
   point at the shared Ollama router; if unset or failing, the section is left out.
-- Calendar and email: not connected yet. `collect_calendar` / `collect_email` in
-  the script are the hooks; until they return items the note says so.
+- Calendar and email: read from the notes brain-sync writes. Calendar lists
+  today's events on every calendar (time, location, linked attendees) plus
+  tomorrow's before `EARLY_HOUR` (10). Email lists threads whose last message
+  arrived in the last `EMAIL_HOURS` (24) from a known entity and not from me.
+  If a folder has no notes yet the section says "Not connected yet".
 - Notification: ntfy topic `NTFY_TOPIC` from `13-briefing-secret.sops.yaml`
   (secret `brain-briefing`). ntfy has no auth, so the topic name is the only
   thing protecting it: keep it random. The push carries counts only, unless

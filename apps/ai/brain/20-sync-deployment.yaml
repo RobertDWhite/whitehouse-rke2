@@ -1,5 +1,5 @@
-# brain-sync: mirrors Meerkat contacts and Riffado recordings into the Forgejo
-# repo WhiteHouse/brain as Markdown. Script lives in sync/brain_sync.py.
+# brain-sync: mirrors Meerkat, Riffado, HubSpot, Google Calendar and Gmail into the
+# Forgejo repo WhiteHouse/brain as Markdown. Script lives in sync/brain_sync.py.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,6 +51,11 @@ spec:
               value: "120"
             - name: HUBSPOT_INTERVAL_SECONDS
               value: "600"
+            # Google Calendar + Gmail (read-only); credentials and account in brain-sync-env.
+            - name: GOOGLE_INTERVAL_SECONDS
+              value: "600"
+            - name: GMAIL_MAX_FETCH
+              value: "150"
           envFrom:
             - secretRef:
                 name: brain-sync-env

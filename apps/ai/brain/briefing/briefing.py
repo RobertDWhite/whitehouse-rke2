@@ -3,8 +3,8 @@
 notification about it.
 
 It reads the whole repo from one archive download, pulls out what needs attention today
-(reminders, birthdays, CRM tasks and deals, recording action items, agent sessions, entity
-mentions), writes `$BRIEFING_DIR/<YYYY>/<YYYY-MM-DD>.md` through Forgejo's change-files API,
+(calendar, email awaiting a reply, reminders, birthdays, CRM tasks and deals, recording action
+items, agent sessions, entity mentions), writes `$BRIEFING_DIR/<YYYY>/<YYYY-MM-DD>.md` through Forgejo's change-files API,
 then posts a summary with a link to ntfy and, in more detail, to a Matrix room. A local OpenAI-compatible LLM can optionally add a
 "top priorities" paragraph; if it is unset or fails the briefing is written without it.
 
@@ -44,6 +44,8 @@ RIFFADO_DIR = os.environ.get("RIFFADO_DIR", "Riffado").strip("/")
 HUBSPOT_DIR = os.environ.get("HUBSPOT_DIR", "HubSpot").strip("/")
 AGENTS_DIR = os.environ.get("AGENTS_DIR", "Agents").strip("/")
 ENTITIES_DIR = os.environ.get("ENTITIES_DIR", "Entities").strip("/")
+CALENDAR_DIR = os.environ.get("CALENDAR_DIR", "Calendar").strip("/")
+EMAIL_DIR = os.environ.get("EMAIL_DIR", "Email").strip("/")
 
 BIRTHDAY_DAYS = int(os.environ.get("BIRTHDAY_DAYS", "14"))
 UPCOMING_DAYS = int(os.environ.get("UPCOMING_DAYS", "7"))  # reminders/tasks coming up
@@ -54,6 +56,8 @@ AGENT_HOURS = int(os.environ.get("AGENT_HOURS", "24"))
 ENTITY_DAYS = int(os.environ.get("ENTITY_DAYS", "7"))
 ENTITY_TOP = int(os.environ.get("ENTITY_TOP", "10"))
 MAX_ITEMS = int(os.environ.get("MAX_ITEMS", "25"))  # per list
+EARLY_HOUR = int(os.environ.get("EARLY_HOUR", "10"))  # tomorrow's events before this hour are listed too
+EMAIL_HOURS = int(os.environ.get("EMAIL_HOURS", "24"))  # threads awaiting a reply, by last message
 # CRM tasks and deal close dates overdue by more than this are counted, not listed.
 STALE_DAYS = int(os.environ.get("STALE_DAYS", "30"))
 
@@ -385,15 +389,75 @@ def collect_entities(files, today):
     return sorted(out, key=lambda i: (-i["n"], i["line"]))[:ENTITY_TOP]
 
 
-# HOOK: calendar and email. Not connected yet. When a source exists, return a list of items
-# shaped like the collectors above ({"line": ..., "brief": ...}); the section renders them
-# instead of the placeholder and they feed the priorities prompt and the notification.
-def collect_calendar(today):
-    return None
+# Calendar and email come from the notes brain-sync writes (CALENDAR_DIR, EMAIL_DIR). A
+# collector returns None when its folder has no notes at all ("not connected").
 
 
-def collect_email(today):
-    return None
+def entity_links(paths, limit=4):
+    links = [wikilink(p, p.rsplit("/", 1)[-1]) for p in paths or [] if isinstance(p, str)]
+    return ", ".join(links[:limit]) + (f" +{len(links) - limit}" if len(links) > limit else "")
+
+
+def collect_calendar(files, today):
+    """Today's events across calendars, plus tomorrow's before EARLY_HOUR."""
+    notes = [(p, t) for p, t in files.items() if p.startswith(CALENDAR_DIR + "/") and not p.endswith("/README.md")]
+    if not notes:
+        return None
+    tomorrow = today + timedelta(days=1)
+    out = []
+    for path, text in notes:
+        fm = parse_frontmatter(text)
+        if fm.get("source") != "google-calendar":
+            continue
+        title = title_of(path, fm)
+        with_ = entity_links(fm.get("entities"))
+        loc = clip(str(fm.get("location") or ""), 60)
+        if fm.get("all_day") is True:
+            start, end = parse_day(fm.get("start")), parse_day(fm.get("end"))
+            if not start or not (start <= today <= (end or start)):
+                continue
+            when, sort, day = "All day", (0, ""), today
+        else:
+            start, end = parse_ts(fm.get("start")), parse_ts(fm.get("end"))
+            if not start:
+                continue
+            if start.date() == today or (start.date() < today and end and end.date() >= today):
+                day = today
+            elif start.date() == tomorrow and start.hour < EARLY_HOUR:
+                day = tomorrow
+            else:
+                continue
+            span = start.strftime("%-I:%M %p") + (f"–{end.strftime('%-I:%M %p')}" if end and end.date() == start.date() else "")
+            when, sort = span, (1, start.isoformat())
+        line = f"**{when}** {wikilink(path, title)}" + (f" · {loc}" if loc else "") + (f" · with {with_}" if with_ else "")
+        names = ", ".join(p.rsplit("/", 1)[-1] for p in (fm.get("entities") or [])[:4])
+        prefix = "Tomorrow " if day == tomorrow else ""
+        out.append({"tomorrow": day == tomorrow, "sort": (day, *sort), "line": line,
+                    "brief": f"{prefix}{when}: {clip(title, 100)}" + (f" (with {names})" if names else "")})
+    return sorted(out, key=lambda i: i["sort"])
+
+
+def collect_email(files, now):
+    """Threads whose last message, in the last EMAIL_HOURS, came from a known entity, not from me."""
+    notes = [(p, t) for p, t in files.items() if p.startswith(EMAIL_DIR + "/") and not p.endswith("/README.md")]
+    if not notes:
+        return None
+    cutoff = now - timedelta(hours=EMAIL_HOURS)
+    out = []
+    for path, text in notes:
+        fm = parse_frontmatter(text)
+        if fm.get("source") != "gmail" or fm.get("last_from_self") is True or not fm.get("last_from_entity"):
+            continue
+        last = parse_ts(fm.get("last_date"))
+        if not last or last < cutoff:
+            continue
+        ent = str(fm["last_from_entity"])
+        name = ent.rsplit("/", 1)[-1]
+        subject = title_of(path, fm)
+        out.append({"ts": last, "line": f"{wikilink(path, subject)} — from {wikilink(ent, name)} · "
+                                        f"{last.strftime('%a %-I:%M %p')}",
+                    "brief": f"Email awaiting reply from {name}: {clip(subject, 100)}"})
+    return sorted(out, key=lambda i: i["ts"], reverse=True)
 
 
 # ------------------------------------------------------------------ LLM (optional)
@@ -450,9 +514,19 @@ def render(today, now, data, priorities):
         out += ["", "## Top priorities", "", *priorities, "", "_Suggested by the local LLM; check the lists below._"]
 
     out += ["", "## Calendar", ""]
-    out += bullets(data["calendar"]) if data["calendar"] is not None else ["_Not connected yet._"]
-    out += ["", "## Email", ""]
-    out += bullets(data["email"]) if data["email"] is not None else ["_Not connected yet._"]
+    if data["calendar"] is None:
+        out.append("_Not connected yet._")
+    else:
+        today_items = [i for i in data["calendar"] if not i["tomorrow"]]
+        early = [i for i in data["calendar"] if i["tomorrow"]]
+        out += bullets(today_items) or ["_No events today._"]
+        if early:
+            out += ["", f"**Tomorrow before {EARLY_HOUR}:00**", "", *bullets(early)]
+    out += ["", f"## Email awaiting a reply (last {EMAIL_HOURS}h)", ""]
+    if data["email"] is None:
+        out.append("_Not connected yet._")
+    else:
+        out += bullets(data["email"]) or ["_Nothing from known contacts waiting on you._"]
 
     out += ["", "## Reminders", ""]
     if data["reminders_due"]:
@@ -567,8 +641,8 @@ def main():
     reminders_due, reminders_upcoming = collect_reminders(files, today)
     tasks, deals_changed, deals_closing, stale_tasks, stale_deals = collect_hubspot(files, today, now)
     data = {
-        "calendar": collect_calendar(today),
-        "email": collect_email(today),
+        "calendar": collect_calendar(files, today),
+        "email": collect_email(files, now),
         "reminders_due": reminders_due,
         "reminders_upcoming": reminders_upcoming,
         "birthdays": collect_birthdays(files, today),
@@ -582,7 +656,10 @@ def main():
         "entities": collect_entities(files, today),
     }
     overdue_tasks = sum(1 for t in tasks if t["overdue"])
-    counts = [(len(reminders_due), "reminder due", "reminders due"),
+    events_today = sum(1 for i in data["calendar"] or [] if not i["tomorrow"])
+    counts = [(events_today, "event today", "events today"),
+              (len(data["email"] or []), "email to answer", "emails to answer"),
+              (len(reminders_due), "reminder due", "reminders due"),
               (len(data["birthdays"]), "birthday", "birthdays"),
               (len(tasks), "open CRM task", "open CRM tasks"),
               (len(deals_changed), "deal changed", "deals changed"),
@@ -610,7 +687,8 @@ def main():
     notify(f"Briefing {today.strftime('%a %b %-d')}", msg, url)
     notify_matrix(f"Briefing {today.strftime('%a %b %-d')}", " · ".join(data["summary"]) or "Nothing flagged today.",
                   priorities, [(h, [i["brief"] for i in data[k] or []]) for h, k in (
-                      ("Calendar", "calendar"), ("Reminders due", "reminders_due"), ("Birthdays", "birthdays"),
+                      ("Calendar", "calendar"), ("Email to answer", "email"), ("Reminders due", "reminders_due"),
+                      ("Birthdays", "birthdays"),
                       ("Deals closing", "deals_closing"), ("Action items", "actions"))], url)
 
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""brain-sync: mirror Meerkat, Riffado and HubSpot into the Forgejo brain repo as Markdown.
+"""brain-sync: mirror Meerkat, Riffado, HubSpot, Google Calendar and Gmail into the Forgejo
+brain repo as Markdown.
 
 Every cycle it renders the full set of files it owns (everything under
-Meerkat/, Riffado/ and HUBSPOT_DIR), compares git blob hashes against the
+Meerkat/, Riffado/, HUBSPOT_DIR, CALENDAR_DIR and EMAIL_DIR), compares git blob hashes against the
 repo, and pushes only the differences as one commit through Forgejo's
 change-files API. Files outside those folders are never touched.
 
@@ -10,6 +11,8 @@ Standard library only, so it runs on the stock python image.
 """
 
 import base64
+import email.header
+import email.utils
 import hashlib
 import html
 import io
@@ -23,7 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 try:
@@ -59,6 +62,24 @@ PAGES_REDEPLOY_SECONDS = int(os.environ.get("PAGES_REDEPLOY_SECONDS", "1800"))
 HUBSPOT_URL = os.environ.get("HUBSPOT_URL", "https://api.hubapi.com").rstrip("/")
 HUBSPOT_TOKEN = os.environ.get("HUBSPOT_TOKEN", "")
 HUBSPOT_INTERVAL = int(os.environ.get("HUBSPOT_INTERVAL_SECONDS", "600"))
+# Google Calendar and Gmail through one read-only OAuth client (calendar.readonly +
+# gmail.readonly). Account-specific settings come from the SOPS secret; which mail is
+# rendered is decided by the entity pages plus the repo-owned GOOGLE_CONFIG.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REFRESH_TOKEN = os.environ.get("GOOGLE_REFRESH_TOKEN", "")
+GOOGLE_ACCOUNT = os.environ.get("GOOGLE_ACCOUNT", "").strip().casefold()  # mailbox address, for links and "me"
+GOOGLE_INTERVAL = int(os.environ.get("GOOGLE_INTERVAL_SECONDS", "600"))
+GOOGLE_CONFIG = ".brain/google.json"
+CALENDAR_DIR = os.environ.get("CALENDAR_DIR", "Calendar").strip("/")
+CALENDAR_PAST_DAYS = int(os.environ.get("CALENDAR_PAST_DAYS", "90"))
+CALENDAR_FUTURE_DAYS = int(os.environ.get("CALENDAR_FUTURE_DAYS", "60"))
+EMAIL_DIR = os.environ.get("EMAIL_DIR", "Email").strip("/")
+EMAIL_INDEX = f"{EMAIL_DIR}/.index.json"
+# Gmail threads.get calls per cycle (metadata checks plus full fetches): bounds the
+# backfill so API quota and commit size stay sane; the rest follows next cycle.
+GMAIL_MAX_FETCH = int(os.environ.get("GMAIL_MAX_FETCH", "150"))
+EMAIL_MAX_CHARS = int(os.environ.get("EMAIL_MAX_CHARS", "4000"))  # per message
 MAX_COMMIT_BYTES = int(os.environ.get("MAX_COMMIT_BYTES", str(4 * 1024 * 1024)))
 DRY_RUN = os.environ.get("DRY_RUN", "") == "1"
 RUN_ONCE = os.environ.get("RUN_ONCE", "") == "1"
@@ -88,8 +109,8 @@ SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 log = logging.getLogger("brain-sync")
 
 STATE = {
-    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0, "entities": 0.0},
-    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0, "entities": 0.0},
+    "last_success": {k: 0.0 for k in ("meerkat", "riffado", "pages", "hubspot", "entities", "google")},
+    "last_error": {k: 0.0 for k in ("meerkat", "riffado", "pages", "hubspot", "entities", "google")},
     "files_written": 0,
     "commits": 0,
 }
@@ -114,13 +135,15 @@ def http_json(method, url, token, body=None, scheme="Bearer", retries=4):
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 return None
-            if e.code in (429, 502, 503, 504) and attempt < retries - 1:
+            detail = e.read()[:2000].decode(errors="replace")
+            # Google reports per-minute quota as 403 rateLimitExceeded.
+            limited = e.code in (429, 502, 503, 504) or (e.code == 403 and "ratelimitexceeded" in detail.lower())
+            if limited and attempt < retries - 1:
                 wait = int(e.headers.get("Retry-After") or 0) or 2 ** (attempt + 2)
-                log.warning("%s %s -> %s, retrying in %ss", method, url, e.code, wait)
+                log.warning("%s %s -> %s, retrying in %ss", method, url.split("?")[0], e.code, wait)
                 time.sleep(wait)
                 continue
-            detail = e.read()[:500].decode(errors="replace")
-            raise RuntimeError(f"{method} {url} -> {e.code}: {detail}") from None
+            raise RuntimeError(f"{method} {url.split('?')[0]} -> {e.code}: {detail[:500]}") from None
         except urllib.error.URLError:
             if attempt < retries - 1:
                 time.sleep(2 ** (attempt + 2))
@@ -566,7 +589,34 @@ HS_ASSOC = {
     "meetings": ["contacts", "companies", "deals"],
     "tasks": ["contacts", "companies", "deals"],
 }
-SECRET_RE = re.compile(r"(?i)\b(password|passcode|pwd|pin|access code)(\s*[:=]\s*)[^\s&<]+")
+# Meeting passwords, dial-in PINs and similar codes, redacted wherever free text from a
+# source is rendered (CRM bodies, event descriptions, mail).
+SECRET_RE = re.compile(
+    r"(?i)(?<![a-z])(password|passcode|passwort|pwd|pin|access code|meeting code|participant code|conference code"
+    r"|host key|security code|verification code|confirmation code|one[- ]time (?:pass)?code|otp"
+    r"|log[- ]?in code|sign[- ]in code|auth(?:entication)? code|meeting id|conference id|webinar id)"
+    r"(\s*(?:[:=#]|\bis\b)\s*)([^\s&<]+(?:[ ]\d{2,}#?)*)")
+# One-tap dial strings carry the meeting id and passcode: "+15551234567,,123456#,,,,*789#".
+DIAL_RE = re.compile(r"(\+?\d[\d ().-]{6,}\d)\s*,,[\d#*,]+")
+# One-time codes in mail: "123456 is your ... code", "G-123456", and a lone code line in a
+# message that talks about a code.
+OTP_BEFORE_RE = re.compile(r"(?i)\b\d{4,8}\b(?=[^\n]{0,40}\b(?:is your|is the|as your)\b[^\n]{0,40}"
+                           r"\b(?:code|pin|password|otp)\b)")
+OTP_PREFIX_RE = re.compile(r"\b([A-Z]{1,3}-)\d{4,8}\b")
+OTP_CONTEXT_RE = re.compile(r"(?i)\b(verification|security|one[- ]time|sign[- ]in|log[- ]?in|confirmation|access|"
+                            r"authentication|2fa|two[- ]factor)\b[^\n]{0,30}\bcode\b|\bcode\b[^\n]{0,40}\b(expires?|valid)\b")
+OTP_LINE_RE = re.compile(r"(?m)^(\s*)(?:\d{4,8}|\d{3}[ -]\d{3})(\s*)$")
+
+
+def redact(text, otp=False):
+    text = SECRET_RE.sub(r"\1\2[redacted]", text or "")
+    text = DIAL_RE.sub(r"\1,,[redacted]", text)
+    if otp:
+        text = OTP_BEFORE_RE.sub("[redacted]", text)
+        text = OTP_PREFIX_RE.sub(r"\1[redacted]", text)
+        if OTP_CONTEXT_RE.search(text):
+            text = OTP_LINE_RE.sub(r"\1[redacted]\2", text)
+    return text
 
 
 def hubspot_get(path):
@@ -593,17 +643,28 @@ def hs_assoc(rec, kind):
     return list(dict.fromkeys(ids))
 
 
-def html_to_text(text):
+def _html_link(m):
+    url, label = html.unescape(m.group(1)), re.sub(r"<[^>]+>", "", m.group(2)).strip()
+    if not label or html.unescape(label) == url:
+        return url
+    return f"{label} ({url})"
+
+
+def html_to_text(text, secrets=True, links=False):
     if not text:
         return ""
     if "<" in text:
+        text = re.sub(r"(?is)<(head|style|script|title)\b.*?</\1\s*>|<!--.*?-->", "", text)
+        if links:  # keep link targets: "label (url)"
+            text = re.sub(r"(?is)<a\s[^>]*?href=[\"'](https?://[^\"']+)[\"'][^>]*>(.*?)</a>", _html_link, text)
         text = re.sub(r"(?i)<br\s*/?>", "\n", text)
         text = re.sub(r"(?i)<li[^>]*>", "\n- ", text)
         text = re.sub(r"(?i)</(p|div|h\d|li|tr|ul|ol|table)>", "\n", text)
         text = re.sub(r"<[^>]+>", "", text)
     text = html.unescape(text).replace("\xa0", " ")
     text = "\n".join(line.strip() for line in text.replace("\r\n", "\n").split("\n"))
-    return SECRET_RE.sub(r"\1\2[redacted]", re.sub(r"\n{3,}", "\n\n", text)).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return (redact(text) if secrets else text).strip()
 
 
 def fmt_money(v):
@@ -945,7 +1006,7 @@ def collect_entities(files, cfg):
                 ents.add(kind, h1, (path, "Context"), tags=src.get("tags") or ())
     for item in cfg.get("entities") or []:
         ents.add(item.get("type", "company"), item.get("name"), aliases=item.get("aliases") or (),
-                 tags=item.get("tags") or ())
+                 emails=as_list(item.get("emails")), domains=as_list(item.get("domains")), tags=item.get("tags") or ())
     for name, aliases in (cfg.get("aliases") or {}).items():
         e = next((x for x in ents.items if name in x["aliases"]), None)
         if e:
@@ -1018,6 +1079,13 @@ def render_entities(files, cfg):
     by_first = {}
     for a in alias_owner:
         by_first.setdefault(re.split(r"[\s.]", a)[0], []).append(a)
+    # Notes that list participants in frontmatter (calendar attendees, mail participants)
+    # mention whoever owns those addresses, even if the name isn't in the text.
+    email_owner = {}
+    for e in items:
+        for x in e["emails"]:
+            email_owner.setdefault(x, set()).add(id(e))
+    email_owner = {x: next(iter(o)) for x, o in email_owner.items() if len(o) == 1 and x not in SELF_EMAILS}
     skip = tuple(cfg.get("skip_paths") or ()) + (ENTITIES_DIR + "/", ".brain/")
     mentions = {id(e): [] for e in items}
     for path, text in files.items():
@@ -1033,9 +1101,18 @@ def render_entities(files, cfg):
                 m = re.search(r"(?<![\w])" + re.escape(a) + r"(?![\w])", low)
                 if m:
                     hits.setdefault(alias_owner[a], m.start())
+        for k in PARTICIPANT_FIELDS:
+            for v in as_list(fm.get(k)):
+                for addr in EMAIL_RE.findall(str(v)):
+                    if addr.casefold() in email_owner:
+                        hits.setdefault(email_owner[addr.casefold()], -1)
         for eid, pos in hits.items():
             e = by_id[eid]
             if any(r[0] == path for r in e["records"]):
+                continue
+            title = fm.get("title") or fm.get("name") or path.rsplit("/", 1)[-1][:-3]
+            if pos < 0:  # matched by address only
+                mentions[eid].append((note_date(path, fm), path, str(title), "participant"))
                 continue
             line_start = body.rfind("\n", 0, pos) + 1
             line_end = body.find("\n", pos)
@@ -1043,7 +1120,6 @@ def render_entities(files, cfg):
             if len(snippet) > 180:
                 off = max(0, pos - line_start - 70)
                 snippet = ("…" if off else "") + snippet[off:off + 170].strip() + "…"
-            title = fm.get("title") or fm.get("name") or path.rsplit("/", 1)[-1][:-3]
             mentions[eid].append((note_date(path, fm), path, str(title), snippet))
 
     files_out = {}
@@ -1089,6 +1165,695 @@ def render_entities(files, cfg):
     )
     log.info("entities: %d entities, %d mentions", len(items), sum(len(v) for v in mentions.values()))
     return files_out
+
+
+# ------------------------------------------------------------------ Google
+
+
+# Addresses never used for domain matching: a company entity whose domain is a public mail
+# provider would otherwise claim every mailbox there.
+PUBLIC_MAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com", "hotmail.com", "live.com",
+    "msn.com", "icloud.com", "me.com", "mac.com", "aol.com", "protonmail.com", "proton.me", "pm.me",
+    "gmx.com", "mail.com", "comcast.net", "att.net", "verizon.net", "fastmail.com", "hey.com",
+}
+# Automated senders: never enough on their own to pull a thread in or to ask for a reply.
+NOREPLY_RE = re.compile(r"^(no[._-]?reply|do[._-]?not[._-]?reply|notifications?|notify|alerts?|mailer-daemon"
+                        r"|postmaster|bounces?|newsletters?)(?=[._+@-])", re.I)
+EMAIL_RE = re.compile(r"[\w.+'-]+@[\w-]+(?:\.[\w-]+)+")
+# Frontmatter fields whose addresses count as entity mentions (see render_entities).
+PARTICIPANT_FIELDS = ("attendees", "participants", "organizer", "from", "to", "cc")
+DEFAULT_EXCLUDE_LABELS = ["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
+                          "SPAM", "TRASH"]
+CATEGORY_QUERY = {"CATEGORY_PROMOTIONS": "promotions", "CATEGORY_SOCIAL": "social",
+                  "CATEGORY_UPDATES": "updates", "CATEGORY_FORUMS": "forums"}
+# Bumped when the note layout changes, so every thread re-renders once.
+EMAIL_RENDER_VERSION = 1
+GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
+CALENDAR_API = "https://www.googleapis.com/calendar/v3"
+
+# The mailbox owner's own addresses (account, send-as aliases, config). Kept module-wide so
+# entity matching can ignore them too.
+SELF_EMAILS = {GOOGLE_ACCOUNT} - {""}
+
+
+class EntityDirectory:
+    """Entity pages by email address and (for companies/businesses) by mail domain."""
+
+    def __init__(self, pages):
+        self.emails, self.domains = {}, {}
+        for path, text in sorted(pages.items()):
+            if path.endswith("/README.md"):
+                continue
+            fm = parse_frontmatter(text)
+            kind = fm.get("type")
+            hit = (path[:-3], str(fm.get("name") or path.rsplit("/", 1)[-1][:-3]), kind)
+            for e in as_list(fm.get("emails")):
+                self.emails.setdefault(str(e).casefold(), hit)
+            if kind in ORG_KINDS:
+                for d in as_list(fm.get("domains")):
+                    d = str(d).casefold().removeprefix("www.")
+                    if d and d not in PUBLIC_MAIL_DOMAINS:
+                        self.domains.setdefault(d, hit)
+
+    def by_email(self, addr):
+        return self.emails.get((addr or "").casefold())
+
+    def org(self, addr):
+        dom = (addr or "").rpartition("@")[2].casefold()
+        while "." in dom:
+            if dom in self.domains:
+                return self.domains[dom]
+            dom = dom.partition(".")[2]
+        return None
+
+    def lookup(self, addr):
+        """(path, name, kind) of the person with this address, else of its company, else None."""
+        return self.by_email(addr) or self.org(addr)
+
+
+_entity_pages = None  # {path: text} of the last rendered entity pages
+
+
+def entity_directory():
+    global _entity_pages
+    if _entity_pages is None:
+        _entity_pages = {p: t for p, t in repo_snapshot().items() if p.startswith(ENTITIES_DIR + "/")}
+    return EntityDirectory(_entity_pages)
+
+
+def load_google_config():
+    raw = read_raw(GOOGLE_CONFIG)
+    if not raw:
+        return {}, ""
+    try:
+        cfg = json.loads(raw)
+        if not isinstance(cfg, dict):
+            raise ValueError("not an object")
+    except ValueError as e:
+        log.warning("ignoring %s: %s", GOOGLE_CONFIG, e)
+        return {}, ""
+    return cfg, hashlib.sha1(raw.encode()).hexdigest()[:12]
+
+
+_google_token = ("", 0.0)
+
+
+def google_token():
+    global _google_token
+    if _google_token[0] and time.time() < _google_token[1] - 120:
+        return _google_token[0]
+    body = urllib.parse.urlencode({"client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+                                   "refresh_token": GOOGLE_REFRESH_TOKEN, "grant_type": "refresh_token"}).encode()
+    req = urllib.request.Request("https://oauth2.googleapis.com/token", data=body, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"google token refresh -> {e.code}: {e.read()[:200].decode(errors='replace')}") from None
+    _google_token = (data["access_token"], time.time() + int(data.get("expires_in") or 3600))
+    return _google_token[0]
+
+
+def google_get(url, **params):
+    q = urllib.parse.urlencode(params, doseq=True)
+    return http_json("GET", url + (f"?{q}" if q else ""), google_token(), retries=6)
+
+
+def google_pages(url, key, **params):
+    out, token = [], None
+    while True:
+        data = google_get(url, **params, **({"pageToken": token} if token else {})) or {}
+        out.extend(data.get(key) or [])
+        token = data.get("nextPageToken")
+        if not token:
+            return out
+
+
+def self_addresses(cfg):
+    addrs = set(SELF_EMAILS) | {str(a).casefold() for a in cfg.get("self_addresses") or []}
+    prof = google_get(f"{GMAIL_API}/profile") or {}
+    if prof.get("emailAddress"):
+        addrs.add(prof["emailAddress"].casefold())
+    for s in (google_get(f"{GMAIL_API}/settings/sendAs") or {}).get("sendAs") or []:
+        if s.get("sendAsEmail"):
+            addrs.add(s["sendAsEmail"].casefold())
+    SELF_EMAILS.update(addrs)
+    return addrs
+
+
+def addr_label(name, addr):
+    name = (name or "").strip().strip('"')
+    return f"{name} <{addr}>" if name and name.casefold() != addr.casefold() else addr
+
+
+def who(name, addr, directory, selfs):
+    """Markdown for one participant: "Me", a link to their entity page, or name <address>."""
+    if (addr or "").casefold() in selfs:
+        return "Me"
+    hit = directory.by_email(addr)
+    if hit:
+        return f"[[{hit[0]}|{hit[1]}]] <{addr}>"
+    out = addr_label(name, addr) if addr else (name or "?")
+    org = directory.org(addr)
+    return f"{out} · [[{org[0]}|{org[1]}]]" if org else out
+
+
+def entity_paths(addrs, directory, selfs):
+    paths = []
+    for a in addrs:
+        hit = None if a.casefold() in selfs else directory.lookup(a)
+        if hit and hit[0] not in paths:
+            paths.append(hit[0])
+    return paths
+
+
+def clip_text(text, limit):
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[:limit].rstrip() + "\n\n_[…truncated]_"
+
+
+# ---------------------------------------------------------------- Calendar
+
+
+def event_times(ev):
+    """(all_day, start, end) in local time; for all-day events dates with an inclusive end."""
+    s, e = ev.get("start") or {}, ev.get("end") or {}
+    if s.get("date"):
+        start = date.fromisoformat(s["date"])
+        end = date.fromisoformat(e["date"]) - timedelta(days=1) if e.get("date") else start
+        return True, start, max(start, end)
+    return False, parse_ts(s.get("dateTime")), parse_ts(e.get("dateTime"))
+
+
+def event_when(all_day, start, end):
+    if all_day:
+        if start == end:
+            return f"{start.strftime('%a %b %-d, %Y')} · all day"
+        return f"{start.strftime('%a %b %-d')} – {end.strftime('%a %b %-d, %Y')} · all day"
+    if not start:
+        return ""
+    head = start.strftime("%a %b %-d, %Y · %-I:%M %p")
+    if not end:
+        return f"{head} {start.strftime('%Z')}".strip()
+    tail = end.strftime("%-I:%M %p") if end.date() == start.date() else end.strftime("%a %b %-d, %-I:%M %p")
+    return f"{head} – {tail} {end.strftime('%Z')}".strip()
+
+
+def keep_event(ev):
+    if ev.get("status") == "cancelled" or ev.get("eventType") == "workingLocation":
+        return False
+    me = next((a for a in ev.get("attendees") or [] if a.get("self")), None)
+    if me and me.get("responseStatus") == "declined":
+        return False
+    # Free/busy placeholders: nothing but a time slot.
+    if not (ev.get("summary") or ev.get("description") or ev.get("location") or ev.get("attendees")):
+        return False
+    return True
+
+
+def fetch_calendar(cfg):
+    skip = {str(x).casefold() for x in cfg.get("exclude_calendars") or []}
+    now = datetime.now(LOCAL_TZ)
+    tmin = (now - timedelta(days=CALENDAR_PAST_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0)
+    tmax = now + timedelta(days=CALENDAR_FUTURE_DAYS)
+    cals = google_pages(f"{CALENDAR_API}/users/me/calendarList", "items", maxResults=250)
+    by_key = {}
+    for c in cals:
+        name = c.get("summaryOverride") or c.get("summary") or c["id"]
+        if c.get("accessRole") == "freeBusyReader" or {c["id"].casefold(), name.casefold()} & skip:
+            continue
+        evs = google_pages(f"{CALENDAR_API}/calendars/{urllib.parse.quote(c['id'], safe='')}/events", "items",
+                           timeMin=tmin.isoformat(), timeMax=tmax.isoformat(), singleEvents="true",
+                           showDeleted="false", maxResults=2500)
+        for ev in evs:
+            if not keep_event(ev):
+                continue
+            # The same meeting shows up on every calendar it was invited to: keep one copy.
+            key = (ev.get("iCalUID") or ev["id"], json.dumps(ev.get("originalStartTime") or ev.get("start"),
+                                                            sort_keys=True))
+            if key in by_key:
+                if name not in by_key[key]["_calendars"]:
+                    by_key[key]["_calendars"].append(name)
+                continue
+            ev["_calendars"] = [name]
+            by_key[key] = ev
+    return len(cals), list(by_key.values()), tmin.date()
+
+
+def render_event(ev, directory, selfs):
+    title = (ev.get("summary") or "").strip() or "Busy"
+    all_day, start, end = event_times(ev)
+    people = [a for a in ev.get("attendees") or [] if not a.get("resource")]
+    org = ev.get("organizer") or {}
+    me = next((a for a in people if a.get("self")), None)
+    addrs = [a.get("email") for a in people if a.get("email")] + ([org["email"]] if org.get("email") else [])
+    ents = entity_paths(addrs, directory, selfs)
+    video = ev.get("hangoutLink") or next((p.get("uri") for p in (ev.get("conferenceData") or {}).get("entryPoints") or []
+                                           if p.get("entryPointType") == "video"), "")
+    cal = ev["_calendars"]
+    fm = {
+        "source": "google-calendar",
+        "calendar": cal[0] if len(cal) == 1 else cal,
+        "event_id": ev["id"],
+        "title": title,
+        "date": start.isoformat() if all_day else (start.date().isoformat() if start else ""),
+        "start": start.isoformat() if all_day else (start.isoformat(timespec="minutes") if start else ""),
+        "end": end.isoformat() if all_day else (end.isoformat(timespec="minutes") if end else ""),
+        "all_day": all_day,
+        "location": redact(ev.get("location")),
+        "organizer": addr_label(org.get("displayName"), org["email"]) if org.get("email") and not org.get("self")
+        else ("me" if org.get("self") else None),
+        "attendees": [addr_label(a.get("displayName"), a["email"]) for a in people if a.get("email")],
+        "status": ev.get("status"),
+        "my_response": me.get("responseStatus") if me else None,
+        "recurring": True if ev.get("recurringEventId") else None,
+        "entities": ents,
+        "url": ev.get("htmlLink"),
+        "tags": ["calendar", "event"],
+    }
+    out = [frontmatter(fm), GENERATED.format(src="Google Calendar"), "", f"# {title}", "",
+           f"*{event_when(all_day, start, end)}*", ""]
+    rows = [("Calendar", ", ".join(cal)), ("Location", redact(ev.get("location"))),
+            ("Organizer", who(org.get("displayName"), org.get("email"), directory, selfs) if org.get("email") else ""),
+            ("Status", ev.get("status") if ev.get("status") not in (None, "confirmed") else ""),
+            ("My response", {"needsAction": "not answered"}.get(me.get("responseStatus"), me.get("responseStatus"))
+             if me and not org.get("self") else ""),
+            ("Video", redact(video)), ("Recurring", "yes" if ev.get("recurringEventId") else "")]
+    out += [f"- **{k}:** {v}" for k, v in rows if v]
+    if people:
+        out += ["", f"## Attendees ({len(people)})", ""]
+        for a in sorted(people, key=lambda a: (not a.get("organizer"), (a.get("displayName") or a.get("email") or "").casefold())):
+            status = {"needsAction": "", "accepted": "accepted", "tentative": "tentative",
+                      "declined": "declined"}.get(a.get("responseStatus"), "")
+            extra = ", ".join(x for x in ("organizer" if a.get("organizer") else "",
+                                          "optional" if a.get("optional") else "", status) if x)
+            out.append(f"- {who(a.get('displayName'), a.get('email'), directory, selfs)}" + (f" — {extra}" if extra else ""))
+    desc = html_to_text(ev.get("description") or "", links=True)
+    if desc:
+        out += ["", "## Description", "", clip_text(desc, 3 * EMAIL_MAX_CHARS)]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def render_calendar(directory, selfs, cfg):
+    ncal, events, start = fetch_calendar(cfg)
+
+    def base(ev):
+        all_day, s, _ = event_times(ev)
+        d = (s if all_day else (s.date() if s else date.today())).isoformat()
+        return f"{d[:4]}/{d} {safe_name((ev.get('summary') or '').strip() or 'Busy')}"
+
+    paths = assign_paths(events, base, lambda ev: ev["id"], CALENDAR_DIR)
+    files = {paths[ev["id"]]: render_event(ev, directory, selfs) for ev in events}
+    files[f"{CALENDAR_DIR}/README.md"] = (
+        "# Calendar\n\n"
+        f"One note per event from Google Calendar (every calendar in the account), from\n"
+        f"{CALENDAR_PAST_DAYS} days back to {CALENDAR_FUTURE_DAYS} days ahead, filed by year. Declined and cancelled\n"
+        "events are left out; notes older than the window are kept as they were.\n"
+        "Attendees link to their entity pages. Written by `brain-sync` (whitehouse-rke2\n"
+        "`apps/ai/brain`); change the event in Google Calendar, not here.\n"
+    )
+    log.info("calendar: %d calendars, %d events", ncal, len(events))
+    return files, start
+
+
+# ------------------------------------------------------------------- Gmail
+
+
+def decode_header(value):
+    try:
+        return str(email.header.make_header(email.header.decode_header(value or "")))
+    except Exception:
+        return value or ""
+
+
+def msg_headers(msg):
+    return {h["name"].lower(): decode_header(h.get("value")) for h in (msg.get("payload") or {}).get("headers") or []}
+
+
+def parse_addrs(*values):
+    out = []
+    for name, addr in email.utils.getaddresses([v for v in values if v]):
+        if "@" in addr:
+            out.append((name.strip(), addr.strip().casefold()))
+    return out
+
+
+def live_messages(thread):
+    msgs = [m for m in thread.get("messages") or [] if "DRAFT" not in (m.get("labelIds") or [])]
+    return sorted(msgs, key=lambda m: int(m.get("internalDate") or 0))
+
+
+def thread_meta(thread):
+    """Participants, per-message labels, subject and first date: all matching needs."""
+    msgs = live_messages(thread)
+    people, labels = {}, []
+    for m in msgs:
+        h = msg_headers(m)
+        for name, addr in parse_addrs(h.get("from"), h.get("to"), h.get("cc")):
+            if not people.get(addr):
+                people[addr] = name
+        labels.append(m.get("labelIds") or [])
+    subject = msg_headers(msgs[0]).get("subject", "") if msgs else ""
+    return {"hid": thread.get("historyId"), "people": people, "labels": labels, "subject": subject,
+            "first": int(msgs[0].get("internalDate") or 0) if msgs else 0}
+
+
+class MailRules:
+    """Which threads get a note: another participant is a known entity (by address, or by
+    company domain) or is listed in include_*; nothing in exclude_*; not only excluded labels."""
+
+    def __init__(self, cfg, directory, selfs, label_ids):
+        low = lambda k: {str(x).casefold().lstrip("@") for x in cfg.get(k) or []}
+        self.inc_addr, self.inc_dom = low("include_addresses"), low("include_domains")
+        self.exc_addr, self.exc_dom = low("exclude_addresses"), low("exclude_domains")
+        names = cfg.get("exclude_labels", DEFAULT_EXCLUDE_LABELS)
+        self.exc_labels = {label_ids.get(str(n).casefold(), str(n)) for n in names}
+        self.directory, self.selfs = directory, selfs
+
+    @staticmethod
+    def in_domains(addr, domains):
+        dom = addr.rpartition("@")[2]
+        return any(dom == d or dom.endswith("." + d) for d in domains)
+
+    def match(self, people, labels=()):
+        others = [a for a in people if a not in self.selfs]
+        if not others:
+            return False
+        if any(a in self.exc_addr or self.in_domains(a, self.exc_dom) for a in people):
+            return False
+        if labels and all(set(l) & self.exc_labels for l in labels):
+            return False
+        for a in others:
+            if a in self.inc_addr or self.in_domains(a, self.inc_dom):
+                return True
+            if not NOREPLY_RE.match(a) and self.directory.lookup(a):
+                return True
+        return False
+
+    def query_excludes(self):
+        q = [f"-category:{CATEGORY_QUERY[l]}" for l in sorted(self.exc_labels) if l in CATEGORY_QUERY]
+        return " ".join(["-in:chats", *q])
+
+
+def part_text(part):
+    data = (part.get("body") or {}).get("data")
+    if not data:
+        return ""
+    raw = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    ctype = next((h.get("value") or "" for h in part.get("headers") or [] if h.get("name", "").lower() == "content-type"), "")
+    m = re.search(r'charset="?([\w.:-]+)', ctype, re.I)
+    try:
+        return raw.decode(m.group(1) if m else "utf-8", errors="replace")
+    except LookupError:
+        return raw.decode("utf-8", errors="replace")
+
+
+def message_body(payload):
+    """(plain text, attachment names): text/plain preferred, else HTML converted."""
+    plain, htmls, files = [], [], []
+
+    def walk(p):
+        mt = (p.get("mimeType") or "").lower()
+        hdrs = {h.get("name", "").lower(): h.get("value", "") for h in p.get("headers") or []}
+        if p.get("filename"):
+            inline = mt.startswith("image/") and "content-id" in hdrs and "attachment" not in hdrs.get(
+                "content-disposition", "").lower()
+            if not inline:
+                files.append(p["filename"])
+            return
+        if p.get("parts"):
+            for c in p["parts"]:
+                walk(c)
+        elif mt == "text/plain":
+            plain.append(part_text(p))
+        elif mt == "text/html":
+            htmls.append(part_text(p))
+
+    walk(payload or {})
+    if any(t.strip() for t in plain):
+        text = "\n\n".join(plain)
+    else:
+        # Gmail wraps the quoted conversation in a gmail_quote block: drop it with the rest.
+        text = "\n\n".join(re.sub(r"(?is)<div[^>]*class=\"?[^\">]*gmail_quote.*$|<blockquote.*?</blockquote>", "", h)
+                           for h in htmls)
+        text = html_to_text(text, secrets=False, links=False)
+    return text, files
+
+
+QUOTE_HEAD_RE = re.compile(r"^On\b.{4,300}\bwrote:\s*$", re.S)
+OUTLOOK_SEP_RE = re.compile(r"^(-{2,}\s*Original Message\s*-{2,}|_{8,})\s*$", re.I)
+SENT_FROM_RE = re.compile(r"^(Sent from my|Get Outlook for)\b", re.I)
+
+
+def clean_mail(text):
+    """Strip quoted replies, obvious signatures, then redact and cap."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    out = []
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith(">"):
+            continue
+        two = (s + " " + lines[i + 1].strip()) if i + 1 < len(lines) else s
+        if s.startswith("On ") and (QUOTE_HEAD_RE.match(s) or QUOTE_HEAD_RE.match(two)):
+            break
+        if OUTLOOK_SEP_RE.match(s):
+            break
+        if s.startswith("From:") and any(l.strip().startswith(("Sent:", "Date:")) for l in lines[i + 1:i + 4]) \
+                and not any("Forwarded message" in l for l in lines[max(0, i - 3):i]):
+            break
+        if line.rstrip() in ("--", "-- "):
+            break
+        if SENT_FROM_RE.match(s):
+            continue
+        out.append(line.rstrip())
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    return clip_text(redact(text, otp=True), EMAIL_MAX_CHARS)
+
+
+def clean_subject(subject):
+    return re.sub(r"^(\s*(re|fwd?|aw|wg)\s*(\[\d+\])?\s*:\s*)+", "", subject or "", flags=re.I).strip()
+
+
+def mail_url(tid):
+    acct = f"?authuser={urllib.parse.quote(GOOGLE_ACCOUNT)}" if GOOGLE_ACCOUNT else ""
+    return f"https://mail.google.com/mail/u/{acct}#all/{tid}"
+
+
+def fmt_ms(ms, pattern="%Y-%m-%d %H:%M"):
+    return datetime.fromtimestamp(int(ms) / 1000, LOCAL_TZ).strftime(pattern) if ms else ""
+
+
+def iso_ms(ms):
+    return datetime.fromtimestamp(int(ms) / 1000, LOCAL_TZ).isoformat(timespec="minutes") if ms else ""
+
+
+HIDDEN_LABELS = {"UNREAD", "CATEGORY_PERSONAL", "DRAFT", "CHAT"}
+
+
+def render_thread(thread, directory, selfs, label_names):
+    msgs = live_messages(thread)
+    meta = thread_meta(thread)
+    subject = meta["subject"].strip() or "(no subject)"
+    first, last = msgs[0], msgs[-1]
+    last_from = (parse_addrs(msg_headers(last).get("from")) or [("", "")])[0]
+    last_self = last_from[1] in selfs
+    last_hit = None if last_self or NOREPLY_RE.match(last_from[1]) else directory.lookup(last_from[1])
+    labels = sorted({label_names.get(l, l) for m in msgs for l in m.get("labelIds") or []} - HIDDEN_LABELS
+                    - {k for k, v in label_names.items() if v in HIDDEN_LABELS})
+    fm = {
+        "source": "gmail",
+        "thread_id": thread["id"],
+        "subject": subject,
+        "title": subject,
+        "date": iso_ms(last.get("internalDate"))[:10],
+        "first_date": iso_ms(first.get("internalDate")),
+        "last_date": iso_ms(last.get("internalDate")),
+        "messages": len(msgs),
+        "participants": [addr_label(n, a) for a, n in meta["people"].items()],
+        "last_from": addr_label(*last_from) if last_from[1] else None,
+        "last_from_self": last_self,
+        "last_from_entity": last_hit[0] if last_hit else None,
+        "entities": entity_paths(list(meta["people"]), directory, selfs),
+        "labels": labels,
+        "url": mail_url(thread["id"]),
+        "tags": ["email", "gmail"],
+    }
+    span = fmt_ms(first.get("internalDate"), "%b %-d, %Y")
+    end = fmt_ms(last.get("internalDate"), "%b %-d, %Y")
+    out = [frontmatter(fm), GENERATED.format(src="Gmail"), "", f"# {subject}", "",
+           f"*{len(msgs)} message{'s' if len(msgs) != 1 else ''} · {span}{' – ' + end if end != span else ''}*", "",
+           "**Participants:** " + ", ".join(who(n, a, directory, selfs) for a, n in meta["people"].items()),
+           "", "## Messages"]
+    for m in msgs:
+        h = msg_headers(m)
+        sender = (parse_addrs(h.get("from")) or [("", h.get("from", "?"))])[0]
+        name = "Me" if sender[1] in selfs else (sender[0] or sender[1])
+        out += ["", f"### {fmt_ms(m.get('internalDate'))} — {safe_name(name, 80)}", ""]
+        heads = [("From", [sender]), ("To", parse_addrs(h.get("to"))), ("Cc", parse_addrs(h.get("cc")))]
+        out += [f"**{k}:** " + ", ".join(who(n, a, directory, selfs) for n, a in v) + "  " for k, v in heads if v]
+        body, attachments = message_body(m.get("payload"))
+        body = clean_mail(body)
+        if body:
+            out += ["", body]
+        if attachments:
+            out += ["", "**Attachments:** " + ", ".join(f"`{safe_name(f, 120)}`" for f in attachments)]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def thread_base(meta):
+    day = iso_ms(meta.get("first"))[:10] or "undated"
+    return f"{day[:4]}/{day} {safe_name(clean_subject(meta.get('subject')) or '(no subject)')}"
+
+
+def link_sig(people, directory, selfs):
+    hits = [(a, (directory.lookup(a) or ("",))[0]) for a in sorted(people) if a not in selfs]
+    return hashlib.sha1(json.dumps(hits).encode()).hexdigest()[:12]
+
+
+_gmail_meta = {}  # thread id -> thread_meta(); memory only, so unmatched mail never lands in the repo
+
+
+def render_gmail(index_text, existing, directory, selfs, cfg):
+    """Returns (files, keep). Unchanged threads keep their current blob."""
+    try:
+        index = (json.loads(index_text or "{}") or {}).get("threads") or {}
+    except ValueError:
+        index = {}
+    labels = google_get(f"{GMAIL_API}/labels") or {}
+    label_names = {l["id"]: l.get("name") or l["id"] for l in labels.get("labels") or []}
+    label_ids = {v.casefold(): k for k, v in label_names.items()}
+    rules = MailRules(cfg, directory, selfs, label_ids)
+    lookback = int(cfg.get("lookback_days") or 180)
+    cutoff = datetime.now(LOCAL_TZ) - timedelta(days=lookback)
+    query = f"after:{int(cutoff.timestamp())} {rules.query_excludes()}"
+    listed = google_pages(f"{GMAIL_API}/threads", "threads", q=query, maxResults=500)  # newest first
+    # Metadata checks get two thirds of the budget so a backfill still renders every cycle.
+    budget, checked, fetched, deferred = GMAIL_MAX_FETCH * 2 // 3, 0, 0, 0
+
+    # 1. Which threads match: index entries whose history didn't move keep their stored
+    #    participants; anything new or changed gets a metadata look (cached in memory).
+    matched = {}  # tid -> meta
+    listed_ids = set()
+    for t in listed:
+        tid, hid = t["id"], t.get("historyId")
+        listed_ids.add(tid)
+        prev, meta = index.get(tid), _gmail_meta.get(tid)
+        if prev and prev.get("hid") == hid and not (meta and meta["hid"] == hid):
+            meta = {"hid": hid, "people": prev.get("people") or {}, "labels": [], "subject": prev.get("subject", ""),
+                    "first": prev.get("first") or 0}
+        if not meta or meta["hid"] != hid:
+            if budget <= 0:
+                deferred += 1
+                if prev:  # keep the old note until there is budget to look again
+                    matched[tid] = {"hid": prev.get("hid"), "people": prev.get("people") or {}, "labels": [],
+                                    "subject": prev.get("subject", ""), "first": prev.get("first") or 0, "stale": True}
+                continue
+            data = google_get(f"{GMAIL_API}/threads/{tid}", format="metadata",
+                              metadataHeaders=["From", "To", "Cc", "Subject", "Date"])
+            budget -= 1
+            checked += 1
+            if not data:
+                continue
+            meta = _gmail_meta[tid] = thread_meta(data)
+        if rules.match(meta["people"], meta["labels"]):
+            matched[tid] = meta
+    # Notes for threads that fell out of the lookback window stay as long as they still match.
+    for tid, prev in index.items():
+        if tid not in listed_ids and (prev.get("first") or 0) / 1000 < cutoff.timestamp() \
+                and rules.match(prev.get("people") or {}):
+            matched[tid] = {"hid": prev.get("hid"), "people": prev.get("people") or {}, "labels": [],
+                            "subject": prev.get("subject", ""), "first": prev.get("first") or 0, "stale": True}
+
+    # 2. Render what is new or changed, newest first, within what is left of the budget.
+    paths = assign_paths(list(matched), lambda tid: thread_base(matched[tid]), lambda tid: tid, EMAIL_DIR)
+    files, keep, new_index = {}, set(), {}
+    budget = GMAIL_MAX_FETCH - checked
+    order = sorted(matched, key=lambda tid: matched[tid].get("first") or 0, reverse=True)
+    for tid in order:
+        meta, prev, path = matched[tid], index.get(tid) or {}, paths[tid]
+        sig = link_sig(meta["people"], directory, selfs)
+        entry = {"path": path, "hid": meta["hid"], "people": meta["people"], "subject": meta["subject"],
+                 "first": meta["first"], "links": sig, "v": EMAIL_RENDER_VERSION}
+        same = (prev.get("hid") == meta["hid"] and prev.get("path") == path and prev.get("links") == sig
+                and prev.get("v") == EMAIL_RENDER_VERSION and path in existing)
+        if same or (meta.get("stale") and prev.get("path") == path and path in existing):
+            keep.add(path)
+            new_index[tid] = prev if meta.get("stale") else entry
+            continue
+        if budget <= 0:
+            deferred += 1
+            if prev.get("path") in existing:
+                keep.add(prev["path"])
+                new_index[tid] = prev
+            continue
+        data = google_get(f"{GMAIL_API}/threads/{tid}", format="full")
+        budget -= 1
+        if not data or not live_messages(data):
+            continue
+        full_meta = thread_meta(data)
+        _gmail_meta[tid] = dict(full_meta)
+        entry.update(hid=full_meta["hid"], people=full_meta["people"], subject=full_meta["subject"],
+                     first=full_meta["first"], links=link_sig(full_meta["people"], directory, selfs))
+        files[path] = render_thread(data, directory, selfs, label_names)
+        new_index[tid] = entry
+        fetched += 1
+    # A deferred thread may keep an old path that a newer thread now owns: drop the old one.
+    for tid, entry in list(new_index.items()):
+        if entry.get("path") in files and paths.get(tid) != entry.get("path"):
+            new_index.pop(tid)
+    files[EMAIL_INDEX] = json.dumps({"threads": new_index}, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+    files[f"{EMAIL_DIR}/README.md"] = (
+        "# Email\n\n"
+        "Gmail threads with people and companies that have an entity page (matched by\n"
+        "address or company domain), plus whatever `.brain/google.json` includes; one note per\n"
+        "thread, filed by the date of its first message. Quoted replies and signatures are\n"
+        "stripped, passwords and one-time codes redacted, long messages cut, attachments listed\n"
+        "by name only. Written by `brain-sync` (whitehouse-rke2 `apps/ai/brain`), read-only.\n\n"
+        "`.brain/google.json` (all optional): `include_domains`, `include_addresses`,\n"
+        "`exclude_domains`, `exclude_addresses` (a thread involving any of these is left out),\n"
+        "`exclude_labels` (default: promotions, social, updates, forums, spam, trash; a thread\n"
+        "is left out when every message carries one), `lookback_days` (180),\n"
+        "`exclude_calendars`, `self_addresses`.\n"
+    )
+    log.info("gmail: %d threads listed, %d matched, %d checked, %d rendered, %d deferred",
+             len(listed), len(matched), checked, fetched, deferred)
+    return files, keep
+
+
+_google_last = 0.0
+
+
+def sync_google():
+    global _google_last
+    if time.time() - _google_last < GOOGLE_INTERVAL:
+        return
+    cfg, _ = load_google_config()
+    directory = entity_directory()
+    selfs = self_addresses(cfg)
+    failed = []
+
+    try:
+        existing = list_tree(CALENDAR_DIR)
+        files, start = render_calendar(directory, selfs, cfg)
+        # Notes from before the window are history: keep them as they are.
+        older = {p for p in existing if p not in files
+                 and (m := re.search(r"/(\d{4}-\d{2}-\d{2}) ", p)) and m.group(1) < start.isoformat()}
+        apply_changes(CALENDAR_DIR, files, existing, keep=older, label="calendar")
+    except Exception:
+        log.exception("calendar sync failed")
+        failed.append("calendar")
+    try:
+        existing = list_tree(EMAIL_DIR)
+        index_text = read_raw(EMAIL_INDEX) if EMAIL_INDEX in existing else None
+        files, keep = render_gmail(index_text, existing, directory, selfs, cfg)
+        apply_changes(EMAIL_DIR, files, existing, keep=keep, label="gmail")
+    except Exception:
+        log.exception("gmail sync failed")
+        failed.append("gmail")
+    _google_last = time.time()
+    if failed:
+        raise RuntimeError(f"google: {', '.join(failed)} failed")
 
 
 # --------------------------------------------------------------- repo sync
@@ -1302,7 +2067,7 @@ _entities_last = (0.0, "")
 
 
 def sync_entities():
-    global _entities_last
+    global _entities_last, _entity_pages
     root = forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}
     head = ((root.get("commit") or {}).get("id")) or ""
     if head == _entities_last[1] or time.time() - _entities_last[0] < ENTITY_INTERVAL:
@@ -1313,7 +2078,9 @@ def sync_entities():
     except ValueError as e:
         log.warning("ignoring %s: %s", ENTITY_CONFIG, e)
         cfg = {}
-    apply_changes(ENTITIES_DIR, render_entities(files, cfg), list_tree(ENTITIES_DIR), label="entities")
+    rendered = render_entities(files, cfg)
+    apply_changes(ENTITIES_DIR, rendered, list_tree(ENTITIES_DIR), label="entities")
+    _entity_pages = rendered
     # Our own commit moves the head; remember that one so it doesn't re-trigger.
     after = ((forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}).get("commit") or {}).get("id") or head
     _entities_last = (time.time(), after)
@@ -1322,7 +2089,8 @@ def sync_entities():
 def cycle():
     for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN),
                               ("hubspot", sync_hubspot, HUBSPOT_TOKEN), ("pages", sync_pages, PAGES_MCP_TOKEN),
-                              ("entities", sync_entities, True)):
+                              ("entities", sync_entities, True),
+                              ("google", sync_google, GOOGLE_REFRESH_TOKEN and GOOGLE_CLIENT_ID)):
         if not enabled:
             continue
         try:
