@@ -40,6 +40,10 @@ SAFE_PCT = float(os.environ.get("SAFE_PCT", "0"))
 # Page and card colours (CSS). True black looks far better than HA's dark grey on older LCDs.
 PAGE_BG = os.environ.get("PAGE_BG", "")
 CARD_BG = os.environ.get("CARD_BG", "")
+# Views to zoom so their cards fill the screen height (comma-separated paths), and the zoom limits.
+FIT_PATHS = [x for x in os.environ.get("FIT_PATHS", "").split(",") if x]
+FIT_MAX = float(os.environ.get("FIT_MAX", "1.6"))
+FIT_MIN = float(os.environ.get("FIT_MIN", "0.7"))
 # Burn-in guard: shift the whole page by up to this many pixels at every view change.
 JITTER_PX = int(os.environ.get("JITTER_PX", "0"))
 DISPLAY = ":99"
@@ -142,6 +146,7 @@ def main():
         ffmpeg = start_ffmpeg()
         last_reload = time.time()
         step, next_switch = 0, 0.0
+        zooms = {}
         last_check = 0.0
         while True:
             time.sleep(0.5)
@@ -150,6 +155,9 @@ def main():
                 path, secs = ROTATION[step % len(ROTATION)]
                 try:
                     show(page, path)
+                    if path in FIT_PATHS:
+                        time.sleep(0.6)
+                        fit(page, path, zooms)
                 except Exception as exc:  # page mid-reload; try again next tick
                     print(f"rotate failed: {exc}", flush=True)
                 step, next_switch = step + 1, now + secs
@@ -169,6 +177,62 @@ def main():
                     page.evaluate("t => localStorage.setItem('hassTokens', t)", json.dumps(tokens))
                 page.goto(HA_URL + DASHBOARD_PATH, wait_until="domcontentloaded", timeout=60000)
                 last_reload = now
+                zooms.clear()
+
+
+FIT_JS = """([target, apply]) => {
+    const find = (root, tag) => {
+        for (const el of root.querySelectorAll('*')) {
+            if (el.tagName === tag) return el;
+            if (el.shadowRoot) { const r = find(el.shadowRoot, tag); if (r) return r; }
+        }
+        return null;
+    };
+    const pv = find(document, 'HUI-PANEL-VIEW');
+    if (!pv) return null;
+    const card = [...(pv.shadowRoot || pv).children].find(e => e.tagName !== 'STYLE');
+    if (!card) return null;
+    if (apply !== null) card.style.zoom = String(apply);
+    const cards = [];
+    const walk = (root) => {
+        for (const el of root.querySelectorAll('*')) {
+            if (el.tagName === 'HA-CARD') cards.push(el);
+            if (el.shadowRoot) walk(el.shadowRoot);
+        }
+    };
+    walk(pv.shadowRoot || pv);
+    let bottom = 0;
+    for (const c of cards) { const r = c.getBoundingClientRect(); if (r.height > 0) bottom = Math.max(bottom, r.bottom); }
+    return {zoom: parseFloat(card.style.zoom || '1'), bottom: bottom};
+}"""
+
+
+def fit(page, path, zooms):
+    """Zoom the view's layout so its cards end just above the bottom of the screen.
+
+    HA keeps rendered views cached, so the zoom sticks and later calls only nudge it when the
+    content changes (a longer briefing, more calendar events)."""
+    target = HEADER_PX + HEIGHT - 14  # leave room for the burn-in shift
+    top = HEADER_PX
+    state = page.evaluate(FIT_JS, [target, zooms.get(path)])
+    for _ in range(6):
+        if not state or state["bottom"] <= top:
+            return
+        z, used = state["zoom"], state["bottom"] - top
+        want = target - top
+        if want * 0.97 <= used <= want:
+            break
+        new = max(FIT_MIN, min(FIT_MAX, round(z * want / used, 3)))
+        if used > want and new >= z:
+            new = max(FIT_MIN, round(z - 0.03, 3))
+        if abs(new - z) < 0.005:
+            break
+        time.sleep(0.35)  # let the cards re-render at the new width
+        state = page.evaluate(FIT_JS, [target, new])
+        time.sleep(0.35)
+        state = page.evaluate(FIT_JS, [target, None])
+    if state:
+        zooms[path] = state["zoom"]
 
 
 def show(page, path):
