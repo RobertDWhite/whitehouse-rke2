@@ -98,7 +98,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, ignore_default_args=["--enable-automation"], args=[
             "--kiosk", "--window-position=0,0", f"--window-size={WIDTH},{HEIGHT + HEADER_PX}",
-            "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
+            "--noerrdialogs", "--disable-infobars", "--hide-scrollbars", "--disable-session-crashed-bubble",
             "--force-device-scale-factor=1", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"])
         ctx = browser.new_context(no_viewport=True, color_scheme="dark")
         ctx.add_init_script(init)
