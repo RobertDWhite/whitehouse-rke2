@@ -1,0 +1,23 @@
+# Which models Graphiti uses (MCP server and ingest worker read the same values).
+#
+# LLM: qwen3.8:27b through the shared Ollama router (RTX 5090 first, Mac mini
+# fallback; the 27B lives on the Mac). It handles json_schema structured output.
+# To use Qwen3.8-Flash-Next on node-10 instead (faster, stronger) once it is
+# scaled back up:
+#   LLM_API_URL: http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1
+#   LLM_MODEL:   qwen3.8-flash-next
+# Embeddings: local TEI (21-embeddings-deployment.yaml). Changing the embedding
+# model or dimensions means clearing the graph and re-ingesting.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: graphiti-models
+  namespace: graph
+data:
+  LLM_API_URL: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+  LLM_MODEL: qwen3.8:27b
+  LLM_MAX_TOKENS: "16384"
+  EMBEDDER_API_URL: http://embeddings.graph.svc.cluster.local:8080/v1
+  EMBEDDER_MODEL: Qwen/Qwen3-Embedding-0.6B
+  EMBEDDER_DIMENSIONS: "1024"
+  GRAPHITI_GROUP_ID: brain

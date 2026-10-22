@@ -1,0 +1,93 @@
+# Feeds the Forgejo vault repo into Graphiti (script: ingest/brain_ingest.py).
+# A long-running loop rather than a CronJob: a cycle can take longer than any
+# sensible schedule while a local model works through the backlog, and the
+# loop serves Prometheus metrics. BATCH_SIZE bounds the notes per cycle.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphiti-ingest
+  namespace: graph
+spec:
+  replicas: 1
+  # Owns the state PVC; never two writers.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: graphiti-ingest
+  template:
+    metadata:
+      labels:
+        app: graphiti-ingest
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ingest
+          # Same image as the MCP server: the script imports its config and factories.
+          image: docker.io/zepai/knowledge-graph-mcp:1.1.3-graphiti-0.31.2-standalone@sha256:76b835abad42b6c47aea78860014850e300b6a237c0ce3de314b1e0b174c11a2
+          workingDir: /app/mcp
+          command: ["/app/mcp/.venv/bin/python", "-u", "/script/brain_ingest.py"]
+          envFrom:
+            - configMapRef:
+                name: graphiti-models
+          env:
+            - {name: CONFIG_PATH, value: /config/graphiti.yaml}
+            - name: NEO4J_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: neo4j-auth, key: NEO4J_PASSWORD}
+            - name: FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef: {name: graphiti-ingest, key: FORGEJO_TOKEN}
+            - {name: FORGEJO_URL, value: "http://forgejo.forgejo.svc.cluster.local"}
+            - {name: FORGEJO_REPO, value: WhiteHouse/brain}
+            - {name: BRANCH, value: main}
+            - {name: STATE_PATH, value: /state/state.json}
+            # One graph: entities from every folder dedupe against each other.
+            - {name: GROUP_MODE, value: single}
+            - {name: BATCH_SIZE, value: "10"}
+            - {name: INTERVAL_SECONDS, value: "900"}
+            - {name: MAX_EPISODE_CHARS, value: "6000"}
+            - {name: SEMAPHORE_LIMIT, value: "2"}
+            - {name: GRAPHITI_TELEMETRY_ENABLED, value: "false"}
+            - {name: HOME, value: /tmp}
+          ports:
+            - {name: metrics, containerPort: 9100}
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            periodSeconds: 60
+            timeoutSeconds: 5
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {memory: 1536Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: script, mountPath: /script, readOnly: true}
+            - {name: state, mountPath: /state}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: config
+          configMap:
+            name: graphiti-config
+        - name: script
+          configMap:
+            name: graphiti-ingest-script
+        - name: state
+          persistentVolumeClaim:
+            claimName: graphiti-ingest-state
+        - name: tmp
+          emptyDir: {}

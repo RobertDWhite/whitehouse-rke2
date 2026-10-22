@@ -1,0 +1,41 @@
+# Neo4j store for the Graphiti knowledge graph.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: neo4j-data
+  namespace: graph
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Embedding model weights (re-downloadable).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: embeddings-models
+  namespace: graph
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Ingest worker state: content hash and episode ids per note.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: graphiti-ingest-state
+  namespace: graph
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi

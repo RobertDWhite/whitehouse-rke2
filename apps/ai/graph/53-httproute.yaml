@@ -1,0 +1,106 @@
+# Internal-only hosts on the shared *.internal listener.
+#
+# neo4j.internal.white.fm: Neo4j Browser (HTTP 7474). The Browser's Bolt
+# connection is a WebSocket to the same host on 443, routed to 7687 by the
+# Upgrade header, so connect it with bolt+s://neo4j.internal.white.fm:443.
+# Neo4j's own login guards the data.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: neo4j-internal
+  namespace: graph
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - neo4j.internal.white.fm
+  rules:
+    - matches:
+        - headers:
+            - {type: Exact, name: Upgrade, value: websocket}
+      timeouts:
+        request: 0s
+      backendRefs:
+        - name: neo4j
+          port: 7687
+    - backendRefs:
+        - name: neo4j
+          port: 7474
+---
+# graphiti.internal.white.fm/mcp: Graphiti MCP (streamable HTTP). The server
+# has no auth of its own; the SecurityPolicy below requires the bearer token.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: graphiti-mcp-internal
+  namespace: graph
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - graphiti.internal.white.fm
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /mcp}
+      timeouts:
+        request: 3600s
+      backendRefs:
+        - name: graphiti-mcp
+          port: 8000
+---
+# LAN (RFC1918) and tailnet (CGNAT) sources only.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: neo4j-internal-source-cidrs
+  namespace: graph
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: neo4j-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan-and-tailnet
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+---
+# Bearer token (Authorization: Bearer <key>) from the graphiti-mcp-api-keys
+# Secret (one key per client), plus the same internal-source guard.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: graphiti-mcp-auth
+  namespace: graph
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: graphiti-mcp-internal
+  apiKeyAuth:
+    credentialRefs:
+      - name: graphiti-mcp-api-keys
+    extractFrom:
+      - headers: [Authorization]
+    sanitize: true
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-lan-and-tailnet
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
