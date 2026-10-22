@@ -12,6 +12,30 @@
         m.video.ObserveField("state", "onState")
         m.retry = m.top.FindNode("retry")
         m.retry.ObserveField("fire", "play")
+        ' Watchdog: the stream restarts with new segment numbers when its pod restarts, and the
+        ' player can sit in "buffering" forever. If the position stops moving, reload.
+        m.lastPos = -1
+        m.stalls = 0
+        m.watch = m.top.FindNode("watch")
+        m.watch.ObserveField("fire", "onWatch")
+        m.watch.control = "start"
+    end sub
+
+    sub onWatch()
+        if m.top.url = "" then return
+        curPos = m.video.position
+        if m.video.state = "playing" and curPos <> m.lastPos then
+            m.stalls = 0
+        else
+            m.stalls = m.stalls + 1
+        end if
+        m.lastPos = curPos
+        if m.stalls >= 2 then
+            print "house-screen: stalled ("; m.video.state; "), reloading"
+            m.stalls = 0
+            m.video.control = "stop"
+            play()
+        end if
     end sub
 
     sub onUrl()
@@ -47,5 +71,6 @@
   <children>
     <Video id="video" width="1920" height="1080" translation="[0,0]" enableUI="false" enableTrickPlay="false" />
     <Timer id="retry" duration="5" repeat="false" />
+    <Timer id="watch" duration="10" repeat="true" />
   </children>
 </component>
