@@ -31,7 +31,13 @@ spec:
             - name: HA_URL
               value: http://10.100.1.30:8123
             - name: DASHBOARD_PATH
-              value: /ha-screen/0
+              value: /ha-screen/main
+            # Each minute: the normal layout, its mirror image, then the kids' cameras. Moving
+            # things around (and the few-pixel shift) keeps static elements from burning in.
+            - name: ROTATION
+              value: /ha-screen/main:25,/ha-screen/flip:25,/ha-screen/cams:10
+            - name: JITTER_PX
+              value: "8"
             - name: CLIENT_ID
               value: https://screen.internal.white.fm/
             - name: HLS_DIR

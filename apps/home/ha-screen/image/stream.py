@@ -1,11 +1,16 @@
 """Stream a Home Assistant dashboard as HLS.
 
+Optionally rotates between dashboard views (ROTATION) using the frontend's own in-app navigation,
+so switching is instant, and nudges the page a few pixels on every switch (JITTER_PX) so static
+elements don't sit in one place on the TV.
+
 Logs in to Home Assistant as a (non-admin) user, opens DASHBOARD_PATH in Chromium on an Xvfb
 display, and has ffmpeg capture the display into an HLS playlist in HLS_DIR. The HA top bar is
 cropped off (HEADER_PX), and the sidebar is hidden through the frontend's own setting.
 """
 import json
 import os
+import random
 import subprocess
 import sys
 import time
@@ -26,6 +31,12 @@ FPS = os.environ.get("FPS", "8")
 BITRATE = os.environ.get("BITRATE", "1500k")
 HLS_DIR = os.environ.get("HLS_DIR", "/hls")
 RELOAD_HOURS = float(os.environ.get("RELOAD_HOURS", "6"))
+# Views to cycle through as "path:seconds,...", e.g. "/ha-screen/main:25,/ha-screen/cams:10".
+# Empty: stay on DASHBOARD_PATH.
+ROTATION = [(p.rsplit(":", 1)[0], float(p.rsplit(":", 1)[1]))
+            for p in os.environ.get("ROTATION", "").split(",") if ":" in p]
+# Burn-in guard: shift the whole page by up to this many pixels at every view change.
+JITTER_PX = int(os.environ.get("JITTER_PX", "0"))
 DISPLAY = ":99"
 
 
@@ -100,22 +111,50 @@ def main():
         print(f"opened {DASHBOARD_PATH}", flush=True)
         ffmpeg = start_ffmpeg()
         last_reload = time.time()
+        step, next_switch = 0, 0.0
+        last_check = 0.0
         while True:
-            time.sleep(15)
+            time.sleep(0.5)
+            now = time.time()
+            if ROTATION and now >= next_switch:
+                path, secs = ROTATION[step % len(ROTATION)]
+                try:
+                    show(page, path)
+                except Exception as exc:  # page mid-reload; try again next tick
+                    print(f"rotate failed: {exc}", flush=True)
+                step, next_switch = step + 1, now + secs
+            if now - last_check < 15:
+                continue
+            last_check = now
             if xvfb.poll() is not None or not browser.is_connected():
                 sys.exit("display or browser exited")
             if ffmpeg.poll() is not None:
                 print("ffmpeg exited, restarting", flush=True)
                 ffmpeg = start_ffmpeg()
             # A periodic reload clears any stuck frontend state (lost websocket, stale resources).
-            if time.time() - last_reload > RELOAD_HOURS * 3600 or "/auth/authorize" in page.url:
+            if now - last_reload > RELOAD_HOURS * 3600 or "/auth/authorize" in page.url:
                 if "/auth/authorize" in page.url:
                     print("session lost, logging in again", flush=True)
                     tokens = login()
                     page.evaluate("t => localStorage.setItem('hassTokens', t)", json.dumps(tokens))
                 page.goto(HA_URL + DASHBOARD_PATH, wait_until="domcontentloaded", timeout=60000)
-                last_reload = time.time()
+                last_reload = now
 
+
+def show(page, path):
+    """Switch view the way the HA frontend's navigate() does, and nudge the page for burn-in."""
+    dx = random.randint(-JITTER_PX, JITTER_PX) if JITTER_PX else 0
+    dy = -random.randint(0, JITTER_PX) if JITTER_PX else 0  # never down: the top bar is cropped off
+    page.evaluate(
+        """([path, dx, dy]) => {
+            if (location.pathname !== path) {
+                history.replaceState(null, "", path);
+                window.dispatchEvent(new CustomEvent("location-changed", {detail: {replace: true}}));
+            }
+            document.body.style.transform = `translate(${dx}px, ${dy}px)`;
+        }""",
+        [path, dx, dy],
+    )
 
 if __name__ == "__main__":
     main()
