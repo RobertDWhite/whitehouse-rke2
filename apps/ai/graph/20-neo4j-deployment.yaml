@@ -1,0 +1,93 @@
+# Neo4j Community: the graph store behind Graphiti. Bolt (7687) for in-cluster
+# clients, HTTP (7474) for Neo4j Browser. APOC core is bundled in the image's
+# labs/ folder; NEO4J_PLUGINS copies it in at start (no download).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j
+  namespace: graph
+spec:
+  replicas: 1
+  # RWO volume and a single store: never run two at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      # The "neo4j" Service would inject NEO4J_PORT_* env vars, which Neo4j
+      # reads as (invalid) settings.
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 7474
+        runAsGroup: 7474
+        fsGroup: 7474
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: neo4j
+          image: docker.io/library/neo4j:2026.10.0-community@sha256:388c0e5c6d4543e3d0e6cee3d1e751c05ad9314aa73342cc63cd0ea0946e38bb
+          ports:
+            - {name: http, containerPort: 7474}
+            - {name: bolt, containerPort: 7687}
+          env:
+            - name: NEO4J_AUTH
+              valueFrom:
+                secretKeyRef: {name: neo4j-auth, key: NEO4J_AUTH}
+            - name: NEO4J_PLUGINS
+              value: '["apoc"]'
+            - name: NEO4J_dbms_security_procedures_unrestricted
+              value: "apoc.*"
+            - name: NEO4J_server_memory_heap_initial__size
+              value: 1g
+            - name: NEO4J_server_memory_heap_max__size
+              value: 2g
+            - name: NEO4J_server_memory_pagecache_size
+              value: 1g
+            # Neo4j Browser is served behind the gateway over HTTPS; its Bolt
+            # WebSocket goes through the same host on 443 (see 53-httproute.yaml).
+            - name: NEO4J_server_bolt_advertised__address
+              value: neo4j.internal.white.fm:443
+            - name: NEO4J_dbms_usage__report_enabled
+              value: "false"
+          startupProbe:
+            tcpSocket: {port: bolt}
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket: {port: bolt}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 250m, memory: 2Gi}
+            limits: {memory: 4Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: logs, mountPath: /logs}
+            - {name: plugins, mountPath: /plugins}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: neo4j-data
+        - name: logs
+          emptyDir: {}
+        - name: plugins
+          emptyDir: {}

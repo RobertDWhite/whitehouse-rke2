@@ -1,0 +1,100 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: graph
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Neo4j: Browser and Bolt through the gateway; Bolt from Graphiti.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-neo4j
+  namespace: graph
+spec:
+  podSelector:
+    matchLabels:
+      app: neo4j
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - {port: 7474, protocol: TCP}
+        - {port: 7687, protocol: TCP}
+    - from:
+        - podSelector:
+            matchLabels:
+              app: graphiti-mcp
+        - podSelector:
+            matchLabels:
+              app: graphiti-ingest
+      ports:
+        - {port: 7687, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-embeddings
+  namespace: graph
+spec:
+  podSelector:
+    matchLabels:
+      app: embeddings
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: graphiti-mcp
+        - podSelector:
+            matchLabels:
+              app: graphiti-ingest
+      ports:
+        - {port: 8080, protocol: TCP}
+---
+# The MCP server is only reachable through the gateway (which checks the token).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-graphiti-mcp
+  namespace: graph
+spec:
+  podSelector:
+    matchLabels:
+      app: graphiti-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - {port: 8000, protocol: TCP}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingest-metrics
+  namespace: graph
+spec:
+  podSelector:
+    matchLabels:
+      app: graphiti-ingest
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - {port: 9100, protocol: TCP}

@@ -1,0 +1,78 @@
+# Local embeddings for Graphiti: Hugging Face text-embeddings-inference (CPU)
+# serving Qwen3-Embedding-0.6B (1024 dims) on an OpenAI-compatible
+# /v1/embeddings. Graphiti embeds short strings (entity names, facts), so CPU
+# is plenty and the GPUs stay free. Weights are downloaded once into the PVC.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embeddings
+  namespace: graph
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: embeddings
+  template:
+    metadata:
+      labels:
+        app: embeddings
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tei
+          image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d
+          args:
+            - --model-id=Qwen/Qwen3-Embedding-0.6B
+            - --revision=$(MODEL_REVISION)
+            - --port=8080
+            - --max-client-batch-size=64
+            # Caps activation memory; Graphiti sends short strings.
+            - --max-batch-tokens=4096
+            - --auto-truncate
+          env:
+            - {name: MODEL_REVISION, value: 97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3}
+            - {name: HF_HOME, value: /data}
+            - {name: HUGGINGFACE_HUB_CACHE, value: /data/hub}
+          ports:
+            - {name: http, containerPort: 8080}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
+          resources:
+            requests: {cpu: 500m, memory: 2Gi}
+            limits: {cpu: "4", memory: 6Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: models, mountPath: /data}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: embeddings-models
+        - name: tmp
+          emptyDir: {}

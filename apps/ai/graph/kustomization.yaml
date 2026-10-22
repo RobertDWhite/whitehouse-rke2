@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 15-configmap-models.yaml
+  - 20-neo4j-deployment.yaml
+  - 21-embeddings-deployment.yaml
+  - 22-graphiti-mcp-deployment.yaml
+  - 23-ingest-deployment.yaml
+  - 30-services.yaml
+  - 53-httproute.yaml
+  - 60-networkpolicy.yaml
+
+generators:
+  - ksops.yaml
+
+configMapGenerator:
+  - name: graphiti-config
+    namespace: graph
+    files:
+      - graphiti.yaml=config/graphiti.yaml
+  - name: graphiti-ingest-script
+    namespace: graph
+    files:
+      - ingest/brain_ingest.py

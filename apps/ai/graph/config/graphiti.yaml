@@ -1,0 +1,60 @@
+# Graphiti MCP server config, also read by the ingest worker (same image, same
+# factories). Endpoints and models come from the env (see the Deployments), so
+# switching models is an env change, not an edit here.
+server:
+  transport: http
+  host: 0.0.0.0
+  port: 8000
+
+llm:
+  provider: openai
+  model: ${LLM_MODEL}
+  temperature: ${LLM_TEMPERATURE:0.0}
+  # Reasoning models spend part of this on thinking.
+  max_tokens: ${LLM_MAX_TOKENS:16384}
+  structured_output_mode: json_schema
+  providers:
+    openai:
+      api_key: ${LLM_API_KEY:local}
+      api_url: ${LLM_API_URL}
+
+embedder:
+  provider: openai
+  model: ${EMBEDDER_MODEL}
+  dimensions: ${EMBEDDER_DIMENSIONS:1024}
+  providers:
+    openai:
+      api_key: ${EMBEDDER_API_KEY:local}
+      api_url: ${EMBEDDER_API_URL}
+
+database:
+  provider: neo4j
+  providers:
+    neo4j:
+      uri: ${NEO4J_URI:bolt://neo4j.graph.svc.cluster.local:7687}
+      username: ${NEO4J_USER:neo4j}
+      password: ${NEO4J_PASSWORD}
+      database: ${NEO4J_DATABASE:neo4j}
+
+graphiti:
+  group_id: ${GRAPHITI_GROUP_ID:main}
+  user_id: ${USER_ID:mcp_user}
+  entity_types:
+    - name: Person
+      description: "A human being, referred to by name or role"
+    - name: Organization
+      description: "Companies, customers, vendors, institutions, teams or other formal groups"
+    - name: Project
+      description: "A named initiative, deal, product, system or piece of work with a goal"
+    - name: Location
+      description: "Physical or virtual places, addresses and properties"
+    - name: Event
+      description: "Time-bound occurrences: meetings, calls, milestones, incidents"
+    - name: Document
+      description: "Contracts, reports, notes, articles and other written artifacts"
+    - name: Preference
+      description: "Stated preferences, choices, opinions or decisions"
+    - name: Procedure
+      description: "Standard operating procedures and sequential instructions"
+    - name: Topic
+      description: "Subject or knowledge domain (use as last resort)"
