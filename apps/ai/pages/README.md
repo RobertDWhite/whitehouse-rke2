@@ -34,8 +34,7 @@ alongside the `pages` / `pages-mcp` records.
 Some sites are published from the Forgejo repo `WhiteHouse/brain`, where
 `Pages/<site>/` is the source of truth. brain-sync (`apps/ai/brain`) deploys
 them through this MCP endpoint and redeploys every 30 minutes, so for those
-sites edit the repo, not the site; a direct `deploy_site`
-is overwritten.
+sites edit the repo, not the site; a direct `deploy_site` is overwritten.
 
 ## MCP tools
 

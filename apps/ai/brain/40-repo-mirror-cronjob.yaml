@@ -1,10 +1,11 @@
-# Mirrors a private GitHub repo into the Forgejo brain
-# repo under <mirror dir> (script: ww-mirror/mirror.sh). Reads GitHub
-# with a read-only deploy key on that one repo; writes as the brain-sync bot.
+# Mirrors a GitHub repo into a folder of the Forgejo brain repo (script:
+# repo-mirror/mirror.sh). Source, destination and label live in the SOPS secret.
+# Reads GitHub with a read-only deploy key on that one repo; writes as the
+# brain-sync bot.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: ww-mirror
+  name: repo-mirror
   namespace: brain
 spec:
   schedule: "*/15 * * * *"
@@ -21,7 +22,7 @@ spec:
       template:
         metadata:
           labels:
-            app: ww-mirror
+            app: repo-mirror
         spec:
           restartPolicy: Never
           automountServiceAccountToken: false
@@ -41,7 +42,16 @@ spec:
               env:
                 - name: FORGEJO_TOKEN
                   valueFrom:
-                    secretKeyRef: {name: ww-mirror, key: FORGEJO_TOKEN}
+                    secretKeyRef: {name: repo-mirror, key: FORGEJO_TOKEN}
+                - name: SRC_REPO
+                  valueFrom:
+                    secretKeyRef: {name: repo-mirror, key: SRC_REPO}
+                - name: DEST_DIR
+                  valueFrom:
+                    secretKeyRef: {name: repo-mirror, key: DEST_DIR}
+                - name: MIRROR_LABEL
+                  valueFrom:
+                    secretKeyRef: {name: repo-mirror, key: MIRROR_LABEL}
               volumeMounts:
                 - {name: config, mountPath: /config, readOnly: true}
                 - {name: secrets, mountPath: /secrets, readOnly: true}
@@ -57,10 +67,10 @@ spec:
           volumes:
             - name: config
               configMap:
-                name: ww-mirror
+                name: repo-mirror
             - name: secrets
               secret:
-                secretName: ww-mirror
+                secretName: repo-mirror
                 defaultMode: 0440
                 items:
                   - {key: deploy-key, path: deploy-key}
