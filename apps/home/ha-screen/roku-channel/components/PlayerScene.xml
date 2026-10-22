@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="PlayerScene" extends="Scene">
+  <interface>
+    <field id="url" type="string" onChange="onUrl" />
+  </interface>
+  <script type="text/brightscript">
+    <![CDATA[
+    sub init()
+        m.top.backgroundColor = "0x111111FF"
+        m.top.backgroundUri = ""
+        m.video = m.top.FindNode("video")
+        m.video.ObserveField("state", "onState")
+        m.retry = m.top.FindNode("retry")
+        m.retry.ObserveField("fire", "play")
+    end sub
+
+    sub onUrl()
+        play()
+    end sub
+
+    sub play()
+        content = CreateObject("roSGNode", "ContentNode")
+        content.url = m.top.url
+        content.streamFormat = "hls"
+        content.live = true
+        content.title = "House"
+        m.video.content = content
+        m.video.control = "play"
+        m.video.SetFocus(true)
+    end sub
+
+    ' The stream is live and never ends; if it errors or stops (pod restart, network blip),
+    ' try again in a few seconds.
+    sub onState()
+        if m.video.state = "error" or m.video.state = "finished" then m.retry.control = "start"
+    end sub
+
+    function onKeyEvent(key as String, press as Boolean) as Boolean
+        ' Swallow OK/play-pause so the screen can't be paused by accident; Back/Home exit.
+        return press and (key = "OK" or key = "play")
+    end function
+    ]]>
+  </script>
+  <children>
+    <Video id="video" width="1920" height="1080" translation="[0,0]" enableUI="false" enableTrickPlay="false" />
+    <Timer id="retry" duration="5" repeat="false" />
+  </children>
+</component>
