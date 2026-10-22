@@ -60,6 +60,12 @@ spec:
               value: neo4j.internal.white.fm:443
             - name: NEO4J_dbms_usage__report_enabled
               value: "false"
+            # On connect, Neo4j Browser loads the guide (clickable queries) and the
+            # style (captions by name) published at neo4j-guide.pages.internal.white.fm.
+            - name: NEO4J_browser_remote__content__hostname__whitelist
+              value: guides.neo4j.com,localhost,neo4j-guide.pages.internal.white.fm
+            - name: NEO4J_browser_post__connect__cmd
+              value: ":style https://neo4j-guide.pages.internal.white.fm/style.grass; :play https://neo4j-guide.pages.internal.white.fm/index.html"
           startupProbe:
             tcpSocket: {port: bolt}
             periodSeconds: 10
