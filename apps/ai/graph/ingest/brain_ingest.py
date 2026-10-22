@@ -403,7 +403,9 @@ async def cycle(ing: Ingester, state: dict) -> None:
         if fail and fail['hash'] == h and fail['count'] >= MAX_ATTEMPTS:
             continue
         explicit = note_date(path, notes[path][0])
-        sort_key = (explicit or datetime.fromtimestamp(notes[path][1], timezone.utc)).timestamp()
+        # Undated notes (their archive mtime is just the head commit's time) go
+        # after every dated one.
+        sort_key = explicit.timestamp() if explicit else float('-inf')
         pending.append((sort_key, path, explicit))
     pending.sort(reverse=True)  # newest first
 
