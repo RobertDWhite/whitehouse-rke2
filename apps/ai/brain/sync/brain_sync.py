@@ -246,6 +246,12 @@ def contact_name(c):
     return name or c.get("nickname") or f"Contact {c['ID']}"
 
 
+MEERKAT_FULL_SECONDS = int(os.environ.get("MEERKAT_FULL_SECONDS", "1800"))
+MEERKAT_REQUEST_DELAY = float(os.environ.get("MEERKAT_REQUEST_DELAY", "0.1"))
+_meerkat_details = {}  # contact id -> (UpdatedAt, {child lists})
+_meerkat_full_at = 0.0
+
+
 def fetch_meerkat():
     contacts, page = [], 1
     while True:
@@ -255,15 +261,36 @@ def fetch_meerkat():
         if not batch or len(contacts) >= int(data.get("total") or 0):
             break
         page += 1
+    # Each contact's notes/activities/relationships/reminders cost five requests,
+    # so only re-fetch them for contacts that are new or whose UpdatedAt moved,
+    # with a full refresh every MEERKAT_FULL_SECONDS (child records don't always
+    # bump the contact) and a small delay between requests to stay under
+    # Meerkat's rate limit.
+    global _meerkat_full_at
+    full = time.time() - _meerkat_full_at > MEERKAT_FULL_SECONDS
+    seen = set()
     for c in contacts:
         cid = c["ID"]
-        c["_notes"] = (meerkat_get(f"/contacts/{cid}/notes") or {}).get("notes") or []
-        c["_activities"] = (meerkat_get(f"/contacts/{cid}/activities") or {}).get("activities") or []
-        c["_relationships"] = (meerkat_get(f"/contacts/{cid}/relationships") or {}).get("relationships") or []
-        c["_incoming"] = (meerkat_get(f"/contacts/{cid}/incoming-relationships") or {}).get(
-            "incoming_relationships"
-        ) or []
-        c["_reminders"] = (meerkat_get(f"/contacts/{cid}/reminders") or {}).get("reminders") or []
+        seen.add(cid)
+        stamp = c.get("UpdatedAt") or ""
+        cached = _meerkat_details.get(cid)
+        if not full and cached and cached[0] == stamp:
+            c.update(cached[1])
+            continue
+        details = {}
+        for key, path, field in (("_notes", "notes", "notes"), ("_activities", "activities", "activities"),
+                                 ("_relationships", "relationships", "relationships"),
+                                 ("_incoming", "incoming-relationships", "incoming_relationships"),
+                                 ("_reminders", "reminders", "reminders")):
+            details[key] = (meerkat_get(f"/contacts/{cid}/{path}") or {}).get(field) or []
+            time.sleep(MEERKAT_REQUEST_DELAY)
+        _meerkat_details[cid] = (stamp, details)
+        c.update(details)
+    for cid in list(_meerkat_details):
+        if cid not in seen:
+            del _meerkat_details[cid]
+    if full:
+        _meerkat_full_at = time.time()
     return contacts
 
 
