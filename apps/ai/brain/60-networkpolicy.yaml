@@ -34,3 +34,24 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
+---
+# brain-mcp: reached through the internal gateway only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-brain-mcp
+  namespace: brain
+spec:
+  podSelector:
+    matchLabels:
+      app: brain-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - port: 8080
+          protocol: TCP

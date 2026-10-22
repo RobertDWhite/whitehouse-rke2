@@ -1,0 +1,19 @@
+# Only /mcp is exposed (bearer token checked by the server); /healthz stays in-cluster.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: brain-mcp
+  namespace: brain
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  hostnames:
+    - brain-mcp.internal.white.fm
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /mcp}
+      backendRefs:
+        - name: brain-mcp
+          port: 8080

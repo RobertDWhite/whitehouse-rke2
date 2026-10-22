@@ -1,0 +1,102 @@
+# brain-mcp: read-only MCP server over the brain repo (script: mcp/brain_mcp.py).
+# The git-sync sidecar (mcp/git-sync.sh) keeps a clone in the shared emptyDir.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brain-mcp
+  namespace: brain
+  labels:
+    app: brain-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: brain-mcp
+  template:
+    metadata:
+      labels:
+        app: brain-mcp
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: brain-mcp
+          image: python
+          command: [python3, -u, /app/brain_mcp.py]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: REPO_DIR
+              value: /work/repo
+            - name: META_DIR
+              value: /work/meta
+            - name: MCP_TOKEN
+              valueFrom:
+                secretKeyRef: {name: brain-mcp, key: MCP_TOKEN}
+          volumeMounts:
+            - {name: script, mountPath: /app, readOnly: true}
+            - {name: work, mountPath: /work, readOnly: true}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 4
+          resources:
+            requests: {cpu: 20m, memory: 160Mi}
+            limits: {cpu: "1", memory: 640Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+        - name: git-sync
+          image: alpine/git
+          command: [sh, /app/git-sync.sh]
+          env:
+            - name: REPO_URL
+              value: http://forgejo.forgejo.svc.cluster.local/WhiteHouse/brain.git
+            - name: BRANCH
+              value: main
+            - name: SYNC_INTERVAL_SECONDS
+              value: "60"
+            - name: REPO_DIR
+              value: /work/repo
+            - name: META_DIR
+              value: /work/meta
+            - name: FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef: {name: brain-mcp, key: FORGEJO_TOKEN}
+          volumeMounts:
+            - {name: script, mountPath: /app, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: script
+          configMap:
+            name: brain-mcp-script
+        - name: work
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

@@ -87,6 +87,49 @@ kubectl -n brain exec deploy/brain-sync -- python3 -c \
 Metrics: `brain_sync_last_success_timestamp_seconds{source}`; alerts
 `BrainSyncStale` and `BrainSyncDown` in `cluster-alerts.yml`.
 
+## brain-mcp
+
+Read-only MCP server over the brain repo, for agents:
+`https://brain-mcp.internal.white.fm/mcp` (streamable HTTP, JSON responses,
+`Authorization: Bearer <MCP_TOKEN>`). Only `/mcp` is routed through the
+gateway (listener `https-internal-white-fm`); `/healthz` stays in-cluster.
+
+- `mcp/git-sync.sh` (sidecar, `alpine/git`) keeps a full clone of the repo in an
+  emptyDir and fetches every 60 s. After each new commit it writes
+  `/work/meta/HEAD` and a per-file last-commit index (`git log --name-only`).
+- `mcp/brain_mcp.py` (stock `python` image, standard library only) reloads every
+  Markdown file into memory when `HEAD` changes (well under a second) and serves:
+  `search(query, path_prefix?, limit, regex?)`, `read_note(path, max_chars,
+  offset)`, `get_entity(name, kind?)` (exact name/alias match against
+  `Entities/{People,Companies,Businesses,Properties}/`, case-insensitive, else
+  fuzzy candidates), `list_recent(path_prefix?, days, limit, sort=modified|date)`,
+  `outline(path)`, `list_dir(path)`, `repo_status()`. No write tools.
+- Server instructions point clients at the repo's own `CLAUDE.md`, entity pages
+  first, and `[[path]]` citations.
+
+Secret `13-mcp-secret.sops.yaml` (`brain-mcp`):
+
+- `FORGEJO_TOKEN`: token `brain-mcp` of Forgejo user `brain-sync`, scope
+  `read:repository` only. Revoke it in Forgejo (as admin, user `brain-sync` ->
+  Settings -> Applications) or mint a new one with
+  `forgejo admin user generate-access-token --username brain-sync --token-name
+  brain-mcp --scopes read:repository --raw`.
+- `MCP_TOKEN`: bearer token clients send.
+
+Register with Claude Code:
+
+```sh
+sops -d apps/ai/brain/13-mcp-secret.sops.yaml | grep MCP_TOKEN
+claude mcp add --transport http --scope user brain \
+  https://brain-mcp.internal.white.fm/mcp \
+  --header "Authorization: Bearer <MCP_TOKEN>"
+```
+
+```sh
+kubectl -n brain logs deploy/brain-mcp -c git-sync --tail=20
+kubectl -n brain logs deploy/brain-mcp -c brain-mcp --tail=20
+```
+
 ## repo-mirror
 
 CronJob (every 15 min) that mirrors a private GitHub repo into a folder of the
