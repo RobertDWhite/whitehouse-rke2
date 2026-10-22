@@ -85,13 +85,17 @@ def main():
         "localStorage.setItem('selectedTheme', JSON.stringify({theme: 'default', dark: true}));"
     )
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=[
+        browser = p.chromium.launch(headless=False, ignore_default_args=["--enable-automation"], args=[
             "--kiosk", "--window-position=0,0", f"--window-size={WIDTH},{HEIGHT + HEADER_PX}",
             "--noerrdialogs", "--disable-infobars", "--disable-session-crashed-bubble",
             "--force-device-scale-factor=1", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"])
         ctx = browser.new_context(no_viewport=True, color_scheme="dark")
         ctx.add_init_script(init)
         page = ctx.new_page()
+        # --kiosk alone still leaves the toolbar under Playwright; force real fullscreen.
+        cdp = ctx.new_cdp_session(page)
+        window = cdp.send("Browser.getWindowForTarget")["windowId"]
+        cdp.send("Browser.setWindowBounds", {"windowId": window, "bounds": {"windowState": "fullscreen"}})
         page.goto(HA_URL + DASHBOARD_PATH, wait_until="domcontentloaded", timeout=60000)
         print(f"opened {DASHBOARD_PATH}", flush=True)
         ffmpeg = start_ffmpeg()
