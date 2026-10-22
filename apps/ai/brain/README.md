@@ -19,9 +19,19 @@ HubSpot every 10.
 | Riffado | `Riffado/<year>/<date> <title>.md` | One note per recording: summary, key points, action items, full transcript. |
 | HubSpot | `$HUBSPOT_DIR/{Companies,Contacts,Deals}/<Name>.md` | One note per record, linked to each other, with a timeline of logged notes, calls, meetings and tasks. Meeting passwords and dial-in PINs are redacted. |
 
+It also builds `$ENTITIES_DIR` (default `Entities/`): one page per person,
+company, business and property, discovered from the records above, from notes
+whose frontmatter has `type: person|company|business|property`, and from the
+optional config `.brain/entities.json` in the brain repo (`folder_sources`,
+extra `entities`, `aliases`, `merge`, `ignore`, `no_match`,
+`min_alias_length`). Each page links its records, related entities and every
+note that mentions it (multi-word names, domains and explicitly listed
+aliases; ambiguous aliases are skipped). It rebuilds from one repo archive
+when `main` moves, at most every `ENTITY_INTERVAL_SECONDS` (600).
+
 Each cycle renders every file it owns, compares git blob hashes with the repo,
 and pushes only the differences as a single commit through Forgejo's
-change-files API (author `brain-sync`). It only ever touches the folders above;
+change-files API (author `brain-sync`). It only ever touches the folders above and the entities folder;
 everything else in the repo is yours. Generated files say so at the top; edit
 the source app, not the note. A record deleted at the source is deleted from
 the repo.
