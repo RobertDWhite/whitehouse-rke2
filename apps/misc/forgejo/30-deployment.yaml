@@ -134,6 +134,10 @@ spec:
               value: "true"
             - name: FORGEJO__actions__ENABLED
               value: "false"
+            # Webhooks may only reach external hosts plus these in-cluster
+            # receivers (Hookshot posts brain repo pushes to the Brain room).
+            - name: FORGEJO__webhook__ALLOWED_HOST_LIST
+              value: external,matrix-hookshot.matrix.svc.cluster.local
             - name: FORGEJO__mailer__ENABLED
               value: "true"
             - name: FORGEJO__mailer__PROTOCOL

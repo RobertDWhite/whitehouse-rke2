@@ -133,7 +133,8 @@ kubectl -n brain logs deploy/brain-mcp -c brain-mcp --tail=20
 
 CronJob (06:30 America/New_York) that writes a daily note to
 `Briefings/<year>/<date>.md` in the brain repo (script: `briefing/briefing.py`,
-standard-library Python) and pushes a short summary with a link to it to ntfy.
+standard-library Python) and pushes a short summary with a link to it to ntfy
+and a fuller one to the Brain Matrix room (see below).
 
 It downloads one archive of the repo and lists, each item linked to its note:
 reminders due or overdue and coming up, birthdays in the next 14 days, open CRM
@@ -151,12 +152,36 @@ are env vars at the top of the script.
   (secret `brain-briefing`). ntfy has no auth, so the topic name is the only
   thing protecting it: keep it random. The push carries counts only, unless
   `NTFY_INCLUDE_PRIORITIES=1`.
+- Matrix: `MATRIX_WEBHOOK_URL` (same secret) is the Brain room's Hookshot hook.
+  That room is end-to-end encrypted, so its post also lists the priorities and
+  the first `MATRIX_ITEMS` (5) calendar entries, due reminders, birthdays,
+  closing deals and action items.
 - Credentials: `FORGEJO_TOKEN` and `HUBSPOT_DIR` from `brain-sync-env`; commits
   as `brain-sync`. Re-running on the same day rewrites that day's note.
 
 Run now: `kubectl -n brain create job --from=cronjob/brain-briefing briefing-manual`.
 Preview without writing: run the script with `DRY_RUN=1` (and optionally
 `BRIEFING_DATE=YYYY-MM-DD`).
+
+## Brain Matrix room
+
+Private, end-to-end encrypted room "Brain" (`!izMvHnoMYeLtxUakoz:white.fm`) with
+one Hookshot generic hook, `brain`, whose transform is
+`apps/social/matrix-stack/hookshot/transforms/brain.js`. Two senders use it:
+
+- A Forgejo push webhook on `WhiteHouse/brain` (repo Settings -> Webhooks,
+  type Forgejo, push events, in-cluster URL
+  `http://matrix-hookshot.matrix.svc.cluster.local:9000/webhook/<hookId>`).
+  Every push becomes one message: commit subjects plus changed notes grouped by
+  folder (`Meerkat/People`, `Entities/People`, the repo mirror's folder, hand
+  edits...), each linked. Forgejo may only call that host because of
+  `FORGEJO__webhook__ALLOWED_HOST_LIST`.
+- brain-briefing, every morning (above).
+
+NetworkPolicy `allow-brain-to-hookshot` (platform/policy/network-policies/matrix.yaml)
+admits both. The hookId is a bearer credential: rotate it with
+`apps/social/matrix-stack/hookshot/rotate-webhook.sh`, then update the Forgejo
+webhook and `MATRIX_WEBHOOK_URL`.
 
 ## repo-mirror
 

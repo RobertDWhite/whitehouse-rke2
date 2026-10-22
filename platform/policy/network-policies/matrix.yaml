@@ -155,3 +155,30 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+
+---
+# Brain room (encrypted): Forgejo push webhook on the brain repo and the daily
+# brain-briefing → Hookshot
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-brain-to-hookshot
+  namespace: matrix
+spec:
+  podSelector:
+    matchLabels:
+      app: matrix-hookshot
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: brain
+          podSelector:
+            matchLabels:
+              app: brain-briefing
+      ports:
+        - {protocol: TCP, port: 9000}

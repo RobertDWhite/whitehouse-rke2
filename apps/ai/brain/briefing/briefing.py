@@ -5,13 +5,14 @@ notification about it.
 It reads the whole repo from one archive download, pulls out what needs attention today
 (reminders, birthdays, CRM tasks and deals, recording action items, agent sessions, entity
 mentions), writes `$BRIEFING_DIR/<YYYY>/<YYYY-MM-DD>.md` through Forgejo's change-files API,
-then posts a summary with a link to ntfy. A local OpenAI-compatible LLM can optionally add a
+then posts a summary with a link to ntfy and, in more detail, to a Matrix room. A local OpenAI-compatible LLM can optionally add a
 "top priorities" paragraph; if it is unset or fails the briefing is written without it.
 
 Standard library only, so it runs on the stock python image.
 """
 
 import base64
+import html
 import io
 import json
 import logging
@@ -67,6 +68,11 @@ NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")
 # The push only carries counts unless this is set: ntfy topics may be readable by anyone
 # who knows the topic name, while the note itself stays behind Forgejo auth.
 NTFY_DETAILS = os.environ.get("NTFY_INCLUDE_PRIORITIES", "") == "1"
+
+# Hookshot generic webhook of the (end-to-end encrypted) Brain room; posts carry the
+# priorities and the items due today, not just counts.
+MATRIX_WEBHOOK_URL = os.environ.get("MATRIX_WEBHOOK_URL", "")
+MATRIX_ITEMS = int(os.environ.get("MATRIX_ITEMS", "5"))  # per section
 
 DRY_RUN = os.environ.get("DRY_RUN", "") == "1"
 
@@ -528,6 +534,30 @@ def notify(title, message, url):
         log.warning("ntfy: %s", e)
 
 
+def notify_matrix(title, summary, priorities, sections, url):
+    if not MATRIX_WEBHOOK_URL:
+        log.info("matrix not configured; skipping")
+        return
+    plain = [f"☀️ {title}", summary]
+    rich = [f"<b>☀️ {html.escape(title)}</b> · <a href=\"{html.escape(url)}\">open note</a><br>{html.escape(summary)}<br>"]
+    for heading, items in (("Top priorities", [re.sub(r"^- ", "", p) for p in priorities or []]), *sections):
+        if not items:
+            continue
+        shown = items[:MATRIX_ITEMS] + ([f"… {len(items) - MATRIX_ITEMS} more"] if len(items) > MATRIX_ITEMS else [])
+        plain += ["", f"{heading}:"] + [f"• {i}" for i in shown]
+        rich.append(f"<b>{html.escape(heading)}</b><ul>" + "".join(f"<li>{html.escape(i)}</li>" for i in shown)
+                    + "</ul>")
+    plain += ["", url]
+    req = urllib.request.Request(MATRIX_WEBHOOK_URL, method="POST",
+                                 data=json.dumps({"text": "\n".join(plain), "html": "".join(rich)}).encode())
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            log.info("matrix: %s", resp.status)
+    except Exception as e:
+        log.warning("matrix: %s", e)
+
+
 def main():
     now = datetime.now(LOCAL_TZ)
     today = date.fromisoformat(os.environ["BRIEFING_DATE"]) if os.environ.get("BRIEFING_DATE") else now.date()
@@ -578,6 +608,10 @@ def main():
     if priorities and NTFY_DETAILS:
         msg += "\n\n" + "\n".join(priorities)
     notify(f"Briefing {today.strftime('%a %b %-d')}", msg, url)
+    notify_matrix(f"Briefing {today.strftime('%a %b %-d')}", " · ".join(data["summary"]) or "Nothing flagged today.",
+                  priorities, [(h, [i["brief"] for i in data[k] or []]) for h, k in (
+                      ("Calendar", "calendar"), ("Reminders due", "reminders_due"), ("Birthdays", "birthdays"),
+                      ("Deals closing", "deals_closing"), ("Action items", "actions"))], url)
 
 
 if __name__ == "__main__":
