@@ -23,6 +23,64 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       enableServiceLinks: false
+      initContainers:
+        # Declarative-ish OAuth2 auth source: create the "authentik" source on
+        # first start, and re-apply client id/secret/discovery URL on every
+        # start (update-oauth) so the DB always matches the forgejo-oidc Secret.
+        # Runs before the web container, so nothing else holds the SQLite DB.
+        - name: oauth-source
+          image: codeberg.org/forgejo/forgejo
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              CONF=/var/lib/gitea/custom/conf/app.ini
+              if [ ! -f "$CONF" ]; then
+                echo "app.ini not generated yet (first boot); skipping"
+                exit 0
+              fi
+              set -- --name authentik --provider openidConnect \
+                --key "$OIDC_CLIENT_ID" --secret "$OIDC_CLIENT_SECRET" \
+                --auto-discover-url "$OIDC_DISCOVERY_URL" \
+                --scopes openid --scopes email --scopes profile \
+                --skip-local-2fa
+              ID=$(forgejo admin auth list --config "$CONF" | awk '$2 == "authentik" {print $1}')
+              if [ -z "$ID" ]; then
+                echo "creating auth source authentik"
+                forgejo admin auth add-oauth --config "$CONF" "$@"
+              else
+                echo "updating auth source authentik (id $ID)"
+                forgejo admin auth update-oauth --config "$CONF" --id "$ID" "$@"
+              fi
+          env:
+            - name: OIDC_DISCOVERY_URL
+              value: https://auth.white.fm/application/o/forgejo/.well-known/openid-configuration
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-oidc
+                  key: client-id
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: forgejo-oidc
+                  key: client-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+              subPath: data
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
       containers:
         - name: forgejo
           image: codeberg.org/forgejo/forgejo
@@ -49,7 +107,8 @@ spec:
             - name: FORGEJO__security__INSTALL_LOCK
               value: "true"
             # Accounts come from Authentik (OIDC auth source "authentik",
-            # added with `forgejo admin auth add-oauth`). No local sign-up.
+            # managed by the oauth-source init container). No local sign-up;
+            # local password sign-in stays enabled as break-glass.
             - name: FORGEJO__service__DISABLE_REGISTRATION
               value: "false"
             - name: FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION
@@ -62,8 +121,11 @@ spec:
               value: "true"
             - name: FORGEJO__oauth2_client__USERNAME
               value: nickname
+            # auto: an Authentik login whose username (nickname claim) or
+            # email matches an existing local user is linked to it directly.
+            # Safe because the Authentik app is bound to "authentik Admins".
             - name: FORGEJO__oauth2_client__ACCOUNT_LINKING
-              value: login
+              value: auto
             - name: FORGEJO__openid__ENABLE_OPENID_SIGNIN
               value: "false"
             - name: FORGEJO__repository__DEFAULT_PRIVATE
