@@ -1,0 +1,81 @@
+# brain-briefing: every morning, writes Briefings/<year>/<date>.md into the Forgejo brain
+# repo (script: briefing/briefing.py) and pushes a short summary with a link to ntfy.
+# Commits as the brain-sync bot; reads only FORGEJO_TOKEN and HUBSPOT_DIR from its secret.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: brain-briefing
+  namespace: brain
+spec:
+  schedule: "30 6 * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1200
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: brain-briefing
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: briefing
+              image: python
+              command: [python3, -u, /app/briefing.py]
+              env:
+                - name: TZ
+                  value: America/New_York
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: BRAIN_REPO
+                  value: WhiteHouse/brain
+                - name: FORGEJO_URL
+                  value: http://forgejo.forgejo.svc.cluster.local
+                - name: BRAIN_WEB_URL
+                  value: https://git.internal.white.fm
+                # Optional "top priorities" from the shared Ollama router (OpenAI-compatible).
+                # Empty LLM_URL disables it; failures are logged and skipped.
+                - name: LLM_URL
+                  value: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+                - name: LLM_MODEL
+                  value: qwen3.8:27b
+                - name: NTFY_URL
+                  value: http://ntfy.ntfy.svc.cluster.local:8080
+                - name: FORGEJO_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: FORGEJO_TOKEN}
+                - name: HUBSPOT_DIR
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: HUBSPOT_DIR}
+                - name: NTFY_TOPIC
+                  valueFrom:
+                    secretKeyRef: {name: brain-briefing, key: NTFY_TOPIC}
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+              resources:
+                requests: {cpu: 20m, memory: 128Mi}
+                limits: {cpu: "1", memory: 512Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: script
+              configMap:
+                name: brain-briefing-script
