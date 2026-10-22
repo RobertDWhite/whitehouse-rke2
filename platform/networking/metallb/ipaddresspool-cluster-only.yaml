@@ -1,0 +1,29 @@
+# Addresses announced only from nodes whose sole network is the Cluster VLAN.
+# rke2-node-50 sits on the LAN with a second leg on the Cluster VLAN, and its default route is the
+# LAN: when it holds a VIP, replies to clients on other VLANs (IoT, guest, VPN) leave by the LAN
+# with a Cluster source address and the gateway drops them. Services that must work from those
+# VLANs take an address from this pool.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: cluster-only-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.99.5.60-10.99.5.69
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: cluster-only
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - cluster-only-pool
+  nodeSelectors:
+    - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: NotIn
+          values:
+            - rke2-node-50

@@ -10,3 +10,23 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
+---
+# Plain-HTTP address for the master bath Roku (IoT VLAN). The shared gateway VIP can be held by
+# rke2-node-50, which can't answer other VLANs (see metallb ipaddresspool-cluster-only.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: ha-screen-lb
+  namespace: ha-screen
+  annotations:
+    metallb.universe.tf/address-pool: cluster-only-pool
+    metallb.universe.tf/loadBalancerIPs: 10.99.5.60
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app: ha-screen
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
