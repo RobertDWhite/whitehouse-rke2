@@ -19,6 +19,7 @@
     end sub
 
     sub play()
+        print "house-screen: play "; m.top.url
         content = CreateObject("roSGNode", "ContentNode")
         content.url = m.top.url
         content.streamFormat = "hls"
@@ -27,11 +28,13 @@
         m.video.content = content
         m.video.control = "play"
         m.video.SetFocus(true)
+        m.top.signalBeacon("AppLaunchComplete")
     end sub
 
     ' The stream is live and never ends; if it errors or stops (pod restart, network blip),
     ' try again in a few seconds.
     sub onState()
+        print "house-screen: state "; m.video.state; " "; m.video.errorCode; " "; m.video.errorMsg; " "; m.video.errorStr
         if m.video.state = "error" or m.video.state = "finished" then m.retry.control = "start"
     end sub
 
