@@ -249,7 +249,7 @@ read every run; nothing else is fetched or written:
 
 ```json
 {
-  "people": [{"name": "<note name>", "contact": "<name in Mac Contacts>"}],
+  "people": [{"name": "<note name>", "contact": "<name in Mac Contacts>", "handles": ["<optional phone or iMessage email>"]}],
   "groups": [{"name": "<note name>", "chat": "<group chat name>"}],
   "since": null,
   "include_groups_with_people": false,
@@ -259,7 +259,8 @@ read every run; nothing else is fetched or written:
 ```
 
 - `people`: the contact's phone numbers and email addresses select their 1:1
-  chats. `groups`: group chats by exact name. `since`: ISO date, or `null` for
+  chats; `handles` adds numbers or iMessage emails directly (for someone who
+  isn't in Contacts, or who uses an extra handle). `groups`: group chats by exact name. `since`: ISO date, or `null` for
   all history.
 - `include_groups_with_people`: also sync every group chat that includes a
   listed person.

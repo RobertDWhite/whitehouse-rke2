@@ -322,6 +322,31 @@ class People:
             p["handles"] |= handles
             for h in handles:
                 self.by_handle.setdefault(h, key)
+        # Allowlist entries may list handles (phone numbers or iMessage emails)
+        # directly, for people who aren't in Contacts or who use an extra handle.
+        for entry in cfg_people:
+            extra = [x for x in entry.get("handles") or [] if x]
+            if not extra or not entry.get("name"):
+                continue
+            key = norm_person(entry.get("contact") or entry["name"])
+            p = self.persons.get(key)
+            if p is None:
+                first, _, last = entry["name"].partition(" ")
+                p = self.persons[key] = {
+                    "key": key, "contact_name": entry.get("contact") or entry["name"], "name": entry["name"],
+                    "first": first, "last": last, "nickname": "", "phones": [], "emails": [],
+                    "handles": set(), "listed": True,
+                }
+            for x in extra:
+                h = norm_handle(x)
+                if not h:
+                    continue
+                if "@" in x and x.lower() not in p["emails"]:
+                    p["emails"].append(x.lower())
+                elif "@" not in x and h not in {norm_handle(y) for y in p["phones"]}:
+                    p["phones"].append(x)
+                p["handles"].add(h)
+                self.by_handle[h] = key
 
     def person(self, address):
         key = self.by_handle.get(norm_handle(address))
