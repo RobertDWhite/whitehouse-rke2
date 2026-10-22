@@ -266,7 +266,8 @@ read every run; nothing else is fetched or written:
   listed person.
 - `add_to_meerkat`: every member of a synced chat who is in the Mac's Contacts
   and not yet in Meerkat (matched by phone, email or name) is created there with
-  the circle `meerkat_circle`, at most `MEERKAT_MAX_CREATES` (50) per run.
+  the circle `meerkat_circle` (default `iMessage`; `null` or `""` for no
+  circle), at most `MEERKAT_MAX_CREATES` (50) per run.
   Existing Meerkat contacts are never modified. Message rendering waits (up to
   30 min) for the new contacts' entity pages so names get linked.
 
