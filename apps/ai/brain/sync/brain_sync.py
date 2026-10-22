@@ -12,10 +12,12 @@ Standard library only, so it runs on the stock python image.
 import base64
 import hashlib
 import html
+import io
 import json
 import logging
 import os
 import re
+import tarfile
 import threading
 import time
 import urllib.error
@@ -73,6 +75,12 @@ HUBSPOT_TAGS = [t.strip() for t in os.environ.get("HUBSPOT_TAGS", "").split(",")
 # Repo-owned routing rules: recordings matching a rule link to that rule's hub
 # note (e.g. a business folder) and get its tags. Edit the file in the repo.
 ROUTES_FILE = ".brain/routes.json"
+# Entity pages: one note per person/company/business/property, built from the
+# repo's own records, listing every note that mentions it. Tuned by ENTITY_CONFIG.
+ENTITIES_DIR = os.environ.get("ENTITIES_DIR", "Entities").strip("/")
+ENTITY_CONFIG = ".brain/entities.json"
+ENTITY_INTERVAL = int(os.environ.get("ENTITY_INTERVAL_SECONDS", "600"))
+ENTITY_MAX_MENTIONS = int(os.environ.get("ENTITY_MAX_MENTIONS", "300"))
 # Repo-owned fixes for words transcription keeps getting wrong: {"wrong": "right"}.
 CORRECTIONS_FILE = ".brain/corrections.json"
 SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
@@ -80,8 +88,8 @@ SITE_NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 log = logging.getLogger("brain-sync")
 
 STATE = {
-    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0},
-    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0},
+    "last_success": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0, "entities": 0.0},
+    "last_error": {"meerkat": 0.0, "riffado": 0.0, "pages": 0.0, "hubspot": 0.0, "entities": 0.0},
     "files_written": 0,
     "commits": 0,
 }
@@ -238,13 +246,15 @@ def fetch_meerkat():
 
 def assign_paths(items, base_of, key_of, folder):
     """Stable, collision-free paths: the plain name wins for the oldest key."""
+    # Grouped case-insensitively: "Jane DeSmith" and "Jane Desmith" would collide on macOS.
     by_base = {}
     for it in items:
-        by_base.setdefault(base_of(it), []).append(it)
+        by_base.setdefault(base_of(it).casefold(), []).append(it)
     paths = {}
-    for base, group in by_base.items():
+    for group in by_base.values():
         group.sort(key=lambda it: str(key_of(it)))
         for i, it in enumerate(group):
+            base = base_of(it)
             name = base if i == 0 else f"{base} ({str(key_of(it))[:8]})"
             paths[key_of(it)] = f"{folder}/{name}.md"
     return paths
@@ -776,6 +786,311 @@ def render_hubspot():
     return files
 
 
+# ----------------------------------------------------------------- Entities
+
+
+ENTITY_KINDS = {"person": "People", "company": "Companies", "business": "Businesses", "property": "Properties"}
+ORG_KINDS = {"company", "business"}
+ORG_SUFFIX = re.compile(r"[,.]?\s+(llc|l\.l\.c\.|inc\.?|incorporated|co\.?|corp\.?|corporation|ltd\.?|company|pllc|pc)$", re.I)
+GENERIC_TAGS = {"person", "company", "deal", "hubspot", "meerkat", "recording", "riffado", "business", "property"}
+
+
+def repo_snapshot():
+    """{path: text} for every Markdown file on BRANCH, from one archive download."""
+    req = urllib.request.Request(f"{FORGEJO_URL}/api/v1/repos/{REPO}/archive/{BRANCH}.tar.gz")
+    req.add_header("Authorization", f"token {FORGEJO_TOKEN}")
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        data = resp.read()
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for m in tar:
+            if not m.isfile():
+                continue
+            path = m.name.split("/", 1)[1] if "/" in m.name else m.name
+            if path.endswith(".md") or path == ENTITY_CONFIG:
+                files[path] = tar.extractfile(m).read().decode("utf-8", errors="replace")
+    return files
+
+
+def parse_frontmatter(text):
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---", 4)
+    if end < 0:
+        return {}
+    fm = {}
+    for line in text[4:end].splitlines():
+        k, sep, v = line.partition(":")
+        if not sep or line.startswith((" ", "-")):
+            continue
+        v = v.strip()
+        try:
+            fm[k.strip()] = json.loads(v)
+        except ValueError:
+            if v.startswith("[") and v.endswith("]"):
+                fm[k.strip()] = [x.strip().strip("\"'") for x in v[1:-1].split(",") if x.strip()]
+            else:
+                fm[k.strip()] = v.strip("\"'")
+    return fm
+
+
+def strip_frontmatter(text):
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end >= 0:
+            return text[end + 4:]
+    return text
+
+
+def norm_name(name, kind):
+    n = re.sub(r"\s+", " ", (name or "").strip())
+    if kind in ORG_KINDS:
+        n = ORG_SUFFIX.sub("", n)
+        n = re.sub(r"^the\s+", "", n, flags=re.I)
+    return re.sub(r"[^\w& ]+", "", n).casefold().strip()
+
+
+class Entities:
+    def __init__(self):
+        self.items = []  # dicts
+        self.by_key = {}
+
+    def find(self, kind, name=None, emails=(), domains=()):
+        keys = [("email", e.casefold()) for e in emails if e] + [("domain", d.casefold()) for d in domains if d]
+        if name:
+            group = "org" if kind in ORG_KINDS else kind
+            keys.append((group, norm_name(name, kind)))
+        for k in keys:
+            if k in self.by_key:
+                return self.by_key[k]
+        return None
+
+    def add(self, kind, name, record=None, aliases=(), emails=(), domains=(), facts=None, tags=()):
+        if not name or not norm_name(name, kind):
+            return None
+        e = self.find(kind, name, emails, domains)
+        if e is None:
+            e = {"kind": kind, "name": name, "aliases": set(), "emails": set(), "domains": set(),
+                 "records": [], "facts": {}, "tags": set(), "orgs": set()}
+            self.items.append(e)
+        elif kind in ORG_KINDS and e["kind"] == "company" and kind == "business":
+            e["kind"] = kind
+        e["aliases"].update(a for a in aliases if a)
+        e["aliases"].add(name)
+        e["emails"].update(x.casefold() for x in emails if x)
+        e["domains"].update(x.casefold() for x in domains if x)
+        if record and record not in e["records"]:
+            e["records"].append(record)
+        for k, v in (facts or {}).items():
+            if v and k not in e["facts"]:
+                e["facts"][k] = v
+        e["tags"].update(t for t in tags if t and t not in GENERIC_TAGS)
+        self.index(e)
+        return e
+
+    def index(self, e):
+        group = "org" if e["kind"] in ORG_KINDS else e["kind"]
+        for a in e["aliases"]:
+            self.by_key.setdefault((group, norm_name(a, e["kind"])), e)
+        for x in e["emails"]:
+            self.by_key.setdefault(("email", x), e)
+        for x in e["domains"]:
+            self.by_key.setdefault(("domain", x), e)
+
+    def merge(self, a, b):
+        if a is b:
+            return
+        for k in ("aliases", "emails", "domains", "tags", "orgs"):
+            a[k] |= b[k]
+        a["records"] += [r for r in b["records"] if r not in a["records"]]
+        for k, v in b["facts"].items():
+            a["facts"].setdefault(k, v)
+        self.items.remove(b)
+        self.by_key = {k: (a if v is b else v) for k, v in self.by_key.items()}
+        self.index(a)
+
+
+def as_list(v):
+    return v if isinstance(v, list) else ([v] if v else [])
+
+
+def collect_entities(files, cfg):
+    ents = Entities()
+    title = lambda path: path.rsplit("/", 1)[-1][:-3]
+    for path, text in sorted(files.items()):
+        if path.startswith(ENTITIES_DIR + "/"):
+            continue
+        fm = parse_frontmatter(text)
+        src = fm.get("source")
+        if src == "meerkat":
+            ents.add("person", fm.get("name") or title(path), (path, "Meerkat"), as_list(fm.get("aliases")),
+                     as_list(fm.get("emails")), facts={"organization": fm.get("organization"),
+                                                       "title": fm.get("job_title")}, tags=as_list(fm.get("tags")))
+        elif src == "hubspot" and path.startswith(HUBSPOT_DIR + "/Contacts/"):
+            ents.add("person", fm.get("name") or title(path), (path, "HubSpot contact"),
+                     emails=as_list(fm.get("email")), facts={"organization": fm.get("organization"),
+                                                             "title": fm.get("job_title")}, tags=as_list(fm.get("tags")))
+        elif src == "hubspot" and path.startswith(HUBSPOT_DIR + "/Companies/"):
+            ents.add("company", fm.get("name") or title(path), (path, "HubSpot company"),
+                     domains=as_list(fm.get("domain")), tags=as_list(fm.get("tags")))
+        elif not src and fm.get("type") in ENTITY_KINDS:
+            ents.add(fm["type"], fm.get("name") or title(path), (path, "Note"), as_list(fm.get("aliases")),
+                     tags=as_list(fm.get("tags")))
+    for src in cfg.get("folder_sources") or []:
+        base, kind = src.get("path", "").strip("/"), src.get("type", "company")
+        for path, text in files.items():
+            rest = path[len(base) + 1:] if path.startswith(base + "/") else ""
+            if rest.count("/") == 1 and rest.endswith("/README.md"):
+                h1 = next((l[2:].strip() for l in text.splitlines() if l.startswith("# ")), rest.split("/")[0])
+                ents.add(kind, h1, (path, "Context"), tags=src.get("tags") or ())
+    for item in cfg.get("entities") or []:
+        ents.add(item.get("type", "company"), item.get("name"), aliases=item.get("aliases") or (),
+                 tags=item.get("tags") or ())
+    for name, aliases in (cfg.get("aliases") or {}).items():
+        e = next((x for x in ents.items if name in x["aliases"]), None)
+        if e:
+            e["aliases"].update(aliases)
+            ents.index(e)
+    for group in cfg.get("merge") or []:
+        found = [next((x for x in ents.items if n in x["aliases"]), None) for n in group]
+        found = [f for f in found if f]
+        for other in found[1:]:
+            ents.merge(found[0], other)
+    ignore = {x.casefold() for x in cfg.get("ignore") or []}
+    ents.items = [e for e in ents.items if e["name"].casefold() not in ignore]
+    for e in ents.items:
+        e["aliases"] = {a for a in e["aliases"] if a.casefold() not in ignore}
+    # A person's organization links them to that org's entity.
+    for e in ents.items:
+        org = e["facts"].get("organization")
+        target = ents.find("company", org) if org else None
+        if target and target is not e:
+            e["orgs"].add(id(target))
+            target.setdefault("people", set()).add(id(e))
+    return ents.items, cfg
+
+
+def match_aliases(e, cfg):
+    """Aliases safe for free-text matching: multi-word names, domains, explicit aliases."""
+    explicit = set((cfg.get("aliases") or {}).get(e["name"], []))
+    for item in cfg.get("entities") or []:
+        if item.get("name") in e["aliases"]:
+            explicit |= {item["name"], *(item.get("aliases") or [])}
+    out = set()
+    for a in e["aliases"] | e["domains"]:
+        words = a.split()
+        if len(words) >= 2 or "." in a or a in explicit:
+            out.add(a)
+        if e["kind"] in ORG_KINDS:
+            short = ORG_SUFFIX.sub("", a).strip(" ,")
+            if short != a and (len(short.split()) >= 2 or short in explicit):
+                out.add(short)
+    no_match = {x.casefold() for x in cfg.get("no_match") or []}
+    return {a for a in out if len(a) >= int(cfg.get("min_alias_length", 4)) and a.casefold() not in no_match}
+
+
+def mention_group(path):
+    """Source a mention came from: the folder path minus year folders, at most two levels."""
+    parts = [p for p in path.split("/")[:-1] if not re.fullmatch(r"\d{4}", p)]
+    return "/".join(parts[:2]) or "(root)"
+
+
+def note_date(path, fm):
+    for k in ("recorded_at", "date", "created", "updated_at"):
+        if fm.get(k):
+            return str(fm[k])[:10]
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", path)
+    return m.group(1) if m else ""
+
+
+def render_entities(files, cfg):
+    items, cfg = collect_entities(files, cfg)
+    by_id = {id(e): e for e in items}
+    paths = assign_paths(items, lambda e: safe_name(e["name"]), lambda e: f"{e['kind']}:{e['name']}", "")
+    for e in items:
+        e["path"] = f"{ENTITIES_DIR}/{ENTITY_KINDS[e['kind']]}{paths[e['kind'] + ':' + e['name']]}"
+
+    alias_owner = {}
+    for e in items:
+        for a in match_aliases(e, cfg):
+            alias_owner.setdefault(a.casefold(), set()).add(id(e))
+    alias_owner = {a: next(iter(o)) for a, o in alias_owner.items() if len(o) == 1}  # drop ambiguous
+    by_first = {}
+    for a in alias_owner:
+        by_first.setdefault(re.split(r"[\s.]", a)[0], []).append(a)
+    skip = tuple(cfg.get("skip_paths") or ()) + (ENTITIES_DIR + "/", ".brain/")
+    mentions = {id(e): [] for e in items}
+    for path, text in files.items():
+        if path.startswith(skip) or not path.endswith(".md"):
+            continue
+        fm = parse_frontmatter(text)
+        body = strip_frontmatter(text)
+        low = body.casefold()
+        words = set(re.findall(r"[\w&]+", low))
+        hits = {}
+        for w in words & by_first.keys():
+            for a in by_first[w]:
+                m = re.search(r"(?<![\w])" + re.escape(a) + r"(?![\w])", low)
+                if m:
+                    hits.setdefault(alias_owner[a], m.start())
+        for eid, pos in hits.items():
+            e = by_id[eid]
+            if any(r[0] == path for r in e["records"]):
+                continue
+            line_start = body.rfind("\n", 0, pos) + 1
+            line_end = body.find("\n", pos)
+            snippet = re.sub(r"\s+", " ", body[line_start:line_end if line_end >= 0 else None]).strip()
+            if len(snippet) > 180:
+                off = max(0, pos - line_start - 70)
+                snippet = ("…" if off else "") + snippet[off:off + 170].strip() + "…"
+            title = fm.get("title") or fm.get("name") or path.rsplit("/", 1)[-1][:-3]
+            mentions[eid].append((note_date(path, fm), path, str(title), snippet))
+
+    files_out = {}
+    for e in items:
+        ms = sorted(mentions[id(e)], key=lambda m: (m[0], m[1]), reverse=True)
+        orgs = [by_id[i] for i in e["orgs"] if i in by_id]
+        people = [by_id[i] for i in e.get("people", ()) if i in by_id]
+        fm = {"type": e["kind"], "name": e["name"],
+              "aliases": sorted(a for a in e["aliases"] if a != e["name"]),
+              "emails": sorted(e["emails"]), "domains": sorted(e["domains"]),
+              "organization": e["facts"].get("organization"), "title": e["facts"].get("title"),
+              "mentions": len(ms), "tags": ["entity", f"entity/{e['kind']}", *sorted(e["tags"])]}
+        out = [frontmatter(fm), "<!-- Generated by brain-sync from the records below and every note that mentions "
+               "them. Edits here are overwritten; tune matching in .brain/entities.json. -->", "", f"# {e['name']}"]
+        role = " · ".join(x for x in (e["facts"].get("title"), e["facts"].get("organization")) if x)
+        if role:
+            out += ["", f"*{role}*"]
+        if orgs or people:
+            out += ["", "## Related"]
+            out += [f"- Works with/at {link(o['path'], o['name'])}" for o in orgs]
+            out += [f"- {link(p['path'], p['name'])}" for p in sorted(people, key=lambda p: p["name"])]
+        if e["records"]:
+            out += ["", "## Records"] + [f"- {link(p, label)} — `{p.rsplit('/', 1)[0]}`" for p, label in e["records"]]
+        if ms:
+            out += ["", f"## Mentions ({len(ms)})"]
+            groups = {}
+            for m in ms[:ENTITY_MAX_MENTIONS]:
+                groups.setdefault(mention_group(m[1]), []).append(m)
+            for g, rows in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+                out += ["", f"### {g} ({len(rows)})"]
+                for date, p, t, snip in rows:
+                    out.append(f"- {link(p, safe_name(t, 120))}" + (f" · {date}" if date else "") +
+                               (f" — {snip}" if snip else ""))
+            if len(ms) > ENTITY_MAX_MENTIONS:
+                out += ["", f"_…and {len(ms) - ENTITY_MAX_MENTIONS} older mentions._"]
+        files_out[e["path"]] = "\n".join(out).rstrip() + "\n"
+    files_out[f"{ENTITIES_DIR}/README.md"] = (
+        "# Entities\n\n"
+        "One page per person, company, business and property, built by `brain-sync` from\n"
+        "the records in this repo, listing every note that mentions it. Regenerated every\n"
+        "few minutes; don't edit pages here. Tune matching in `.brain/entities.json`\n"
+        "(aliases, merges, extra entities, names to ignore).\n"
+    )
+    log.info("entities: %d entities, %d mentions", len(items), sum(len(v) for v in mentions.values()))
+    return files_out
+
+
 # --------------------------------------------------------------- repo sync
 
 
@@ -983,9 +1298,31 @@ def sync_hubspot():
     _hubspot_last = time.time()
 
 
+_entities_last = (0.0, "")
+
+
+def sync_entities():
+    global _entities_last
+    root = forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}
+    head = ((root.get("commit") or {}).get("id")) or ""
+    if head == _entities_last[1] or time.time() - _entities_last[0] < ENTITY_INTERVAL:
+        return
+    files = repo_snapshot()
+    try:
+        cfg = json.loads(files.get(ENTITY_CONFIG) or "{}")
+    except ValueError as e:
+        log.warning("ignoring %s: %s", ENTITY_CONFIG, e)
+        cfg = {}
+    apply_changes(ENTITIES_DIR, render_entities(files, cfg), list_tree(ENTITIES_DIR), label="entities")
+    # Our own commit moves the head; remember that one so it doesn't re-trigger.
+    after = ((forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}).get("commit") or {}).get("id") or head
+    _entities_last = (time.time(), after)
+
+
 def cycle():
     for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN),
-                              ("hubspot", sync_hubspot, HUBSPOT_TOKEN), ("pages", sync_pages, PAGES_MCP_TOKEN)):
+                              ("hubspot", sync_hubspot, HUBSPOT_TOKEN), ("pages", sync_pages, PAGES_MCP_TOKEN),
+                              ("entities", sync_entities, True)):
         if not enabled:
             continue
         try:
