@@ -7,3 +7,12 @@ spec:
   ipAddressPools:
     - lan-pool
     - dns-pool
+  # Never announce from rke2-node-50: it sits on the LAN with only a second leg on the Cluster
+  # VLAN and its default route is the LAN, so when it holds a VIP its replies to other VLANs
+  # (Protect Wi-Fi, IoT, guest, VPN) leave by the wrong interface and the gateway drops them.
+  nodeSelectors:
+    - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: NotIn
+          values:
+            - rke2-node-50

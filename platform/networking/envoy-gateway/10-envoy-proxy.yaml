@@ -12,6 +12,27 @@ spec:
         pod:
           nodeSelector:
             kubernetes.io/arch: amd64
+          # The gateway VIP uses externalTrafficPolicy Local, so it can only be announced from a node
+          # running an envoy pod, and MetalLB never announces from rke2-node-50 (see metallb
+          # l2advertisement.yaml). Keep both replicas off node-50 and on different nodes.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/hostname
+                        operator: NotIn
+                        values:
+                          - rke2-node-50
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    topologyKey: kubernetes.io/hostname
+                    labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: proxy
+                        gateway.envoyproxy.io/owning-gateway-name: main
       envoyService:
         type: LoadBalancer
         annotations:
