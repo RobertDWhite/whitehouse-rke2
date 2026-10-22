@@ -1,0 +1,82 @@
+# brain-messages: every 10 minutes, renders allowlisted iMessage conversations from the
+# BlueBubbles server into Messages/ of the Forgejo brain repo (script:
+# messages/messages_sync.py). The allowlist is .brain/messages.json in the brain repo.
+# Commits as the brain-sync bot. If BlueBubbles is down the run exits 0 and the next retries.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: brain-messages
+  namespace: brain
+spec:
+  schedule: "*/10 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: brain-messages
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: messages
+              image: python
+              command: [python3, -u, /app/messages_sync.py]
+              env:
+                - name: TZ
+                  value: America/New_York
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: BRAIN_REPO
+                  value: WhiteHouse/brain
+                - name: FORGEJO_URL
+                  value: http://forgejo.forgejo.svc.cluster.local
+                - name: MEERKAT_URL
+                  value: http://meerkat.meerkat.svc.cluster.local
+                # Backfill is spread over runs: messages fetched per run, Meerkat creates per run.
+                - name: MAX_MESSAGES_PER_RUN
+                  value: "20000"
+                - name: MEERKAT_MAX_CREATES
+                  value: "50"
+                - name: FORGEJO_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: FORGEJO_TOKEN}
+                - name: MEERKAT_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: MEERKAT_TOKEN}
+                - name: BLUEBUBBLES_URL
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: BLUEBUBBLES_URL}
+                - name: BLUEBUBBLES_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: BLUEBUBBLES_PASSWORD}
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+              resources:
+                requests: {cpu: 20m, memory: 128Mi}
+                limits: {cpu: "1", memory: 768Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: script
+              configMap:
+                name: brain-messages-script
