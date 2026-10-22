@@ -1,0 +1,82 @@
+# Mirrors the brain repo to the Synology every 15 minutes: `brain.git` (bare
+# mirror, all refs and history) and `brain/` (checkout of main). Read-only
+# copies; the Forgejo repo stays the source of truth.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: brain-nas-sync
+  namespace: brain
+spec:
+  schedule: "*/15 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: brain-nas-sync
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sync
+              image: alpine/git
+              command: [sh, -ec]
+              args:
+                - |
+                  umask 027
+                  export HOME=/tmp/home
+                  mkdir -p "$HOME"
+                  git config --global credential.helper '!f() { echo username=brain-sync; echo "password=$FORGEJO_TOKEN"; }; f'
+                  git config --global --add safe.directory '*'
+                  src=http://forgejo.forgejo.svc.cluster.local/WhiteHouse/brain.git
+                  cd /nas
+                  if [ -d brain.git ]; then
+                    git -C brain.git remote set-url origin "$src"
+                    git -C brain.git remote update --prune
+                  else
+                    git clone -q --mirror "$src" brain.git.tmp && mv brain.git.tmp brain.git
+                  fi
+                  if [ ! -d brain/.git ]; then
+                    rm -rf brain.tmp && git clone -q "$PWD/brain.git" brain.tmp && mv brain.tmp brain
+                  fi
+                  git -C brain fetch -q origin
+                  git -C brain reset -q --hard origin/main
+                  git -C brain clean -qfd
+                  echo "synced $(git -C brain rev-parse --short HEAD) $(git -C brain log -1 --format=%cI)"
+              env:
+                - name: FORGEJO_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: FORGEJO_TOKEN}
+              volumeMounts:
+                - {name: nas, mountPath: /nas, subPath: Brain}
+                - {name: tmp, mountPath: /tmp}
+              resources:
+                requests: {cpu: 20m, memory: 64Mi}
+                limits: {cpu: "1", memory: 512Mi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: nas
+              persistentVolumeClaim:
+                claimName: brain-nas
+            - name: tmp
+              emptyDir:
+                sizeLimit: 256Mi

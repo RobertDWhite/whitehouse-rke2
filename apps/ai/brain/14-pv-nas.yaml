@@ -1,0 +1,36 @@
+# Off-cluster copy of the brain repo on the Synology (Personal/Brain): a bare
+# mirror with full history plus a plain checkout for browsing and for the
+# NAS's own backup jobs. Written by 45-nas-sync-cronjob.yaml.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-brain-nas
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadWriteMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.100.1.20
+    path: /volume1/Personal
+  claimRef:
+    name: brain-nas
+    namespace: brain
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: brain-nas
+  namespace: brain
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: ""
+  volumeName: pv-brain-nas
+  resources:
+    requests:
+      storage: 1Ti
