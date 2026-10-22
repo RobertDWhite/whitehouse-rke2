@@ -1,0 +1,13 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width">
+<title>HA screen stream</title>
+<style>body{margin:0;background:#000}video{width:100vw;height:100vh}</style>
+<!-- Safari and iOS play HLS natively; other browsers need the hls.js fallback. -->
+<video id="v" src="stream.m3u8" autoplay muted playsinline controls></video>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script>
+  const v = document.getElementById('v');
+  if (!v.canPlayType('application/vnd.apple.mpegurl') && window.Hls && Hls.isSupported()) {
+    const h = new Hls({liveSyncDurationCount: 2}); h.loadSource('stream.m3u8'); h.attachMedia(v);
+  }
+</script>

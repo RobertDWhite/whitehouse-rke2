@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ha-screen
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: apps/home/ha-screen
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ha-screen
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
