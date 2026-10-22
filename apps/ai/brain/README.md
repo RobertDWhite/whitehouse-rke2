@@ -108,3 +108,13 @@ brain repo (script: `repo-mirror/mirror.sh`).
 
 The folder is a one-way mirror: edit the source repo, not the brain repo. Run
 now: `kubectl -n brain create job --from=cronjob/repo-mirror repo-mirror-manual`.
+
+## brain-nas-sync
+
+CronJob (every 15 min) that copies the brain repo to the Synology under
+`Personal/Brain/` (PV `pv-brain-nas`, NFS like Forgejo's dumps): `brain.git`
+is a bare mirror with every ref and the full history, `brain/` a checkout of
+`main` for browsing and for the NAS's own backup jobs (e.g. Hyper Backup
+off-site). Both are read-only copies; Forgejo stays the source of truth. It
+uses brain-sync's Forgejo token. Run now:
+`kubectl -n brain create job --from=cronjob/brain-nas-sync brain-nas-sync-manual`.
