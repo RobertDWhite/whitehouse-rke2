@@ -1,5 +1,6 @@
 # brain-briefing: every morning, writes Briefings/<year>/<date>.md into the Forgejo brain
-# repo (script: briefing/briefing.py) and pushes a short summary with a link to ntfy.
+# repo (script: briefing/briefing.py) and pushes a summary with a link to ntfy and to the
+# encrypted Brain Matrix room.
 # Commits as the brain-sync bot; reads only FORGEJO_TOKEN and HUBSPOT_DIR from its secret.
 apiVersion: batch/v1
 kind: CronJob
@@ -63,6 +64,10 @@ spec:
                 - name: NTFY_TOPIC
                   valueFrom:
                     secretKeyRef: {name: brain-briefing, key: NTFY_TOPIC}
+                # Hookshot webhook of the encrypted Brain room (in-cluster URL).
+                - name: MATRIX_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef: {name: brain-briefing, key: MATRIX_WEBHOOK_URL}
               volumeMounts:
                 - name: script
                   mountPath: /app
