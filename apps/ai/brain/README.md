@@ -129,6 +129,34 @@ claude mcp add --transport http --scope user brain \
 kubectl -n brain logs deploy/brain-mcp -c git-sync --tail=20
 kubectl -n brain logs deploy/brain-mcp -c brain-mcp --tail=20
 ```
+## brain-briefing
+
+CronJob (06:30 America/New_York) that writes a daily note to
+`Briefings/<year>/<date>.md` in the brain repo (script: `briefing/briefing.py`,
+standard-library Python) and pushes a short summary with a link to it to ntfy.
+
+It downloads one archive of the repo and lists, each item linked to its note:
+reminders due or overdue and coming up, birthdays in the next 14 days, open CRM
+tasks and deals changed in the last 24h or closing soon (from `$HUBSPOT_DIR`),
+action items from recordings of the last 7 days, agent sessions of the last
+24h, and the entities with the most new mentions in the last 7 days. CRM items
+more than `STALE_DAYS` (30) overdue are counted, not listed. Windows and limits
+are env vars at the top of the script.
+
+- Top priorities: optional. `LLM_URL` (OpenAI-compatible base) and `LLM_MODEL`
+  point at the shared Ollama router; if unset or failing, the section is left out.
+- Calendar and email: not connected yet. `collect_calendar` / `collect_email` in
+  the script are the hooks; until they return items the note says so.
+- Notification: ntfy topic `NTFY_TOPIC` from `13-briefing-secret.sops.yaml`
+  (secret `brain-briefing`). ntfy has no auth, so the topic name is the only
+  thing protecting it: keep it random. The push carries counts only, unless
+  `NTFY_INCLUDE_PRIORITIES=1`.
+- Credentials: `FORGEJO_TOKEN` and `HUBSPOT_DIR` from `brain-sync-env`; commits
+  as `brain-sync`. Re-running on the same day rewrites that day's note.
+
+Run now: `kubectl -n brain create job --from=cronjob/brain-briefing briefing-manual`.
+Preview without writing: run the script with `DRY_RUN=1` (and optionally
+`BRIEFING_DATE=YYYY-MM-DD`).
 
 ## repo-mirror
 

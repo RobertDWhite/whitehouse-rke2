@@ -10,6 +10,7 @@ resources:
   - 40-repo-mirror-cronjob.yaml
   - 45-nas-sync-cronjob.yaml
   - 54-httproute-mcp.yaml
+  - 50-briefing-cronjob.yaml
   - 60-networkpolicy.yaml
 
 generators:
@@ -25,6 +26,10 @@ configMapGenerator:
     files:
       - mcp/brain_mcp.py
       - mcp/git-sync.sh
+  - name: brain-briefing-script
+    namespace: brain
+    files:
+      - briefing/briefing.py
   - name: repo-mirror
     namespace: brain
     options:
