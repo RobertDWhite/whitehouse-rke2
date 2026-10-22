@@ -4,9 +4,12 @@ resources:
   - 00-namespace.yaml
   - 14-pv-nas.yaml
   - 20-sync-deployment.yaml
+  - 21-mcp-deployment.yaml
   - 30-service.yaml
+  - 31-mcp-service.yaml
   - 40-repo-mirror-cronjob.yaml
   - 45-nas-sync-cronjob.yaml
+  - 54-httproute-mcp.yaml
   - 60-networkpolicy.yaml
 
 generators:
@@ -17,6 +20,11 @@ configMapGenerator:
     namespace: brain
     files:
       - sync/brain_sync.py
+  - name: brain-mcp-script
+    namespace: brain
+    files:
+      - mcp/brain_mcp.py
+      - mcp/git-sync.sh
   - name: repo-mirror
     namespace: brain
     options:
