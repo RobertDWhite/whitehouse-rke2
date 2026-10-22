@@ -75,6 +75,7 @@ show up within seconds instead of within 2 minutes.
   RKE2. Rotate it in HubSpot under Development -> Keys -> Service keys.
 - `HUBSPOT_DIR`, `HUBSPOT_TAGS`: target folder in the brain repo and extra
   tags (comma-separated) for HubSpot notes.
+- `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD`: used by brain-messages (below).
 
 ### Ops
 
@@ -162,6 +163,68 @@ are env vars at the top of the script.
 Run now: `kubectl -n brain create job --from=cronjob/brain-briefing briefing-manual`.
 Preview without writing: run the script with `DRY_RUN=1` (and optionally
 `BRIEFING_DATE=YYYY-MM-DD`).
+
+## brain-messages
+
+CronJob (every 10 min) that renders selected iMessage conversations into the
+brain repo (script: `messages/messages_sync.py`, standard-library Python),
+read from the BlueBubbles server on the Mac mini:
+
+| Repo path | What |
+| --- | --- |
+| `Messages/People/<name>/<year>/<year-month>.md` | One note per month of the 1:1 conversations with a listed person (all their phone numbers and addresses merged). |
+| `Messages/Groups/<group>/<year>/<year-month>.md` | One note per month of a group chat. Unnamed groups are called `Group - <first names> (<short id>)`. |
+
+Each note has frontmatter (`source: imessage`, `name`, `type: person|group`,
+`month`, `message_count`, `participants` for groups), then the messages by day
+(`### YYYY-MM-DD (Weekday)`, `- HH:MM **Sender:** text`, America/New_York).
+Your own messages are `Me`; other senders are named from the Mac's Contacts and
+linked to their `Entities/People/` page when one exists. Attachments show as
+`[attachment: <file name>]`; reactions and unsent messages are left out.
+One-time/verification codes, passwords, API keys, SSNs and card numbers are
+redacted.
+
+What is synced is decided only by `.brain/messages.json` in the brain repo,
+read every run; nothing else is fetched or written:
+
+```json
+{
+  "people": [{"name": "<note name>", "contact": "<name in Mac Contacts>"}],
+  "groups": [{"name": "<note name>", "chat": "<group chat name>"}],
+  "since": null,
+  "include_groups_with_people": false,
+  "add_to_meerkat": false,
+  "meerkat_circle": "<circle>"
+}
+```
+
+- `people`: the contact's phone numbers and email addresses select their 1:1
+  chats. `groups`: group chats by exact name. `since`: ISO date, or `null` for
+  all history.
+- `include_groups_with_people`: also sync every group chat that includes a
+  listed person.
+- `add_to_meerkat`: every member of a synced chat who is in the Mac's Contacts
+  and not yet in Meerkat (matched by phone, email or name) is created there with
+  the circle `meerkat_circle`, at most `MEERKAT_MAX_CREATES` (50) per run.
+  Existing Meerkat contacts are never modified. Message rendering waits (up to
+  30 min) for the new contacts' entity pages so names get linked.
+
+Removing an entry removes its folder. `Messages/.index.json` keeps a cursor per
+thread; a thread is only fetched again when the chat list shows a newer message,
+and then only from the start of that month. The first runs backfill history in
+chunks of `MAX_MESSAGES_PER_RUN` (20000) messages, cut at month boundaries, so
+each commit stays small. If BlueBubbles is down the run logs a warning and the
+next one retries. Commits as `brain-sync`.
+
+- Credentials (`brain-sync-env`): `FORGEJO_TOKEN`, `MEERKAT_TOKEN`,
+  `BLUEBUBBLES_URL` and `BLUEBUBBLES_PASSWORD` (the BlueBubbles server password,
+  same as hermes uses).
+- Network: the brain namespace has no egress policy; the server is
+  `10.100.0.70:1234`.
+
+Run now: `kubectl -n brain create job --from=cronjob/brain-messages messages-manual`.
+Preview without writing: run the script with `DRY_RUN=1 OUT_DIR=/tmp/out`
+(renders into that directory and keeps its own index there).
 
 ## Brain Matrix room
 
