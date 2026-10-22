@@ -35,6 +35,11 @@ RELOAD_HOURS = float(os.environ.get("RELOAD_HOURS", "6"))
 # Empty: stay on DASHBOARD_PATH.
 ROTATION = [(p.rsplit(":", 1)[0], float(p.rsplit(":", 1)[1]))
             for p in os.environ.get("ROTATION", "").split(",") if ":" in p]
+# TV overscan: shrink the picture by this percent on each side, with black borders.
+SAFE_PCT = float(os.environ.get("SAFE_PCT", "0"))
+# Page and card colours (CSS). True black looks far better than HA's dark grey on older LCDs.
+PAGE_BG = os.environ.get("PAGE_BG", "")
+CARD_BG = os.environ.get("CARD_BG", "")
 # Burn-in guard: shift the whole page by up to this many pixels at every view change.
 JITTER_PX = int(os.environ.get("JITTER_PX", "0"))
 DISPLAY = ":99"
@@ -62,6 +67,15 @@ def login():
     return tok
 
 
+def video_filter():
+    vf = f"crop={WIDTH}:{HEIGHT}:0:{HEADER_PX}"
+    if SAFE_PCT > 0:
+        w = int(WIDTH * (1 - 2 * SAFE_PCT / 100)) // 2 * 2
+        h = int(HEIGHT * (1 - 2 * SAFE_PCT / 100)) // 2 * 2
+        vf += f",scale={w}:{h}:flags=lanczos,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2:black"
+    return vf + ",scale=out_color_matrix=bt709:out_range=tv,format=yuv420p"
+
+
 def start_ffmpeg():
     os.makedirs(HLS_DIR, exist_ok=True)
     for f in os.listdir(HLS_DIR):
@@ -72,7 +86,9 @@ def start_ffmpeg():
         "-draw_mouse", "0", "-i", DISPLAY,
         # Silent audio track: some players refuse video-only HLS.
         "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-        "-vf", f"crop={WIDTH}:{HEIGHT}:0:{HEADER_PX},format=yuv420p",
+        "-vf", video_filter(),
+        # Tag BT.709 limited range so the player doesn't guess (wrong guesses look washed out).
+        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
         "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-profile:v", "high",
         "-b:v", BITRATE, "-maxrate", BITRATE, "-bufsize", "3000k",
         "-g", str(int(FPS) * 2), "-keyint_min", str(int(FPS) * 2), "-sc_threshold", "0",
@@ -95,6 +111,20 @@ def main():
         "localStorage.setItem('dockedSidebar', JSON.stringify('always_hidden'));"
         "localStorage.setItem('selectedTheme', JSON.stringify({theme: 'default', dark: true}));"
     )
+    css = ""
+    if PAGE_BG:
+        css += f"--primary-background-color: {PAGE_BG} !important; --lovelace-background: {PAGE_BG} !important;"
+    if CARD_BG:
+        css += f"--card-background-color: {CARD_BG} !important; --ha-card-background: {CARD_BG} !important;"
+    if css:
+        # A stylesheet rule with !important beats the inline variables HA's theme code sets on
+        # <html>, and custom properties inherit into every shadow root.
+        rule = json.dumps("html { " + css + " }")
+        init += (
+            "(function add() { if (!document.head) { return requestAnimationFrame(add); }"
+            f" const s = document.createElement('style'); s.textContent = {rule};"
+            " document.head.appendChild(s); })();"
+        )
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, ignore_default_args=["--enable-automation"], args=[
             "--kiosk", "--window-position=0,0", f"--window-size={WIDTH},{HEIGHT + HEADER_PX}",
