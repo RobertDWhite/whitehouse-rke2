@@ -742,7 +742,8 @@ def sync_thread(t, st, budget, since, people, entity_names, existing):
 
 def sync_meerkat(cfg, threads, people, index):
     """Create a Meerkat contact for every resolvable member without one. Never modifies existing ones."""
-    circle = cfg.get("meerkat_circle") or "iMessage"
+    # null or "" in the config means: create contacts without a circle
+    circle = cfg.get("meerkat_circle", "iMessage")
     members = {}
     for t in threads:
         for a in t["participants"]:
@@ -781,7 +782,7 @@ def sync_meerkat(cfg, threads, people, index):
         else:
             first, last = p["first"] or p["nickname"] or p["name"], p["last"]
         body = {
-            "firstname": first[:100], "lastname": last[:100], "circles": [circle],
+            "firstname": first[:100], "lastname": last[:100], "circles": [circle] if circle else [],
             "emails": [{"type": "home", "value": e} for e in p["emails"]
                        if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", e)][:25],
             "phones": [{"type": "cell", "value": x} for x in p["phones"]
