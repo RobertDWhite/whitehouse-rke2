@@ -534,7 +534,8 @@ def discover_threads(cfg, chats, people, self_handles, index):
     groups = [c for c in chats if len(c.get("participants") or []) > 1]
     listed_handles = set()
     for i, p in enumerate(cfg.get("people") or []):
-        person = people.persons.get(norm_person(p.get("contact")))
+        # Entries with only `handles` (not in Contacts) are keyed by their name.
+        person = people.persons.get(norm_person(p.get("contact") or p.get("name")))
         if not person:
             log.warning("config people[%d]: contact not found in Contacts", i)
             continue
