@@ -1,7 +1,7 @@
 # brain-briefing: every morning, writes Briefings/<year>/<date>.md into the Forgejo brain
 # repo (script: briefing/briefing.py) and pushes a summary with a link to ntfy and to the
 # encrypted Brain Matrix room.
-# Commits as the brain-sync bot; reads only FORGEJO_TOKEN and HUBSPOT_DIR from its secret.
+# Commits as the brain-sync bot; reads only FORGEJO_TOKEN and the folder names from its secret.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -61,6 +61,13 @@ spec:
                 - name: HUBSPOT_DIR
                   valueFrom:
                     secretKeyRef: {name: brain-sync-env, key: HUBSPOT_DIR}
+                # Folders brain-sync writes calendar and mail notes to (defaults if unset).
+                - name: CALENDAR_DIR
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: CALENDAR_DIR, optional: true}
+                - name: EMAIL_DIR
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: EMAIL_DIR, optional: true}
                 - name: NTFY_TOPIC
                   valueFrom:
                     secretKeyRef: {name: brain-briefing, key: NTFY_TOPIC}
