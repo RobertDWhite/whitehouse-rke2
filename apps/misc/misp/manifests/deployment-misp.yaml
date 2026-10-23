@@ -22,8 +22,13 @@ spec:
         fsGroup: 33
       containers:
         - name: misp
-          command: 
-            - /kubernetes/entrypoint_fpm.sh
+          # Current upstream image ships these directly invoked scripts without execute bits.
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              chmod 0755 /init_misp.sh /configure_misp.sh
+              exec /kubernetes/entrypoint_fpm.sh
           image: ghcr.io/misp/misp-docker/misp-core
           imagePullPolicy: IfNotPresent
           readinessProbe:
