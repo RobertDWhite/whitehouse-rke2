@@ -30,7 +30,7 @@ spec:
                   - matchExpressions:
                       - key: kubernetes.io/hostname
                         operator: NotIn
-                        values: [rke2-node-13, rke2-node-14, rke2-node-50]
+                        values: [rke2-node-13, rke2-node-14, rke2-node-15, rke2-node-50]
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -76,7 +76,7 @@ spec:
                   memory: 512Mi
                 limits:
                   cpu: "2"
-                  memory: 3Gi
+                  memory: 6Gi       # OOMKilled at 3Gi every run since 2026-08-09
           volumes:
             - name: config
               configMap:
