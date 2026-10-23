@@ -19,28 +19,35 @@ spec:
       enableServiceLinks: false
       securityContext:
         # We want imported files to be owned by www-data group
-        fsGroup: 33
+        fsGroup: 101
+        runAsUser: 101
+        runAsGroup: 101
+        runAsNonRoot: true
       containers:
         - name: nginx
-          command:
-            - /kubernetes/entrypoint_nginx.sh
-          image: "ghcr.io/misp/misp-docker/misp-core:v2.5.32"
+          image: ghcr.io/misp/misp-docker/misp-nginx
           imagePullPolicy: IfNotPresent
           readinessProbe:
             tcpSocket:
-              port: 443
+              port: 8443
             initialDelaySeconds: 1
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 2
             successThreshold: 1
           env:
-            # We only expose https anyway
-            - name: DISABLE_SSL_REDIRECT
-              value: "true"
+            - name: BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: instance-secrets
+                  key: BASE_URL
+            - name: FASTCGI_LISTEN
+              value: misp-php:9002
+            - name: FASTCGI_LISTEN_STATUS
+              value: misp-php:9002
           ports:
             - name: misp-https
-              containerPort: 443
+              containerPort: 8443
               protocol: TCP
           resources:
             limits:
@@ -50,3 +57,22 @@ spec:
               cpu: 50m
 
 
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: misp-nginx-tls
+            items:
+              - key: tls.crt
+                path: cert.pem
+              - key: tls.key
+                path: key.pem

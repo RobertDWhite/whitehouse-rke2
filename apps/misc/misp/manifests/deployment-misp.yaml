@@ -24,7 +24,7 @@ spec:
         - name: misp
           command: 
             - /kubernetes/entrypoint_fpm.sh
-          image: "ghcr.io/misp/misp-docker/misp-core:v2.5.32"
+          image: ghcr.io/misp/misp-docker/misp-core
           imagePullPolicy: IfNotPresent
           readinessProbe:
             tcpSocket:
@@ -64,6 +64,14 @@ spec:
             - secretRef:
                 name: instance-secrets
           volumeMounts:
+            - name: php-security
+              mountPath: /etc/php/8.4/fpm/conf.d/99-security.ini
+              subPath: security.ini
+              readOnly: true
+            - name: php-security
+              mountPath: /etc/php/8.4/cli/conf.d/99-security.ini
+              subPath: security.ini
+              readOnly: true
             # For centralised collection (e.g. tailing to stdout)
             - mountPath: /var/www/MISP/app/tmp/logs
               name: shared-logs
@@ -139,6 +147,9 @@ spec:
               mountPath: /opt/misp-zmq/push_zmq_to_influxdb.py
               subPath: push_zmq_to_influxdb.py
       volumes:
+      - name: php-security
+        configMap:
+          name: misp-php-security
       - emptyDir:
           sizeLimit: 300Mi
         name: shared-logs

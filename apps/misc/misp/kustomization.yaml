@@ -23,6 +23,8 @@ configMapGenerator:
 resources:
   - 00-namespace.yaml
   - 20-pvc-misp-files.yaml
+  - 21-php-security.yaml
+  - 22-nginx-certificate.yaml
   - manifests/misp-dashboard-redis.yaml
   - manifests/misp-dashboard.yaml
   - manifests/raven-bridge.yaml
@@ -41,5 +43,11 @@ resources:
   - manifests/cronjobs/update-warninglists.yaml
 
 images:
+  - name: ghcr.io/misp/misp-docker/misp-core
+    newTag: v2.5.50
+    digest: sha256:9dd21889926062645a97a03d5a6fd65a8759a3b2cd858dc62d544677dfacfff9
+  # NGINX frontend built with the matching MISP 2.5.50 web assets.
+  - name: ghcr.io/misp/misp-docker/misp-nginx
+    digest: sha256:33e0831abd1cedd7622b32516d4bc43a98699af2377b2f6a69ccdf084d105d69
   - name: python
     newTag: "3.15-slim"
