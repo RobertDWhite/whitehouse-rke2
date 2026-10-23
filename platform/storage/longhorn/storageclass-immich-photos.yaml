@@ -4,21 +4,24 @@ metadata:
   name: longhorn-immich-photos
   annotations:
     storageclass.kubernetes.io/is-default-class: "false"
+    # Parameters are immutable; Argo recreates the object (existing PVs untouched).
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
 provisioner: driver.longhorn.io
 reclaimPolicy: Retain
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
 parameters:
-  # Immich lives on node-14's 18 TB HDD only (2026-10-14): node-14's disk carries
-  # both the `immich-photos` and `immich-media` tags. node-11's Immich disk was
-  # evicted; sharing it with general volumes had node-11 (a control-plane node)
-  # I/O-starved. Single replica: the originals are also synced to the Synology
-  # by immich-photos-bidirectional-sync.
+  # Immich lives only on the 20 TB HDDs (2026-10-23): node-11 and node-14 each
+  # carry one `immich-20tb` disk tagged `immich-photos` and `immich-media`. Two
+  # replicas, one per disk; the originals are also synced to the Synology by
+  # immich-photos-bidirectional-sync.
   diskSelector: immich-photos
-  numberOfReplicas: "1"
+  numberOfReplicas: "2"
   staleReplicaTimeout: "30"
   dataLocality: disabled
   fsType: ext4
-  # Deliberately NO recurringJobSelector. Attaching the default group to a
-  # multi-TB bulk load produced 1.27 TB of hourly snapshots on the media
-  # volume and wedged its replica rebuild behind a snapshot purge.
+  # Only the weekly trim. Longhorn puts a volume with no recurring-job labels
+  # into the `default` group, and hourly snapshots of a multi-TB bulk load
+  # wedge replica rebuilds behind snapshot purges (seen 2026-10-14 and
+  # 2026-10-23), so the group has to be named explicitly.
+  recurringJobSelector: '[{"name":"immich-photos","isGroup":true}]'

@@ -10,12 +10,12 @@ reclaimPolicy: Retain
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
 parameters:
-  # The database and its logical-dump volume live on node-14's Immich HDD. One
-  # replica: node-14's is the only Immich disk since node-11's was evicted
-  # (2026-10-14). Recovery points: the default recurring backup group (NAS)
-  # and the immich-postgres-logical-backup CronJob.
+  # The database and its logical-dump volume live on the 20 TB HDDs, one
+  # replica on node-11's and one on node-14's `immich-20tb` disk. Recovery
+  # points: the default recurring backup group (NAS) and the
+  # immich-postgres-logical-backup CronJob.
   diskSelector: immich-media
-  numberOfReplicas: "1"
+  numberOfReplicas: "2"
   staleReplicaTimeout: "30"
   dataLocality: best-effort
   fsType: ext4
