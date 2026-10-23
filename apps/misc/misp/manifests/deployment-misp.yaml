@@ -22,12 +22,12 @@ spec:
         fsGroup: 33
       containers:
         - name: misp
-          # Current upstream image ships these directly invoked scripts without execute bits.
+          # Current upstream image ships init_misp.sh without its execute bit.
           command:
             - /bin/bash
             - -ec
             - |
-              chmod 0755 /init_misp.sh /configure_misp.sh
+              chmod 0755 /init_misp.sh
               exec /kubernetes/entrypoint_fpm.sh
           image: ghcr.io/misp/misp-docker/misp-core
           imagePullPolicy: IfNotPresent
