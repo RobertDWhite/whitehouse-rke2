@@ -1,0 +1,74 @@
+# Temporary exposure reduction for unpatched PHP2Shell runtimes.
+# Private/tailnet clients remain allowed; this does not replace patched images.
+# Review source-IP preservation at every upstream proxy before treating as WAN containment.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: php-emergency-source-restriction
+  namespace: freshrss
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: freshrss
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: freshrss-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-private-networks
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 192.168.0.0/16
+            - 172.16.0.0/12
+            - 100.64.0.0/10
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: php-emergency-source-restriction
+  namespace: wallabag
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: wallabag
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: wallabag-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-private-networks
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 192.168.0.0/16
+            - 172.16.0.0/12
+            - 100.64.0.0/10
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: php-emergency-source-restriction
+  namespace: misp
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: misp-internal
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: allow-private-networks
+        action: Allow
+        principal:
+          clientCIDRs:
+            - 10.0.0.0/8
+            - 192.168.0.0/16
+            - 172.16.0.0/12
+            - 100.64.0.0/10

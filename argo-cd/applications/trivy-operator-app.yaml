@@ -14,6 +14,8 @@ spec:
         operator:
           scanJobsConcurrentLimit: 5
           scanJobTimeout: 10m
+          # Failed report ingestion must not occupy all scan slots indefinitely.
+          scanJobTTL: 1h
           vulnerabilityScannerEnabled: true
           configAuditScannerEnabled: true
           rbacAssessmentScannerEnabled: true
