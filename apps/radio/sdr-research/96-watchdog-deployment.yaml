@@ -30,10 +30,10 @@ spec:
         app: sdr-watchdog
     spec:
       serviceAccountName: sdr-watchdog
-      # Pin to the known-good amd64 image/node while the recorder stack is in
-      # emergency failover mode.
+      # The image is amd64-only; it needs no local hardware, so any amd64 node
+      # will do (a hostname pin left it Pending while node-12 was down).
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-12
+        kubernetes.io/arch: amd64
       containers:
         - name: watchdog
           image: registry.internal.white.fm/sdr-watchdog:1.0.0
