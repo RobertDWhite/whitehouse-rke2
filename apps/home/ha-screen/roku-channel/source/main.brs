@@ -1,5 +1,7 @@
 ' House Screen: plays the Home Assistant dashboard stream full screen.
 ' Launch over ECP: POST /launch/dev (optionally ?contentId=<url-encoded HLS URL>).
+' contentId=blank shows a black screen instead (the TV can't be switched off remotely, and an
+' idle Roku would fall back to its screensaver); contentId=live goes back to the stream.
 sub Main(args as Dynamic)
     screen = CreateObject("roSGScreen")
     port = CreateObject("roMessagePort")
@@ -22,6 +24,6 @@ sub Main(args as Dynamic)
 end sub
 
 function streamUrl(args as Dynamic) as String
-    if args <> invalid and args.contentId <> invalid and args.contentId <> "" then return args.contentId
+    if args <> invalid and args.contentId <> invalid and args.contentId <> "" and args.contentId <> "live" then return args.contentId
     return "http://10.99.5.60/stream.m3u8"
 end function

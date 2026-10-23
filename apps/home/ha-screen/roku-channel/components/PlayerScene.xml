@@ -22,7 +22,7 @@
     end sub
 
     sub onWatch()
-        if m.top.url = "" then return
+        if m.top.url = "" or m.top.url = "blank" then return
         curPos = m.video.position
         if m.video.state = "playing" and curPos <> m.lastPos then
             m.stalls = 0
@@ -45,10 +45,19 @@
     sub play()
         print "house-screen: play "; m.top.url
         content = CreateObject("roSGNode", "ContentNode")
-        content.url = m.top.url
-        content.streamFormat = "hls"
-        content.live = true
         content.title = "House"
+        if m.top.url = "blank" then
+            ' A looping black clip: playing video keeps the screensaver from starting.
+            content.url = "pkg:/video/black.mp4"
+            content.streamFormat = "mp4"
+            m.video.loop = true
+        else
+            content.url = m.top.url
+            content.streamFormat = "hls"
+            content.live = true
+            m.video.loop = false
+        end if
+        m.video.control = "stop"
         m.video.content = content
         m.video.control = "play"
         m.video.SetFocus(true)
