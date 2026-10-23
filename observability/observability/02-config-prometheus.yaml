@@ -979,6 +979,40 @@ data:
             labels: {severity: warning}
             annotations:
               summary: "vpn-proxy restarted >3× in last hour — flapping"
+      - name: cluster.security-coverage
+        interval: 1m
+        rules:
+          - alert: TrivyOperatorUnavailable
+            expr: absent(up{job="trivy-operator"} == 1)
+            for: 5m
+            labels: {severity: critical}
+            annotations:
+              summary: "Trivy operator metrics unavailable"
+              description: "Vulnerability scan coverage cannot be monitored. Check operator readiness and its scrape endpoint."
+          - alert: TrivyCompletedScanNotIngested
+            expr: >-
+              (kube_job_status_succeeded{namespace="trivy-system",job_name=~"scan-vulnerabilityreport-.*"} > 0)
+              and on(namespace, job_name)
+              (time() - kube_job_status_completion_time{namespace="trivy-system"} > 600)
+            for: 5m
+            labels: {severity: warning}
+            annotations:
+              summary: "Completed Trivy scan still occupies a scan slot"
+              description: "{{ $labels.job_name }} completed over 10 minutes ago. Check report-size rejection and log parsing errors; TTL cleanup alone does not recover missing findings."
+          - alert: FalcoMissingOnReadyNode
+            expr: >-
+              (kube_node_status_condition{condition="Ready",status="true"} == 1)
+              unless on(node)
+              max by(node) (
+                kube_pod_info{namespace="falco",pod=~"falco-[a-z0-9]{5}"}
+                and on(namespace, pod)
+                (kube_pod_container_status_ready{namespace="falco",container="falco"} == 1)
+              )
+            for: 10m
+            labels: {severity: critical}
+            annotations:
+              summary: "Ready node {{ $labels.node }} has no ready Falco sensor"
+              description: "Check architecture eligibility, taints, driver initialization and container readiness. A ready sensor still requires separate event-delivery verification."
       - name: cluster.node-resources
         interval: 2m
         rules:
