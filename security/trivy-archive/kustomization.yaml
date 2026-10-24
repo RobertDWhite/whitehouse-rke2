@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+configMapGenerator:
+- files:
+  - archiver.py
+  name: trivy-archive-script
+kind: Kustomization
+namespace: trivy-system
+resources:
+- resources.yaml

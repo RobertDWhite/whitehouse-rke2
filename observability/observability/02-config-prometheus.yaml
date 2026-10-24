@@ -21,6 +21,10 @@ data:
       - /etc/prometheus/cluster-alerts.yml
 
     scrape_configs:
+      - job_name: trivy-archive
+        static_configs:
+          - targets: ["trivy-archive.trivy-system.svc.cluster.local:9100"]
+
       - job_name: prometheus
         static_configs:
           - targets: ["localhost:9090"]
@@ -982,6 +986,42 @@ data:
       - name: cluster.security-coverage
         interval: 1m
         rules:
+          - alert: TrivyArchiveUnavailable
+            expr: absent(up{job="trivy-archive"}) or up{job="trivy-archive"} == 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Persistent Trivy scan archiver is unavailable"
+          - alert: TrivyArchiveStalled
+            expr: time() - trivy_archive_last_success_timestamp_seconds > 600 or trivy_archive_errors > 0
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Trivy full-result retention is failing or stalled"
+          - alert: TrivyCoverageRefreshStalled
+            expr: time() - trivy_archive_coverage_last_success_timestamp_seconds > 900
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Trivy digest coverage inventory is stale"
+          - alert: TrivyImagesWithoutRecentResults
+            expr: sum(trivy_inventory_unmatched_digests) + sum(trivy_inventory_stale_digests) + sum(trivy_inventory_missing_image_ids) > 0
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "Running pod images lack recent exact-digest scan evidence"
+              description: "Includes main, init and ephemeral containers. Manifest index/platform differences can cause unmatched digests; investigate rather than assuming unscanned. Freshness limit is 48 hours."
+          - alert: TrivyArchiveDiskLow
+            expr: trivy_archive_free_bytes / trivy_archive_capacity_bytes < 0.15
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Trivy archive has less than 15 percent free space"
           - alert: TrivyOperatorUnavailable
             expr: absent(up{job="trivy-operator"} == 1)
             for: 5m
@@ -989,16 +1029,16 @@ data:
             annotations:
               summary: "Trivy operator metrics unavailable"
               description: "Vulnerability scan coverage cannot be monitored. Check operator readiness and its scrape endpoint."
-          - alert: TrivyCompletedScanNotIngested
+          - alert: TrivyScanJobCleanupStalled
             expr: >-
               (kube_job_status_succeeded{namespace="trivy-system",job_name=~"scan-vulnerabilityreport-.*"} > 0)
               and on(namespace, job_name)
-              (time() - kube_job_status_completion_time{namespace="trivy-system"} > 600)
+              (time() - kube_job_status_completion_time{namespace="trivy-system"} > 4200)
             for: 5m
             labels: {severity: warning}
             annotations:
-              summary: "Completed Trivy scan still occupies a scan slot"
-              description: "{{ $labels.job_name }} completed over 10 minutes ago. Check report-size rejection and log parsing errors; TTL cleanup alone does not recover missing findings."
+              summary: "Completed Trivy scan retained beyond its cleanup deadline"
+              description: "{{ $labels.job_name }} completed over 70 minutes ago despite a one-hour TTL. Check TTL cleanup; archive and coverage alerts separately track lost findings."
           - alert: FalcoMissingOnReadyNode
             expr: >-
               (kube_node_status_condition{condition="Ready",status="true"} == 1)

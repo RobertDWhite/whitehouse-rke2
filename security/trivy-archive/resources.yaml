@@ -1,0 +1,222 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+rules:
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ''
+  resources:
+  - pods/log
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: trivy-archive
+subjects:
+- kind: ServiceAccount
+  name: trivy-archive
+  namespace: trivy-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: trivy-archive
+rules:
+- apiGroups:
+  - ''
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - aquasecurity.github.io
+  resources:
+  - vulnerabilityreports
+  verbs:
+  - get
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: trivy-archive
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: trivy-archive
+subjects:
+- kind: ServiceAccount
+  name: trivy-archive
+  namespace: trivy-system
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  storageClassName: longhorn
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: &id001
+      app: trivy-archive
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      serviceAccountName: trivy-archive
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: archive
+        image: python:3.14-alpine@sha256:601e99e090cb08c2784a42395487709500bc39930307fe72f3f11a8f3c430762
+        command:
+        - python3
+        - -u
+        - /scripts/archiver.py
+        env:
+        - name: PYTHONDONTWRITEBYTECODE
+          value: '1'
+        ports:
+        - name: metrics
+          containerPort: 9100
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: '1'
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: archive
+          mountPath: /archive
+        - name: scripts
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: archive
+        persistentVolumeClaim:
+          claimName: trivy-archive
+      - name: scripts
+        configMap:
+          name: trivy-archive-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+  labels: &id001
+    app: trivy-archive
+spec:
+  selector: *id001
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: metrics
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trivy-archive
+  namespace: trivy-system
+spec:
+  podSelector:
+    matchLabels:
+      app: trivy-archive
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: observability
+    ports:
+    - port: 9100
+      protocol: TCP
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+  - to:
+    - ipBlock:
+        cidr: 10.43.0.1/32
+    - ipBlock:
+        cidr: 10.99.5.10/32
+    - ipBlock:
+        cidr: 10.99.5.11/32
+    - ipBlock:
+        cidr: 10.99.5.14/32
+    ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
