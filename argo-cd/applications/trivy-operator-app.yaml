@@ -14,8 +14,6 @@ spec:
         operator:
           scanJobsConcurrentLimit: 5
           scanJobTimeout: 10m
-          # Failed report ingestion must not occupy all scan slots indefinitely.
-          scanJobTTL: 1h
           vulnerabilityScannerEnabled: true
           configAuditScannerEnabled: true
           rbacAssessmentScannerEnabled: true
@@ -24,6 +22,12 @@ spec:
           clusterComplianceEnabled: true
           metricsFindingsEnabled: true
           metricsVulnIdEnabled: true
+
+        # Explicit pod env overrides the chart's ConfigMap default and triggers
+        # a rollout when changed; envFrom alone left the old process unchanged.
+        extraEnv:
+          - name: OPERATOR_SCAN_JOB_TTL
+            value: "1h"
 
         trivy:
           ignoreUnfixed: true
