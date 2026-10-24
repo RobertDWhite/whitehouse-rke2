@@ -8,13 +8,13 @@ This stack installs three FreshRSS extensions:
 ## Why AI responses can fail
 
 The AI Assistant extension appends `/chat/completions` to the configured base URL.
-For Qwen Flash Next's OpenAI-compatible API, your base URL must include `/v1`.
+For Ollama's OpenAI-compatible API, your base URL must include `/v1`.
 
 Correct:
-- `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1`
+- `http://ollama-router.ai-stack.svc.cluster.local:11434/v1`
 
 Incorrect examples:
-- `http://qwen-flash.qwen-flash.svc.cluster.local:8000`
+- `http://ollama-router.ai-stack.svc.cluster.local:11434`
 - `http://ollama.ollama.svc.cluster.local:11434`
 
 ## Required FreshRSS extension configuration
@@ -23,10 +23,10 @@ In FreshRSS, open:
 - `Settings -> Extensions -> AI Assistant -> Configure`
 
 Set:
-- `OpenAI Base URL (Article)`: `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1`
-- `OpenAI Base URL (Roundup)`: `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1`
+- `OpenAI Base URL (Article)`: `http://ollama-router.ai-stack.svc.cluster.local:11434/v1`
+- `OpenAI Base URL (Roundup)`: `http://ollama-router.ai-stack.svc.cluster.local:11434/v1`
 - `OpenAI API Key`: any non-empty value (for example `dummy`)
-- `OpenAI Model`: `qwen3.8-flash-next`
+- `OpenAI Model`: `qwen2.5vl:7b`
 - `Temperature`: `0.2` to `0.7`
 - `Max tokens (chars)`: keep realistic (`4096` to `16000` recommended)
 
@@ -71,15 +71,15 @@ From a terminal:
 
 ```sh
 kubectl -n freshrss exec deploy/freshrss -- \
-  sh -lc 'curl -sS http://qwen-flash.qwen-flash.svc.cluster.local:8000/api/version'
+  sh -lc 'curl -sS http://ollama-router.ai-stack.svc.cluster.local:11434/api/version'
 ```
 
 ```sh
 kubectl -n freshrss exec deploy/freshrss -- \
-  sh -lc "curl -sS -X POST http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1/chat/completions \
+  sh -lc "curl -sS -X POST http://ollama-router.ai-stack.svc.cluster.local:11434/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer dummy' \
-  -d '{\"model\":\"qwen3.8-flash-next\",\"messages\":[{\"role\":\"user\",\"content\":\"Return JSON with title summary tags\"}]}'"
+  -d '{\"model\":\"qwen2.5vl:7b\",\"messages\":[{\"role\":\"user\",\"content\":\"Return JSON with title summary tags\"}]}'"
 ```
 
 If `/v1/models` works but `/v1/chat/completions` fails, verify:
@@ -87,12 +87,12 @@ If `/v1/models` works but `/v1/chat/completions` fails, verify:
 - base URL includes `/v1`
 - DNS name uses `ai-stack` namespace
 
-## AI Assistant extension → Qwen Flash routing (changed 2026-10-15)
+## AI Assistant extension routing (updated 2026-10-24)
 
 The xExtension-AIAssistant summarises **every** new article on insert
 (`entry_before_insert` hook, no toggle), so it is a continuous inference load.
 Its endpoint lives in FreshRSS's system config on the PVC
 (`/config/www/freshrss/data/config.php`, keys `openai_baseurl_article` /
 `openai_baseurl_roundup`), set via the UI — not in this repo. It points directly
-at `qwen-flash.qwen-flash` for Qwen Flash Next. Ollama-native clients continue
-to use `ollama-router.ai-stack`.
+at `ollama-router.ai-stack` with the installed `qwen2.5vl:7b` model.
+The Qwen Flash deployment remains scaled down while Longhorn volumes on node 10 are degraded.
