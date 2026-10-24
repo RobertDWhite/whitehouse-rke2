@@ -20,6 +20,9 @@ spec:
             - namespace: kube-system
               podName: rke2-ingress-nginx-controller-*
               program: nginx
+            - namespace: envoy-gateway-system
+              podName: envoy-envoy-gateway-system-main-*
+              program: envoy
             env:
             - name: COLLECTIONS
               value: crowdsecurity/linux crowdsecurity/nginx crowdsecurity/base-http-scenarios
@@ -68,6 +71,57 @@ spec:
                 method: POST
                 headers:
                   Content-Type: application/json
+            parsers:
+              s01-parse:
+                envoy-json.yaml: |
+                  filter: evt.Parsed.program == 'envoy'
+                  onsuccess: next_stage
+                  name: local/envoy-json
+                  description: Envoy Gateway JSON logs; source address only, never client-supplied XFF
+                  nodes:
+                  - filter: TrimSpace(evt.Parsed.message) startsWith "{" && UnmarshalJSON(evt.Parsed.message,
+                      evt.Unmarshaled, "envoy") in ["", nil]
+                    statics:
+                    - parsed: time
+                      expression: evt.Unmarshaled.envoy.start_time
+                    - parsed: raw_remote_addr
+                      expression: evt.Unmarshaled.envoy.downstream_remote_address
+                    - parsed: remote_addr
+                      expression: |
+                        let address = evt.Unmarshaled.envoy.downstream_remote_address ?? '';
+                        let last_colon = lastIndexOf(address, ':');
+                        let addr = last_colon >= 0 ? address[:last_colon] : address;
+                        TrimPrefix(TrimSuffix(addr, "]"), "[")
+                    - parsed: request
+                      expression: evt.Unmarshaled.envoy["x-envoy-origin-path"]
+                    - parsed: verb
+                      expression: evt.Unmarshaled.envoy.method
+                    - parsed: status
+                      expression: 'evt.Unmarshaled.envoy.response_code != nil ? int(evt.Unmarshaled.envoy.response_code)
+                        : nil'
+                    - parsed: http_user_agent
+                      expression: evt.Unmarshaled.envoy["user-agent"]
+                    - parsed: target_fqdn
+                      expression: evt.Unmarshaled.envoy[":authority"]
+                  statics:
+                  - target: evt.StrTime
+                    expression: evt.Parsed.time
+                  - meta: service
+                    value: http
+                  - meta: log_type
+                    value: http_access-log
+                  - meta: source_ip
+                    expression: evt.Parsed.remote_addr
+                  - meta: http_path
+                    expression: evt.Parsed.request
+                  - meta: http_verb
+                    expression: evt.Parsed.verb
+                  - meta: http_status
+                    expression: evt.Parsed.status
+                  - meta: http_user_agent
+                    expression: evt.Parsed.http_user_agent
+                  - meta: target_fqdn
+                    expression: evt.Parsed.target_fqdn
           container_runtime: containerd
           image:
             tag: v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a

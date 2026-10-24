@@ -1,0 +1,230 @@
+# Pilot only: no existing application route is attached.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crowdsec-envoy-bouncer
+  namespace: crowdsec
+data:
+  config.yaml: |
+    server:
+      grpcPort: 8080
+      httpPort: 8081
+      logLevel: info
+    trustedProxies: []
+    trustedIPHeader: ""
+    exemptIPs: []
+    bouncer:
+      enabled: true
+      name: envoy-canary
+      lapiURL: http://crowdsec-service.crowdsec.svc.cluster.local:8080
+      tickerInterval: 10s
+      metrics: true
+    waf:
+      enabled: false
+    captcha:
+      enabled: false
+    prometheus:
+      enabled: true
+      port: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-envoy-bouncer
+  namespace: crowdsec
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: crowdsec-envoy-bouncer}
+  template:
+    metadata:
+      labels: {app: crowdsec-envoy-bouncer}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: bouncer
+          image: ghcr.io/kdwils/envoy-proxy-bouncer:v0.8.2@sha256:444dcf855e3e4aac290084733ecca127e55abb966938be919e0aa7caf209e5e6
+          args: [serve, --config, /app/config/config.yaml]
+          env:
+            - name: ENVOY_BOUNCER_BOUNCER_APIKEY
+              valueFrom:
+                secretKeyRef: {name: crowdsec-envoy-bouncer, key: api-key}
+          ports:
+            - {name: grpc, containerPort: 8080}
+            - {name: metrics, containerPort: 9090}
+          readinessProbe:
+            grpc: {port: 8080, service: readiness}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            grpc: {port: 8080, service: liveness}
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          volumeMounts:
+            - {name: config, mountPath: /app/config, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: crowdsec-envoy-bouncer}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crowdsec-envoy-bouncer
+  namespace: crowdsec
+spec:
+  selector: {app: crowdsec-envoy-bouncer}
+  ports:
+    - {name: grpc, port: 8080, targetPort: grpc, appProtocol: kubernetes.io/h2c}
+    - {name: metrics, port: 9090, targetPort: metrics}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: crowdsec-envoy-bouncer
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels: {app: crowdsec-envoy-bouncer}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}
+          podSelector:
+            matchLabels: {app.kubernetes.io/component: proxy}
+      ports: [{port: 8080, protocol: TCP}]
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+      ports: [{port: 9090, protocol: TCP}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to:
+        - podSelector:
+            matchLabels: {k8s-app: crowdsec, type: lapi}
+      ports: [{port: 8080, protocol: TCP}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-canary
+  namespace: crowdsec
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: crowdsec-canary}
+  template:
+    metadata:
+      labels: {app: crowdsec-canary}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: canary
+          image: python:3.14-alpine@sha256:601e99e090cb08c2784a42395487709500bc39930307fe72f3f11a8f3c430762
+          command:
+            - python3
+            - -c
+            - |
+              from http.server import BaseHTTPRequestHandler, HTTPServer
+              class Handler(BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      self.send_response(200)
+                      self.end_headers()
+                      self.wfile.write(b"crowdsec canary ok\n")
+                  def log_message(self, *args):
+                      pass
+              HTTPServer(("0.0.0.0", 8080), Handler).serve_forever()
+          ports: [{name: http, containerPort: 8080}]
+          readinessProbe:
+            httpGet: {path: /, port: http}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crowdsec-canary
+  namespace: crowdsec
+spec:
+  selector: {app: crowdsec-canary}
+  ports: [{name: http, port: 8080, targetPort: http}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: crowdsec-canary
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels: {app: crowdsec-canary}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: envoy-gateway-system}
+          podSelector:
+            matchLabels: {app.kubernetes.io/component: proxy}
+      ports: [{port: 8080, protocol: TCP}]
+  egress: []
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: crowdsec-canary
+  namespace: crowdsec
+spec:
+  parentRefs:
+    - {name: main, namespace: envoy-gateway-system, sectionName: https-internal-white-fm}
+  hostnames: [crowdsec-canary.internal.white.fm]
+  rules:
+    - backendRefs: [{name: crowdsec-canary, port: 8080}]
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: crowdsec-canary
+  namespace: crowdsec
+spec:
+  targetRefs:
+    - {group: gateway.networking.k8s.io, kind: HTTPRoute, name: crowdsec-canary}
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: private-clients
+        action: Allow
+        principal:
+          clientCIDRs: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
+  extAuth:
+    failOpen: false
+    timeout: 2s
+    # Omit XFF/X-Real-IP/X-Envoy-External-Address so client-supplied headers
+    # cannot override the source address in the gRPC CheckRequest.
+    headersToExtAuth: [user-agent]
+    grpc:
+      backendRefs: [{name: crowdsec-envoy-bouncer, port: 8080}]

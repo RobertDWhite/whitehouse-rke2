@@ -21,6 +21,10 @@ data:
       - /etc/prometheus/cluster-alerts.yml
 
     scrape_configs:
+      - job_name: crowdsec-envoy-bouncer
+        static_configs:
+          - targets: ["crowdsec-envoy-bouncer.crowdsec.svc.cluster.local:9090"]
+
       - job_name: trivy-archive
         static_configs:
           - targets: ["trivy-archive.trivy-system.svc.cluster.local:9100"]
@@ -986,6 +990,20 @@ data:
       - name: cluster.security-coverage
         interval: 1m
         rules:
+          - alert: CrowdSecEnvoyBouncerUnavailable
+            expr: absent(up{job="crowdsec-envoy-bouncer"}) or up{job="crowdsec-envoy-bouncer"} == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CrowdSec canary external authorization is unavailable"
+          - alert: CrowdSecEnvoyDecisionsStale
+            expr: time() - bouncer_lapi_last_sync_timestamp_seconds > 120 or bouncer_lapi_stream_connected == 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CrowdSec Envoy bouncer is not receiving fresh decisions"
           - alert: TrivyArchiveUnavailable
             expr: absent(up{job="trivy-archive"}) or up{job="trivy-archive"} == 0
             for: 5m
