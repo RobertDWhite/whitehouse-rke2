@@ -63,6 +63,11 @@ spec:
                 echo "ERROR: failed to install AI Assistant and no existing copy is available." >&2
                 exit 1
               fi
+              # Preserve source entries when inference is unavailable.
+              if ! grep -q 'Preserve original on AI failure' "${TARGET}/extension.php"; then
+                sed -i '/        \$newTitle = \$articleData/i\        if (!isset($articleData["title"]) || str_starts_with($articleData["title"], "[AI ")) { return $entry; } // Preserve original on AI failure' "${TARGET}/extension.php"
+                chown 1000:1000 "${TARGET}/extension.php"
+              fi
           volumeMounts:
             - name: extensions
               mountPath: /config/www/freshrss/extensions
