@@ -95,6 +95,7 @@ def store(job, pod, container, raw):
     digests = sorted({d for value in metadata.get('RepoDigests') or [] if (d := digest(value))})
     receipt = {'job': job['metadata']['name'], 'job_uid': job['metadata']['uid'],
                'pod_uid': pod['metadata']['uid'], 'container': container['name'],
+               'scanner_image': container.get('image'),
                'scan_completed': timestamp(job['status']['completionTime']),
                'archived_at': time.time(), 'digests': digests,
                'severity_counts': counts, 'raw_sha256': hashlib.sha256(raw).hexdigest(),
@@ -161,10 +162,19 @@ def coverage():
         if value:
             known[value] = max(known.get(value, 0), timestamp(data.get('updateTimestamp')))
     archived = list(receipts())
+    latest = {}
     for receipt in archived:
+        # A single report may list the same image under several registries.
+        # Use one stable digest tuple, avoiding duplicated package counts.
+        key = tuple(receipt['digests'])
+        if key and receipt['scan_completed'] > latest.get(key, {}).get('scan_completed', 0):
+            latest[key] = receipt
         for value in receipt['digests']:
             known[value] = max(known.get(value, 0), receipt['scan_completed'])
     metrics = {'trivy_archive_receipts': len(archived), 'trivy_inventory_missing_image_ids': missing}
+    for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']:
+        metrics[f'trivy_archive_latest_findings{{severity="{severity}"}}'] = sum(
+            receipt['severity_counts'].get(severity, 0) for receipt in latest.values())
     for kind, values in wanted.items():
         metrics[f'trivy_inventory_digests{{kind="{kind}"}}'] = len(values)
         metrics[f'trivy_inventory_unmatched_digests{{kind="{kind}"}}'] = len(values - known.keys())

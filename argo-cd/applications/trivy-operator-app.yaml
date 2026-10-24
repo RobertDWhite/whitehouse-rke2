@@ -21,13 +21,17 @@ spec:
           infraAssessmentScannerEnabled: true
           clusterComplianceEnabled: true
           metricsFindingsEnabled: true
-          metricsVulnIdEnabled: true
+          # Duplicate per-CVE label sets in 0.28.0 break the entire scrape (500).
+          # Full findings remain in reports/archives; retain aggregate metrics.
+          metricsVulnIdEnabled: false
 
         # Explicit pod env overrides the chart's ConfigMap default and triggers
         # a rollout when changed; envFrom alone left the old process unchanged.
         extraEnv:
           - name: OPERATOR_SCAN_JOB_TTL
             value: "1h"
+          - name: OPERATOR_METRICS_VULN_ID_ENABLED
+            value: "false"
 
         trivy:
           ignoreUnfixed: true
