@@ -70,6 +70,7 @@ def parse(raw):
 def atomic(path, data):
     temporary = path.with_suffix(path.suffix + '.tmp')
     with temporary.open('wb') as stream:
+        os.fchmod(stream.fileno(), 0o600)
         stream.write(data)
         stream.flush()
         os.fsync(stream.fileno())

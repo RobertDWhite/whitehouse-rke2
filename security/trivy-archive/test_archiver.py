@@ -28,6 +28,7 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(result['raw_sha256'], hashlib.sha256(raw).hexdigest())
             self.assertNotIn('fixture-only', json.dumps(result))
             self.assertEqual(list(archiver.receipts()), [result])
+            self.assertEqual((Path(directory) / 'job-uid' / result['file']).stat().st_mode & 0o777, 0o600)
 
     def test_corrupt_output_retained_without_success_receipt(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(archiver, 'ROOT', Path(directory)):
