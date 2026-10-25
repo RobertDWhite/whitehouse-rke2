@@ -1051,12 +1051,12 @@ data:
             expr: >-
               (kube_job_status_succeeded{namespace="trivy-system",job_name=~"scan-vulnerabilityreport-.*"} > 0)
               and on(namespace, job_name)
-              (time() - kube_job_status_completion_time{namespace="trivy-system"} > 4200)
+              (time() - kube_job_status_completion_time{namespace="trivy-system"} > 900)
             for: 5m
             labels: {severity: warning}
             annotations:
               summary: "Completed Trivy scan retained beyond its cleanup deadline"
-              description: "{{ $labels.job_name }} completed over 70 minutes ago despite a one-hour TTL. Check TTL cleanup; archive and coverage alerts separately track lost findings."
+              description: "{{ $labels.job_name }} completed over 15 minutes ago despite a three-minute TTL. Retained jobs consume scan concurrency slots and stall scanning. Check TTL cleanup; archive and coverage alerts separately track lost findings."
           - alert: FalcoMissingOnReadyNode
             expr: >-
               (kube_node_status_condition{condition="Ready",status="true"} == 1)

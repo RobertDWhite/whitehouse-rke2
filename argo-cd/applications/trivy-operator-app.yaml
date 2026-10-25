@@ -27,9 +27,11 @@ spec:
 
         # Explicit pod env overrides the chart's ConfigMap default and triggers
         # a rollout when changed; envFrom alone left the old process unchanged.
+        # Retained completed jobs count toward scanJobsConcurrentLimit, so the
+        # TTL caps throughput. Keep it short: trivy-archive polls every 30s.
         extraEnv:
           - name: OPERATOR_SCAN_JOB_TTL
-            value: "1h"
+            value: "3m"
           - name: OPERATOR_METRICS_VULN_ID_ENABLED
             value: "false"
 
