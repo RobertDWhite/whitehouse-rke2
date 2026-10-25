@@ -1056,7 +1056,7 @@ data:
             labels: {severity: warning}
             annotations:
               summary: "Completed Trivy scan retained beyond its cleanup deadline"
-              description: "{{ $labels.job_name }} completed over 15 minutes ago despite a three-minute TTL. Retained jobs consume scan concurrency slots and stall scanning. Check TTL cleanup; archive and coverage alerts separately track lost findings."
+              description: "{{ $labels.job_name }} completed over 15 minutes ago despite a two-minute TTL. Retained jobs consume scan concurrency slots and stall scanning. Check TTL cleanup; archive and coverage alerts separately track lost findings."
           - alert: FalcoMissingOnReadyNode
             expr: >-
               (kube_node_status_condition{condition="Ready",status="true"} == 1)
