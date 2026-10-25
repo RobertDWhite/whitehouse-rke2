@@ -5,52 +5,176 @@ metadata:
   namespace: ai-stack
 data:
   nginx.conf: |
+    load_module modules/ngx_http_js_module.so;
+
     events {}
     http {
-      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time';
+      log_format ollama '$remote_addr [$time_local] "$request" $status $request_time $upstream_addr';
 
-      # The 5090 (node-50) is primary. The Mac mini (M4 Pro 48GB, MiniTheertWhite,
-      # brew ollama via launchd fm.white.ollama) is backup and also serves the
-      # models only it has (qwen3.8:27b): the 5090 answers those with a 404 and
-      # the request falls through (see http_404 below). The Spark's Ollama was
-      # retired 2026-10-14; the GB10 now runs Qwen3.8-Flash-Next (apps/ai/qwen-flash).
-      # max_fails=0 on both: never eject a backend. Otherwise a cold-model load
-      # (briefly not accepting connections) trips the default max_fails=1 and
-      # every queued request gets an instant "no live upstreams" 502 for the
-      # fail_timeout window.
-      upstream ollama_backends {
+      js_import router from /etc/nginx/router/router.js;
+
+      # Two backends: the 5090 (node-50, ollama-5090) and the Mac mini (M4 Pro
+      # 48GB, MiniTheertWhite, brew ollama via launchd fm.white.ollama). The
+      # Spark's Ollama was retired 2026-10-14; the GB10 now runs
+      # Qwen3.8-Flash-Next (apps/ai/qwen-flash).
+      #
+      # router.js reads the "model" field of each POST and picks an upstream:
+      #   - models listed in MAC_FIRST in router.js (qwen3.8:27b) -> mac_first
+      #   - everything else (e.g. qwen3.5-4b-abliterated:64k) -> gpu_first
+      # Both groups fall through to the other backend, so a model pulled on
+      # both machines (the abliterated 4B) still gets served when one is down
+      # or out of memory.
+      #
+      # max_fails=0 everywhere: never eject a backend. Otherwise a cold-model
+      # load (briefly not accepting connections) trips the default max_fails=1
+      # and every queued request gets an instant "no live upstreams" 502 for
+      # the fail_timeout window.
+      upstream gpu_first {
         server ollama-5090.ai-stack.svc.cluster.local:11434 max_fails=0;
         server 10.100.0.70:11434 backup max_fails=0;
+      }
+      upstream mac_first {
+        server 10.100.0.70:11434 max_fails=0;
+        server ollama-5090.ai-stack.svc.cluster.local:11434 backup max_fails=0;
       }
 
       server {
         listen 11434;
-        client_body_buffer_size      1m;
+        # Server level so the @gpu_first/@mac_first locations log too;
+        # $upstream_addr shows which machine answered.
+        access_log /dev/stdout ollama;
+        # Keep request bodies in one memory buffer so router.js can read the
+        # model name (OpenCode prompts run to ~200KB).
+        client_body_buffer_size      32m;
         client_body_in_single_buffer on;
         client_max_body_size         100m;
 
+        # Model lists merged from both backends, so clients see the Mac-only
+        # models too.
+        location = /api/tags {
+          js_content router.tags;
+        }
+        location = /v1/models {
+          js_content router.models;
+        }
+
         location / {
-          access_log /dev/stdout ollama;
-          proxy_pass         http://ollama_backends;
-          # http_500 + non_idempotent: a backend that can't load the model
-          # (e.g. 5090 CUDA OOM when another pod holds the VRAM) answers the
-          # POST with a 500; without these nginx never retries a POST on a
-          # backup and every LLM consumer fails.
-          # http_404: a model the 5090 doesn't have (e.g. qwen3.8:27b) gets
-          # "model not found" 404; fall through to the Mac instead of returning
-          # it. 404s don't count toward max_fails.
-          proxy_next_upstream error timeout http_404 http_500 http_502 http_503 http_504 non_idempotent;
-          proxy_next_upstream_tries 3;
-          proxy_connect_timeout  5s;
-          # Keep the long cold-load window: the 5090's model files are on
-          # network-backed storage, so a cold load can take minutes.
-          proxy_read_timeout    900s;
-          proxy_send_timeout    900s;
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_buffering    off;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
+          js_content router.route;
+        }
+
+        location @gpu_first {
+          proxy_pass http://gpu_first;
+          include /etc/nginx/router/proxy.conf;
+        }
+        location @mac_first {
+          proxy_pass http://mac_first;
+          include /etc/nginx/router/proxy.conf;
+        }
+
+        # Per-backend lookups for the merged model lists.
+        location /_backend/gpu/ {
+          internal;
+          proxy_pass http://ollama-5090.ai-stack.svc.cluster.local:11434/;
+          proxy_connect_timeout 3s;
+          proxy_read_timeout    10s;
+        }
+        location /_backend/mac/ {
+          internal;
+          proxy_pass http://10.100.0.70:11434/;
+          proxy_connect_timeout 3s;
+          proxy_read_timeout    10s;
         }
       }
     }
+
+  proxy.conf: |
+    # http_500 + non_idempotent: a backend that can't load the model (e.g.
+    # 5090 CUDA OOM when another pod holds the VRAM) answers the POST with a
+    # 500; without these nginx never retries a POST on the other backend.
+    # http_404: a model the first backend doesn't have gets "model not found";
+    # try the other backend instead of returning it. 404s don't count toward
+    # max_fails.
+    proxy_next_upstream error timeout http_404 http_500 http_502 http_503 http_504 non_idempotent;
+    proxy_next_upstream_tries 3;
+    proxy_connect_timeout  5s;
+    # Keep the long cold-load window: the 5090's model files are on
+    # network-backed storage, so a cold load can take minutes.
+    proxy_read_timeout    900s;
+    proxy_send_timeout    900s;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_buffering    off;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+  router.js: |
+    // Models the Mac mini serves first. Anything else goes to the 5090 first.
+    const MAC_FIRST = ['qwen3.8:27b'];
+
+    function fullName(model) {
+      return model.indexOf(':') < 0 ? model + ':latest' : model;
+    }
+
+    function route(r) {
+      let target = '@gpu_first';
+      if (r.method === 'POST') {
+        try {
+          const model = JSON.parse(r.requestText).model;
+          if (typeof model === 'string' && MAC_FIRST.indexOf(fullName(model)) >= 0) {
+            target = '@mac_first';
+          }
+        } catch (e) {
+          // No body, not JSON, or no model field: default route.
+        }
+      }
+      r.internalRedirect(target);
+    }
+
+    async function fetchJson(r, uri) {
+      try {
+        const reply = await r.subrequest(uri, { method: 'GET' });
+        return reply.status === 200 ? JSON.parse(reply.responseText) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function merged(r, path, key, id) {
+      const replies = await Promise.all([
+        fetchJson(r, '/_backend/gpu' + path),
+        fetchJson(r, '/_backend/mac' + path),
+      ]);
+      if (!replies[0] && !replies[1]) {
+        r.return(502, '{"error":"no Ollama backend answered"}');
+        return null;
+      }
+      const seen = {};
+      const items = [];
+      replies.forEach(function (reply) {
+        ((reply && reply[key]) || []).forEach(function (item) {
+          if (!seen[item[id]]) {
+            seen[item[id]] = true;
+            items.push(item);
+          }
+        });
+      });
+      return items;
+    }
+
+    async function tags(r) {
+      const models = await merged(r, '/api/tags', 'models', 'name');
+      if (models) {
+        r.headersOut['Content-Type'] = 'application/json';
+        r.return(200, JSON.stringify({ models: models }));
+      }
+    }
+
+    async function models(r) {
+      const data = await merged(r, '/v1/models', 'data', 'id');
+      if (data) {
+        r.headersOut['Content-Type'] = 'application/json';
+        r.return(200, JSON.stringify({ object: 'list', data: data }));
+      }
+    }
+
+    export default { route, tags, models };
