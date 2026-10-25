@@ -1,0 +1,18 @@
+# Temporary clones that Velero's data mover reads snapshots through (backupPVC
+# in velero-node-agent-config). v1-engine volumes cannot linked-clone, so every
+# clone is a full copy; one replica keeps that copy to a single write. The
+# clone is deleted when its DataUpload finishes.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn-velero-backup
+provisioner: driver.longhorn.io
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: false
+parameters:
+  numberOfReplicas: "1"
+  dataLocality: disabled
+  staleReplicaTimeout: "30"
+  fsType: ext4
+  dataEngine: v1

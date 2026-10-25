@@ -28,6 +28,13 @@ spec:
 
           configuration:
             uploaderType: kopia
+            # Longhorn volumes are backed up from CSI snapshots (volume policy
+            # action: snapshot + snapshotMoveData in the schedules). File-system
+            # backup of live volumes failed whenever a file vanished mid-copy
+            # (e.g. SQLite WAL): kopia treats that as fatal and cancels the
+            # upload. Everything else (Synology CSI, local-path) still uses
+            # file-system backup via defaultVolumesToFsBackup.
+            features: EnableCSI
             defaultVolumesToFsBackup: true
             backupStorageLocation:
               # The old MinIO location ("default") was removed on 2026-10-09:
@@ -69,16 +76,12 @@ spec:
                   # most non-AWS S3 implementations) rejects trailing checksums,
                   # so disable it. See velero-io/velero#8742.
                   checksumAlgorithm: ""
-            # No volumeSnapshotLocation. `features: EnableCSI` is unset, so a VSL
-            # with provider velero.io/csi resolves to nothing and every backup
-            # logged "unable to get valid VolumeSnapshotter for velero.io/csi"
-            # once per PVC (7 errors in the 2026-08-16 weekly run). Volume data
-            # is protected by kopia file-system backup via
-            # defaultVolumesToFsBackup above. To move to real CSI snapshots, set
-            # features: EnableCSI (the CSI plugin is built into velero since
+            # No volumeSnapshotLocation: CSI snapshots (built into velero since
             # v1.14 -- do NOT add the old velero-plugin-for-csi initContainer,
-            # it double-registers), then restore this block and flip
-            # snapshotVolumes back on in the schedules.
+            # it double-registers) select a VolumeSnapshotClass by the
+            # velero.io/csi-volumesnapshot-class label, not a VSL. A VSL with
+            # provider velero.io/csi logged "unable to get valid
+            # VolumeSnapshotter" once per PVC.
             # Must be an explicit empty list: omitting the key falls back to the
             # chart default of one VSL with an empty provider, which the API
             # rejects ("spec.provider: Required value") and fails every sync.
@@ -108,6 +111,8 @@ spec:
           # many are prepared at a time, and allow 2 transfers per node so the
           # run finishes before pods churn ("error getting client pod ... not
           # found") or the itemOperationTimeout hits.
+          # backupPVC: data-mover clones of Longhorn snapshots use a
+          # one-replica class instead of the source's 2-3 replicas.
           # The chart names this ConfigMap velero-<key>.
           configMaps:
             node-agent-config:
@@ -117,7 +122,15 @@ spec:
                     "loadConcurrency": {
                       "globalConfig": 2
                     },
-                    "prepareQueueLength": 6
+                    "prepareQueueLength": 6,
+                    "backupPVC": {
+                      "longhorn": {"storageClass": "longhorn-velero-backup"},
+                      "longhorn-2": {"storageClass": "longhorn-velero-backup"},
+                      "longhorn-single": {"storageClass": "longhorn-velero-backup"},
+                      "longhorn-retain": {"storageClass": "longhorn-velero-backup"},
+                      "longhorn-static": {"storageClass": "longhorn-velero-backup"},
+                      "longhorn-immich-db": {"storageClass": "longhorn-velero-backup"}
+                    }
                   }
 
           # Up to velero v1.13 kopia repository maintenance ran inside the

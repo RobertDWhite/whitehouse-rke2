@@ -1,0 +1,16 @@
+# Velero's CSI data mover picks the VolumeSnapshotClass carrying this label for
+# driver.longhorn.io. type: snap takes an in-cluster Longhorn snapshot; the
+# default longhorn-snapshot class has no type and therefore means `bak` (a full
+# Longhorn backup to the NFS backup target), which is not what Velero needs.
+# Velero uploads the data to Garage with kopia, then deletes the VolumeSnapshot,
+# which removes the Longhorn snapshot.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: longhorn-velero-snap
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: driver.longhorn.io
+deletionPolicy: Delete
+parameters:
+  type: snap
