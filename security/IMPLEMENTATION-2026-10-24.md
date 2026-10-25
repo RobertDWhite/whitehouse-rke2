@@ -61,6 +61,27 @@ Scan jobs take roughly 20-120 seconds, so the TTL dominated. It is now `2m` (fou
 
 The archiver's tolerance for its own outage is now two minutes rather than one hour; findings from jobs completed during a longer outage are lost from the archive but still reach CRDs unless oversized.
 
-## Observation: Velero partial failures
+## Velero: Longhorn volumes now backed up from CSI snapshots (2026-10-25)
 
-`daily-critical` has been PartiallyFailed daily since 2026-10-22 with one canceled PodVolumeBackup each time (technitium, sdr-artifacts-hf, hermes). In the hermes case kopia logged `kanban.db-wal: no such file or directory` and then marked the snapshot canceled. Files changing during file-system backup of live volumes produce incomplete snapshots. This is a consistency limit of `--default-volumes-to-fs-backup`, not storage unavailability. Candidate fixes: CSI snapshots with data movement for Longhorn volumes (point-in-time copies), or pre-backup hooks that checkpoint SQLite. Not changed; this needs a restore test. The weekly backup also copies the 117 GB Prometheus TSDB on rke2-node-11, which delays queued daily backups.
+`daily-critical` was PartiallyFailed daily since 2026-10-22, each time with one canceled PodVolumeBackup (technitium, sdr-artifacts-hf, hermes). Velero 1.18 runs kopia with file errors fatal; when a file vanished mid-copy (hermes `kanban.db-wal`), kopia canceled the upload. No PVB `spec.cancel` was set; this is not a timeout.
+
+Change (commits `d121d1ec`, `ddc6c99c`):
+
+- `features: EnableCSI` on the Velero chart (server and node-agent).
+- New VolumeSnapshotClass `longhorn-velero-snap` (`type: snap`, Velero label). The existing default `longhorn-snapshot` has no type, which Longhorn treats as `bak` (NFS backup target).
+- New StorageClass `longhorn-velero-backup` (one replica). `backupPVC` in `velero-node-agent-config` maps each Longhorn class to it, so the data-mover clone is a single copy. v1-engine volumes cannot linked-clone; each clone is a full copy and is deleted after upload.
+- Volume policy: Longhorn volumes in the named classes with capacity <=100Gi use `snapshot`. All three schedules set `snapshotVolumes: true` and `snapshotMoveData: true`, so data lands in Garage via kopia and does not depend on in-cluster snapshots. NFS/emptyDir/Immich media remain skipped. Synology CSI, local-path, the class-less `tautulli-restore-tmp` PV and the >100Gi volumes (sdr-artifacts, sdr-artifacts-rwx, Prometheus TSDB) remain file-system backups. Detached Longhorn volumes <=100Gi, which fs-backup never reached, are now included.
+
+Verification:
+
+- hermes (live, previously failing): snapshot → clone → upload Completed with no errors (885 MB). Restored only its PVC into a scratch namespace through a DataDownload. All six SQLite databases, including `kanban.db`, passed `PRAGMA integrity_check` when read as the owning UID with the volume read-only.
+- technitium (4 volumes) + media (5 config volumes): Completed in 13 minutes, about 40 MB/s aggregate with clones running in parallel across nodes. One warning was an etcd request timeout while updating backup progress.
+- Final committed policy, tested as a copy on jetlog: DataUpload used, zero PodVolumeBackups, Completed without warnings.
+- Test backups, the restore, scratch namespace, test ConfigMaps and clone volumes were deleted.
+
+Limits and follow-ups:
+
+- Clones are slow (hermes 9.3 GiB actual took about 16 minutes alone). Estimated nightly snapshot data is about 255 GiB; measured parallel throughput suggests about two hours, inside the 4h `itemOperationTimeout`. Not yet proven on a full scheduled run. Check the 2026-10-26 03:00 `daily-critical` and `fleet-critical` results. If they overrun, lower the capacity cap or raise the timeout.
+- etcd on rke2-node-11 logs about 300 slow applies per minute even when idle; this peaked near 740 per minute while test clones ran there. That node's disk latency predates this change, but nightly backups add load. Investigate the node-11 etcd disk separately.
+- Snapshots are crash-consistent, not application-quiesced. Databases restore as after power loss (verified for SQLite above). Pre-backup hooks for Postgres/MySQL would make them application-consistent.
+- The weekly backup still copies the 117 GB Prometheus TSDB with file-system backup (capacity above the cap).
