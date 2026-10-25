@@ -12,7 +12,21 @@
 #   for hours, blocked every later backup, and loaded node-14's disks. Immich's
 #   Postgres (longhorn-immich-db) is still backed up.
 #
-# Longhorn / local-path / Synology-CSI volumes are still file-system backed up
+# - Longhorn volumes up to 100Gi are backed up from a CSI snapshot (class
+#   longhorn-velero-snap) and the data moved to Garage with kopia
+#   (snapshotMoveData in the schedules). File-system backup of live volumes
+#   failed whenever a file vanished mid-copy: kopia treats that as fatal and
+#   cancels the upload (hermes kanban.db-wal, technitium, sdr-artifacts-hf,
+#   2026-10-22..24). A snapshot is a crash-consistent point in time. v1-engine
+#   clones are full copies, so the >100Gi artifact volumes (sdr-artifacts,
+#   sdr-artifacts-rwx, prometheus) stay on file-system backup to keep the run
+#   inside itemOperationTimeout. Detached Longhorn volumes, which fs-backup
+#   could never reach (no pod), are now included as well.
+#   storageClass is listed explicitly: velero-node-agent-config maps each of
+#   these to the one-replica longhorn-velero-backup class for the clone.
+#
+# Everything else (Synology CSI, local-path, the class-less
+# tautulli-restore-tmp PV, large Longhorn volumes) is file-system backed up
 # via defaultVolumesToFsBackup.
 apiVersion: v1
 kind: ConfigMap
@@ -38,3 +52,16 @@ data:
             - longhorn-immich-photos
         action:
           type: skip
+      - conditions:
+          capacity: "0,100Gi"
+          csi:
+            driver: driver.longhorn.io
+          storageClass:
+            - longhorn
+            - longhorn-2
+            - longhorn-single
+            - longhorn-retain
+            - longhorn-static
+            - longhorn-immich-db
+        action:
+          type: snapshot
