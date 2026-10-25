@@ -15,7 +15,7 @@ spec:
         managed-by: argocd
         app.kubernetes.io/part-of: ai-stack
       annotations:
-        checksum/config: "f830b9f3be138c6f3f015e4ad16315575468c39d0ee69e2dd15e77166a71c6dd"
+        checksum/config: "caf2851c74543da8191c1acbdae2d561bdb8967bd9d4b240ce52d6982195b40f"
     spec:
       containers:
         - name: nginx
@@ -43,6 +43,9 @@ spec:
             - name: config
               mountPath: /etc/nginx/nginx.conf
               subPath: nginx.conf
+            - name: config
+              mountPath: /etc/nginx/router
+              readOnly: true
       volumes:
         - name: config
           configMap:
