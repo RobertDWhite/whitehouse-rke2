@@ -52,3 +52,15 @@ Sources inspected during implementation:
 - https://github.com/crowdsecurity/helm-charts/tree/main/charts/crowdsec
 - https://github.com/kdwils/envoy-proxy-crowdsec-bouncer
 - https://github.com/crowdsecurity/hub/blob/master/parsers/s01-parse/yanis-kouidri/envoy-logs.yaml
+
+## Follow-up 2026-10-25: scan throughput regression
+
+Coverage decayed after the 2026-10-24 rollout: unmatched main-container digests rose from 81 to 271 and VulnerabilityReports fell from 673 to 36. Cause: trivy-operator 0.28.0 `LimitChecker` counts every labelled scan job, including completed ones, against `scanJobsConcurrentLimit` (5). With the one-hour scan-job TTL, five retained completed jobs held every slot, capping scanning at about five images per hour while 24-hour report expiry removed results much faster.
+
+Scan jobs take roughly 20-120 seconds, so the TTL dominated. It is now `2m` (four 30-second archiver polls). The cleanup alert fires at 15 minutes and explains that retained jobs stall scanning. Observed after rollout: reports 40 → 51 in ten minutes (about 60 per hour, up from about 3), all jobs archived, archiver errors 0. Full coverage is expected within hours; `TrivyImagesWithoutRecentResults` should clear once rescans complete. Raising concurrency would roughly double throughput but adds load to rke2-node-13 (66% CPU); not changed.
+
+The archiver's tolerance for its own outage is now two minutes rather than one hour; findings from jobs completed during a longer outage are lost from the archive but still reach CRDs unless oversized.
+
+## Observation: Velero partial failures
+
+`daily-critical` has been PartiallyFailed daily since 2026-10-22 with one canceled PodVolumeBackup each time (technitium, sdr-artifacts-hf, hermes). In the hermes case kopia logged `kanban.db-wal: no such file or directory` and then marked the snapshot canceled. Files changing during file-system backup of live volumes produce incomplete snapshots. This is a consistency limit of `--default-volumes-to-fs-backup`, not storage unavailability. Candidate fixes: CSI snapshots with data movement for Longhorn volumes (point-in-time copies), or pre-backup hooks that checkpoint SQLite. Not changed; this needs a restore test. The weekly backup also copies the 117 GB Prometheus TSDB on rke2-node-11, which delays queued daily backups.
