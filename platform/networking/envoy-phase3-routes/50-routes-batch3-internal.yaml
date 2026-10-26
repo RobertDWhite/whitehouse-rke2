@@ -784,7 +784,11 @@ spec:
   hostnames:
     - registry.internal.white.fm
   rules:
-    - backendRefs:
+    # Large image layers need more than Envoy's default 15-second deadline.
+    - timeouts:
+        request: 600s
+        backendRequest: 600s
+      backendRefs:
         - name: registry
           port: 5000
 ---
