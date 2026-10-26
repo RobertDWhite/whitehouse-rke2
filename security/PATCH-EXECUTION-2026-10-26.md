@@ -2,6 +2,8 @@
 
 Assessment refreshed October 26, 2026, 15:17 UTC. This is the current execution order; older plan entries and the progress ledger retain historical evidence. Full patching remains incomplete. This refresh made no production changes.
 
+**Subsequent execution:** IntelOwl Batch2A proxy patch is deployed and verified at commit60befc92. Exact candidate scan: zero vulnerabilities and secrets,72 packages; production UI/eight assets/monitor200, anonymous API401/WebSocket403,18 unrelated connections denied and16 legitimate application connections preserved. Database restore verified99 tables and551 migration records, with no pending migrations. Main IntelOwl image is unchanged and still requires Batch2B–2D. Upstream PR creation form is pending; no PR URL exists yet. See the progress ledger for evidence and limitations. Proxy counts below describe the old image baseline, not the deployed candidate.
+
 ## Verified priorities
 
 | Finding | Evidence and scope | Priority |
