@@ -16,10 +16,10 @@ spec:
           repository: robertdwhite/trivy-operator-security
           tag: sha-725e0fe4137ae85084a49595aa692e9d612bdc7e@sha256:9de32e7e34a5129d3a5fde7bbb5d1b92a6a5f4229faa910ee85b3a22031cbfe1
 
-        # This worker has the tracked 64 MiB kubelet log retention drop-in.
+        # Only verified workers receive this label after the tracked kubelet drop-in.
         trivyOperator:
           scanJobNodeSelector:
-            kubernetes.io/hostname: rke2-node-13
+            security.white.fm/scan-log-retention: 64Mi
 
         operator:
           # Keep new SBOM generation separate from the compatibility rollout.
