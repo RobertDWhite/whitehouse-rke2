@@ -26,7 +26,7 @@ All endpoints below use streamable HTTP and bearer authentication. The internal 
 - Use `brain` for source notes and citations, `graphiti` for relationships and temporal facts, and `obsidian` for direct LiveSync note editing. These are distinct stores/interfaces.
 - Graphiti defaults to the `brain` group. Inspect tool schemas before naming another group.
 - For Pages sites managed by brain-sync, edit the owning brain repository's `Pages/<site>/` source. Direct deployments are overwritten by sync. See [Pages deployment notes](apps/ai/pages/README.md).
-- Meerkat is the CRM used by the current brain pipeline. An older `monica` client may still exist locally; do not assume it has the same data.
+- Meerkat is the CRM used by the current brain pipeline. Monica and its MCP server were removed on 2026-10-26.
 - Use the user's requested scope for writes. Adding a server does not itself authorize editing records, sending communications, deleting data, or changing infrastructure.
 
 ## Local app setup
