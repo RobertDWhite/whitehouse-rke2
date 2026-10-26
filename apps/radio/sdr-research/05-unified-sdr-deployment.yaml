@@ -82,7 +82,11 @@ spec:
               # channel's real noise floor and holds the squelch
               # AUTO_SQUELCH_MARGIN_DB above it. Static values failed both ways
               # here (-50 recorded noise 24/7; -40 recorded nothing for hours).
-              value: "-45"
+              # The floor prior (this minus the margin) must sit at or above the
+              # real floor (~-43 dB on 2m): the floor follows drops instantly but
+              # can't rise while recording, so a low prior opens every channel at
+              # startup and holds them open.
+              value: "-35"
             - name: AUTO_SQUELCH_MARGIN_DB
               # Raise if noise blips open the gate; lower if weak stations are missed.
               # Watch the [SQL] lvl/floor/thr telemetry lines to tune from data.
