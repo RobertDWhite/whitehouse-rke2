@@ -11,6 +11,9 @@ spec:
     targetRevision: 0.30.0
     helm:
       values: |
+        # Keep the upgrade canary exclusively owned by its candidate operator.
+        excludeNamespaces: "trivy-upgrade-canary"
+
         operator:
           scanJobsConcurrentLimit: 5
           scanJobTimeout: 10m
@@ -30,6 +33,8 @@ spec:
         # Retained completed jobs count toward scanJobsConcurrentLimit, so the
         # TTL caps throughput. Keep it short: trivy-archive polls every 30s.
         extraEnv:
+          - name: OPERATOR_EXCLUDE_NAMESPACES
+            value: "trivy-upgrade-canary"
           - name: OPERATOR_SCAN_JOB_TTL
             value: "2m"
           - name: OPERATOR_METRICS_VULN_ID_ENABLED
