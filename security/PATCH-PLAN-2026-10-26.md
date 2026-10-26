@@ -1,5 +1,13 @@
 # Cluster hardening and patch execution plan
 
+## Condo patch execution — 2026-10-26 10:27 UTC
+
+Sourceb303a78 patches shell-quote1.11.0, body-parser1.20.9 and Effect3.20.0, and removes test fixtures before the final image COPY layer. The exact body-parser version has a documented age-gate exception for the maintainer's new security fix; the general7-day gate remains. Shell quoting regression reproduced the old defect and passes after the update, including after production focus. GraphQL18development/5production-copy regressions, UI regression and immutable installation pass.
+
+Restored candidatea941da6 exposed two startup gates: the replacement test Redis lacked version markers, and production pruning omitted TypeScript required by Next's next.config.ts. Production Redis DB0/1 already have expected version2 markers. Only test Redis was initialized after verifying every existing key was already prefixed; production was not changed. Sourced481076 retains TypeScript as a runtime dependency and adds final-image resolution verification. Build40306774297 was cancelled for this demonstrated packaging defect, not a timeout. **Current build:40307447410, sourced481076a6eb76fca30331f7332d9555936b57a1a, tagsecurity-runtime5-20261026.** Continue that handle, then scan its exact digest and perform clean restored-data validation before rollout.
+
+Diagnostic podcandidate-a941da6 was explicitly annotated modified, then supplied TypeScript to isolate the failure. It now passes web/DB/Redis health, login/password/anonymous denial, organization/property/resident create-update-soft-delete and actual address normalization. It is NOT unmodified release evidence; baseline address-service/worker also remain. Worker completion, OIDC, media and all clean-image gates are still open. Prior candidate scans and their residual findings remain visible. DraftCondoPR1 updated; changes pushed to its existing source branch. No production Condo upgrade in this batch.
+
 ## Current executable plan — 2026-10-26 10:15 UTC
 
 This section supersedes earlier status and build handles below. This review refreshed live metadata and retrieved the completed candidate scan; it did not deploy new application images or change production policy. Historical enforcement results remain in the progress ledger.
