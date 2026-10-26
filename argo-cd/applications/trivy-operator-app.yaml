@@ -11,6 +11,8 @@ spec:
     targetRevision: 0.37.0
     helm:
       values: |
+        # Reserved for isolated operator acceptance; contains no production workloads.
+        excludeNamespaces: trivy-upgrade-canary
         image:
           registry: ghcr.io
           repository: robertdwhite/trivy-operator-security
