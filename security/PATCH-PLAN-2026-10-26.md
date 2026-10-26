@@ -1,5 +1,55 @@
 # Cluster hardening and patch execution plan
 
+## Refreshed execution order — 2026-10-26 12:08 UTC
+
+This section supersedes earlier status entries below. This refresh checked live metadata and existing scan reports; it is not a new full-cluster rescan or evidence that exploitation occurred. Private inventory: `~/Library/Application Support/whitehouse-security/assessment-refresh-20261026/posture.json`.
+
+### Verified current state
+
+- 474 running pods; 264 distinct main-container runtime digests; 191 matched to Kubernetes vulnerability reports and 73 unmatched. These are exact-digest matches, not complete scan coverage: index/platform differences, archives, report age, init and ephemeral containers must be reconciled separately.
+- 26 running namespaces have no NetworkPolicy. Prioritize application namespaces such as card-optimizer, glacier, gramps, homeschool, ombi, watch-badges and yeti after mapping dependencies. Infrastructure namespaces and Scrypted need specialized allowances. Policy presence alone does not prove isolation; existing allowances are additive.
+- Six nodes Ready; node12 NotReady. Shared secret store onepassword-shared remains Ready=False / InvalidProviderConfig. Do not restart dependent apps until credential delivery is proven, but continue independent work.
+- Condo is now Synced/Healthy. Web, address and worker run the validated immutable image and are Ready with zero restarts. Production TLS web/dependency checks, anonymous identity/data denial, real queued sample task and correlation to the selected worker all pass. Default Node trust excludes the affected emSign G3 root. All three live pod specs disable service-account token mounting, require non-root and use RuntimeDefault seccomp. PostgreSQL/Redis pod identities and restart counts match the pre-upgrade baseline.
+- Fresh Condo backups restored with matching table contents (338 Condo / 12 address tables). Media contained zero application files; lost+found was excluded. Snapshots are consistent per database, not atomic across databases/filesystem. Production migrations exited successfully. Authenticated CRUD/OIDC tests passed in the isolated restore environment, not production. Residual candidate findings remain 0 critical / 69 high, not full remediation.
+- Worker readiness initially failed because the slim image has no pgrep. Commit aa9d7656 replaced both probes with a Node /proc process check; positive and negative probe cases passed. Commit ecf7550d contains the immutable rollout and privilege reductions.
+
+### Patch batches and acceptance gates
+
+| Order | Concrete work | Acceptance and rollback |
+|---|---|---|
+| 1 — restore trustworthy detection | Finish the Trivy partition candidate in `/tmp/trivy-operator-security-20261026`, branch `codex/partitioned-reports-20261026`. Make `security/trivy-archive/archiver.py` understand manifests/parts and reject incomplete sets. Bound annotations, reclaim old parts, test TTL/ownership and memory/scrape cost. Add incomplete-set alert and verify delivery of the existing ingestion-gap alert. | Exact-image build/scan, controlled canary, live API partial-write/retry/expiry tests and unchanged reconstructed counts. Retain all full reports privately. Do not deploy the current candidate yet. Revert operator image on regression while preserving archived evidence and gap alerts. |
+| 2 — patch exposed parsers and app runtimes | Fresh-scan exact deployed and candidate digests for MISP modules, OpenClaw, Hermes, FlareSolverr, Kavita, Homebridge, Calibre, Congress, Synapse/Hookshot and remaining SDR services. Rank by reachable vulnerable function, data access, privilege and available fix, not severity totals alone. Repair onepassword-shared before dependent OpenClaw/Hermes restarts. Finish Condo and Wallabag dependency dispositions. Check FreshRSS/MISP core separately from modules. | Pin explicit version plus digest in owning Kustomize source. Require full scan, release/migration review and actual app workflow before acceptance. For unavailable upstream fixes, make focused source patches/PRs and use a pinned tested fork; otherwise restrict exposure with dated residual-risk ownership. Restore rehearsal before schema changes; rollback image only when schema compatible. |
+| 3 — constrain lateral movement and data egress | Map flows and add default-deny ingress to uncovered application namespaces, then explicit DNS/dependency egress for sensitive workloads. Review both central and app policy sources for broad allow rules. Tighten remaining Mastodon same-namespace/backend access and authenticate Elasticsearch where supported. | Real unrelated-pod attempts must fail to app, DB/cache and API targets; actual gateway, app queries, DNS and monitoring must continue working. Test intended outbound traffic and a denied external destination. Roll out one namespace at a time; revert the specific policy source if legitimate traffic breaks. |
+| 4 — block reintroduction | Extend the proven Backoffice admission controls one namespace at a time: immutable images, approved registries, no privileged containers/hostPath and container coverage including init/ephemeral. Review exemptions and allowExistingViolations. Add scan-based build/release gates with expiring exceptions; a digest alone does not make an image safe. | Server admission rejects negative cases and accepts normal deployments; real controller replacement succeeds. Separately test webhook-outage behavior before changing failurePolicy Ignore to Fail. Revert namespace enforcement only if recovery is necessary; retain reports and explicit exception expiry. |
+| 5 — remove unnecessary authority | Separate Hermes operational privileges from its callback-facing service; review Portainer cluster-admin and indirect wildcard/escalation paths. Remove unneeded service-account tokens. Move Mastodon vm.max_map_count into managed node settings before removing privileged init. Map Scrypted device/discovery needs before narrowing host access. | Effective authorization denies unrelated Secret reads and privilege escalation while required operations work. Verify search after rescheduling and actual camera/discovery/hardware-acceleration workflows. Keep narrowly scoped recovery access; avoid removing system/backup permissions blindly. |
+| 6 — prove prevention and alerting | Finish CrowdSec stale-cache, real-client-IP, outage and recovery tests, then attach a low-impact production route. Verify Falco event-to-notification delivery using safe synthetic events. Check public-edge TLS plus Go/Java/custom trust stores; preserve chain and hostname verification. | Legitimate requests succeed; controlled bans and spoof attempts fail; expected alerts reach their destination. No TLS bypass or broad CA removal. Roll back only the failing route/policy attachment while retaining detection evidence. |
+| 7 — stateful and host maintenance | Rehearse Immich PostgreSQL/extension, OpenCTI RabbitMQ, OpenSearch, Longhorn and RKE2/kernel upgrades with supported version paths. Diagnose node12 and retained replicas before any destructive recovery. | Restore integrity and app-level functions pass; quorum, storage redundancy and backups verified before each step. One failure domain at a time. Do not treat rollback of a binary as rollback of migrated state. |
+
+Batches 2–5 can advance independently of the report partition work where exact-image scan evidence is retained. The credential-provider problem blocks only affected restarts. For each batch: preserve baseline and recovery state; render/admission-check source; commit/push; verify Argo revision, running digest, functionality and denied access; record residual findings with owner/review date. Do not suppress unfixed findings to make totals green.
+
+### Current triage examples from matched reports
+
+Counts below describe individual image reports observed at refresh, dated October 25–26; they are not confirmed exploitable vulnerabilities or new scans. Some older reports have zero low findings and may reflect historical filtering. Re-scan before selecting versions.
+
+| Image/workload | Critical | High | Next decision |
+|---|---:|---:|---|
+| FlareSolverr v3.5.2 | 28 | 899 | Browser/parser candidate scan and real challenge workflow; restrict reachability. |
+| Kavita nightly-0.8.9.45 | 24 | 372 | Supported patched release and library/reader restore check. |
+| Homebridge 2026-05-13 | 24 | 363 | Runtime/plugin compatibility and actual accessory operations. |
+| OpenClaw runtime | 23 | 129 | Credential delivery gate, runtime/trust update and tool authorization checks. |
+| MISP modules v3.0.6 | 21 | 193 | Patch module image separately; test used enrichment modules with safe fixtures. |
+| Immich PostgreSQL 14 + extensions | 20 | 125 | Supported database/extension migration; restored index/query acceptance. |
+| OpenCTI legacy RabbitMQ 4.1.2 | 18 | 80 | Supported image replacement and queue recovery rehearsal. |
+| Calibre Web Automated v4.0.8 | 17 | 126 | Library backup plus import/read/auth checks. |
+| Synapse v1.160.0 | 16 | 111 | Supported candidate and real encrypted client/appservice tests. |
+
+### References and boundaries
+
+Kubernetes documents that NetworkPolicies are additive and both directions require explicit coverage: https://kubernetes.io/docs/concepts/services-networking/network-policies/ . Kyverno documents Audit/Enforce and pre-existing violation behavior: https://kyverno.io/docs/policy-types/cluster-policy/validate/ ; webhook configuration and failure behavior: https://kyverno.io/docs/installation/customization/ . Installed schema and real admission/network tests remain the final gates.
+
+Earlier records contain completed improvements and pending work, not blanket closure. No new upstream PR was created in this refresh; the Backoffice creation form remains pending. No full-cluster compromise determination, complete eMudhra remediation or full patching claim is made.
+
+
 ## Condo Trixie acceptance and report-partition candidate — 2026-10-26 11:43 UTC
 
 Condo build40313840372 succeeded forf5071cadfb441fb8d6166a5e0a39f83b84465afe. Exact nativeamd64 image: ghcr.io/robertdwhite/condo:security-runtime7-20261026@sha256:2ae9652e76290395df9bca739a05b607ac37a4e953aaa0d83f34f98daecec385. Full scan now0critical/69high/98medium/70low/1unknown,zero secret findings;22high occurrences list fixes, including version-based GraphQL backport results. Runtime loadsSQLite3.46.1/zlib1.3.1; Node default trust gate passes. FullJSON/receipt retained privately and archive raw_sha256 verified before completed scanJob deletion.
