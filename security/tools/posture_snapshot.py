@@ -3,7 +3,16 @@
 import collections
 import datetime
 import json
+import importlib.util
+from pathlib import Path
 import subprocess
+
+
+# Reuse the production archive reader so partial sets never count as coverage.
+_reader_spec = importlib.util.spec_from_file_location(
+    "trivy_archive_reader", Path(__file__).resolve().parents[1] / "trivy-archive" / "archiver.py")
+_reader = importlib.util.module_from_spec(_reader_spec)
+_reader_spec.loader.exec_module(_reader)
 
 
 def resources(kind):
@@ -14,7 +23,8 @@ def resources(kind):
 
 def snapshot():
     pods = [p for p in resources('pods') if p['status'].get('phase') == 'Running']
-    reports = resources('vulnerabilityreports')
+    report_objects = resources('vulnerabilityreports')
+    reports, incomplete_sets = _reader.complete_reports(report_objects)
     policies = resources('networkpolicies')
     images = collections.defaultdict(set)
     for pod in pods:
@@ -59,7 +69,10 @@ def snapshot():
     return {
         'observed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'running_pods': len(pods), 'running_container_digests': len(images),
-        'vulnerability_reports': len(reports), 'matched_running_digests': len(by_digest),
+        'vulnerability_reports': len(reports),
+        'vulnerability_report_objects': len(report_objects),
+        'incomplete_report_sets': incomplete_sets,
+        'matched_running_digests': len(by_digest),
         'unmatched_running_digests': sorted(set(images) - set(by_digest)),
         'running_namespaces_without_networkpolicy': sorted(
             {p['metadata']['namespace'] for p in pods} - {p['metadata']['namespace'] for p in policies}),
