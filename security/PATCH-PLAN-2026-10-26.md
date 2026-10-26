@@ -1,5 +1,11 @@
 # Cluster hardening and patch execution plan
 
+## Latest execution — 2026-10-26 09:54 UTC
+
+Portainer UI ingress containment is deployed by d4695e00 and verified: unrelated pod access to9000/9443 is blocked; main Envoy UI200, unauthorized API401 and nginx9443 connectivity remain functional; original pod unchanged. Agent8000, egress and privileged management identity remain open work. The29-namespace snapshot below predates this policy.
+
+Condo89d36b3 failed admin UI compilation. Sourcea941da6 fixes compiled editor JSX pragmas, adds tested GraphQL security backports while preserving major versions, and patches further compatible dependencies. [Build40302114326](https://github.com/RobertDWhite/condo/actions/runs/40302114326) is the current handle. Continue its exact-image scan and restored-data validation; all previous Condo build handles below are historical. Full patching remains incomplete.
+
 ## Execution refresh — 2026-10-26 09:12 UTC
 
 This section supersedes all earlier status and ordering below. The older sections retain historical evidence, not current deployment claims. This refresh changed documentation only; it did not deploy a workload or restart a service.
