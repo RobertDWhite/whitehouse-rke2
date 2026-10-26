@@ -13,9 +13,7 @@ metadata:
       writes, kernel routing, block devices, eBPF) are listed in the
       exclude block below.
 spec:
-  # Audit only on day one — flip to Enforce after the exception list is
-  # validated against the live cluster.
-  validationFailureAction: Audit
+  # Stage enforcement in backoffice; audit other namespaces pending validation.
   background: true
   failurePolicy: Ignore
   rules:
@@ -64,6 +62,11 @@ spec:
               namespaces:
                 - nut
       validate:
+        failureAction: Audit
+        failureActionOverrides:
+          - action: Enforce
+            namespaces:
+              - backoffice
         message: >-
           Privileged containers are not allowed. If this workload needs
           kernel-level access, add it to the policy `exclude` block with

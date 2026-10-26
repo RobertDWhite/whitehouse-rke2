@@ -14,9 +14,7 @@ metadata:
       Bumping a vendored OSS source to a new publisher requires extending
       this list.
 spec:
-  # Audit only — many existing OSS workloads pull from publishers we
-  # haven't enumerated yet. Tighten the list, then flip to Enforce.
-  validationFailureAction: Audit
+  # Stage enforcement in backoffice; audit other namespaces pending validation.
   background: true
   failurePolicy: Ignore
   rules:
@@ -46,6 +44,11 @@ spec:
                 - calico-apiserver
                 - argocd
       validate:
+        failureAction: Audit
+        failureActionOverrides:
+          - action: Enforce
+            namespaces:
+              - backoffice
         message: >-
           Image must come from an approved registry. See
           policy/restrict-image-registries.yaml for the allowlist; to add a

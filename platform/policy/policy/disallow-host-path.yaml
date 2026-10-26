@@ -14,7 +14,6 @@ metadata:
 spec:
   # Audit only on day one. Many existing DaemonSets in the cluster mount
   # hostPaths; we want a clean PolicyReport list before considering Enforce.
-  validationFailureAction: Audit
   background: true
   failurePolicy: Ignore
   rules:
@@ -80,6 +79,11 @@ spec:
               names:
                 - node-exporter-*
       validate:
+        failureAction: Audit
+        failureActionOverrides:
+          - action: Enforce
+            namespaces:
+              - backoffice
         message: >-
           hostPath volumes are not allowed. If this workload needs host
           filesystem access, add the namespace/name pattern to the policy

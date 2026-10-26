@@ -15,7 +15,6 @@ metadata:
       a major version cannot land via tag drift; this policy does not
       require digests on non-DB images.
 spec:
-  validationFailureAction: Audit
   background: true
   failurePolicy: Ignore
   rules:
@@ -43,6 +42,11 @@ spec:
                 - calico-system
                 - calico-apiserver
       validate:
+        failureAction: Audit
+        failureActionOverrides:
+          - action: Enforce
+            namespaces:
+              - backoffice
         message: >-
           Container images must not use the mutable tags `:latest`,
           `:stable`, or `:stable-slim`. Pin to a versioned tag (and add a

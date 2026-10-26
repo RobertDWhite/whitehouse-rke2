@@ -1,0 +1,84 @@
+{
+  "apiVersion": "kyverno.io/v1",
+  "kind": "ClusterPolicy",
+  "metadata": {
+    "name": "require-image-digest",
+    "annotations": {
+      "policies.kyverno.io/title": "Require Image Digest"
+    }
+  },
+  "spec": {
+    "background": true,
+    "failurePolicy": "Ignore",
+    "rules": [
+      {
+        "exclude": {
+          "any": [
+            {
+              "resources": {
+                "namespaces": [
+                  "kube-system",
+                  "kube-public",
+                  "kube-node-lease",
+                  "kyverno",
+                  "cert-manager",
+                  "longhorn-system",
+                  "metallb-system",
+                  "falco",
+                  "crowdsec",
+                  "trivy-system",
+                  "tigera-operator",
+                  "calico-system",
+                  "calico-apiserver"
+                ]
+              }
+            }
+          ]
+        },
+        "match": {
+          "any": [
+            {
+              "resources": {
+                "kinds": [
+                  "Pod"
+                ]
+              }
+            }
+          ]
+        },
+        "name": "image-must-have-digest",
+        "validate": {
+          "message": "Every container image must include an @sha256 digest. Pin the explicit version and digest in Kustomize.",
+          "pattern": {
+            "spec": {
+              "=(ephemeralContainers)": [
+                {
+                  "image": "*@sha256:*"
+                }
+              ],
+              "=(initContainers)": [
+                {
+                  "image": "*@sha256:*"
+                }
+              ],
+              "containers": [
+                {
+                  "image": "*@sha256:*"
+                }
+              ]
+            }
+          },
+          "failureAction": "Audit",
+          "failureActionOverrides": [
+            {
+              "action": "Enforce",
+              "namespaces": [
+                "backoffice"
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

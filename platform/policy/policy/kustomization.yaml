@@ -3,9 +3,8 @@ kind: Kustomization
 
 # Kyverno ClusterPolicies for whitehouse-rke2.
 #
-# All policies start with `validationFailureAction: Audit` so violations are
-# recorded as PolicyReports but admission is never blocked. Procedure to
-# flip a policy to Enforce is documented in policy/README.md.
+# General policies enforce in backoffice and audit elsewhere.
+# PHP containment separately enforces in its selected namespaces.
 #
 # These resources require the ClusterPolicy CRD installed by the kyverno
 # helm release (argo-cd/applications/kyverno-app.yaml). The kyverno-policies
@@ -17,3 +16,4 @@ resources:
   - disallow-privileged-containers.yaml
   - disallow-host-path.yaml
   - restrict-image-registries.yaml
+  - require-image-digest.yaml
