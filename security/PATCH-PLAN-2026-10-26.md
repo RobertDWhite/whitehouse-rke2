@@ -1,5 +1,18 @@
 # Cluster hardening and patch execution plan
 
+## Backoffice admission enforcement — 2026-10-26 11:10 UTC
+
+Deployed commit817d2fd4 restores require-image-digest to Git and stages five general policies with rule-level failureAction Audit plus an Enforce override for backoffice. Other namespaces retain Audit and existing exclusions; PHP containment is unchanged. Installed CRD supports these fields and server-side policy dry-run passed. Kyverno warns ClusterPolicy is deprecated; migration to the newer policy API is future work, not completed here.
+
+The previously live digest policy had deletionTimestamp2026-05-28 and only foregroundDeletion finalizer. Preserved its full pre-change object privately; verified it contains only a validate rule and no generate/mutate rules, and found no owned UpdateRequests, ephemeral reports or policy reports in the queried APIs. Removed the stale finalizer with UID/finalizer preconditions. GitOps recreated the policy without deletionTimestamp. Removed the old invalid Helm hook selector (comma-separated value cannot be a Kubernetes label) after admission validation rejected it. No application data or workload finalizers were touched.
+
+Before enforcement, all9 tested forbidden main/init/hostPath manifests were admitted in server dry-run. Afterward, all9 are rejected by their expected rule;4 more ephemeral-container update cases are rejected through the actual ephemeralcontainers API with dryRun=All. Approved ordinary and ephemeral requests pass. Tests cover privileged=true, latest tag with digest, missing digest, unapproved registry, and hostPath. No unsafe pod or ephemeral container was actually created. The first test harness used duplicate main/init names and then an unapproved short node image reference; both harness defects were corrected before recording passing acceptance. The approved canary uses fully qualified docker.io/library/node with explicit24.22.1 version and digest.
+
+All3 existing Backoffice deployment pod templates pass server admission. A no-token, nonroot, read-only, drop-ALL, seccomp RuntimeDefault Deployment canary started Ready. After deleting its pod, its controller recreated a different UID and reached Ready. The canary Deployment was deleted afterward. Argo kyverno-policies isSynced/Healthy/Succeeded at817d2fd4; digest policy has no deletion timestamp. Private evidence and reproducible helpers: ~/Library/Application Support/whitehouse-security/admission-backoffice-20261026/ (0700 directory,0600 files).
+
+Residuals: general failurePolicy remainsIgnore (webhook-outage fail-open); enforcement isBackoffice only, not cluster-wide. Existing policy exemptions and allowExistingViolations behavior remain. This change does not patch application binaries, block all vulnerability classes or prove backup/recovery. Expand only after each namespace's dependencies, image pins and privilege requirements are repaired and its positive/negative tests pass. Rollback the Backoffice override in source if needed; preserve the restored digest-policy source.
+
+
 ## Execution refresh — 2026-10-26 11:02 UTC
 
 This section supersedes older status and build handles below. This pass was read-only against production. No new enforcement or application rollout is claimed.
