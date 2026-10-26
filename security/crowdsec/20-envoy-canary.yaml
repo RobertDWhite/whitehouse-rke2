@@ -247,3 +247,19 @@ spec:
     headersToExtAuth: [user-agent]
     grpc:
       backendRefs: [{name: crowdsec-envoy-bouncer, port: 8080}]
+      backendSettings:
+        healthCheck:
+          panicThreshold: 0
+          active:
+            type: GRPC
+            grpc: {service: readiness}
+            interval: 1s
+            timeout: 1s
+            healthyThreshold: 1
+            unhealthyThreshold: 1
+        retry:
+          numRetries: 2
+          retryOn:
+            triggers: [connect-failure, refused-stream, unavailable, cancelled]
+          perRetry:
+            timeout: 500ms
