@@ -71,24 +71,11 @@ repoServer:
   - name: ARGOCD_GIT_RETRY_FACTOR
     value: "2"
   volumes:
-  - name: custom-tools
-    emptyDir: {}
   - name: sops-age
     secret:
       secretName: sops-age
 
-  initContainers:
-  - name: install-ksops
-    image: viaductoss/ksops:v4.5.1
-    command: ["/usr/local/bin/ksops", "install", "/custom-tools"]
-    volumeMounts:
-    - mountPath: /custom-tools
-      name: custom-tools
-
   volumeMounts:
-  - mountPath: /usr/local/bin/ksops
-    name: custom-tools
-    subPath: ksops
   - mountPath: /etc/sops/age
     name: sops-age
     readOnly: true

@@ -21,3 +21,10 @@ helmCharts:
 
 patches:
   - path: server-networkpolicy-patch.yaml
+
+# Argo v3.5.6 with patched application dependencies and bundled tools.
+images:
+  - name: quay.io/argoproj/argocd
+    newName: ghcr.io/robertdwhite/argocd-security-runtime
+    newTag: sha-2a20e755ec6e9005e85de9c0ec4431b851893eb9
+    digest: sha256:9d07d6eb5fb796354a83cbd03868ba445910e347bbda91c261994d220dcdc3fb
