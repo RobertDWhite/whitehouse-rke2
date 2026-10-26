@@ -87,4 +87,6 @@ Latest runtime build: source d42496d, CI40276695860 running at last check. New h
 
 Full Argo candidate follow-up: source309a7ec/build40277458340 rebuilds the main binary with compress1.18.7 and x/net0.60.0, as well as patched helpers. Focused transport/archive/session/settings unit tests passed locally and run again in Linux CI. Build, scan and deployment gates remain pending.
 
-Backoffice segmentation batch is deployed (e3572dfd) with verified negative ingress/egress and positive web/API/database/Kubernetes/gateway/Auth-entik/NGINX paths; see the progress ledger for exact evidence and limits. Retain Backoffice dependency/image and token/RBAC review in the remaining queue. Helper-only Argo scans now show only two high findings, both addressed in the full build40277458340 still pending. Neither change completes the fleet plan.
+Backoffice segmentation batch is deployed (e3572dfd) with verified negative ingress/egress and positive web/API/database/Kubernetes/gateway/Authentik/NGINX paths; see the progress ledger for exact evidence and limits. Retain Backoffice dependency/image and token/RBAC review in the remaining queue. Helper-only Argo scans now show only two high findings, both addressed in the full build40277458340 still pending. Neither change completes the fleet plan.
+
+Backoffice image remediation is now in draft PR RobertDWhite/backoffice#1, source42dadfb/build40278674722. It remains a candidate until Linux builds, full image scans, restored database validation and runtime checks pass. Existing containment stays in force.
