@@ -23,6 +23,12 @@ Ombi ingress containment is deployed (fe55c77d), and the restored/scanned v4.53.
 
 MISP build40337521702 is completed/success, not running. PR482 remains draft pending a published final image, full scan and broader acceptance; its CI uses push:false.
 
+### Execution update — IntelOwl
+
+IntelOwl ingress is narrowed and its broken HTTP-to-uWSGI web path repaired (29bf9129, b46114de, c722dc3a). Final gateway UI/static assets and anonymous denial pass;18unrelated connections denied and16legitimate application connections preserved. Main image still reports257critical/3271high; Nginx43high. Both full scans are retained with verified receipts. These counts are findings, not confirmed exploits.
+
+Prioritize an IntelOwl runtime/dependency rebuild: upstream master retains Python3.11.7/Django4.2.27/Celery5.4.0, build packages ship in runtime, and Celery control inspection already fails against RabbitMQ4.4. Preserve the new containment, verify actual task/analyzer behavior and database recovery before image rollout. Do not mask compatibility with a deprecated broker-feature toggle. See the progress ledger for exact digests and scope.
+
 ### Ordered patch batches
 
 | Order | Executable change | Acceptance gate | Rollback / dependency |
