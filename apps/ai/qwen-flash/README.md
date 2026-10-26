@@ -2,7 +2,8 @@
 
 Qwen3.8-Flash-Next (125B sparse MoE, 6B active) served by vLLM on node-10 (DGX Spark / GB10),
 using the [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX) recipe.
-OpenAI-compatible API at `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1`, model
+OpenAI-compatible API at `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1` (LAN:
+`http://10.99.5.128:8000/v1` via the `qwen-flash-lb` LoadBalancer), model
 `qwen3.8-flash-next`, with tool calling and reasoning parsers enabled.
 
 ## How it fits on one GB10
