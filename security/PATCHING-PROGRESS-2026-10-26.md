@@ -485,3 +485,12 @@ An isolated pod using the exact existing archive Python image, read-only filesys
 GitOps77c1f5df pushed to main after server-side archive render/admission validation and the in-cluster capacity canary. Argo trivy-archive Synced/Healthy at that revision; replacement deployment completed. Live metrics:trivy_archive_crd_incomplete_sets=0,archive_errors=0,fresh coverage timestamp. Prometheus loaded TrivyIncompleteReportSet and reportsinactive/healthok/no error. Observability sync succeeded at the revision but its longstanding aggregateDegraded status remains (no degraded resource listed in sampled application status); do not claim application-wide health.
 
 After replacement, the3largest retained full-result receipts passed raw SHA256 verification:13908223,13908202,13908154bytes. Evidence receipt under private trivy-ingestion-metrics-20261026/partition-reader-after.json. These are current largest selections, not a claim that every archived file was reread or identical selected files before/after. Operator image remains unchanged; live partition writer retry/cleanup/TTL and exact-image canary remain before ingestion repair is complete.
+
+
+## Partition lifecycle and cluster TTL fix — 2026-10-26
+
+Operator candidate8117cd1f adds the missing ClusterVulnerabilityReport TTL watch/deletion eligibility and UID/resourceVersion preconditions on report expiry deletes. Targeted operator tests and race checks pass for cluster expiry and concurrent-change conflict preservation. Live API separately rejected stale-version deletion of a modified synthetic cluster report; changed data survived until explicit test cleanup.
+
+Existing namespace TTL controller removed all6synthetic partition objects with10s TTL in10.43seconds. A second six-object set with5m TTL was removed by owner GC after deleting its synthetic ConfigMap owner (0.04seconds observed). Test namespace/cluster object removed. Results private in trivy-partition-lifecycle-20261026/result.json. No production report was deleted by these tests.
+
+Operator image remains undeployed. Candidate cluster watcher needs live canary proof. Immediate obsolete-generation deletion is not implemented because it can race replacement writers; finite TTL/owner cleanup bounds and retry behavior still need validation. Reports without a TTL and with surviving owners have no bounded reclamation guarantee.
