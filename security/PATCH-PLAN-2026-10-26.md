@@ -1,5 +1,20 @@
 # Cluster hardening and patch execution plan
 
+## Trivy ingestion-gap visibility — 2026-10-26 11:32 UTC
+
+Deployed6cefaf57 separates CRD persistence from combined CRD/archive coverage. Existing combined metrics remain; new per-kind metrics expose missing CRD digests, stale CRD digests and fresh archived digests lacking fresh CRD evidence. This prevents archived output from silently standing in for successful Kubernetes report ingestion. It does not solve oversized writes or prove every scan is complete/unfiltered; platform/index identity differences and temporary validation images still matter.
+
+Live new metrics:70main/15init digests unmatched to CRDs;30main/5init have fresh archive evidence but no fresh CRD;ephemeral0. Prometheus query returns35 across kind sets, which is not necessarily35unique images. Archive errors0; coverage timestamp fresh. No findings removed and no API size limits changed.
+
+Regression failed before the new metrics existed and passes afterward;5archive tests pass. Test covers fresh CRD-only, archive-only, stale-CRD/fresh-archive and entirely missing evidence across container kinds. Promtool accepts45rules; rule tests prove no alert at29minutes, warning after31minutes of a persistent gap and no alert for zero gaps. New TrivyReportIngestionGap rule is loaded with healthok and a30-minute hold. It was stillinactive in the initial evaluation snapshot despite the subsequently scraped positive query; pending/firing and end-to-end notification delivery must be checked later, not claimed complete.
+
+Archive Deployment replaced successfully and reportsReady1/1/0restarts. The3largest retained full-result log receipts/checksums (13,908,202;13,908,154;13,907,497bytes) match before and after replacement, including identical receipt paths and SHA256 values. Full content remained private. Argo archiveSynced/Healthy/Succeeded; observabilitySynced/Succeeded but aggregate health brieflyDegraded with no degraded resource listed in the sampled status. Prometheus remains2/2Ready0restarts and serves queries/rules normally; broader observability health remains to be rechecked. Evidence: ~/Library/Application Support/whitehouse-security/trivy-ingestion-metrics-20261026/.
+
+Remaining ingestion repair is substantive: choose bounded complete report partitions or a confirmed durable full-report reference with explicit completeness and correct summary metrics; test partial-write/retry/expiry behavior before deployment. Simply enabling alternate storage currently returns empty CRD reports, while current writer updates omit annotations; neither is an acceptable shortcut. Operator source checkout was inspected/fetched but not modified in this batch; untracked workflow matches fork725e0fe and remains preserved.
+
+Condo40313840372 remainsin_progress in docker/build-push forf5071ca; continue that exact handle. Overall full patching remainsactive.
+
+
 ## Mastodon backend ingress and streaming TLS — 2026-10-26 11:25 UTC
 
 Deployedda47944e narrows Mastodon ingress from gateway/monitoring/authentication namespaces. Main Envoy pods, ingress-nginx controllers, Authentik servers, the named cloudflared workloads and Uptime Kuma can reach only Mastodon web/streaming pods on3000/4000. The changes cover both owning sources: platform/policy/network-policies/mastodon.yaml and platform/networking/envoy-phase3-routes/20-network-policies.yaml. Egress, same-namespace allowance, exporter policy and application images remain unchanged; backend authentication and host privileges remain separate work.
