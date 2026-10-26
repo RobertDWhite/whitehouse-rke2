@@ -46,6 +46,10 @@ spec:
             value: "false"
 
         trivy:
+          # Scan containers share the downloaded DB but must not share a BoltDB lock.
+          configFile:
+            cache:
+              backend: memory
           image:
             registry: mirror.gcr.io
             repository: aquasec/trivy
