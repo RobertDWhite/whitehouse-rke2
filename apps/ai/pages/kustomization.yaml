@@ -1,5 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: pages
 resources:
   - 00-namespace.yaml
   - 10-pvc.yaml
@@ -15,9 +16,14 @@ resources:
 generators:
   - ksops.yaml
 
+configMapGenerator:
+  - name: pages-git-host-keys
+    files:
+      - known_hosts=github_known_hosts
+
 images:
-  # Built by github.com/RobertDWhite/pages-mcp CI -> ghcr.io on v* git tags;
-  # Renovate bumps newTag when a new v* image is published.
+  # Reviewed runtime rebuild from pages-mcp PR #3; pin the tested artifact.
   - name: registry.internal.white.fm/pages-mcp
     newName: ghcr.io/robertdwhite/pages-mcp
-    newTag: v0.2.4
+    newTag: sha-f9b2df06a320f21d44fe670d5e2166d64a517211
+    digest: sha256:7044b7defa69021c0f8f2c2344268d063bdcb2365d50a0c2a8d1b790bdf71a60

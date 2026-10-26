@@ -15,6 +15,7 @@ spec:
       labels:
         app: pages
     spec:
+      automountServiceAccountToken: false
       nodeSelector:
         kubernetes.io/arch: amd64
       securityContext:
@@ -54,6 +55,8 @@ spec:
               value: "ssh://git@ssh.github.com:443/RobertDWhite/pages-sites.git"
             - name: GIT_SSH_KEY
               value: "/keys/id_ed25519"
+            - name: GIT_KNOWN_HOSTS
+              value: "/etc/git/known_hosts"
             - name: GIT_AUTHOR_NAME
               value: "pages-mcp"
             - name: GIT_AUTHOR_EMAIL
@@ -90,6 +93,9 @@ spec:
               drop:
                 - ALL
           volumeMounts:
+            - name: git-host-keys
+              mountPath: /etc/git
+              readOnly: true
             - name: data
               mountPath: /data/sites
             - name: tmp
@@ -98,6 +104,9 @@ spec:
               mountPath: /keys
               readOnly: true
       volumes:
+        - name: git-host-keys
+          configMap:
+            name: pages-git-host-keys
         - name: data
           persistentVolumeClaim:
             claimName: pages-data
