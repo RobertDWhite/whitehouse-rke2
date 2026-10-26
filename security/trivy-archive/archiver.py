@@ -186,6 +186,7 @@ def report_hash(data):
 
 def complete_reports(reports):
     """Exclude parts and incomplete/corrupt manifests from CRD coverage."""
+    reports = list(reports)
     prefix = 'trivy-operator.aquasecurity.github.io/report-'
     def annotations(r):
         return r.get('metadata', {}).get('annotations', {})

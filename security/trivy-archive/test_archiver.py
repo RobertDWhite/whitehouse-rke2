@@ -62,7 +62,7 @@ class ArchiveTests(unittest.TestCase):
         archived = [{'digests': [values[i]], 'scan_completed': now,
                      'severity_counts': {'HIGH': 2}} for i in (1, 2)]
         def items(path):
-            return reports if 'vulnerabilityreports' in path else []
+            return iter(reports) if 'vulnerabilityreports' in path else iter([])
         with patch.object(archiver, 'items', side_effect=items), \
              patch.object(archiver, 'inventory', return_value=({'main': set(values),
                          'init': {values[2]}, 'ephemeral': set()}, 1)), \
@@ -81,7 +81,7 @@ class ArchiveTests(unittest.TestCase):
     def test_go_partition_fixture_and_corruption(self):
         fixture = json.loads((Path(__file__).parent / 'testdata/partition-go.json').read_text())
         prefix = 'trivy-operator.aquasecurity.github.io/report-'
-        complete, missing = archiver.complete_reports(fixture)
+        complete, missing = archiver.complete_reports(iter(fixture))
         self.assertEqual(missing, 0)
         self.assertEqual(len(complete), 1)
         self.assertEqual(len(complete[0]['report']['vulnerabilities']), 10)

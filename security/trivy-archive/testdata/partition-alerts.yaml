@@ -1,0 +1,75 @@
+rule_files:
+- /tmp/trivy-partition-rules.yaml
+evaluation_interval: 1m
+tests:
+- name: archive
+  interval: 1m
+  input_series:
+  - series: trivy_archive_crd_incomplete_sets
+    values: 1x20
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts:
+    - &id001
+      exp_labels:
+        severity: warning
+      exp_annotations:
+        summary: Trivy partitioned reports are incomplete or inconsistent
+        description: A report manifest or part failed completeness checks. Inspect
+          missing parts, mixed generations, unsupported formats, expiry and failed
+          writes. These sets are excluded from complete coverage; retain archived
+          scans and repair ingestion.
+- name: operator
+  interval: 1m
+  input_series:
+  - series: trivy_vulnerability_report_incomplete_sets
+    values: 1x20
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts:
+    - *id001
+- name: both
+  interval: 1m
+  input_series:
+  - series: trivy_archive_crd_incomplete_sets
+    values: 2x20
+  - series: trivy_vulnerability_report_incomplete_sets
+    values: 1x20
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts:
+    - *id001
+- name: clean
+  interval: 1m
+  input_series:
+  - series: trivy_archive_crd_incomplete_sets
+    values: '0x20'
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+- name: absent
+  interval: 1m
+  input_series: []
+  alert_rule_test:
+  - eval_time: 9m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []
+  - eval_time: 11m
+    alertname: TrivyIncompleteReportSet
+    exp_alerts: []

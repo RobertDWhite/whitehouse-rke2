@@ -462,3 +462,12 @@ Operator fork979f5acc defines versioned cross-language content hashing; archive 
 Actual synthetic API create/read initially exposed fixture naming and non-nullable-null pruning of links. Corrected naming and null-object-field normalization yielded a verified round trip of all10 findings; deleting a real part then rejected the set. Validation namespace cleanup confirmed. Full private SDR report preserves19398 findings across138 parts (max524285serialized bytes) in Go and Python. Python local load/reassembly0.673seconds, peakRSS380813312bytes on macOS; full-cluster memory and API response-size capacity remain unproven. Full findings remain in private evidence.
 
 These integration changes are pushed on candidate branches, not deployed. Remaining gates: incomplete-set alert and notification delivery, stale-part reclamation, live writer retry/TTL/owner-GC, full-cluster load, immutable build/scan and canary. Existing production oversized-report issue is not yet closed.
+
+
+## Partition alert and live-reader compatibility — 2026-10-26
+
+Added TrivyIncompleteReportSet for either archive or operator incomplete-set metric with a10-minute hold. Promtool3.15.1 accepts all46rules; test cases pass for archive-only, operator-only, both without duplicate alerts, healthy zero and absent metrics, including quiet9min/firing11min. Absent metrics are intentionally not this rule's completeness signal; availability/freshness monitoring remains separate. Tracked synthetic rule tests are security/trivy-archive/testdata/partition-alerts.yaml.
+
+Existing TrivyReportIngestionGap is firing in production and received by Alertmanager asactive with no inhibitions/mutes/silences and receiverall. This proves routing to Alertmanager, not final notification-channel delivery. No synthetic notification was sent.
+
+Pre-deployment review caught iterator exhaustion in complete_reports: production items() yields a generator, whereas initial tests supplied lists. Reader now materializes once; tests exercise iterators. All7archive tests pass. Read-only check of724current live ordinary reports yields724complete/0incomplete; local acquisition/validation7.5seconds, peakRSS569212928bytes on macOS. This is current ordinary-report compatibility, not combined full-partition workload capacity. Archive/operator deployment remains gated on load, stale-part cleanup and live lifecycle/canary checks.
