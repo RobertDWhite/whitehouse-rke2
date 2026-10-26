@@ -21,6 +21,18 @@ HubSpot, Google Calendar and Gmail every 10.
 | Google Calendar | `$CALENDAR_DIR/<year>/<date> <title>.md` | One note per event on every calendar of the account, 90 days back to 60 ahead (single instances of recurring events; one note when an event is on several calendars). Time, location, organizer, attendees linked to their entity pages, description. Declined, cancelled and free/busy-only events are skipped; notes older than the window are kept. |
 | Gmail | `$EMAIL_DIR/<year>/<date> <subject>.md` | One note per thread (filed by its first message) where another participant is a known entity: an `emails` address of an entity page, or a `domains` entry of a company/business (public mail domains and no-reply senders don't count), plus what `.brain/google.json` adds or removes. Messages oldest first with From/To/Cc, plain text (HTML converted), quoted replies and obvious signatures stripped, each capped at `EMAIL_MAX_CHARS` (4000); attachment names only. |
 
+It also mirrors Forgejo repos listed in the brain repo's `.brain/mirrors.json`
+(`{"mirrors": [{"repo": "owner/name", "dest": "Folder/In Brain"}]}`) into
+those folders every `MIRROR_INTERVAL_SECONDS` (300): when a source's default
+branch moves, the folder is replaced with that tree (any file type, minus
+`.github` and `.DS_Store`) plus `.source-commit`, in one commit labeled
+`mirror <repo> <sha>`. The folder is one-way: edit the source repo, since
+anything else in it is deleted. `dest` may not be under `.brain/` or
+`$ENTITIES_DIR`. The `brain-sync` user needs read access to each source repo
+(collaborator, Read); a repo it can't read is logged and skipped. Mirrors run
+before entities, so mirrored notes count as mentions. This is separate from
+the GitHub `repo-mirror` CronJob below.
+
 It also builds `$ENTITIES_DIR` (default `Entities/`): one page per person,
 company, business and property, discovered from the records above, from notes
 whose frontmatter has `type: person|company|business|property`, and from the

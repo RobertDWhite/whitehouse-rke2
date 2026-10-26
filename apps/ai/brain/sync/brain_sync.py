@@ -71,6 +71,11 @@ GOOGLE_REFRESH_TOKEN = os.environ.get("GOOGLE_REFRESH_TOKEN", "")
 GOOGLE_ACCOUNT = os.environ.get("GOOGLE_ACCOUNT", "").strip().casefold()  # mailbox address, for links and "me"
 GOOGLE_INTERVAL = int(os.environ.get("GOOGLE_INTERVAL_SECONDS", "600"))
 GOOGLE_CONFIG = ".brain/google.json"
+# Repos on this Forgejo mirrored one-way into brain folders, listed in the brain repo:
+# {"mirrors": [{"repo": "owner/name", "dest": "Folder/In Brain"}]}.
+MIRRORS_CONFIG = ".brain/mirrors.json"
+MIRROR_INTERVAL = int(os.environ.get("MIRROR_INTERVAL_SECONDS", "300"))
+MIRROR_SKIP = re.compile(r"(^|/)(\.github/|\.DS_Store$)")
 CALENDAR_DIR = os.environ.get("CALENDAR_DIR", "Calendar").strip("/")
 CALENDAR_PAST_DAYS = int(os.environ.get("CALENDAR_PAST_DAYS", "90"))
 CALENDAR_FUTURE_DAYS = int(os.environ.get("CALENDAR_FUTURE_DAYS", "60"))
@@ -1962,7 +1967,7 @@ def read_bytes(path):
 def apply_changes(prefix, desired, existing, keep=frozenset(), label=""):
     ops, size = [], 0
     for path, text in sorted(desired.items()):
-        content = text.encode()
+        content = text if isinstance(text, bytes) else text.encode()
         if existing.get(path) == blob_sha(content):
             continue
         op = {"operation": "update" if path in existing else "create", "path": path,
@@ -2277,6 +2282,62 @@ def writeback_meerkat(notes, acts):
         log.info("meerkat write-back: %d summary notes, %d activities", done["notes"], done["activities"])
 
 
+_mirrors_last = (0.0, {})  # (time of last pass, {repo: source commit mirrored})
+
+
+def source_archive(repo, ref):
+    """{path: bytes} for every file on ref of repo, minus MIRROR_SKIP."""
+    req = urllib.request.Request(f"{FORGEJO_URL}/api/v1/repos/{repo}/archive/{urllib.parse.quote(ref)}.tar.gz")
+    req.add_header("Authorization", f"token {FORGEJO_TOKEN}")
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        data = resp.read()
+    files = {}
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        for m in tar:
+            path = m.name.split("/", 1)[1] if "/" in m.name else ""
+            if m.isfile() and path and not MIRROR_SKIP.search(path):
+                files[path] = tar.extractfile(m).read()
+    return files
+
+
+def sync_mirrors():
+    """Replace each configured brain folder with its source repo's default branch
+    tip, plus .source-commit. One commit per changed mirror; no-op otherwise."""
+    global _mirrors_last
+    last_run, done = _mirrors_last
+    if time.time() - last_run < MIRROR_INTERVAL:
+        return
+    raw = read_raw(MIRRORS_CONFIG)
+    try:
+        mirrors = (json.loads(raw) if raw else {}).get("mirrors") or []
+    except (ValueError, AttributeError) as e:
+        log.warning("ignoring %s: %s", MIRRORS_CONFIG, e)
+        mirrors = []
+    done = dict(done)
+    for m in mirrors:
+        repo = str(m.get("repo") or "").strip("/")
+        dest = str(m.get("dest") or "").strip("/")
+        parts = dest.split("/")
+        if repo.count("/") != 1 or not dest or ".." in parts or parts[0] in (".brain", ENTITIES_DIR):
+            log.warning("ignoring mirror %r -> %r", repo, dest)
+            continue
+        try:
+            info = forgejo("GET", f"/repos/{repo}")
+            if not info:
+                raise RuntimeError("repo not found or not readable by this token")
+            ref = info.get("default_branch") or "main"
+            head = ((forgejo("GET", f"/repos/{repo}/branches/{urllib.parse.quote(ref)}") or {}).get("commit") or {}).get("id")
+            if not head or done.get(repo) == head:
+                continue
+            files = {f"{dest}/{p}": b for p, b in source_archive(repo, ref).items()}
+            files[f"{dest}/.source-commit"] = head + "\n"
+            apply_changes(dest, files, list_tree(dest), label=f"mirror {repo} {head[:8]}")
+            done[repo] = head
+        except Exception:
+            log.exception("mirror %s failed", repo)
+    _mirrors_last = (time.time(), done)
+
+
 def sync_entities():
     global _entities_last, _entity_pages
     root = forgejo("GET", f"/repos/{REPO}/branches/{BRANCH}") or {}
@@ -2305,7 +2366,7 @@ def sync_entities():
 def cycle():
     for name, fn, enabled in (("meerkat", sync_meerkat, MEERKAT_TOKEN), ("riffado", sync_riffado, RIFFADO_TOKEN),
                               ("hubspot", sync_hubspot, HUBSPOT_TOKEN), ("pages", sync_pages, PAGES_MCP_TOKEN),
-                              ("entities", sync_entities, True),
+                              ("mirrors", sync_mirrors, True), ("entities", sync_entities, True),
                               ("google", sync_google, GOOGLE_REFRESH_TOKEN and GOOGLE_CLIENT_ID)):
         if not enabled:
             continue
