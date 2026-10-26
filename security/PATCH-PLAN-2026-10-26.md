@@ -1,5 +1,7 @@
 # Cluster hardening and patch execution plan
 
+> Current execution order: [PATCH-EXECUTION-2026-10-26.md](PATCH-EXECUTION-2026-10-26.md), refreshed at 15:17 UTC. It supersedes execution ordering and pending-status claims below; retain these sections as history.
+
 ## Current execution plan — 2026-10-26 14:04 UTC
 
 **This section supersedes every status and execution order below.** Older sections are historical evidence, not pending instructions. This refresh is a read-only cluster assessment plus review of retained full scans; it does not establish compromise or complete remediation.
