@@ -33,7 +33,7 @@ metadata:
   name: crowdsec-envoy-bouncer
   namespace: crowdsec
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
@@ -41,14 +41,14 @@ spec:
     matchLabels: {app: crowdsec-envoy-bouncer}
   template:
     metadata:
-      labels: {app: crowdsec-envoy-bouncer}
+      labels: {app: crowdsec-envoy-bouncer, security.white.fm/role: envoy-bouncer}
     spec:
       automountServiceAccountToken: false
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
-                matchLabels: {app: crowdsec-envoy-bouncer}
+                matchLabels: {security.white.fm/role: envoy-bouncer}
               topologyKey: kubernetes.io/hostname
       securityContext:
         runAsNonRoot: true
@@ -95,7 +95,7 @@ metadata:
 spec:
   minAvailable: 1
   selector:
-    matchLabels: {app: crowdsec-envoy-bouncer}
+    matchLabels: {security.white.fm/role: envoy-bouncer}
 ---
 apiVersion: v1
 kind: Service
@@ -103,7 +103,7 @@ metadata:
   name: crowdsec-envoy-bouncer
   namespace: crowdsec
 spec:
-  selector: {app: crowdsec-envoy-bouncer}
+  selector: {security.white.fm/role: envoy-bouncer}
   ports:
     - {name: grpc, port: 8080, targetPort: grpc, appProtocol: kubernetes.io/h2c}
     - {name: metrics, port: 9090, targetPort: metrics}

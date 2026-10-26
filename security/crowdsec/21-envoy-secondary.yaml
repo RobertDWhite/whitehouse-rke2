@@ -1,0 +1,151 @@
+# Separate LAPI identity: stream cursors are maintained per API key.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crowdsec-envoy-bouncer-secondary
+  namespace: crowdsec
+data:
+  config.yaml: "server:\n  grpcPort: 8080\n  httpPort: 8081\n  logLevel: info\ntrustedProxies:\
+    \ []\ntrustedIPHeader: \"\"\nexemptIPs: []\nbouncer:\n  enabled: true\n  name:\
+    \ envoy-secondary\n  lapiURL: http://crowdsec-service.crowdsec.svc.cluster.local:8080\n\
+    \  tickerInterval: 10s\n  metrics: true\nwaf:\n  enabled: false\ncaptcha:\n  enabled:\
+    \ false\nprometheus:\n  enabled: true\n  port: 9090\n"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crowdsec-envoy-bouncer-secondary
+  namespace: crowdsec
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: crowdsec-envoy-bouncer-secondary
+  template:
+    metadata:
+      labels:
+        app: crowdsec-envoy-bouncer-secondary
+        security.white.fm/role: envoy-bouncer
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                security.white.fm/role: envoy-bouncer
+            topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: bouncer
+        image: ghcr.io/kdwils/envoy-proxy-bouncer:v0.8.2@sha256:444dcf855e3e4aac290084733ecca127e55abb966938be919e0aa7caf209e5e6
+        args:
+        - serve
+        - --config
+        - /app/config/config.yaml
+        env:
+        - name: ENVOY_BOUNCER_BOUNCER_APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: crowdsec-envoy-bouncer-secondary
+              key: api-key
+        ports:
+        - name: grpc
+          containerPort: 8080
+        - name: metrics
+          containerPort: 9090
+        readinessProbe:
+          grpc:
+            port: 8080
+            service: readiness
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          grpc:
+            port: 8080
+            service: liveness
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: crowdsec-envoy-bouncer-secondary
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: crowdsec-envoy-bouncer-secondary
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels:
+      app: crowdsec-envoy-bouncer-secondary
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: proxy
+    ports:
+    - port: 8080
+      protocol: TCP
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: observability
+    ports:
+    - port: 9090
+      protocol: TCP
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          k8s-app: crowdsec
+          type: lapi
+    ports:
+    - port: 8080
+      protocol: TCP
