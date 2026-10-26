@@ -86,3 +86,5 @@ Policy approach follows the [Kubernetes security checklist](https://kubernetes.i
 Latest runtime build: source d42496d, CI40276695860 running at last check. New helper/Pebble locks are prepared; do not substitute build submission for successful tests/scans or deploy the old candidate as fully patched.
 
 Full Argo candidate follow-up: source309a7ec/build40277458340 rebuilds the main binary with compress1.18.7 and x/net0.60.0, as well as patched helpers. Focused transport/archive/session/settings unit tests passed locally and run again in Linux CI. Build, scan and deployment gates remain pending.
+
+Backoffice segmentation batch is deployed (e3572dfd) with verified negative ingress/egress and positive web/API/database/Kubernetes/gateway/Auth-entik/NGINX paths; see the progress ledger for exact evidence and limits. Retain Backoffice dependency/image and token/RBAC review in the remaining queue. Helper-only Argo scans now show only two high findings, both addressed in the full build40277458340 still pending. Neither change completes the fleet plan.
