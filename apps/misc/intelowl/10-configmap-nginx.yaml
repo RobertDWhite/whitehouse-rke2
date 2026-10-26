@@ -21,6 +21,12 @@ data:
       include errors.conf;
     }
   locations.conf: |
+    # The release HTML requests this optional file, but the release image omits it.
+    # This deployment uses the frontend's compiled settings, with no runtime overrides.
+    location = /static/reactapp/env.js {
+      default_type application/javascript;
+      return 200 "/* No runtime frontend overrides configured. */\n";
+    }
     location /static/ {
       alias /var/www/static/;
     }
