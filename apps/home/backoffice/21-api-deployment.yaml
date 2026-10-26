@@ -15,6 +15,12 @@ spec:
       labels:
         app: backoffice-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       imagePullSecrets:
         - name: ghcr-pull
       serviceAccountName: backoffice-api
@@ -24,6 +30,11 @@ spec:
         - name: api
           image: registry.internal.white.fm/backoffice-api
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           ports:
             - containerPort: 8000
               name: http
