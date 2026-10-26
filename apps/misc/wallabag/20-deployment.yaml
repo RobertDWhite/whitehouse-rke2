@@ -18,6 +18,8 @@ spec:
         app: wallabag
     spec:
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/arch: amd64
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -51,7 +53,7 @@ spec:
               value: "True"
           volumeMounts:
             - name: php-security
-              mountPath: /etc/php81/conf.d/99-security.ini
+              mountPath: /etc/php84/conf.d/99-security.ini
               subPath: 99-security.ini
               readOnly: true
             - name: data
