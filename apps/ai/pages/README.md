@@ -29,6 +29,15 @@ DNS for `internal.white.fm` is served by Technitium from static records in
 wildcard `*.pages.internal.white.fm -> 10.99.5.110` A record must be added there,
 alongside the `pages` / `pages-mcp` records.
 
+## Writable data files
+
+A site may let its own pages save JSON back by deploying a `pages-writable.json`
+that lists the files (see the pages-mcp README). Writes are accepted only on
+`WRITE_HOSTS` (`pages.internal.white.fm`, so public `white.fm` hosts stay
+read-only), are committed to the `pages-sites` git mirror, and survive redeploys:
+a deploy never overwrites a live writable file. The `cards` site uses this for
+saved collages (`collages/saved.json`).
+
 ## Sites owned by the brain repo
 
 Some sites are published from the Forgejo repo `WhiteHouse/brain`, where

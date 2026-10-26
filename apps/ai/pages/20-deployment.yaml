@@ -44,6 +44,10 @@ spec:
               value: "pages.internal.white.fm,white.fm"
             - name: MCP_HOST
               value: "pages-mcp.internal.white.fm"
+            # Browser writes to a site's opted-in JSON files (pages-writable.json):
+            # internal zone only, so public white.fm hosts stay read-only.
+            - name: WRITE_HOSTS
+              value: "pages.internal.white.fm"
             - name: TMPDIR
               value: "/tmp"
             - name: MCP_TOKEN
