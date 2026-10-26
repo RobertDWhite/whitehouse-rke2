@@ -525,3 +525,14 @@ Isolated amd64 tests passed hash-enforced offline wheel construction, pip-free r
 Upstream draft PR creation form was rendered, not submitted/created; no PR URL exists. Do not duplicate or bypass the pending form. A separate local build branchcodex/security-runtime-20261026 at00b2b6b adds an amd64/arm64 workflow with pinned Ubuntu index68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac and aptpkg2.0.21/ffmpeg2.2.2. GitHub rejected pushing this workflow because the current OAuth token lacks workflow scope. Therefore that branch/workflow is local-only and NO Homebridge image build started. The inherited upstream release workflow hard-codes upstream GHCR targets and is not a suitable fallback. No active cluster builder was found in the pod inventory. This is a Homebridge build-path limitation, not a global patching blocker.
 
 Operator build40323484674 remainsin_progress at docker/build-push for42c6b0b1. Continue the exact handle; production operator and Homebridge images remain unchanged. Full rebuilt-image scans and runtime checks remain required before acceptance.
+
+
+## Gramps ingress containment deployed — 2026-10-26
+
+Commit41f2b8e9 adds default-deny ingress plus narrow main-Envoy/Uptime-Kuma→web5000 and Gramps/Uptime-Kuma→Redis6379 allowances. No whole-namespace trust or unrestricted same-namespace allowance. Owning source apps/misc/gramps/60-network-policies.yaml is included in its Kustomize application. Rendered policy admission checks pass; Argo Synced/Healthy at41f2b8e9; all live policy specs exactly match source.
+
+Before, unrelated probes in default,gramps,envoy-gateway-system reached both app80 and Redis6379. After reconciliation all6connections are denied, while each probe's API443control still connects. Actual Gramps container Redis PING passes; both ancestry public/internal hostnames return TLS-verified gateway200 at / and401/403for unauthenticated/api/people/. Actual Uptime Kuma pod obtains web200 and RedisPONG. Gramps/Redis podUIDs,readiness,restart counts unchanged from baseline. All3probe pods removed. Evidence and helpers retained privately in gramps-ingress-20261026.
+
+Scope: ingress containment, not image patching or full authenticated family-tree/media/worker workflow. Egress remains unrestricted; service-account token mounts, broad media access and other app hardening remain separate work. Monitor-to-Redis access is explicitly preserved for the existing Redis monitor; consider authenticated monitoring separately. Rollback: revert only this policy file and its Kustomize resource entry, then repeat legitimate traffic checks.
+
+Operator40323484674 stillin_progress; Homebridge workflow permission gap/PR form unchanged. Full patching remains active.
