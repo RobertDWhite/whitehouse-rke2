@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-ingress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes
+  policyTypes: [Ingress]
+  ingress:
+    # Dashboard is reached through the main gateway, never directly by peers.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: envoy
+              gateway.envoyproxy.io/owning-gateway-name: main
+      ports:
+        - protocol: TCP
+          port: 9119
+    # Preserve BlueBubbles callbacks until the real source address is verified
+    # through the LoadBalancer/NodePort path. This exception does NOT protect
+    # the webhook from arbitrary sources; authentication remains required.
+    - ports:
+        - protocol: TCP
+          port: 8645
