@@ -50,8 +50,9 @@ spec:
             registry: mirror.gcr.io
             repository: aquasec/trivy
             tag: 0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
-          ignoreUnfixed: true
-          severity: "MEDIUM,HIGH,CRITICAL"
+          # Retain all findings; full raw reports are archived privately.
+          ignoreUnfixed: false
+          severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
           slow: true
           resources:
             requests:
