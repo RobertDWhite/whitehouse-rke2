@@ -132,14 +132,31 @@ metadata:
   name: allow-envoy-gateway
   namespace: mastodon
 spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app: mastodon
+    matchExpressions:
+    - key: tier
+      operator: In
+      values:
+      - web
+      - streaming
   policyTypes:
-    - Ingress
+  - Ingress
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: envoy-gateway-system
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: envoy
+          gateway.envoyproxy.io/owning-gateway-name: main
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 4000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

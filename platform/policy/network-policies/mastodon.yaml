@@ -36,40 +36,79 @@ spec:
     - from: [{podSelector: {}}]
 
 ---
-# ingress-nginx → mastodon-web, mastodon-streaming
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-ingress-nginx
   namespace: mastodon
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  podSelector:
+    matchLabels:
+      app: mastodon
+    matchExpressions:
+    - key: tier
+      operator: In
+      values:
+      - web
+      - streaming
+  policyTypes:
+  - Ingress
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: rke2-ingress-nginx
+          app.kubernetes.io/component: controller
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: authentik
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: authentik
+          app.kubernetes.io/component: server
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 4000
 ---
-# cloudflared → mastodon-web (Cloudflare tunnel for federation)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-cloudflared
   namespace: mastodon
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  podSelector:
+    matchLabels:
+      app: mastodon
+    matchExpressions:
+    - key: tier
+      operator: In
+      values:
+      - web
+      - streaming
+  policyTypes:
+  - Ingress
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: cloudflared
-
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: cloudflared
+      podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - cloudflared
+          - cloudflared-ww
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 4000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -98,10 +137,27 @@ metadata:
   name: allow-uptime-kuma
   namespace: mastodon
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  podSelector:
+    matchLabels:
+      app: mastodon
+    matchExpressions:
+    - key: tier
+      operator: In
+      values:
+      - web
+      - streaming
+  policyTypes:
+  - Ingress
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: uptime-kuma
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 4000
