@@ -447,3 +447,35 @@ spec:
       allowedRoutes:
         namespaces:
           from: All
+
+    # Exact hostname requires its own certificate; parent wildcards do not cover it.
+    - name: https-mastodon-streaming
+      protocol: HTTPS
+      port: 443
+      hostname: "streaming.mastodon.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: mastodon-streaming-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: mastodon
+
+    # Exact hostname requires its own certificate; parent wildcards do not cover it.
+    - name: https-mastodon-streaming-internal
+      protocol: HTTPS
+      port: 443
+      hostname: "streaming.mastodon.internal.whitematter.tech"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: mastodon-streaming-tls
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              kubernetes.io/metadata.name: mastodon
