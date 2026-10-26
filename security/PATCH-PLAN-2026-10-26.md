@@ -1,5 +1,20 @@
 # Cluster hardening and patch execution plan
 
+## Condo Trixie acceptance and report-partition candidate — 2026-10-26 11:43 UTC
+
+Condo build40313840372 succeeded forf5071cadfb441fb8d6166a5e0a39f83b84465afe. Exact nativeamd64 image: ghcr.io/robertdwhite/condo:security-runtime7-20261026@sha256:2ae9652e76290395df9bca739a05b607ac37a4e953aaa0d83f34f98daecec385. Full scan now0critical/69high/98medium/70low/1unknown,zero secret findings;22high occurrences list fixes, including version-based GraphQL backport results. Runtime loadsSQLite3.46.1/zlib1.3.1; Node default trust gate passes. FullJSON/receipt retained privately and archive raw_sha256 verified before completed scanJob deletion.
+
+Both restored migrations pass. Clean candidate-f5071ca/address-f5071ca/worker-f5071ca all run that exact digest; service targets verified and previous worker removed. Repeated login/invalid-password/anonymous denial, organization/property/resident CRUD and soft deletion, real address normalization, OIDC authorization/token exchange/userinfo/session and callback replay rejection, real queued sample-task completion correlated with this worker, and media write/HTTP read all pass. Media test is not an upload-flow test. Runtime/digest/endpoints evidence and logs saved privately in the existing restore directory. CondoPR1 updated. Production remainsunchanged: fresh production backup/recovery gate and rollout are next; legacy major-version dependencies and residual dispositions remain open after deployment as well.
+
+Operator partition candidate is committed/pushed as3c6838bf5e62c13e8fe479e0f9164dfbc4f9da3a on RobertDWhite/trivy-operator branchcodex/partitioned-reports-20261026, checkout/tmp/trivy-operator-security-20261026. Prior identical untracked workflow preserved at/tmp/trivy-operator-security-runtime-workflow-preserved.yaml before fast-forwarding to deployedsource725e0fe. No production operator change or new security-image build was dispatched.
+
+Draft writer splits large vulnerability reports into <=512KiB serialized data objects, writes data before a root commit manifest, retains every finding/full summary, and uses stable content generations across retries. Readers verify complete referenced sets and reject missing/mixed/corrupt parts; metrics count one assembled logical report and expose incomplete sets. Ordinary small reports remain ordinary. Annotation updates clear old partition protocol fields when a report shrinks. Stale data parts are ignored by readers; reclamation/TTL still needs live proof.
+
+Tests pass for bounded/lossless Unicode serialization, all severity classes/unfixed findings, stable retries, injected write interruption/recovery, part deletion, missing manifest, mixed generation, corrupt content/header, duplicate references, small-report replacement, cluster/namespaced writers and actual Prometheus counts. All vulnerabilityreport/metrics/controller package tests,race tests andvet pass. Optional private SDR report test preserves19398findings across138data objects; largest524266bytes. Test input/report details remain private.
+
+**Do not deploy the partition candidate yet.** Required next: archive coverage must understand manifests/parts; incomplete-set alert; actual API acceptance and write/retry/expiry tests; obsolete-part cleanup; annotation-size bounds; full-report memory/scrape-latency checks; exact-image build/scan and controlled canary. Exposed-secret/SBOM report partitioning is not fixed by this candidate. Protocol and gates documented in that fork atdocs/security/report-partitioning.md. Overall full patching remainsactive.
+
+
 ## Trivy ingestion-gap visibility — 2026-10-26 11:32 UTC
 
 Deployed6cefaf57 separates CRD persistence from combined CRD/archive coverage. Existing combined metrics remain; new per-kind metrics expose missing CRD digests, stale CRD digests and fresh archived digests lacking fresh CRD evidence. This prevents archived output from silently standing in for successful Kubernetes report ingestion. It does not solve oversized writes or prove every scan is complete/unfiltered; platform/index identity differences and temporary validation images still matter.
