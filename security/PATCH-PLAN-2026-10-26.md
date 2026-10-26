@@ -1,94 +1,83 @@
-# Executable patch queue — October 26, 2026
+# Cluster hardening and patch execution plan
 
-This updates the October 25 plan using the deployed changes and tests in PATCHING-PROGRESS-2026-10-26.md. Earlier entries in that ledger are superseded by later evidence. Fleet counts remain dated observations, not continuous security assurance. No evidence establishes absence of compromise.
+Updated from live read-only review: **2026-10-26 06:55 UTC**. This replaces earlier candidate-status entries in this plan. Historical tests remain in PATCHING-PROGRESS-2026-10-26.md; older entries are not current deployment claims.
 
-## Deployed and verified, with remaining limits
+## Current evidence
 
-- Argo CD v3.5.6 is pinned and deployed. Main binary uses Go1.26.10; downloaded Git LFS, Kustomize, Helm and KSOPS contain older toolchains/dependencies. Candidate helper rebuild passed rendering comparisons, but its full scan still identifies 52 high findings per architecture; see the fresh evidence below. Argo server ingress restriction is now deployed and tested (see below); interactive admin/SSO observation remains open.
-- Pages uses the reviewed immutable rebuilt image. Restored-copy content matched 1,102 files; production content matched after rollout; authenticated MCP, unauthorized rejection, static serving and strict-host-key Git access passed. Preserved an old stale Git lock and verified mirror remote equals local HEAD after restart. Original PVC and recovery snapshot retained. Candidate scan has no critical findings, but 49 high findings without listed fixes remain for disposition.
-- Wallabag uses the pinned PHP8.4.27 runtime and updated compatible dependencies. FPM upload progress is Off, API token absent, HTTPS works, database integrity and pre/post table counts pass. Isolated restored-copy login, long-form article extraction and export passed on the final image. Scan remains 1 critical/16 high in legacy application libraries. The X509 feature implicated by the critical finding is not configured; that does not patch the dependency. Guzzle5/Symfony4.4 modernization remains open.
-- CrowdSec canary has independently credentialed, node-separated bouncers using the initial-sync authorization fix and patched toolchain. Per-identity bans/spoofing/deletions, initial failure/recovery, replica eviction (10/10 HTTP200) and all-backends-down blocking/recovery have evidence. All-down returned HTTP500, not the test's expected403; requests were blocked. Production routes remain unattached pending stale-cache, WAN identity and alert-delivery gates.
+- 469 Running pods; 264 distinct main-container runtime digests. 194 match currently available Trivy vulnerability-report digests (73.5%); **70 remain unmatched**. There are 737 report objects. This is a digest-match lower bound, not a fresh full-fleet scan or proof that unmatched images were never scanned. Index/platform aliases, report churn, init/ephemeral containers and private archives require reconciliation. Temporary validation pods are included.
+- **30 running namespaces have no NetworkPolicy**, including Hermes, Fleet, Odysseus and Portainer. Policy presence elsewhere does not prove isolation: rules are additive and require traffic tests.
+- Five general Kyverno policies are Audit: hostPath, privileged containers, mutable tags, required digest and registry restrictions. PHP host-access containment is Enforce. Audit does not block deployment.
+- Read-only authorization checks confirm Hermes MCP, Portainer and Velero service accounts can get Secrets across namespaces and create ClusterRoleBindings. No Secrets were read. Treat compromised management workloads as potential cluster-wide credential/escalation paths. Backup permissions need a separate compatibility review.
+- Direct listeners include Ollama11434, Qwen8000, Loki3100, InfluxDB8086 and Hermes8645. Establish actual LAN/Tailscale/WAN reachability and authentication; a LoadBalancer is not proof of Internet exposure.
+- Argo, Backoffice, FreshRSS, MISP and Wallabag report Synced/Healthy at GitOps revision4bf381258c98a489d50a4cdd41bab45a88bca543. Ready Argo main workloads use the patched immutable runtime. Two old non-ready Argo pods are Failed/Evicted, not active old-runtime replicas.
+- Subsequent execution: Backoffice API and web deployed and verified at3e8876d2. Both run source1aec0c9 immutable images; web token removed and both runtimes hardened. See the progress ledger for positive/negative checks and residual API findings.
 
-## Next changes in execution order
+Private snapshot: ~/Library/Application Support/whitehouse-security/posture-review-20261026-current.json (0600). Full scan and recovery files remain private. Findings do not establish exploitation or absence of compromise.
 
-| Order | Change | Required proof |
+## Execute in this order
+
+| Batch | Concrete work | Acceptance / stop gate |
 |---|---|---|
-| 1 | Finish Argo runtime candidate | The first candidate builds Git LFS3.8.1, Kustomize5.8.3, Helm4.3.1 and KSOPS4.5.1 with Go1.27.3, but is not the final patch. Rebuild or safely remove the inherited pebble binary after inspecting startup use; update vulnerable Go modules in Argo, Git LFS and KSOPS with compatibility tests. Scan exact image/platforms, test Helm/Kustomize/encrypted manifests and Git operations, remove old KSOPS init mount, deploy pinned digest and verify all components/auth/reconciliation. Keep live Argo unchanged until candidate gates pass. |
-| 2 | Finish Wallabag legacy dependency remediation | Review reachable Guzzle5/Symfony/OTPHP findings; migrate to supported code/dependencies or verified backports with real login/import/extraction/export/migration tests. Do not equate the deployed runtime fix with complete patching. Preserve existing network/source restrictions and fresh private recovery copies. |
-| 3 | Rebuild sensitive applications | Condo, MISP modules, OpenClaw/Congress, CompreFace and browser/parser/LAN integrations including FlareSolverr, Kavita and Homebridge; include Synapse. Match running digests, use current vendor advisories, build fixed candidates and test each app separately. Preserve Brain-owned Pages content. |
-| 4 | Enforce lateral-movement and workload restrictions | Map Hermes/Fleet/Odysseus/Backoffice/Portainer dependencies; add tested default-deny with explicit allows; review direct services including Qwen/Ollama/Loki/InfluxDB/Hermes; remove unused API tokens and narrow RBAC. Move compatible admission policies to Enforce/Fail after rejection/allow tests. Preserve intended management/hardware permissions and independent access. |
-| 5 | Expand CrowdSec to production | Add bounded stale-cache behavior; verify WAN/proxy client identity and actual alert delivery. Start with one low-impact route, preserve existing auth/source restrictions, test legitimate/denied traffic, callbacks, failures and recovery. Roll out by route group only after evidence passes. |
-| 6 | Complete trust and scan coverage | Verify effective OS/Go/Python/Java/Node/custom trust stores for eMudhra; never bypass TLS validation. Reconcile missing main/init/ephemeral digests against CRDs and archives; preserve oversized outputs; upgrade scanner/operator with compatibility/capacity checks; include unfixed findings and test freshness/coverage alert delivery. |
-| 7 | Stateful and node maintenance | Rehearse restores before Immich PostgreSQL/extensions, RabbitMQ/OpenSearch and Longhorn changes. Follow supported migrations, retain old volumes/replicas until recovery is proven, investigate node-12 ownership before retirement, and review RKE2/kernel advisories with attended rolling-upgrade/quorum tests. |
+| 1 — completed this execution | Deploy Backoffice API first, then web, using tested source1aec0c9 and the exact digests below. Apply non-root, seccomp, dropped capabilities, no privilege escalation, read-only root filesystem; web gets writable cache/tmp and no API token. Preserve API read-only Kubernetes token and existing tier isolation. | Reconfirm backup/restore evidence; render and server dry-run; API health, notes read, fresh cluster inventory and Services200; web primary pages contain expected data; public auth redirect/internal page work; unrelated ingress/egress remain denied. Database content/schema unchanged. Stop on any failed gate. |
+| 2 — contain high-impact access | Inventory Hermes, Portainer, Fleet and Odysseus dependency flows. Add default-deny ingress/egress with explicit DNS/API/backend/gateway allows, one namespace at a time. Review direct listeners and remove or source-restrict unused exposure. Replace Hermes/Portainer cluster-admin with roles matching necessary operations; handle Velero separately. | Required workflows succeed; unrelated namespace/LAN/control-plane access fails; unnecessary Secrets and role-binding operations return Forbidden. Keep independent administrator access. Test backup and restore before narrowing Velero. |
+| 3 — patch sensitive applications | Condo first, then MISP modules and OpenClaw; finish Wallabag legacy libraries. Follow with parser/browser applications and Synapse, using matched findings below. Rebuild downstream only where upstream lacks a tested fixed image; submit generic upstream fixes when appropriate. | Verify upstream advisory applicability and supported target versions; build and scan immutable candidate on deployed architectures; test restored data and actual application workflows. Every remaining critical/high gets a documented disposition. |
+| 4 — enforce deployment restrictions | Resolve violations in selected application namespaces, then stage the five Audit policies to Enforce with narrow system exceptions. Cover main/init/ephemeral image references. Disable unused API-token mounts and add compatible security contexts. | Valid workloads and controller recreation succeed; deliberately prohibited submissions are rejected by server admission. Confirm exceptions do not cover whole application namespaces. Roll back only the affected policy/namespace if legitimate recovery is blocked. |
+| 5 — prove detection and perimeter blocking | Complete CrowdSec bounded stale-cache behavior, real WAN client-IP handling and end-to-end alert tests. Attach one low-impact production route, then expand by route group. Exercise Falco with a harmless synthetic event. | Legitimate/auth/callback requests succeed; bans and spoofed forwarding headers fail; cold-start and later backend failures fail closed with bounded recovery; alerts reach their destination. Keep existing authentication and source restrictions. |
+| 6 — close trust/visibility gaps | Reconcile all70 unmatched main digests with platform aliases and private full reports; add init/ephemeral and architecture coverage. Test missing/stale-scan alerts and archiver throughput. Verify effective OS, Go, Python, Java, Node and custom trust stores for eMudhra mitigation. | Every in-scope digest has dated scan evidence or an explicit tracked exception; oversized reports retained privately; alert delivery tested. TLS verification remains enabled and intended valid chains work. Do not equate scanner absence with remediation. |
+| 7 — stateful infrastructure | Rehearse supported Immich PostgreSQL/extensions, OpenCTI RabbitMQ/OpenSearch and Longhorn upgrades; review RKE2/kernel advisories and node ownership. | Fresh restore with application-level integrity tests and measured recovery time; supported migration path, quorum and rolling-maintenance checks. Keep original volumes/replicas until recovery is proven. |
 
-## Execution and rollback
+Batches2 and6 should proceed alongside candidate build work: containment and visibility cannot wait for every upstream package release. Use separate coherent commits and avoid simultaneous changes to the same dependency path.
 
-One application/change set per commit. Fetch main before pushing; keep unrelated original-checkout changes intact. Recovery data, credentials and raw scan archives stay private. Each batch needs baseline, recovery artifacts, candidate scan, functional and denial tests, deployed digest/revision checks and rollback instructions. Database migrations require a tested restore, not a blind image downgrade. Observe each rollout for sustained failures and reassess error trends after 24 hours when operationally arranged; this document does not schedule monitoring.
+## Backoffice exact prepared candidates
 
-Full patching remains incomplete. Existing authorizations cover upgrades, pins, commits/pushes and necessary PRs; do not wait on the previously invisible PR form. Escalate only genuinely destructive choices or unresolved maintenance impacts.
+Source PR: https://github.com/RobertDWhite/backoffice/pull/1 — merged2026-10-26T06:50:31Z.
 
-## Fresh review — 2026-10-26 05:48 UTC
+- API: ghcr.io/robertdwhite/backoffice-api:sha-1aec0c9450436f230e782a0347ad24d407973d00@sha256:57cd134f4108e5cf6f5e8627d603954b46fa9cb4529d6ed09e6e71c03c12fd6a
+- Web: ghcr.io/robertdwhite/backoffice-web:sha-1aec0c9450436f230e782a0347ad24d407973d00@sha256:881700ce5b38d34417064d32c7213ea7cb3ec3348f492466572c556a64916d39
+- Prior candidate evidence: both architectures built; restored API health/synthetic note create-read-delete passed; web scans report no findings. API scans retain44high without listed fixes (0critical), chiefly OS packages. These require applicability disposition; hardening is mitigation, not a package fix.
+- Source fixes the obsolete Kubernetes external-IP field used by Services. Events/Tunnel views have pre-existing missing backend endpoints and must not be claimed working.
+- Deploy through apps/home/backoffice/kustomization.yaml; API/web manifests21-api-deployment.yaml and22-web-deployment.yaml. Do not restart or upgrade PostgreSQL in this batch.
+- Preserve private backoffice-pre-runtime-20261026T061559Z backup. Isolated restored-copy resources, scan jobs, temporary allows and synthetic credentials were removed after verification; original PVC and private backups retained.
 
-Read-only inventory: 467 Running pods, 262 distinct main-container runtime digests, 211 matched to available vulnerability-report digests (80.5%). The remaining 51 are unresolved coverage matches, not necessarily unscanned images. Init/ephemeral images, index/platform aliases, report age and private archives still need reconciliation. Temporary validation workloads are included in this snapshot. Raw evidence is owner-only in `~/Library/Application Support/whitehouse-security/posture-refresh-20261026.json`.
+## Application patch queue from matched reports
 
-### Candidate scan changes the immediate Argo plan
+Counts below are scanner occurrences, not distinct remotely exploitable vulnerabilities. Reports dated October25–26 match currently running digests; they are not newly executed scans in this review. Target versions must be selected from current vendor evidence and candidate tests, not guessed from tags.
 
-Candidate `ghcr.io/robertdwhite/argocd-security-runtime:sha-d161c89d080443cb8aa0f56e1ddb1c326ff59d6a@sha256:9f7a0314affc3d364a59c7a6bffa834bbd9f3a779a3a5ea229d82631974f08b7` built successfully. Both amd64 and arm64 full scans report 0 critical, 52 high, 101 medium, 9 low and 6 unknown occurrences. All 52 high occurrences have listed fixes. Counts are scanner occurrences, not distinct exploitable paths.
-
-| Binary | High occurrences | Required follow-up |
+| Application | Critical / high | Required functional gate |
 |---|---:|---|
-| `/usr/bin/pebble` | 26 | Go1.26.2 and x/net0.40.0 remain, including CVE-2026-111943. Identify startup/runtime use, then rebuild with patched toolchain/modules or remove only after proving it unused. |
-| `/usr/local/bin/argocd` | 2 | Update klauspost/compress and x/net with Argo regression tests or use a verified upstream fixed build. |
-| `/usr/local/bin/git-lfs` | 3 | Update x/crypto, x/net and x/text; exercise authenticated Git/LFS operations. |
-| `/usr/local/bin/ksops` | 21 | Update x/crypto, x/net, x/text and gRPC; exercise SOPS decryption and supported key backends. |
+| Condo v5.23.0 | 37 / 614 | Restored PostgreSQL; login, resident/property operations, workers/address service; migration recovery. |
+| MISP modules v3.0.6 | 21 / 193 | Module discovery and representative enrichment; keep private indicators local. |
+| OpenClaw custom runtime | 21 / 145 | Authorized tools work, denied tool/API operations fail; review mounted credentials. |
+| FlareSolverr v3.5.2 | 28 / 899 | Actual media challenge resolution; restrict parser access to LAN/control plane. |
+| Kavita nightly-0.8.9.45 | 24 / 372 | Backed-up library database; login, scan and reader. |
+| Homebridge2026-05-13 | 24 / 363 | Config recovery, pairing and physical accessory control; retain needed discovery. |
+| SDR SSTV0.3.0 | 17 / 308 | Recorded sample decode; review host/device permissions without breaking capture. |
+| Calibre Web Automated4.0.8 | 17 / 126 | Restored library metadata; import, conversion, download and reader. |
+| Synapse1.160.0 | 16 / 111 | Database restore; login, encrypted messaging, appservices and relevant federation. |
+| Immich PostgreSQL14/extensions | 20 / 123 | Supported restored-copy migration; asset metadata and search integrity. |
+| OpenCTI legacy RabbitMQ4.1.2 | 18 / 78 | Durable queue recovery and producer/consumer tests. |
+| Longhorn engine1.10.0 | 14 / 214 | Supported manager/engine compatibility and restore; no ad hoc engine replacement. |
 
-The exact candidate matches baseline FreshRSS, MISP and Wallabag Kustomize output and the Argo Helm chart/custom-values output. Decrypted manifests were neither printed nor retained. Live self-application source type is Kustomize. This establishes rendering compatibility only; it does not satisfy remaining scan, Git, authentication or rollout gates. Production Argo was not changed during this review.
+Concrete vendor-confirmed example: Condo's matched report contains Django5.2 and CVE-2025-64459, a potential SQL injection via QuerySet/Q connector handling. Django identifies5.2.8 as a fix for that advisory. Select a currently supported patched release covering subsequent advisories, not merely5.2.8; inspect whether untrusted inputs reach the vulnerable API before asserting exploitability. [Django advisory](https://www.djangoproject.com/weblog/2025/nov/05/security-releases/).
 
-### Priority application queue from currently matched reports
+## Completed work and residual limits
 
-Reports were refreshed between October 25 and 26; these are current-running-image matches to existing reports, not fresh rescans of every application. Confirm vendor fixes and reachability before assigning exploitability. Prioritize credentials and data access alongside counts.
+- Argo main runtime source2a20e755, image digest9d07d6eb5fb796354a83cbd03868ba445910e347bbda91c261994d220dcdc3fb: deployed by4bf38125; live Ready main containers reverified. Prior exact-image scans both architectures0critical/0high, with medium/low/unknown findings remaining. Rendering/decryption, Git and reconciliation passed in prior execution. Interactive SSO and sustained observation remain open. Obsolete KSOPS emptyDir mount was removed by guarded live patch after SSA retained it; desired source already removes it.
+- Argo ingress and Backoffice tier isolation have prior positive/negative traffic evidence. This read-only review did not repeat those active tests.
+- Pages rebuilt/pinned with restored-copy and production content verification;49high without listed fixes remain for disposition.
+- Wallabag runtime fixed/pinned, restored-copy login/extraction/export verified; legacy Guzzle/Symfony/OTPHP remain, scan1critical/16high. Feature non-use is not remediation.
+- CrowdSec remains a canary; production routes are not protected by it yet. Later stale-cache failure, real WAN identity and alert delivery remain gates.
 
-| Target | Critical / high occurrences | Concrete patch batch and acceptance test |
-|---|---:|---|
-| Condo v5.23.0 | 37 / 614 | Rebuild pinned runtime/OS and application dependencies; restored PostgreSQL clone; login, resident/property operations, worker and address-service tests; migration rollback by restore. |
-| FlareSolverr v3.5.2 | 28 / 899 | Fixed browser/runtime image; isolate parser egress from LAN/control plane; real media integration challenge-resolution test. |
-| Kavita nightly-0.8.9.45 | 24 / 372 | Supported fixed build; backed-up library database; login, library scan and reader tests. |
-| Homebridge 2026-05-13 | 24 / 363 | Updated runtime/plugins with config backup; pairing and physical accessory control; preserve required LAN discovery. |
-| MISP modules v3.0.6 | 21 / 193 | Rebuild module dependencies separately from MISP core; module discovery and representative enrichment tests with private data kept local. |
-| OpenClaw custom image | 21 / 145 | Rebuild runtime/dependencies; inspect mounted credentials and tool permissions; test authorized tools and denied actions. |
-| Immich PostgreSQL14/extensions | 20 / 123 | Supported database/extension migration on restored copy; asset metadata/search tests and restore timing before production maintenance. |
-| OpenCTI RabbitMQ4.1.2 | 18 / 78 | Supported broker upgrade with durable queue recovery and producer/consumer tests. |
-| OpenCTI OpenSearch3.5.0 | 16 / 432 | Supported upgrade with tested snapshot restore and indexing/query tests. |
-| Synapse1.160.0 | 16 / 111 | Fixed candidate with database recovery rehearsal; login, federation as applicable, encrypted messaging and appservice tests. |
+## Per-batch execution and rollback contract
 
-### Containment batches to execute alongside image work
+1. Record current source revision, running platform digest, baseline functionality and data recovery location. Preserve unrelated checkout changes and original PVCs.
+2. Pin explicit version and digest in Kustomize; inspect rendered main/init containers. No latest replacement. Validate schema and server admission without printing decrypted manifests.
+3. Archive exact-image full scan, including unfixed findings, privately. Record CVE/package/fix, reachability, privileges, compensating controls, owner and review date for each residual critical/high disposition.
+4. Run restore, application, authentication and negative authorization/network tests appropriate to the change. Stop for data differences, lost recovery access or failed functionality.
+5. Commit/push one coherent change, reconcile, verify actual runtime digest and rerun acceptance checks. Git state or podReady alone is insufficient.
+6. For stateless failures revert that GitOps batch and confirm recovery. For schema migrations use the tested restore plan; never blindly downgrade a database image. Do not force-push or delete recovery state.
+7. Record evidence and remaining limits in the progress ledger. Schedule sustained observation explicitly if needed; this plan itself does not create monitoring.
 
-1. **Management access first — initial restriction complete:** commit38939683 replaced broad Argo server ingress with main Envoy gateway/Argo-namespace server access and Prometheus-only metrics access. Actual render and admission passed; unrelated-namespace access changed from allowed to blocked; gateway200, unauthorized API401, same-namespace access, healthy metrics and Synced/Healthy revision verified. Interactive SSO remains untested. Preserve independent recovery access and consider further per-service narrowing within Argo. Existing repo-server and Redis selectors provide narrower ingress; test their effective denial rather than claiming they are openly reachable.
-2. **High-impact namespaces:** 31 running namespaces have no NetworkPolicy. Begin with Hermes, Fleet, Odysseus, Backoffice and Portainer. Record required source/destination/port flows, add explicit allows plus ingress/egress default-deny, then test authorized operations and denied cross-namespace/API/LAN traffic. Infrastructure and hardware services need separate exceptions; do not blanket-deny them.
-3. **Direct entry points:** review Ollama11434, Qwen8000, Loki3100, InfluxDB8086 and Hermes webhook8645. Their direct LoadBalancer Services may bypass gateway controls. Establish actual LAN/WAN/Tailscale reachability and native authentication, then restrict sources or remove unnecessary direct listeners. A LoadBalancer alone is not proof of Internet exposure.
-4. **Permissions:** `hermes-mcp-admin`, `portainer` and `velero-server` have exact cluster-admin bindings. Inventory the operations they need, replace with scoped roles where feasible, and test positive and negative authorization. Review equivalent wildcard permissions and escalation paths too. Leave system bootstrap bindings untouched until their controller lifecycle is understood.
-5. **Admission:** disallow-host-path, disallow-mutable-image-tags, disallow-privileged-containers, require-image-digest and restrict-image-registries are Audit. Only php-containment-host-access is Enforce. Remediate violations and define narrow documented system exceptions; stage enforcement by namespace. Pass both allowed-workload admission and deliberate prohibited-workload rejection tests, plus controller recreation. Include API-token defaults, seccomp, capability drops and non-root/read-only-root-filesystem compatibility.
-6. **Detect and block:** finish CrowdSec stale-cache expiry, trusted client-IP and alert-delivery tests before production attachment. Verify Falco signal delivery end-to-end with a harmless synthetic event. Do not describe an alert rule merely being loaded as successful delivery.
-7. **Trust/coverage:** inventory effective trust stores and compiled runtimes, especially bundled binaries such as pebble. Check eMudhra mitigation without disabling certificate verification. Reconcile every deployed image class and architecture with scan evidence; alert on stale/missing scans and test alert delivery.
+For workloads that do not use Kubernetes, set automountServiceAccountToken:false in the pod template; preserve tokens needed by genuine controllers and scope their RBAC. [Kubernetes service-account guidance](https://kubernetes.io/docs/concepts/security/service-accounts/).
 
-### Per-batch execution contract
-
-- Record baseline image digest, Argo revision, application checks and data recovery location before mutation.
-- Render version/digest pins in Kustomize; inspect all main and init container images. No `latest` or unpinned replacement.
-- Archive the exact candidate's full scan privately, including unfixed findings. Investigate every remaining critical/high finding; a lower total alone is not acceptance.
-- Run relevant restore, functional, authentication and deny tests. Stop rollout for failed tests, unexplained content/count changes, migration errors or lost recovery access.
-- Commit one coherent batch, push, reconcile and confirm the running platform digest and source revision; check user-visible behavior, errors and security decisions.
-- For image/config-only failures, revert that batch and reconcile. For database/schema changes, restore the tested backup into the retained recovery path; do not assume an old image can read migrated data.
-- Retain evidence and recovery artifacts until post-change validation and observation pass. Keep residual risks explicit; do not mark the overall patch effort complete based on candidate success.
-
-Policy approach follows the [Kubernetes security checklist](https://kubernetes.io/docs/concepts/security/security-checklist/) and [application checklist](https://kubernetes.io/docs/concepts/security/application-security-checklist/). The priority on GitOps credentials and component access follows [Argo CD security guidance](https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/security.md).
-
-Latest runtime build: source d42496d, CI40276695860 running at last check. New helper/Pebble locks are prepared; do not substitute build submission for successful tests/scans or deploy the old candidate as fully patched.
-
-Full Argo candidate follow-up: source309a7ec/build40277458340 rebuilds the main binary with compress1.18.7 and x/net0.60.0, as well as patched helpers. Focused transport/archive/session/settings unit tests passed locally and run again in Linux CI. Build, scan and deployment gates remain pending.
-
-Backoffice segmentation batch is deployed (e3572dfd) with verified negative ingress/egress and positive web/API/database/Kubernetes/gateway/Authentik/NGINX paths; see the progress ledger for exact evidence and limits. Retain Backoffice dependency/image and token/RBAC review in the remaining queue. Helper-only Argo scans now show only two high findings, both addressed in the full build40277458340 still pending. Neither change completes the fleet plan.
-
-Backoffice image remediation is now in draft PR RobertDWhite/backoffice#1, source42dadfb/build40278674722. It remains a candidate until Linux builds, full image scans, restored database validation and runtime checks pass. Existing containment stays in force.
-
-Latest candidate results: full Argo309a7ec has0critical/0high and matching rendering, but malformed version metadata required correction2a20e75/build40280086871. Backoffice web has no scan findings; API has0critical/44high with no listed high fixes and passes isolated restored-DB note lifecycle tests. Exact corrected-image and frontend/production gates remain open.
+Full patching is incomplete. Existing authorization covers upgrades, pins, commits/pushes and necessary PRs; the old invisible form is not a blocker. Backoffice deployment completed after the review. Continue with containment, sensitive application patching and coverage work; the full goal remains open.
