@@ -26,3 +26,11 @@ Unit tests cover full-result recovery, atomic receipts and file permissions, mal
 To recover a report, copy it into an owner-only local directory without printing its contents, decompress the outer gzip, base64-decode, then bzip2-decompress. Check the SHA-256 of the original scan log against the receipt first. Do not attach raw output to GitHub or put it in Git.
 
 CRD ingestion is tracked separately: `trivy_inventory_crd_unmatched_digests` and `trivy_inventory_crd_stale_digests` do not count archived scans as stored CRDs. `trivy_inventory_fresh_archive_without_fresh_crd` counts running digests with a fresh archive receipt but no equally fresh CRD evidence (48-hour threshold). `TrivyReportIngestionGap` alerts after30 minutes. Counts are per main/init/ephemeral set, so summing kinds is not a unique-image count. This instrumentation does not solve oversized writes, confirm platform equivalence, or establish complete unfiltered scans from older receipts.
+
+## Partitioned vulnerability reports
+
+The archive coverage reader accepts ordinary reports and complete `sha256-tree-v1` partition manifests. Parts alone never satisfy coverage. It validates referenced namespace/name/order, root and generation, scan headers, summaries and the reconstructed content checksum. Missing, mixed, unknown-protocol or corrupt sets increment `trivy_archive_crd_incomplete_sets` and are excluded from CRD coverage. Independent full scan receipts remain visible as archive evidence.
+
+The checksum protocol and writer are in the operator fork's `docs/security/report-partitioning.md`. `testdata/partition-go.json` is synthetic output from `TestExportPartitionInteropFixture`, generated with `TRIVY_PARTITION_INTEROP_FIXTURE`; no private findings are included. Tests cover cross-language integrity, actual API null-field pruning, tampering, missing parts and metrics. Unknown future fields/formats fail conservatively rather than falsely proving completeness.
+
+Integration remains staged: do not deploy the partition operator until incomplete-set alerts, old-part reclamation, TTL/retry behavior and whole-cluster memory/scrape tests pass. A local 19398-finding full-report reconstruction passed at approximately381MB peak RSS; that is not a cluster-wide capacity result.

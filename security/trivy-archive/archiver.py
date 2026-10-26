@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import ssl
+import struct
 import threading
 import time
 from urllib.parse import urlencode
@@ -153,11 +154,105 @@ def inventory(pods):
     return result, missing
 
 
+def report_hash(data):
+    """sha256-tree-v1, shared with the operator; timestamp is not content."""
+    h = hashlib.sha256()
+    def visit(v):
+        if v is None:
+            h.update(b'n')
+        elif isinstance(v, bool):
+            h.update(b't' if v else b'f')
+        elif isinstance(v, (int, float)):
+            h.update(b'd' + struct.pack('>d', float(v)))
+        elif isinstance(v, str):
+            raw = v.encode('utf-8')
+            h.update(b's' + str(len(raw)).encode() + b':' + raw)
+        elif isinstance(v, list):
+            h.update(b'[')
+            for item in v:
+                visit(item)
+            h.update(b']')
+        elif isinstance(v, dict):
+            h.update(b'{')
+            for key in sorted(k for k in v if v[k] is not None):
+                visit(key)
+                visit(v[key])
+            h.update(b'}')
+        else:
+            raise ValueError('Unsupported report value')
+    visit(dict(data, updateTimestamp=None))
+    return h.hexdigest()
+
+
+def complete_reports(reports):
+    """Exclude parts and incomplete/corrupt manifests from CRD coverage."""
+    prefix = 'trivy-operator.aquasecurity.github.io/report-'
+    def annotations(r):
+        return r.get('metadata', {}).get('annotations', {})
+    def annotation(r, field):
+        return annotations(r).get(prefix + field, '')
+    def key(r):
+        m = r.get('metadata', {})
+        return m.get('namespace', ''), m.get('name', '')
+    def summary(vulnerabilities):
+        result = {s + 'Count': 0 for s in ('critical', 'high', 'medium', 'low', 'unknown', 'none')}
+        for v in vulnerabilities:
+            severity = v['severity'].lower()
+            name = (severity if severity in ('critical', 'high', 'medium', 'low') else 'unknown') + 'Count'
+            result[name] += 1
+        return result
+    def header(data):
+        return {k: v for k, v in data.items() if k not in ('vulnerabilities', 'summary', 'updateTimestamp')}
+    by_name = {key(r): r for r in reports}
+    orphan_roots = {(key(r)[0], annotation(r, 'root')) for r in reports
+                    if annotation(r, 'mode') == 'part' and
+                    (key(r)[0], annotation(r, 'root')) not in by_name}
+    incomplete = len(orphan_roots)
+    complete = []
+    for r in reports:
+        mode = annotation(r, 'mode')
+        if not mode:
+            complete.append(r)
+            continue
+        if mode == 'part':
+            continue
+        try:
+            if mode != 'manifest' or annotation(r, 'hash-format') != 'sha256-tree-v1':
+                raise ValueError('Unknown partition protocol')
+            names = json.loads(annotation(r, 'parts'))
+            if not isinstance(names, list) or not names or not all(isinstance(n, str) for n in names) or len(set(names)) != len(names):
+                raise ValueError('Invalid part references')
+            data = r['report']
+            findings = []
+            generation = annotation(r, 'generation')
+            if not generation or data.get('vulnerabilities'):
+                raise ValueError('Invalid manifest')
+            for index, name in enumerate(names):
+                part = by_name[(key(r)[0], name)]
+                pd = part['report']
+                if (annotation(part, 'mode') != 'part' or
+                    annotation(part, 'hash-format') != 'sha256-tree-v1' or
+                    annotation(part, 'root') != key(r)[1] or
+                    annotation(part, 'generation') != generation or
+                    annotation(part, 'part-index') != str(index) or
+                    header(pd) != header(data) or summary(pd['vulnerabilities']) != pd['summary']):
+                    raise ValueError('Inconsistent partition')
+                findings.extend(pd['vulnerabilities'])
+            merged = dict(data, vulnerabilities=findings)
+            if summary(findings) != data['summary'] or report_hash(merged) != generation:
+                raise ValueError('Corrupt partition set')
+            complete.append(dict(r, report=merged))
+        except (KeyError, ValueError, TypeError, OverflowError):
+            incomplete += 1
+    return complete, incomplete
+
+
 def coverage():
     now = time.time()
     wanted, missing = inventory(items('/api/v1/pods'))
     known = {}
-    for report in items('/apis/aquasecurity.github.io/v1alpha1/vulnerabilityreports'):
+    reports, incomplete = complete_reports(items('/apis/aquasecurity.github.io/v1alpha1/vulnerabilityreports'))
+    for report in reports:
         data = report['report']
         value = data.get('artifact', {}).get('digest')
         if value:
@@ -175,7 +270,7 @@ def coverage():
         for value in receipt['digests']:
             archive_known[value] = max(archive_known.get(value, 0), receipt['scan_completed'])
             known[value] = max(known.get(value, 0), receipt['scan_completed'])
-    metrics = {'trivy_archive_receipts': len(archived), 'trivy_inventory_missing_image_ids': missing}
+    metrics = {'trivy_archive_crd_incomplete_sets': incomplete, 'trivy_archive_receipts': len(archived), 'trivy_inventory_missing_image_ids': missing}
     for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']:
         metrics[f'trivy_archive_latest_findings{{severity="{severity}"}}'] = sum(
             receipt['severity_counts'].get(severity, 0) for receipt in latest.values())

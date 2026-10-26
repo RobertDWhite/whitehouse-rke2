@@ -1,3 +1,4 @@
+import copy
 import base64
 import bz2
 import gzip
@@ -76,6 +77,59 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(metrics['trivy_inventory_fresh_archive_without_fresh_crd{kind="init"}'], 1)
         self.assertEqual(metrics['trivy_inventory_fresh_archive_without_fresh_crd{kind="ephemeral"}'], 0)
         self.assertEqual(metrics['trivy_archive_latest_findings{severity="HIGH"}'], 4)
+
+    def test_go_partition_fixture_and_corruption(self):
+        fixture = json.loads((Path(__file__).parent / 'testdata/partition-go.json').read_text())
+        prefix = 'trivy-operator.aquasecurity.github.io/report-'
+        complete, missing = archiver.complete_reports(fixture)
+        self.assertEqual(missing, 0)
+        self.assertEqual(len(complete), 1)
+        self.assertEqual(len(complete[0]['report']['vulnerabilities']), 10)
+        self.assertEqual(complete[0]['report']['vulnerabilities'][0]['score'], 9.8)
+        for scenario in ('missing-part', 'orphan', 'mixed-generation', 'corruption', 'summary', 'duplicate', 'wrong-header', 'unknown-protocol'):
+            with self.subTest(scenario=scenario):
+                parts = copy.deepcopy(fixture)
+                if scenario == 'missing-part':
+                    parts.pop(0)
+                elif scenario == 'orphan':
+                    parts.pop()
+                elif scenario == 'mixed-generation':
+                    parts[0]['metadata']['annotations'][prefix+'generation'] = 'wrong'
+                elif scenario == 'corruption':
+                    parts[0]['report']['vulnerabilities'][0]['title'] = 'tampered'
+                elif scenario == 'summary':
+                    parts[-1]['report']['summary']['highCount'] += 1
+                elif scenario == 'duplicate':
+                    names = json.loads(parts[-1]['metadata']['annotations'][prefix+'parts'])
+                    parts[-1]['metadata']['annotations'][prefix+'parts'] = json.dumps(names + [names[0]])
+                elif scenario == 'wrong-header':
+                    parts[0]['report']['artifact']['digest'] = 'wrong'
+                else:
+                    parts[-1]['metadata']['annotations'][prefix+'hash-format'] = 'unknown'
+                self.assertEqual(archiver.complete_reports(parts), ([], 1))
+        # API pruning of null object fields is not a content change.
+        pruned = copy.deepcopy(fixture)
+        for r in pruned:
+            for v in r['report']['vulnerabilities']:
+                if v.get('links') is None:
+                    v.pop('links', None)
+        self.assertEqual(len(archiver.complete_reports(pruned)[0]), 1)
+        # Retry timestamps and JSON key ordering are not content changes.
+        reordered = json.loads(json.dumps(fixture, sort_keys=True))
+        for r in reordered:
+            r['report']['updateTimestamp'] = '2026-10-26T12:00:00Z'
+        self.assertEqual(len(archiver.complete_reports(reordered)[0]), 1)
+
+    def test_partial_crd_cannot_satisfy_coverage(self):
+        fixture = json.loads((Path(__file__).parent / 'testdata/partition-go.json').read_text())
+        value = fixture[-1]['report']['artifact']['digest']
+        for reports, expected in ((fixture, 0), (fixture[1:], 1), (fixture[:-1], 1)):
+            with patch.object(archiver, 'items', side_effect=lambda path: reports if 'vulnerabilityreports' in path else []), \
+                 patch.object(archiver, 'inventory', return_value=({'main': {value}, 'init': set(), 'ephemeral': set()}, 0)), \
+                 patch.object(archiver, 'receipts', return_value=iter([])):
+                metrics = archiver.coverage()
+            self.assertEqual(metrics['trivy_inventory_crd_unmatched_digests{kind="main"}'], expected)
+            self.assertEqual(metrics['trivy_archive_crd_incomplete_sets'], expected)
 
     def test_no_results_is_valid(self):
         report = {'SchemaVersion': 2, 'ArtifactName': 'empty'}

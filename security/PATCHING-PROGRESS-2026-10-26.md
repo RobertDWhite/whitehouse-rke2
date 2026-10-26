@@ -453,3 +453,12 @@ Read-only posture refresh found 264 running main image digests, 191 CRD matches,
 Operator candidate e0184cad on codex/partitioned-reports-20261026 validates Kubernetes aggregate annotation size on ordinary reports, generated parts and the manifest before returning any objects to the writer. This closes a separate limit not covered by the 512 KiB object budget. Regression tests cover each overflow and assert zero namespace/cluster writer creates for invalid source metadata. Vulnerability-report and metrics package tests/race checks, vulnerability-report controller tests and vet pass. An initial test command used nonexistent pkg/operator/controller; it was corrected to pkg/vulnerabilityreport/controller and passed. Source pushed to the existing fork branch.
 
 No production operator deployment. Archive manifest/part completeness remains the next substantive integration gate; obsolete-part reclamation, live API/TTL tests and exact-image scan/canary also remain. Existing API-update annotation merges remain subject to API admission. Do not treat this guard as completed scan-ingestion repair.
+
+
+## Partition-aware archive integration — 2026-10-26
+
+Operator fork979f5acc defines versioned cross-language content hashing; archive coverage now verifies complete manifests/parts and exposes trivy_archive_crd_incomplete_sets. Seven archive tests pass, including a Go-generated Unicode/float fixture, corruption, generation/header/summary mismatch, duplicate references and missing/orphan parts. Report/metrics/controller race tests and vet pass; the final manifest-inline-data rejection also passes the full private report test.
+
+Actual synthetic API create/read initially exposed fixture naming and non-nullable-null pruning of links. Corrected naming and null-object-field normalization yielded a verified round trip of all10 findings; deleting a real part then rejected the set. Validation namespace cleanup confirmed. Full private SDR report preserves19398 findings across138 parts (max524285serialized bytes) in Go and Python. Python local load/reassembly0.673seconds, peakRSS380813312bytes on macOS; full-cluster memory and API response-size capacity remain unproven. Full findings remain in private evidence.
+
+These integration changes are pushed on candidate branches, not deployed. Remaining gates: incomplete-set alert and notification delivery, stale-part reclamation, live writer retry/TTL/owner-GC, full-cluster load, immutable build/scan and canary. Existing production oversized-report issue is not yet closed.
