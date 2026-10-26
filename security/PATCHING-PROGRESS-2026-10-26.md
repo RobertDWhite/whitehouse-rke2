@@ -567,3 +567,14 @@ Before, unrelated probes from default, homeschool and envoy-gateway-system reach
 This closes ingress reachability, not application authentication, egress restriction or image patching. Existing Kustomize versionv2.9.1 has no digest; immutable image acceptance, service-account token removal and authenticated dashboard/integration testing remain. No data changes or application restart. Rollback only network-policies.yaml and its Kustomize resource entry, then repeat normal-client checks.
 
 Corrected Trivy build40327651194 rechecked authoritatively and remainsin_progress; no restart or duplicate dispatch. Canary operator remains0replicas; isolated fixture stillRunning. Continue exact build, scan both output platforms, then repeat canary severity/identity/metrics acceptance.
+
+
+## Homarr exact-image scan and dependency patch — 2026-10-26
+
+Homeschool runs latest upstream releasev2.9.1 (upstream release checked today). Exact deployed index9421086c541f0e83057eaac7b6181c6d3044835227017bea9fc4d0fffee49aa6 maps amd64to701d9676e2cb1b3b37872af5f4a4712ccd4968b960fc550ecd6585e3fc8124f2. Full raw scan of deployedindex with explicitlinux/amd64:1critical,4high,5medium,3low,0secrets;196recognizedpackages. FullJSON and automatic archive checksum receipt saved privately as candidate-scans-20261026/homarr-v291-amd64*.json before completed scanJob deletion.
+
+All13occurrences list fixes:DOMPurify3.4.11→3.4.17,source-map-js1.2.1→1.2.2,Undici7.29.1→7.30.1 and8.10.2→8.12.2. Upstreamdev still has affected pins. Source checkout/tmp/homarr-security-20261026 based on fetcheddev, branchcodex/security-dependencies-20261026, commit12ab71a updates root catalog/overrides and Bun lockfile; also advances existing Undici6 dependency to6.29.1 within its major. Seven resolved affected dependency instances verified at selected fixed versions; frozen Bun1.4.4 install passes with lifecycle scripts disabled. Existing npm/GitHub release-provider tests34/34pass under localNode26.5.0. These do not prove Node24production/runtime compatibility.
+
+ForkRobertDWhite/homarr source branch pushed using HTTPS after local SSH authentication failed. No PR created yet. Repository requires running-app verification before PR preparation; dependency patch still needs sanitization/HTTP runtime checks, production-build scan, restored application validation and immutable Kustomize deployment. No production image change. Keep private scan/backup data out of upstream materials.
+
+Trivy corrected build40327651194 stillin_progress on latest authoritative check; continue that handle. No duplicate dispatch or production scanner promotion.
