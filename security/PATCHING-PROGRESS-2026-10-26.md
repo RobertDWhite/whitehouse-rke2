@@ -36,3 +36,10 @@ Fresh candidate Trivy report: 2 critical/120 high/122 medium, with the targeted 
 - Startup-level PHP INI disables upload progress; Kustomize-generated hashed ConfigMap forces worker replacement on changes. Disable unused Kubernetes service-account token mount. Pin current 2.6.14 multi-platform index digest for reproducible rollback. These changes mitigate exposure; they do not patch the old runtime.
 - Reference: https://www.php.net/archive/2026.php#2026-10-23-1. Global startup configuration is required; runtime ini_set or .user.ini must not be relied on.
 - Rollback: revert only this deployment/config change and reconcile; no schema or data changes are intended. Rollback re-enables the vulnerable feature, so prefer correcting the mounted configuration while preserving the mitigation.
+- Initial rollout exposed a generated-ConfigMap namespace reference mismatch. Added namespace: wallabag and verified rendered reference equals generated name. Correction pushed after merging concurrent unrelated main changes. Live FPM then reported Off/Off, the service-account token was absent, and database quick_check returned ok. Gateway HTTPS returned 302 with explicit DNS resolution to 10.99.5.110; this client does not resolve the Wallabag internal name normally. Recheck final revision/replica health after reconciliation.
+
+## CrowdSec availability prerequisite
+
+- Bouncer moves from one replica to two on distinct nodes, with zero-unavailable rolling updates and minAvailable: 1 disruption budget. Admission dry run passes. The existing canary returned HTTPS 200 before this change (explicit gateway DNS resolution).
+- This does not attach production routes. Cold-start LAPI failure, rolling availability and per-replica deny behavior must pass before expansion. WAN identity and end-to-end alert delivery remain unverified.
+- Rollback: revert this availability-only change; existing SecurityPolicy remains intact.
