@@ -21,6 +21,8 @@ kubectl -n observability exec deployment/prometheus -- \
   wget -qO- http://trivy-archive.trivy-system.svc.cluster.local:9100/metrics
 ```
 
-Four unit tests cover full-result recovery, atomic receipts and file permissions, malformed-result retention, empty reports, and init/ephemeral inventory. Live validation checked restart persistence, checksum integrity of nine retained reports, metrics scraping, and loaded alert-rule health. Four historical results were imported from the private pre-cleanup archive; their receipts explicitly identify recovery provenance and use Trivy's CreatedAt timestamp.
+Unit tests cover full-result recovery, atomic receipts and file permissions, malformed-result retention, empty reports, and init/ephemeral inventory. Live validation checked restart persistence, checksum integrity of nine retained reports, metrics scraping, and loaded alert-rule health. Four historical results were imported from the private pre-cleanup archive; their receipts explicitly identify recovery provenance and use Trivy's CreatedAt timestamp.
 
 To recover a report, copy it into an owner-only local directory without printing its contents, decompress the outer gzip, base64-decode, then bzip2-decompress. Check the SHA-256 of the original scan log against the receipt first. Do not attach raw output to GitHub or put it in Git.
+
+CRD ingestion is tracked separately: `trivy_inventory_crd_unmatched_digests` and `trivy_inventory_crd_stale_digests` do not count archived scans as stored CRDs. `trivy_inventory_fresh_archive_without_fresh_crd` counts running digests with a fresh archive receipt but no equally fresh CRD evidence (48-hour threshold). `TrivyReportIngestionGap` alerts after30 minutes. Counts are per main/init/ephemeral set, so summing kinds is not a unique-image count. This instrumentation does not solve oversized writes, confirm platform equivalence, or establish complete unfiltered scans from older receipts.

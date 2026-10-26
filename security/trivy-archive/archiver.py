@@ -162,6 +162,8 @@ def coverage():
         value = data.get('artifact', {}).get('digest')
         if value:
             known[value] = max(known.get(value, 0), timestamp(data.get('updateTimestamp')))
+    crd_known = dict(known)
+    archive_known = {}
     archived = list(receipts())
     latest = {}
     for receipt in archived:
@@ -171,12 +173,20 @@ def coverage():
         if key and receipt['scan_completed'] > latest.get(key, {}).get('scan_completed', 0):
             latest[key] = receipt
         for value in receipt['digests']:
+            archive_known[value] = max(archive_known.get(value, 0), receipt['scan_completed'])
             known[value] = max(known.get(value, 0), receipt['scan_completed'])
     metrics = {'trivy_archive_receipts': len(archived), 'trivy_inventory_missing_image_ids': missing}
     for severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']:
         metrics[f'trivy_archive_latest_findings{{severity="{severity}"}}'] = sum(
             receipt['severity_counts'].get(severity, 0) for receipt in latest.values())
     for kind, values in wanted.items():
+        # Combined evidence is useful, but must not hide failed CRD ingestion.
+        metrics[f'trivy_inventory_crd_unmatched_digests{{kind="{kind}"}}'] = len(values - crd_known.keys())
+        metrics[f'trivy_inventory_crd_stale_digests{{kind="{kind}"}}'] = sum(
+            now - crd_known[v] > FRESH for v in values if v in crd_known)
+        metrics[f'trivy_inventory_fresh_archive_without_fresh_crd{{kind="{kind}"}}'] = sum(
+            v in archive_known and now - archive_known[v] <= FRESH and
+            (v not in crd_known or now - crd_known[v] > FRESH) for v in values)
         metrics[f'trivy_inventory_digests{{kind="{kind}"}}'] = len(values)
         metrics[f'trivy_inventory_unmatched_digests{{kind="{kind}"}}'] = len(values - known.keys())
         metrics[f'trivy_inventory_stale_digests{{kind="{kind}"}}'] = sum(now - known[v] > FRESH for v in values if v in known)

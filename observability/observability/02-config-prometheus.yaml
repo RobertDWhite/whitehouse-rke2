@@ -1033,6 +1033,14 @@ data:
             annotations:
               summary: "Running pod images lack recent exact-digest scan evidence"
               description: "Includes main, init and ephemeral containers. Manifest index/platform differences can cause unmatched digests; investigate rather than assuming unscanned. Freshness limit is 48 hours."
+          - alert: TrivyReportIngestionGap
+            expr: sum(trivy_inventory_fresh_archive_without_fresh_crd) > 0
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Fresh archived scans lack current Kubernetes vulnerability reports"
+              description: "Inspect oversized report writes and report expiry. Full scan retention is separate from CRD ingestion; do not hide findings or raise API limits to clear this alert. Counts include main/init/ephemeral digest sets separately."
           - alert: TrivyArchiveDiskLow
             expr: trivy_archive_free_bytes / trivy_archive_capacity_bytes < 0.15
             for: 10m
