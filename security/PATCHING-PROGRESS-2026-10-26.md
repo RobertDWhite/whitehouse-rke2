@@ -578,3 +578,12 @@ All13occurrences list fixes:DOMPurify3.4.11→3.4.17,source-map-js1.2.1→1.2.2,
 ForkRobertDWhite/homarr source branch pushed using HTTPS after local SSH authentication failed. No PR created yet. Repository requires running-app verification before PR preparation; dependency patch still needs sanitization/HTTP runtime checks, production-build scan, restored application validation and immutable Kustomize deployment. No production image change. Keep private scan/backup data out of upstream materials.
 
 Trivy corrected build40327651194 stillin_progress on latest authoritative check; continue that handle. No duplicate dispatch or production scanner promotion.
+
+
+## Homarr Node24 validation and fork workflow discovery — 2026-10-26
+
+Confirmed remote candidate12ab71a1351ad6695616ed4685ecb03a970381c7. Installed isolatedNode24.22.1 runtime under/tmp/homarr-node24-runtime, then reran34existing npm/GitHub request-provider tests and13existing media route tests;47/47pass. Media route tests mock database access, so this is not restored database/application acceptance. A separate real isomorphic-dompurify check underNode24 with the route's SVG profile preserves circle geometry and strips scripts,event handlers andjavascriptURLs. No production change.
+
+Inspected inherited deployment-docker-image.yml: manual dispatch on candidate branch would skip release/source mutation, publish to the fork's ownGHCR path, and allowsend-notifications=false. Dispatch did not start: GitHub404workflow-not-found. Repository Actions permissions showenabled:true, inherited workflow file exists on defaultdev, but workflow inventory returns0; explicit enable endpoint also404. No workflow was modified, no action permissions relaxed, no Homarr image build or upstream PR is claimed. Resolve fork workflow registration/build availability, then build/scan and perform isolated runtime acceptance.
+
+Corrected Trivy40327651194 remainsin_progress on authoritative checks around13:24UTC. Continue this exact build; no dispatch restart. Full patching remains active.
