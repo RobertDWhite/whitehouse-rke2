@@ -446,3 +446,10 @@ Tests pass for bounded/lossless Unicode serialization, all severity classes/unfi
 Condo rollout ecf7550d and worker probe correction aa9d7656 are Synced/Healthy. Exact-image readiness, TLS health, anonymous denial, real worker task completion, unchanged database/Redis runtime identities and default Node trust gate pass. Live app pod specs have no token automount, non-root and RuntimeDefault seccomp. Full authenticated workflow evidence remains isolated restore testing. Fresh backup/recovery and production evidence are private under the directory referenced by /tmp/condo-preupgrade-path. Residual 69 high candidate findings remain open.
 
 Read-only posture refresh found 264 running main image digests, 191 CRD matches, 73 unmatched, 26 running namespaces without NetworkPolicy, node12 NotReady and onepassword-shared InvalidProviderConfig. These counts are scoped observations, not complete coverage/exploitability results. Latest execution batches and current report triage are at the top of PATCH-PLAN-2026-10-26.md. No additional production configuration changed in this refresh.
+
+
+## Report partition annotation guard — 2026-10-26
+
+Operator candidate e0184cad on codex/partitioned-reports-20261026 validates Kubernetes aggregate annotation size on ordinary reports, generated parts and the manifest before returning any objects to the writer. This closes a separate limit not covered by the 512 KiB object budget. Regression tests cover each overflow and assert zero namespace/cluster writer creates for invalid source metadata. Vulnerability-report and metrics package tests/race checks, vulnerability-report controller tests and vet pass. An initial test command used nonexistent pkg/operator/controller; it was corrected to pkg/vulnerabilityreport/controller and passed. Source pushed to the existing fork branch.
+
+No production operator deployment. Archive manifest/part completeness remains the next substantive integration gate; obsolete-part reclamation, live API/TTL tests and exact-image scan/canary also remain. Existing API-update annotation merges remain subject to API admission. Do not treat this guard as completed scan-ingestion repair.
