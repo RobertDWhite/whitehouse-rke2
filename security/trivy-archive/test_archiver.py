@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import weakref
 from unittest.mock import patch
 
 import archiver
@@ -130,6 +131,24 @@ class ArchiveTests(unittest.TestCase):
                 metrics = archiver.coverage()
             self.assertEqual(metrics['trivy_inventory_crd_unmatched_digests{kind="main"}'], expected)
             self.assertEqual(metrics['trivy_archive_crd_incomplete_sets'], expected)
+
+    def test_coverage_releases_ordinary_reports_and_keeps_partitions(self):
+        class Report(dict):
+            pass
+        refs = []
+        fixture = json.loads((Path(__file__).parent / 'testdata/partition-go.json').read_text())
+        def source():
+            for i in range(100):
+                report = Report(report={'artifact': {'digest': 'sha256:' + 'b' * 64},
+                                        'updateTimestamp': '2026-10-26T12:00:00Z',
+                                        'vulnerabilities': [{'title': 'x' * 10000}]})
+                refs.append(weakref.ref(report))
+                yield report
+            self.assertLessEqual(sum(r() is not None for r in refs), 2)
+            yield from fixture
+        known, incomplete = archiver.crd_coverage(source())
+        self.assertEqual(incomplete, 0)
+        self.assertEqual(set(known), {'sha256:' + 'b' * 64, fixture[-1]['report']['artifact']['digest']})
 
     def test_no_results_is_valid(self):
         report = {'SchemaVersion': 2, 'ArtifactName': 'empty'}

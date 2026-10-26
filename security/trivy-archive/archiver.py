@@ -248,16 +248,32 @@ def complete_reports(reports):
     return complete, incomplete
 
 
-def coverage():
-    now = time.time()
-    wanted, missing = inventory(items('/api/v1/pods'))
+def crd_coverage(reports):
+    # Ordinary findings are irrelevant to digest freshness. Consume them without
+    # retaining the full cluster payload while keeping partition sets for checks.
     known = {}
-    reports, incomplete = complete_reports(items('/apis/aquasecurity.github.io/v1alpha1/vulnerabilityreports'))
-    for report in reports:
-        data = report['report']
+    partitioned = []
+    def remember(data):
         value = data.get('artifact', {}).get('digest')
         if value:
             known[value] = max(known.get(value, 0), timestamp(data.get('updateTimestamp')))
+    for report in reports:
+        mode = report.get('metadata', {}).get('annotations', {}).get(
+            'trivy-operator.aquasecurity.github.io/report-mode', '')
+        if mode:
+            partitioned.append(report)
+        else:
+            remember(report['report'])
+    complete, incomplete = complete_reports(partitioned)
+    for report in complete:
+        remember(report['report'])
+    return known, incomplete
+
+
+def coverage():
+    now = time.time()
+    wanted, missing = inventory(items('/api/v1/pods'))
+    known, incomplete = crd_coverage(items('/apis/aquasecurity.github.io/v1alpha1/vulnerabilityreports'))
     crd_known = dict(known)
     archive_known = {}
     archived = list(receipts())

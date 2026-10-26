@@ -471,3 +471,10 @@ Added TrivyIncompleteReportSet for either archive or operator incomplete-set met
 Existing TrivyReportIngestionGap is firing in production and received by Alertmanager asactive with no inhibitions/mutes/silences and receiverall. This proves routing to Alertmanager, not final notification-channel delivery. No synthetic notification was sent.
 
 Pre-deployment review caught iterator exhaustion in complete_reports: production items() yields a generator, whereas initial tests supplied lists. Reader now materializes once; tests exercise iterators. All7archive tests pass. Read-only check of724current live ordinary reports yields724complete/0incomplete; local acquisition/validation7.5seconds, peakRSS569212928bytes on macOS. This is current ordinary-report compatibility, not combined full-partition workload capacity. Archive/operator deployment remains gated on load, stale-part cleanup and live lifecycle/canary checks.
+
+
+## Archive reader capacity canary — 2026-10-26
+
+Coverage now streams ordinary reports into digest/timestamp metadata rather than retaining full findings. Partitions retain full verification. Eight tests pass, including weak-reference proof ordinary report objects are released and partition results preserved. Paginated local combined test:725live reports plus139SDR partition objects,242digests/0incomplete,4.94seconds/512360448peakRSSbytes.
+
+An isolated pod using the exact existing archive Python image, read-only filesystem/identity,1Gi limit and copied API/DNS-only egress policy passed the same combined test against then-current live reports:243digests,19398partition findings,0incomplete,3.57seconds,301813760process peakRSSbytes and298258432cgroup peakbytes. It had a distinct app label, no service membership, no archive PVC and no write path. Temporary pod/configmap/networkpolicy removed; aggregate result retained privately in sdr-scan-ingestion-20261026/reader-canary-result.json. This clears one large partition set plus current inventory, not arbitrary growth or multiple simultaneous large sets. Operator lifecycle gates remain.
