@@ -244,3 +244,19 @@ spec:
   dnsNames:
     - jellystat.white.fm
     - jellystat.internal.white.fm
+
+---
+# Streaming names have an extra DNS label and are not covered by the parent wildcard.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mastodon-streaming-tls
+  namespace: envoy-gateway-system
+spec:
+  secretName: mastodon-streaming-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-dns
+  dnsNames:
+    - streaming.mastodon.whitematter.tech
+    - streaming.mastodon.internal.whitematter.tech
