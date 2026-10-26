@@ -1,0 +1,16 @@
+# LAN access to the vLLM API (e.g. OpenCode on the Mac) on a fixed MetalLB IP,
+# like ollama-lb (10.99.5.125). No auth, same as Ollama; the allow-api
+# NetworkPolicy limits clients to 10.0.0.0/8 and 192.168.0.0/16.
+apiVersion: v1
+kind: Service
+metadata:
+  name: qwen-flash-lb
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.99.5.128
+  selector:
+    app: qwen-flash
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
