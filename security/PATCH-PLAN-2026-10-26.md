@@ -89,3 +89,10 @@ Full patching is incomplete. Existing authorization covers upgrades, pins, commi
 Dashboard ingress restriction deployed and verified by8fc8eb68; callback8645 source restriction and egress remain open. Cluster-admin is explicitly intentional in source and remains a residual risk requiring a management-preserving design. Current pod remains healthy without restart, but ExternalSecrethermes-api-keys hasSecretSyncedError and Argo has a pre-existing Degraded status: investigate credential-store reconciliation before a runtime rollout.
 
 A fresh exact-runtime scan with pinned Trivy0.76.1 recovered previously missing Hermes evidence:37critical/1054high,752critical/high occurrences with listed fixes. Full32MiB report is private. Trivy0.65 failed layer extraction;0.76.1 succeeds, but removed--slow means scanner/operator upgrade requires compatible commands and archiver/ingestion tests. Production scanner is unchanged. See latest ledger for exact digests and evidence.
+
+
+## Scanner upgrade and credential dependency update
+
+Shared 1Password provider rejects the service account for insufficient access; five ExternalSecrets are affected. Preserve cached Secrets and avoid Hermes restart until access is repaired through the configured encrypted credential path. User clarification is pending; other patch batches continue.
+
+Official Trivy operator0.35.0 still has5fixable high findings. A downstream candidate from upstream main047f1d9 (alreadyGo1.27.3/x-net0.60.0) plus tested0.76flag compatibility is building asrun40286037966, source725e0fe. It is not deployed. Exact scans, CRD/admission checks, emitted commands, private archive recovery, actual report ingestion and metrics are mandatory before rollout. Do not install nonexistent ServiceMonitor CRDs merely to satisfy this chart; existing static Prometheus scraping must be preserved. See latest ledger for outstanding field-ownership issues and the pending upstream issue form.
