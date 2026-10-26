@@ -17,6 +17,7 @@ spec:
       labels:
         app: address-service
     spec:
+      automountServiceAccountToken: false
       nodeSelector:
         kubernetes.io/arch: amd64
       affinity:
@@ -28,6 +29,9 @@ spec:
                     operator: NotIn
                     values: [rke2-node-13, rke2-node-14, rke2-node-50]
       securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
         runAsUser: 999
         runAsGroup: 999
         fsGroup: 999
