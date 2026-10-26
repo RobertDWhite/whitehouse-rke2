@@ -96,3 +96,10 @@ A fresh exact-runtime scan with pinned Trivy0.76.1 recovered previously missing 
 Shared 1Password provider rejects the service account for insufficient access; five ExternalSecrets are affected. Preserve cached Secrets and avoid Hermes restart until access is repaired through the configured encrypted credential path. User clarification is pending; other patch batches continue.
 
 Official Trivy operator0.35.0 still has5fixable high findings. A downstream candidate from upstream main047f1d9 (alreadyGo1.27.3/x-net0.60.0) plus tested0.76flag compatibility is building asrun40286037966, source725e0fe. It is not deployed. Exact scans, CRD/admission checks, emitted commands, private archive recovery, actual report ingestion and metrics are mandatory before rollout. Do not install nonexistent ServiceMonitor CRDs merely to satisfy this chart; existing static Prometheus scraping must be preserved. See latest ledger for outstanding field-ownership issues and the pending upstream issue form.
+
+
+## Registry transfer failure resolved
+
+Fresh0.76.1 scans reproduced the earlier extraction failure; Envoy evidence proved large image downloads were cut off at15seconds. Registry-only600second request/backend deadlines are deployed by a17492c1, with explicit API defaults in8f6ff960. The same403815069-byte layer now completes beyond15seconds and the route isSynced. Do not attribute the old failure solely to scanner version.
+
+Live trivy-archive captured the resulting full Hermes report, verified checksum/counts/current runtime digest, and retained recoverability after scan-job deletion; metricsHTTP200 and archive_errors0. New-operator CRD ingestion and candidate image scans remain outstanding. Build40286037966 is still running; production operator remains unchanged.
