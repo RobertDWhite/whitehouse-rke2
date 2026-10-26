@@ -17,6 +17,7 @@ spec:
       labels:
         app: wallabag
     spec:
+      automountServiceAccountToken: false
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -49,6 +50,10 @@ spec:
             - name: POPULATE_DATABASE
               value: "True"
           volumeMounts:
+            - name: php-security
+              mountPath: /etc/php81/conf.d/99-security.ini
+              subPath: 99-security.ini
+              readOnly: true
             - name: data
               mountPath: /var/www/wallabag/data
           startupProbe:                 # generous: first-boot migrations can take minutes
@@ -76,6 +81,9 @@ spec:
               cpu: "1"
               memory: 1Gi
       volumes:
+        - name: php-security
+          configMap:
+            name: wallabag-php-security
         - name: data
           persistentVolumeClaim:
             claimName: wallabag-data
