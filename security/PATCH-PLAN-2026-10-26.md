@@ -84,3 +84,5 @@ Reports were refreshed between October 25 and 26; these are current-running-imag
 Policy approach follows the [Kubernetes security checklist](https://kubernetes.io/docs/concepts/security/security-checklist/) and [application checklist](https://kubernetes.io/docs/concepts/security/application-security-checklist/). The priority on GitOps credentials and component access follows [Argo CD security guidance](https://github.com/argoproj/argo-cd/blob/master/docs/operator-manual/security.md).
 
 Latest runtime build: source d42496d, CI40276695860 running at last check. New helper/Pebble locks are prepared; do not substitute build submission for successful tests/scans or deploy the old candidate as fully patched.
+
+Full Argo candidate follow-up: source309a7ec/build40277458340 rebuilds the main binary with compress1.18.7 and x/net0.60.0, as well as patched helpers. Focused transport/archive/session/settings unit tests passed locally and run again in Linux CI. Build, scan and deployment gates remain pending.
