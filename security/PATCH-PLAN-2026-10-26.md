@@ -1,5 +1,46 @@
 # Cluster hardening and patch execution plan
 
+## Execution refresh — 2026-10-26 13:13 UTC
+
+This section supersedes older status and prioritization below. Read-only live inventory refreshed today; this is not a fresh scan of every image or a determination of compromise. Excludes the isolated Trivy canary. Full private inventory: `~/Library/Application Support/whitehouse-security/assessment-refresh-20261026/posture-1315.json`.
+
+### Findings that change the plan
+
+- **Severity reporting is not yet trustworthy.** The partition canary retained all 19,398 findings, but the existing converter changed selected severities when SeveritySource was missing. Raw output contained 132 critical / 2,422 high; stored reports showed 73 critical / 854 high. This is a severity-conversion defect, not lost findings. Canary is scaled to zero; production image is unchanged. Existing CRD severity totals may understate risk; use full raw JSON and scanner-selected severities for prioritization until corrected and rescanned.
+- Fix `64ed6ff6168d50bdd2fa3c7d3157d43b1e8cdf6f` is committed/pushed. Regression tests, report/metrics/controller tests, race tests, and exact private-report severity equality pass. Build [40327651194](https://github.com/RobertDWhite/trivy-operator/actions/runs/40327651194) is in progress; no accepted replacement digest yet. Continue this run, do not dispatch another.
+- **Coverage is incomplete:** 472 running pods, 265 distinct main-container runtime digests, 189 matched to stored reports, 76 unmatched. Matching excludes init/ephemeral containers and does not reconcile index/platform digests or archives; unmatched does not prove unscanned. Counts are not a clean-bill-of-health metric.
+- **25 running namespaces have no NetworkPolicy.** Application targets include card-optimizer, glacier, homeschool, ombi, watch-badges and yeti. Gramps now has verified ingress containment and is no longer on this list. Infrastructure and host-network workloads require separate handling.
+- **High-consequence authority remains:** Hermes and Portainer still have explicit cluster-admin bindings. This check does not enumerate equivalent wildcard privileges or all escalation paths.
+- **Recovery dependencies:** six nodes Ready; node12 NotReady. onepassword-shared is InvalidProviderConfig / Ready=False. Repair provider delivery before dependent restarts; do not block independent remediation.
+
+### Executable batches
+
+| Priority | Work unit and sequence | Required evidence before completion |
+|---|---|---|
+| P0 — detection correctness | Finish build40327651194; scan both immutable platform images with all severities/unfixed findings retained; deploy only to isolated canary. Re-run oversized fixture and compare raw JSON to CRDs, archive and metrics by severity and finding identity. Exercise partial write/retry/expiry. Then pin accepted production operator image and rescan affected inventory. | Exact digest, zero finding/severity loss, incomplete sets detected, archive checksum match, bounded memory, production coverage freshness and no oversized-write loop. Keep current production image until acceptance; rollback image if ingestion regresses. |
+| P1 — reduce lateral movement now | Map actual gateway/monitor/app/database flows for card-optimizer, glacier and homeschool first, then ombi/watch-badges/yeti. Add namespace ingress default-deny with narrow selectors/ports. Remove conflicting broad allow rules. Follow with DNS/dependency-only egress for sensitive apps. | Unrelated pods cannot reach app or DB/cache; legitimate gateway, app queries and monitors succeed. Egress tests prove required destinations work and an unrelated destination fails. One namespace per commit; rollback only that policy change. |
+| P1 — reduce credential blast radius | Inventory effective Hermes and Portainer permissions and actual operations; split callback-facing identity from administrative tools. Remove unused SA token mounts; define minimal Roles/Bindings with explicit exceptional operations. | Real authorized workflow succeeds; impersonated authorization checks deny unrelated Secret reads, role binding/escalation and pod exec. Do not remove backup/system administration rights without dependency review. |
+| P1 — app/runtime patch queue | Fresh-scan deployed and candidate images using the same database snapshot: MISP modules, OpenClaw/Hermes, FlareSolverr, Synapse/Hookshot, then Homebridge/Calibre/Kavita/SDR. Check FreshRSS and MISP core separately. Review upstream releases/advisories before choosing exact target versions. Repair provider before dependent restarts. | Explicit version and immutable digest in Kustomize; full raw scan; package/fix/reachability disposition; real enrichment/browser/encrypted Matrix/plugin/library workflow and authorization-denial test. Rehearsed restore before schema migrations; schema-compatible image rollback or tested restore. |
+| P1 — trust stores | Verify effective Node/Python/Go/Java/custom CA stores, starting OpenClaw/Hermes; patch affected runtimes/trust packages. Check public edge and internal backend chain, hostname and SNI. | Affected emSign root absent where required; valid chains and normal application calls succeed; invalid/untrusted test chains fail. Never disable TLS validation or remove unrelated CAs. |
+| P2 — prevent regressions | Expand Backoffice's proven admission controls namespace by namespace: pinned images, registry restrictions, privilege/hostPath restrictions and init/ephemeral coverage. Add scan gates with dated, owned exceptions. Review pre-existing violation exemptions and webhook failure behavior. | Actual bad requests rejected, good requests admitted, replacement pods start. Test outage/recovery before fail-closed changes. Audit reporting alone is not blocking. |
+| P2 — prove detection reaches response | Verify final delivery of ingestion/Falco alerts; finish CrowdSec client-IP/spoof/stale-cache/outage tests and deploy to one low-impact route. | Received notification plus controlled denial and legitimate-request recovery. Alertmanager receipt alone is insufficient. |
+| P3 — stateful/host work | Restore-rehearse Immich PostgreSQL/extensions, OpenCTI RabbitMQ, OpenSearch, Longhorn and RKE2/kernel maintenance. Diagnose node12 and replica health first. | Backups restored and queried, quorum/redundancy intact, app functions verified; one failure domain at a time. Preserve retained volumes and recovery evidence. |
+
+P1 containment/RBAC work can proceed while P0 builds. Do not wait for a globally green scanner before closing independently verified access paths.
+
+### App evidence and unresolved delivery gates
+
+Current stored reports still flag FlareSolverr v3.5.2, MISP modules v3.0.6, OpenClaw, Homebridge 2026-05-13, Calibre v4.0.8, Synapse v1.160.0 and Hookshot. Their severity totals are triage signals affected by the converter limitation above; not confirmed exploitability. Choose package-specific fixes from fresh raw scans, not a dashboard ranking alone.
+
+Homebridge upstream candidate has four high occurrences with listed fixes in pipx's shared installer environment. Removal fix is pushed on `RobertDWhite/docker-homebridge:codex/remove-tzupdate-installer-20261026` through d0c68ea. The separate image-build workflow push was rejected for missing OAuth workflow scope; no Homebridge build has started. Preserve pairing/data backup; validate restored startup and actual accessories before rollout. Pending upstream PR form has no confirmed PR URL. This limitation does not block other batches.
+
+Condo and Backoffice runtime updates, archive completeness alert/reader, and Gramps ingress containment have deployment evidence in `PATCHING-PROGRESS-2026-10-26.md`; do not redo them blindly. Condo legacy dependencies and Wallabag residuals remain open. Each batch closes only after source commit/push, Argo revision and running digest verification, functional and denial tests, and residual-risk recording.
+
+### Control semantics
+
+NetworkPolicy allow rules are additive, so default-deny cannot override an existing broad allowance: [Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/). Kyverno Audit reports violations; Enforce and pre-existing-resource exceptions require explicit validation: [Kyverno documentation](https://kyverno.io/docs/policy-types/cluster-policy/validate/). Verify behavior against installed versions and live tests.
+
+
 ## Refreshed execution order — 2026-10-26 12:08 UTC
 
 This section supersedes earlier status entries below. This refresh checked live metadata and existing scan reports; it is not a new full-cluster rescan or evidence that exploitation occurred. Private inventory: `~/Library/Application Support/whitehouse-security/assessment-refresh-20261026/posture.json`.
