@@ -1,5 +1,20 @@
 # Cluster hardening and patch execution plan
 
+## Condo clean candidate accepted in restore tests; OS patch rebuild — 2026-10-26 11:17 UTC
+
+Build40308945270 succeeded for4e868212554dc76928628c32a1d4a0e3de4eb9ef. Exact nativeamd64 image: ghcr.io/robertdwhite/condo:security-runtime6-20261026@sha256:54332ffe82d0d4296123714c5ee4f735313dee4a9d3fcfd34667fef16f506534. New unmodified web, address-service and worker pods in condo-restore-check all report this digest. Service endpoints select only the new web/address pods; the old worker was deleted before worker verification. Restored-only ingress/egress and DNS rules remain in place. Production Condo was not changed.
+
+Both database migrations exited0. Login/invalid-password/anonymous denial, organization/property/resident create-update-soft-delete, real address normalization, OIDC authorization/token exchange/userinfo/session, invalid callback and replay rejection, actual queued sample-task completion correlated with the selected worker, and synthetic media write/HTTP read pass. Media access is not full upload-flow verification. All5 installed GraphQL copies pass both module-format regressions; shell-quote regression and Node default trust-store gate pass in the exact final image. Runtime service/image evidence and logs are private in the existing restore-backup directory; validation helpers retained there. The first60-second image-readiness observation timed out while the image continued pulling; the same pod was observed again and used successfully, with no duplicate/restarted build or pod.
+
+Full scan:2critical/84high/131medium/99low/1unknown;22critical/high occurrences list fixes;zero secret findings. Candidate4e86821 full JSON and receipt retained in candidate-scans-20261026. The archive receipt's raw_sha256 matches decompressed stored logs. Completed manual scan job removed only after archive verification to free scan capacity. Critical packages: SQLite3.40.1-2+deb12u2 and zlib1.2.13.dfsg-1. Version-based GraphQL backport findings remain visible, alongside actual legacy dependency work including faker, dd-trace, cloudinary, graphiql, linkify/markdown, node-fetch and Zod. No full-remediation claim.
+
+Debian confirms Trixie SQLite fixed for CVE-2025-7458; Bookworm remains vulnerable. Debian separately explains the Bookworm zlib MiniZip finding is source-package attribution to code not built into its binary; no global suppression added. Sourcef5071cadfb441fb8d6166a5e0a39f83b84465afe moves Python3.14.9, Node24.22.1 and buildpack-deps together to digest-pinned Trixie bases, keeping native build/runtime libc aligned. Adds final-image checks of loaded SQLite>=3.42.0 and zlib>=1.3.1 plus psycopg2 import. Source pushed; existing draftCondoPR1 updated.
+
+**Current build40313840372, tagsecurity-runtime7-20261026, sourcef5071cadfb441fb8d6166a5e0a39f83b84465afe is in_progress.** Continue that exact handle. When complete, resolve immutable digest, scan and repeat clean restored-data gates;4e86821 acceptance does not prove its successor. Fresh production backup and schema recovery gate remain required before rollout. Major-version dependency patches remain open. Mastodon policy ownership now located in platform/policy/network-policies/mastodon.yaml and platform/networking/envoy-phase3-routes/20-network-policies.yaml; no Mastodon change in this batch.
+
+Sources: https://security-tracker.debian.org/tracker/CVE-2025-7458 and https://security-tracker.debian.org/tracker/CVE-2023-45853.
+
+
 ## Backoffice admission enforcement — 2026-10-26 11:10 UTC
 
 Deployed commit817d2fd4 restores require-image-digest to Git and stages five general policies with rule-level failureAction Audit plus an Enforce override for backoffice. Other namespaces retain Audit and existing exclusions; PHP containment is unchanged. Installed CRD supports these fields and server-side policy dry-run passed. Kyverno warns ClusterPolicy is deprecated; migration to the newer policy API is future work, not completed here.
