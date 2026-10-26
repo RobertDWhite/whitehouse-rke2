@@ -1,5 +1,20 @@
 # Cluster hardening and patch execution plan
 
+## Mastodon backend ingress and streaming TLS — 2026-10-26 11:25 UTC
+
+Deployedda47944e narrows Mastodon ingress from gateway/monitoring/authentication namespaces. Main Envoy pods, ingress-nginx controllers, Authentik servers, the named cloudflared workloads and Uptime Kuma can reach only Mastodon web/streaming pods on3000/4000. The changes cover both owning sources: platform/policy/network-policies/mastodon.yaml and platform/networking/envoy-phase3-routes/20-network-policies.yaml. Egress, same-namespace allowance, exporter policy and application images remain unchanged; backend authentication and host privileges remain separate work.
+
+Before: unrelated probes in envoy-gateway-system,authentik,uptime-kuma,kube-system reached Elasticsearch9200/Postgres5432/Redis6379 and web/streaming. Cloudflared probe already lacked backend access because of egress policy, but reached web. After source/live policy equality was verified, all5 unrelated probes are denied all5 application/backend targets. Kubernetes443 control remains unchanged per namespace (cloudflared already denied it). The first after-test began before Envoy policy reconciliation and failed; it was repeated after the live spec matched source. No false pass was accepted.
+
+TLS-verified main gateway /health and /api/v2/instance remain200. Actual Uptime Kuma pod reaches both web/streaming health endpoints200. Real web pod performs read-only Elasticsearch _search?size=0 successfully and internal streaming health remains200. All9 existing Mastodon pod UIDs/readiness/restarts are unchanged against the before snapshot. No posting, federation delivery, authenticated-user workflow or indexing write was exercised in this ingress batch. Five temporary probes removed. Private before/after evidence and reusable helpers: ~/Library/Application Support/whitehouse-security/mastodon-ingress-20261026/.
+
+Discovered pre-existing streaming TLS failure: streaming.mastodon.whitematter.tech did not match the served certificate. Existing *.whitematter.tech and *.internal.whitematter.tech certificates cannot cover these additional DNS labels. Commit5c83e45c adds mastodon-streaming-tls Certificate for both exact public/internal names using existing letsencrypt-dns. Issuance was observed pending DNS propagation, thenReady. Only after readiness, commit10b1d6e7 adds two exact-host Gateway listeners and updates the streaming HTTPRoute parent sections. The listeners admit routes only from the Mastodon namespace. No TLS verification disable, key export or wildcard replacement.
+
+Both streaming.mastodon.whitematter.tech and streaming.mastodon.internal.whitematter.tech now return HTTPS200 on /api/v1/streaming/health using explicit gateway address10.99.5.110 and normal curl chain/hostname verification. Initial404 during route reconciliation was not counted as success; checks passed after route movement. New exact-listener parent status isAccepted=True/ResolvedRefs=True; old parent status entries may remain. Envoy gateway application isSynced/Healthy/Succeeded. Phase3 routes application remainsOutOfSync/Healthy while reconciling other resources; do not claim full-application sync from these route-specific successes. Main web/search checks pass after TLS rollout. Public DNS/Cloudflare edge and a real streaming WebSocket session remain separate verification scopes.
+
+Condo build40313840372 forf5071ca remainsin_progress; continue the same handle. Overall patching is incomplete.
+
+
 ## Condo clean candidate accepted in restore tests; OS patch rebuild — 2026-10-26 11:17 UTC
 
 Build40308945270 succeeded for4e868212554dc76928628c32a1d4a0e3de4eb9ef. Exact nativeamd64 image: ghcr.io/robertdwhite/condo:security-runtime6-20261026@sha256:54332ffe82d0d4296123714c5ee4f735313dee4a9d3fcfd34667fef16f506534. New unmodified web, address-service and worker pods in condo-restore-check all report this digest. Service endpoints select only the new web/address pods; the old worker was deleted before worker verification. Restored-only ingress/egress and DNS rules remain in place. Production Condo was not changed.
