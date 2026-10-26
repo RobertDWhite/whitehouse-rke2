@@ -494,3 +494,12 @@ Operator candidate8117cd1f adds the missing ClusterVulnerabilityReport TTL watch
 Existing namespace TTL controller removed all6synthetic partition objects with10s TTL in10.43seconds. A second six-object set with5m TTL was removed by owner GC after deleting its synthetic ConfigMap owner (0.04seconds observed). Test namespace/cluster object removed. Results private in trivy-partition-lifecycle-20261026/result.json. No production report was deleted by these tests.
 
 Operator image remains undeployed. Candidate cluster watcher needs live canary proof. Immediate obsolete-generation deletion is not implemented because it can race replacement writers; finite TTL/owner cleanup bounds and retry behavior still need validation. Reports without a TTL and with surviving owners have no bounded reclamation guarantee.
+
+
+## Partition candidate build dispatched — 2026-10-26
+
+Source42c6b0b17e43a474463215b149c3ea87b7f2ebf0 adds metrics and TTL regression gates to Dockerfile.security. Dispatched existing security-runtime workflow on codex/partitioned-reports-20261026: https://github.com/RobertDWhite/trivy-operator/actions/runs/40323484674 . The exact build handle is running; continue it rather than dispatching duplicates. Target architecturesamd64/arm64, immutable tagsha-42c6b0b17e43a474463215b149c3ea87b7f2ebf0. No final registry digest or image acceptance yet.
+
+Local GOEXPERIMENT=jsonv2 report/metrics/controller tests pass; an exported fixture under that build mode passes the archive reader's full content verification. Live operator ConfigMap confirms OPERATOR_SCANNER_REPORT_TTL=24h and cacheTTL120h. This supplies finite expiry for normal namespace parts; it is not immediate old-generation reclamation or proof every manually created report has TTL.
+
+Namespace-scoped candidate canary must preserve isolation: install-mode namespace predicates exclude cluster-scoped report events. Do not broaden the canary to all namespaces simply to test cluster TTL. Cluster watcher registration/lifecycle needs a separate isolated test, while namespace writer/retry/expiry can be tested by the scoped candidate. Pending: completed image digests/scans, candidate runtime checks and lifecycle verification.
