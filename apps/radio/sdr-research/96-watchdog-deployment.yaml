@@ -1,15 +1,5 @@
-# Initial empty state ConfigMap. The watchdog updates this in-place every
-# cycle. Do NOT edit by hand — it gets overwritten on the next tick.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: sdr-watchdog-state
-  namespace: sdr-research
-  annotations:
-    sdr-watchdog/managed: "true"
-data:
-  state.json: "{}"
----
+# State lives in ConfigMap sdr-watchdog-state, created by the watchdog itself.
+# Keep it out of git: Argo self-heal would reset it every cycle.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

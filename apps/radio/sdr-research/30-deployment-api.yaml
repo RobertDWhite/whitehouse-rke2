@@ -26,7 +26,9 @@ spec:
               - matchExpressions:
                   - key: kubernetes.io/hostname
                     operator: NotIn
-                    values: [rke2-node-13, rke2-node-14]
+                    # node-50 (10.100.0.x) gets Remote I/O errors on the RWX
+                    # artifacts NFS mount, which stalls the indexer.
+                    values: [rke2-node-13, rke2-node-14, rke2-node-50]
       containers:
         - name: api
           image: registry.internal.white.fm/sdr-viewer-api:1.7.11

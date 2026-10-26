@@ -67,7 +67,8 @@ spec:
             - containerPort: 5432
           resources:
             requests:
-              cpu: 500m
+              # node-13 is ~96% CPU-requested; 500m would leave the pod Pending.
+              cpu: 250m
               memory: 2Gi
             limits:
               cpu: 2000m
