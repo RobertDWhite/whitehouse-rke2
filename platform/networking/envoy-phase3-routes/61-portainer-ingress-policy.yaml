@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: management-gateway-ingress
+  namespace: portainer
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: portainer
+      app.kubernetes.io/name: portainer
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: envoy
+              gateway.envoyproxy.io/owning-gateway-name: main
+        # Preserve the chart's existing HTTPS ingress controller path.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: rke2-ingress-nginx
+              app.kubernetes.io/component: controller
+      ports:
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 9443
+    # Agent tunnel remains a source-unrestricted exception until its clients
+    # are mapped. This policy does not constrain egress or reduce API rights.
+    - ports:
+        - protocol: TCP
+          port: 8000
