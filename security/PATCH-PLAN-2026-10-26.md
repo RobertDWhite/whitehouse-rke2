@@ -1,5 +1,9 @@
 # Cluster hardening and patch execution plan
 
+## Latest execution — 2026-10-26 10:05 UTC
+
+Fleet ingress containment is deployed by32473516. Unrelated pod access to Fleet8080, MySQL3306, Valkey6379 and exporter9104 is now denied; same-namespace traffic, gateway health, authenticated config read and actual Prometheus scrape remain functional. All4 original running pods are unchanged. In-namespace access and egress remain broad, and full device/backup workflows were not exercised. Fleet and Portainer are no longer in the no-ingress-policy category from the older snapshot below. Condo build40302114326 remains the active handle; no patched production Condo image is claimed.
+
 ## Latest execution — 2026-10-26 09:54 UTC
 
 Portainer UI ingress containment is deployed by d4695e00 and verified: unrelated pod access to9000/9443 is blocked; main Envoy UI200, unauthorized API401 and nginx9443 connectivity remain functional; original pod unchanged. Agent8000, egress and privileged management identity remain open work. The29-namespace snapshot below predates this policy.
