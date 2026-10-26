@@ -21,6 +21,10 @@ spec:
           scanJobNodeSelector:
             security.white.fm/scan-log-retention: 64Mi
 
+        # Reload cached scanJob configuration when placement changes.
+        podAnnotations:
+          security.white.fm/scan-config-revision: "20261026-retention-pool-v1"
+
         operator:
           # Keep new SBOM generation separate from the compatibility rollout.
           sbomGenerationEnabled: false
