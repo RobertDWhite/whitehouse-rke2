@@ -77,14 +77,22 @@ spec:
           # dies, yarn propagates the exit and the container restarts anyway.
           readinessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f worker.js > /dev/null"]
+              command:
+                - node
+                - -e
+                - >-
+                  const fs=require('fs');const found=fs.readdirSync('/proc').filter(p=>/^\d+$/.test(p)&&p!==String(process.pid)).some(p=>{try{const a=fs.readFileSync('/proc/'+p+'/cmdline','utf8').split('\0');return /(^|\/)node$/.test(a[0])&&a.slice(1).some(v=>/(^|\/)worker\.js$/.test(v));}catch{return false;}});process.exit(found?0:1);
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 10
             failureThreshold: 6
           livenessProbe:
             exec:
-              command: ["sh", "-c", "pgrep -f worker.js > /dev/null"]
+              command:
+                - node
+                - -e
+                - >-
+                  const fs=require('fs');const found=fs.readdirSync('/proc').filter(p=>/^\d+$/.test(p)&&p!==String(process.pid)).some(p=>{try{const a=fs.readFileSync('/proc/'+p+'/cmdline','utf8').split('\0');return /(^|\/)node$/.test(a[0])&&a.slice(1).some(v=>/(^|\/)worker\.js$/.test(v));}catch{return false;}});process.exit(found?0:1);
             initialDelaySeconds: 120
             periodSeconds: 30
             timeoutSeconds: 10
