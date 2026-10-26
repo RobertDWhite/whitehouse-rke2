@@ -556,3 +556,14 @@ First live partition scan retained19398findings but failed semantic severity com
 Fix64ed6ff6168d50bdd2fa3c7d3157d43b1e8cdf6f preserves scanner-selected severity, falling back to vendor map only for missing/invalid selected values. Regression failed before fix; report/metrics/controller tests, race tests and private full-report severity equality pass after fix. Source pushed; build40327651194 confirmedin_progress. No duplicate dispatch. Await exact-image scan and repeat live acceptance before production.
 
 Live read-only refresh excluding canary:472runningpods,265main-containerdigests,189reportmatches,76unmatched;25runningnamespaceswithoutNetworkPolicy. Hermes/Portainer cluster-admin remains. Node12NotReady;onepassword-sharedInvalidProviderConfig. Private snapshotassessment-refresh-20261026/posture-1315.json. Updated top of PATCH-PLAN-2026-10-26.md with ordered work units, release gates and rollback boundaries. Existing CRD severity totals may understate risk; raw selected severity must drive triage until repair/rescan. No new application rollout in this refresh.
+
+
+## Homeschool ingress containment deployed — 2026-10-26
+
+GitOps967ba1ed pushed to main adds namespace ingress default-deny and narrow main-Envoy/Uptime-Kuma pod allowances to homarr TCP7575. Source apps/home/homeschool/network-policies.yaml is included in Kustomize. Server dry-run passes; Argo Synced/Healthy/Succeeded at967ba1ed; both live policy specs exactly match committed source.
+
+Before, unrelated probes from default, homeschool and envoy-gateway-system reached app7575. After reconciliation all3are denied, while API443control succeeds from each probe. TLS-verified gateway checks for homeschool.white.fm and homeschool.internal.white.fm remainHTTP200; actual Uptime-Kuma container fetch returns200. Homarr podUID/readiness/restart count unchanged (Ready,zero restarts). Three disposable probes deleted. Private evidence and reusable helpers:homeschool-ingress-20261026.
+
+This closes ingress reachability, not application authentication, egress restriction or image patching. Existing Kustomize versionv2.9.1 has no digest; immutable image acceptance, service-account token removal and authenticated dashboard/integration testing remain. No data changes or application restart. Rollback only network-policies.yaml and its Kustomize resource entry, then repeat normal-client checks.
+
+Corrected Trivy build40327651194 rechecked authoritatively and remainsin_progress; no restart or duplicate dispatch. Canary operator remains0replicas; isolated fixture stillRunning. Continue exact build, scan both output platforms, then repeat canary severity/identity/metrics acceptance.
