@@ -10,7 +10,7 @@
 # Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
 # resolved at recipe commit 1139abf, with the fp8 KV cache. node-10's Ollama was
 # retired (its traffic goes to the 5090), so vLLM sizes its KV cache explicitly
-# (6 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
+# (3 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +23,7 @@ spec:
   # On 2026-10-26 a start with 12 GiB KV and 8 seqs used up the 119.7 GiB unified pool
   # (NVRM NV_ERR_NO_MEMORY) and hard-reset node-10. GPU allocations are not charged to
   # the pod's memory limit, so the limit below never fires. Guards since then: smaller
-  # KV/batch, the mem-check init container (refuses to start unless enough is free),
+  # KV/batch/context, the mem-check init container (refuses to start unless enough is free),
   # and the mem-watchdog sidecar (kills vLLM if the node gets close to empty).
   replicas: 1
   # One GPU memory pool and an RWO local volume: never run two at once.
@@ -53,7 +53,8 @@ spec:
       # Lets mem-watchdog see and kill the vLLM processes.
       shareProcessNamespace: true
       initContainers:
-        # vLLM needs ~86 GiB (75 weights + 6 KV + activations/graphs). Wait until the
+        # vLLM needs ~88 GiB of host memory (74 weights + 3 KV + 1.5 graphs + ~5 process
+        # memory + activations). Wait until the
         # node has MIN_GIB available (page cache counts as available) instead of
         # starting into a pool that can't hold it. /proc/meminfo is the host's.
         - name: mem-check
@@ -133,25 +134,28 @@ spec:
             - --host=0.0.0.0
             - --port=8000
             - --load-format=safetensors
-            - --max-model-len=262144
+            # 128K, not the recipe's 262K: a 262K request needs >= 4.2 GiB of KV, and with
+            # 6 GiB KV node-10 was down to 5 GiB MemAvailable once vLLM was ready
+            # (2026-10-26, watchdog kill). OpenCode prompts are ~15-60K tokens.
+            - --max-model-len=131072
             - --max-num-seqs=4
-            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 6 GiB of fp8 KV,
-            # ~375K tokens, still more than one full 262K request. 12 GiB with 8 seqs
-            # left no headroom and reset the node on 2026-10-26.
+            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 3 GiB of fp8 KV,
+            # ~187K tokens (~62K tokens per GiB), more than one full 128K request.
+            # 12 GiB with 8 seqs reset the node on 2026-10-26.
             # vLLM refuses to start unless gpu-memory-utilization x 119.7 GiB is free,
             # and on the GB10 CUDA counts page cache as used, so "free" drifts as the
             # 140 GB of checkpoint files are read (95.66 GiB, then 92.6). A fixed KV
-            # size makes the footprint ~86 GiB regardless (75 weights + 6 KV +
+            # size makes the footprint ~83 GiB regardless (74 weights + 3 KV +
             # activations), and the low utilization just keeps the boot check from
             # tripping. The kernel reclaims page cache as vLLM really allocates;
             # what stays free is page cache for the mmapped PLE table.
             - --gpu-memory-utilization=0.70
-            - --kv-cache-memory-bytes=6442450944
+            - --kv-cache-memory-bytes=3221225472
             - --kv-cache-dtype=fp8_e4m3
             - --enable-prefix-caching
             - --enable-prompt-tokens-details
             - --enable-chunked-prefill
-            - --max-num-batched-tokens=4096
+            - --max-num-batched-tokens=2048
             - -cc.cudagraph_mode=PIECEWISE
             - -cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen4_exp_ple_short_conv","vllm::qwen4_exp_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::gdn_attention_core_xpu","vllm::olmo_hybrid_gdn_full_forward","vllm::sparse_attn_indexer","vllm::rocm_aiter_sparse_attn_indexer","vllm::deepseek_v4_attention","vllm::hpc_rope_norm_forward","vllm::unified_kv_cache_update","vllm::unified_mla_kv_cache_update","vllm::ple_mmap_lookup_ids"]
             - --no-enable-flashinfer-autotune
@@ -228,7 +232,7 @@ spec:
                 sleep 1
               done
           env:
-            - {name: MIN_GIB, value: "6"}
+            - {name: MIN_GIB, value: "4"}
           resources:
             requests: {cpu: 10m, memory: 8Mi}
             limits: {memory: 32Mi}
