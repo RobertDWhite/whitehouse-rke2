@@ -587,3 +587,19 @@ Confirmed remote candidate12ab71a1351ad6695616ed4685ecb03a970381c7. Installed is
 Inspected inherited deployment-docker-image.yml: manual dispatch on candidate branch would skip release/source mutation, publish to the fork's ownGHCR path, and allowsend-notifications=false. Dispatch did not start: GitHub404workflow-not-found. Repository Actions permissions showenabled:true, inherited workflow file exists on defaultdev, but workflow inventory returns0; explicit enable endpoint also404. No workflow was modified, no action permissions relaxed, no Homarr image build or upstream PR is claimed. Resolve fork workflow registration/build availability, then build/scan and perform isolated runtime acceptance.
 
 Corrected Trivy40327651194 remainsin_progress on authoritative checks around13:24UTC. Continue this exact build; no dispatch restart. Full patching remains active.
+
+
+## Corrected operator built/scanned; repeat live canary — 2026-10-26
+
+Build40327651194 completed successfully for64ed6ff6168d50bdd2fa3c7d3157d43b1e8cdf6f. Registry-verified indexfd36c01268358e6324f2a503f6f4ae462c64f80ab545747e26ec4ae910e8625c;amd64manifest02b122c8073b31d928d6ffbc0a27d4fa6c9dc120e4067001eb7aee434348ccb2;arm64manifestb8512c1f8c0e030d439b88a130ccc761f225a60b58d17bec169ee4fcab88318e. Both full vulnerability/secret scans:0critical/high/medium/low,1unknown,0secrets,403recognizedpackages. ResidualGO-2026-5932 in x/crypto v0.57.0 has no listed fix. Private JSON and automatic archive SHA256 receipts verified before completed scanJobs deleted; initial arm64 receipt lookup preceded archiver collection and succeeded on subsequent check.
+
+Canary rerender/server dry-run passed; new deploymentReady and running exact corrected index. Production process exclusion stilltrivy-upgrade-canary; production image unchanged. Old fixture deletion exceeded the30second observation window, then completed normally; all old owned reports disappeared. Recreated identical isolated sleep-only fixture with3600second lifetime. No force deletion or scan restart. Repeat actual scanjobscan-vulnerabilityreport-666c68d7f8 has newUID488ea2ce-7042-4442-82ff-0c7d3360dfd0 and isRunning. Continue this handle.
+
+New evidence directorytrivy-severity-canary-20261026 preserves previous failed canary separately. Verifier/tmp/verify-trivy-severity-canary.py checks full finding-identity/severity equality and metrics, and saves raw output. Production archiver does not watch this namespace; manually archive/verify receipt before600second completed-job cleanup. Exact-image acceptance is not complete until this live comparison and lifecycle/retry gates pass. Current sampled canary operator25Mi, no restart; this is not peak-load evidence.
+
+
+## Corrected live severity comparison passes — 2026-10-26
+
+The repeat scan completed and/tmp/verify-trivy-severity-canary.py passed. Raw scan,20storedCRDobjects assembled into1complete logical report, and real operator metrics all preserve19398findings:132critical/2422high/11612medium/4426low/806unknown. Full finding-identity multiset and severity counts match; zero incomplete sets. This directly clears the converter regression observed with42c6b0b1, not all remaining lifecycle/production gates.
+
+Full raw scan, parsedJSON, stored reports,metrics and aggregateverification retained in private trivy-severity-canary-20261026. Manual archive through the same archiver.store implementation passed read-back SHA256 verification (corrected-canary-archive-receipt.json) before job deletion. Canary deployment remainsReady on corrected index; preserve fixture and reports for partial-set/retry/expiry testing. Production operator remains unchanged. Next: controlled part removal must become incomplete and trigger safe recovery without duplicates or lost severity, then validate lifecycle bounds and rollout acceptance.
