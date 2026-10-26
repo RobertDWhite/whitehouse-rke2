@@ -10,7 +10,7 @@
 # Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
 # resolved at recipe commit 1139abf, with the fp8 KV cache. node-10's Ollama was
 # retired (its traffic goes to the 5090), so vLLM sizes its KV cache explicitly
-# (12 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
+# (6 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,11 +20,12 @@ spec:
   # vm.dirty_background_bytes=256M, vm.min_free_kbytes=1G). Without it, Longhorn
   # rebuild writes filled up to 20% of the unified pool with dirty pages and the
   # node hung with vLLM loaded (2026-10-16/17).
-  # 0 again since 2026-10-26: scaling to 1 on 2026-10-26 hard-reset node-10 about
-  # 2 minutes after vLLM finished loading (74.6 GiB weights + 12 GiB KV), even with
-  # Longhorn healthy and the dirty-page sysctls in place. Do not scale up until the
-  # cause is understood. Earlier: 0 from 2026-10-21 while Longhorn resynced.
-  replicas: 0
+  # On 2026-10-26 a start with 12 GiB KV and 8 seqs used up the 119.7 GiB unified pool
+  # (NVRM NV_ERR_NO_MEMORY) and hard-reset node-10. GPU allocations are not charged to
+  # the pod's memory limit, so the limit below never fires. Guards since then: smaller
+  # KV/batch, the mem-check init container (refuses to start unless enough is free),
+  # and the mem-watchdog sidecar (kills vLLM if the node gets close to empty).
+  replicas: 1
   # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
@@ -49,7 +50,27 @@ spec:
           value: llm
           effect: PreferNoSchedule
       terminationGracePeriodSeconds: 60
+      # Lets mem-watchdog see and kill the vLLM processes.
+      shareProcessNamespace: true
       initContainers:
+        # vLLM needs ~86 GiB (75 weights + 6 KV + activations/graphs). Wait until the
+        # node has MIN_GIB available (page cache counts as available) instead of
+        # starting into a pool that can't hold it. /proc/meminfo is the host's.
+        - name: mem-check
+          image: busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command: ["sh", "-c"]
+          args:
+            - |
+              while :; do
+                avail=$(awk '/^MemAvailable:/{print int($2/1048576)}' /proc/meminfo)
+                [ "$avail" -ge "$MIN_GIB" ] && { echo "MemAvailable ${avail} GiB >= ${MIN_GIB} GiB"; exit 0; }
+                echo "MemAvailable ${avail} GiB < ${MIN_GIB} GiB; waiting"; sleep 30
+              done
+          env:
+            - {name: MIN_GIB, value: "96"}
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {memory: 32Mi}
         # Resumable: hf download skips files already complete, so restarts cost seconds.
         - name: fetch-weights
           image: python:3.12-slim
@@ -113,22 +134,24 @@ spec:
             - --port=8000
             - --load-format=safetensors
             - --max-model-len=262144
-            - --max-num-seqs=8
-            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 12 GiB of fp8 KV.
+            - --max-num-seqs=4
+            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 6 GiB of fp8 KV,
+            # ~375K tokens, still more than one full 262K request. 12 GiB with 8 seqs
+            # left no headroom and reset the node on 2026-10-26.
             # vLLM refuses to start unless gpu-memory-utilization x 119.7 GiB is free,
             # and on the GB10 CUDA counts page cache as used, so "free" drifts as the
             # 140 GB of checkpoint files are read (95.66 GiB, then 92.6). A fixed KV
-            # size makes the footprint ~91 GiB regardless (75 weights + 12 KV +
+            # size makes the footprint ~86 GiB regardless (75 weights + 6 KV +
             # activations), and the low utilization just keeps the boot check from
             # tripping. The kernel reclaims page cache as vLLM really allocates;
             # what stays free is page cache for the mmapped PLE table.
             - --gpu-memory-utilization=0.70
-            - --kv-cache-memory-bytes=12884901888
+            - --kv-cache-memory-bytes=6442450944
             - --kv-cache-dtype=fp8_e4m3
             - --enable-prefix-caching
             - --enable-prompt-tokens-details
             - --enable-chunked-prefill
-            - --max-num-batched-tokens=8192
+            - --max-num-batched-tokens=4096
             - -cc.cudagraph_mode=PIECEWISE
             - -cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen4_exp_ple_short_conv","vllm::qwen4_exp_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::gdn_attention_core_xpu","vllm::olmo_hybrid_gdn_full_forward","vllm::sparse_attn_indexer","vllm::rocm_aiter_sparse_attn_indexer","vllm::deepseek_v4_attention","vllm::hpc_rope_norm_forward","vllm::unified_kv_cache_update","vllm::unified_mla_kv_cache_update","vllm::ple_mmap_lookup_ids"]
             - --no-enable-flashinfer-autotune
@@ -178,6 +201,37 @@ spec:
             - {name: models, mountPath: /root/.triton, subPath: cache/triton}
             - {name: models, mountPath: /root/.nv, subPath: cache/nv}
             - {name: dshm, mountPath: /dev/shm}
+        # Last line of defence: if the node's MemAvailable drops below MIN_GIB, SIGKILL
+        # vLLM so the driver frees its memory before NVRM runs out and the node resets.
+        # Kills every process outside this container (by mount namespace) except the
+        # pause process, so vLLM's EngineCore child, which holds the GPU memory, dies
+        # too. The vllm container then restarts (crash-loop backoff), visible as restarts.
+        - name: mem-watchdog
+          image: busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "watching MemAvailable, kill below ${MIN_GIB} GiB"
+              while :; do
+                avail=$(awk '/^MemAvailable:/{print int($2/1048576)}' /proc/meminfo)
+                if [ "$avail" -lt "$MIN_GIB" ]; then
+                  echo "$(date) MemAvailable ${avail} GiB < ${MIN_GIB} GiB: killing vLLM"
+                  me=$(readlink /proc/self/ns/mnt)
+                  for d in /proc/[0-9]*; do
+                    pid=${d#/proc/}
+                    [ "$pid" = 1 ] && continue
+                    ns=$(readlink "$d/ns/mnt" 2>/dev/null)
+                    [ "$ns" != "$me" ] && kill -9 "$pid" 2>/dev/null
+                  done
+                  sleep 10
+                fi
+                sleep 1
+              done
+          env:
+            - {name: MIN_GIB, value: "6"}
+          resources:
+            requests: {cpu: 10m, memory: 8Mi}
+            limits: {memory: 32Mi}
       volumes:
         - name: models
           persistentVolumeClaim:
