@@ -8,13 +8,20 @@ spec:
   source:
     chart: trivy-operator
     repoURL: https://aquasecurity.github.io/helm-charts/
-    targetRevision: 0.30.0
+    targetRevision: 0.37.0
     helm:
       values: |
         # Keep the upgrade canary exclusively owned by its candidate operator.
         excludeNamespaces: "trivy-upgrade-canary"
 
+        image:
+          registry: ghcr.io
+          repository: robertdwhite/trivy-operator-security
+          tag: sha-725e0fe4137ae85084a49595aa692e9d612bdc7e@sha256:9de32e7e34a5129d3a5fde7bbb5d1b92a6a5f4229faa910ee85b3a22031cbfe1
+
         operator:
+          # Keep new SBOM generation separate from the compatibility rollout.
+          sbomGenerationEnabled: false
           scanJobsConcurrentLimit: 5
           scanJobTimeout: 10m
           vulnerabilityScannerEnabled: true
@@ -39,6 +46,10 @@ spec:
             value: "false"
 
         trivy:
+          image:
+            registry: mirror.gcr.io
+            repository: aquasec/trivy
+            tag: 0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
           ignoreUnfixed: true
           severity: "MEDIUM,HIGH,CRITICAL"
           slow: true
@@ -54,8 +65,9 @@ spec:
           cron: "0 */6 * * *"
           reportType: summary
 
+        # Prometheus uses the existing static scrape; no ServiceMonitor CRD.
         serviceMonitor:
-          enabled: true
+          enabled: false
 
         nodeSelector:
           kubernetes.io/arch: amd64
