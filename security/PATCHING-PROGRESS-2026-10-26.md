@@ -363,3 +363,10 @@ Before/after checks pass: API health, home page, Nodes/Services/Applications pag
 Validation used server-side dry runs before committing. The Backoffice web Deployment was rendered with its actual Kustomize image transformation in isolation; full encrypted applications were rendered/reconciled by Argo. Registry inspection initially lacked anonymous access and the host Python default trust store could not validate the chain. The existing scoped image-pull credential and an explicit certifi CA context resolved these checks without logging credential values or disabling TLS verification.
 
 Private evidence: `backoffice-node-trust-20261026/`, `odysseus-ingress-20261026/`, and full candidate scan JSON under `candidate-scans-20261026/`. Existing application data and recovered backups are retained. **Condo build `40308945270` remains in progress** for source `4e86821`; continue it, then scan its exact digest and run all clean restored-image gates. Full patching remains incomplete; admission enforcement, oversized-report integration, Hermes/OpenClaw/MISP modules/legacy dependencies and remaining stateful/host work are still outstanding.
+
+
+## Posture refresh — 2026-10-26 11:02 UTC
+
+Read-only refresh:467Running pods,264declared main images/40init images,563unpinned container occurrences,26running namespaces without NetworkPolicy,696reports,39oversized-request lines in bounded15-minute logs. These metrics do not prove image scan coverage. Five general admission policies remainAudit/Ignore; digest policy is marked for pruning because its Git source is missing. Shared provider remainsInvalidProviderConfig; node12NotReady.
+
+New configuration review identifies broad Mastodon backend ingress, Elasticsearch authentication disabled, privileged sysctl init, and Scrypted host-network/privileged GPU access. No exploit demonstration or production mutation in this pass. Updated patch plan includes focused source changes, functional/denial gates and rollback. Condo40308945270 nowcompleted/success; exact-image scan and clean restored-data acceptance still pending. Private snapshot retained0600. Overall patching remains incomplete.
