@@ -4,6 +4,10 @@
 
 This section supersedes all earlier status and ordering below. The older sections retain historical evidence, not current deployment claims. This refresh changed documentation only; it did not deploy a workload or restart a service.
 
+### Candidate execution update — 2026-10-26 09:34 UTC
+
+Condo source7250031 built and scanned at3critical/110high, but failed restored migration startup because production dependency pruning exposed undeclared imports. It is rejected for deployment. Source89d36b3 fixes declarations, adds final-image resolution checks and applies further compatible patches; replacement [build40300118675](https://github.com/RobertDWhite/condo/actions/runs/40300118675) must pass a fresh exact-image scan and restored-data tests. Earlier baseline tests now cover auth denial, organization/property/resident operations and real address normalization. These do not establish acceptance of the replacement image. See the progress ledger for details; this update supersedes the older Condo build handle below.
+
 ### Verified findings and limits
 
 - Live snapshot: **462 Running pods, 261 distinct main-container runtime digests, 194 matching report digests, 67 unmatched, 680 vulnerability reports**. Digest matching is a lower bound, not freshness or complete coverage. Init/ephemeral containers, platform aliases and private archives still require reconciliation.
