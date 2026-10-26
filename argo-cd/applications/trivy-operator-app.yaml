@@ -16,7 +16,7 @@ spec:
         image:
           registry: ghcr.io
           repository: robertdwhite/trivy-operator-security
-          tag: sha-725e0fe4137ae85084a49595aa692e9d612bdc7e@sha256:9de32e7e34a5129d3a5fde7bbb5d1b92a6a5f4229faa910ee85b3a22031cbfe1
+          tag: sha-64ed6ff6168d50bdd2fa3c7d3157d43b1e8cdf6f@sha256:fd36c01268358e6324f2a503f6f4ae462c64f80ab545747e26ec4ae910e8625c
 
         # Only verified workers receive this label after the tracked kubelet drop-in.
         trivyOperator:
@@ -27,7 +27,16 @@ spec:
         podAnnotations:
           security.white.fm/scan-config-revision: "20261026-retention-pool-v1"
 
+        # Baseline resident memory ~1.8Gi; allow partition growth within a bound.
+        resources:
+          requests:
+            cpu: 100m
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+
         operator:
+          scannerReportTTL: "24h"
           # Keep new SBOM generation separate from the compatibility rollout.
           sbomGenerationEnabled: false
           scanJobsConcurrentLimit: 5
