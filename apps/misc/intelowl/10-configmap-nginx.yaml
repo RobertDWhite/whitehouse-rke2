@@ -25,14 +25,14 @@ data:
       alias /var/www/static/;
     }
     location / {
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_set_header Host $http_host;
-      proxy_redirect off;
-      proxy_pass http://django;
-      proxy_connect_timeout 300;
-      proxy_send_timeout 300;
-      proxy_read_timeout 300;
+      include /etc/nginx/uwsgi_params;
+      uwsgi_param HTTP_X_FORWARDED_FOR $proxy_add_x_forwarded_for;
+      uwsgi_param HTTP_X_FORWARDED_PROTO $scheme;
+      uwsgi_param HTTP_HOST $http_host;
+      uwsgi_pass django;
+      uwsgi_connect_timeout 300;
+      uwsgi_send_timeout 300;
+      uwsgi_read_timeout 300;
     }
   websocket.conf: |
     location /ws {
