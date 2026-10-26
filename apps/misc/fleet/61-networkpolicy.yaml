@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fleet-ingress
+  namespace: fleet
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    # Server/database/cache traffic, migrations, and backup/GitOps jobs.
+    - from:
+        - podSelector: {}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: envoy
+              gateway.envoyproxy.io/owning-gateway-name: main
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Preserve the existing MySQL exporter and annotated server scrape ports.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 9104
+        - protocol: TCP
+          port: 9100
