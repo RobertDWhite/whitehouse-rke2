@@ -17,6 +17,12 @@
 
 Private inventory: `~/Library/Application Support/whitehouse-security/assessment-refresh-20261026/posture-plan-refresh.json`. Full MISP scans and checksum receipts: `candidate-scans-20261026/misp-modules-{baseline,v311}*` beneath the same private security root. Detailed previous deployment proof: `PATCHING-PROGRESS-2026-10-26.md`. No credentials or raw application records belong in Git or upstream PRs.
 
+### Execution update — Ombi and MISP
+
+Ombi ingress containment is deployed (fe55c77d), and the restored/scanned v4.53.10-ls274 image is now pinned and deployed (426595c3). Gateway/legacy ingress/monitoring and anonymous denial pass; unrelated traffic remains blocked. Candidate scans on both platforms show 0C/0H/37M/6L, with one fixable medium zlib finding remaining. Backups and restore evidence are private; see the progress ledger. Continue containment with watch-badges/yeti and prioritize fresh scans of IntelOwl/OpenClaw/Hermes/FlareSolverr alongside remaining image builds.
+
+MISP build40337521702 is completed/success, not running. PR482 remains draft pending a published final image, full scan and broader acceptance; its CI uses push:false.
+
 ### Ordered patch batches
 
 | Order | Executable change | Acceptance gate | Rollback / dependency |
