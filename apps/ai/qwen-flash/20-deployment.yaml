@@ -20,10 +20,11 @@ spec:
   # vm.dirty_background_bytes=256M, vm.min_free_kbytes=1G). Without it, Longhorn
   # rebuild writes filled up to 20% of the unified pool with dirty pages and the
   # node hung with vLLM loaded (2026-10-16/17).
-  # 2026-10-21 to 2026-10-25 this was 0 while Longhorn resynced after the
-  # full-cluster reboot (node-10 hard-reset 3 times under vLLM + rebuild writes).
-  # Before scaling up after a big Longhorn event, check that volumes are healthy.
-  replicas: 1
+  # 0 again since 2026-10-26: scaling to 1 on 2026-10-26 hard-reset node-10 about
+  # 2 minutes after vLLM finished loading (74.6 GiB weights + 12 GiB KV), even with
+  # Longhorn healthy and the dirty-page sysctls in place. Do not scale up until the
+  # cause is understood. Earlier: 0 from 2026-10-21 while Longhorn resynced.
+  replicas: 0
   # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
