@@ -90,3 +90,5 @@ Full Argo candidate follow-up: source309a7ec/build40277458340 rebuilds the main 
 Backoffice segmentation batch is deployed (e3572dfd) with verified negative ingress/egress and positive web/API/database/Kubernetes/gateway/Authentik/NGINX paths; see the progress ledger for exact evidence and limits. Retain Backoffice dependency/image and token/RBAC review in the remaining queue. Helper-only Argo scans now show only two high findings, both addressed in the full build40277458340 still pending. Neither change completes the fleet plan.
 
 Backoffice image remediation is now in draft PR RobertDWhite/backoffice#1, source42dadfb/build40278674722. It remains a candidate until Linux builds, full image scans, restored database validation and runtime checks pass. Existing containment stays in force.
+
+Latest candidate results: full Argo309a7ec has0critical/0high and matching rendering, but malformed version metadata required correction2a20e75/build40280086871. Backoffice web has no scan findings; API has0critical/44high with no listed high fixes and passes isolated restored-DB note lifecycle tests. Exact corrected-image and frontend/production gates remain open.
