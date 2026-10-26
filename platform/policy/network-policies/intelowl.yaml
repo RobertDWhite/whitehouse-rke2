@@ -1,10 +1,5 @@
-# =============================================================
-# intelowl namespace — IntelOwl threat-intel platform
-# =============================================================
-# Internal: postgres, redis, rabbitmq, web (nginx + uwsgi), daphne, celery
-# Needs intra-namespace ingress so workers and web can talk to backends.
-# =============================================================
-
+# IntelOwl: narrow ingress by application role, gateway and monitor.
+# Egress remains unrestricted for analyzer integrations pending a flow review.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -12,8 +7,9 @@ metadata:
   namespace: intelowl
 spec:
   podSelector: {}
-  policyTypes: [Ingress, Egress]
-
+  policyTypes:
+  - Ingress
+  - Egress
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -22,22 +18,10 @@ metadata:
   namespace: intelowl
 spec:
   podSelector: {}
-  policyTypes: [Egress]
+  policyTypes:
+  - Egress
   egress:
-    - {}
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-intra-namespace
-  namespace: intelowl
-spec:
-  podSelector: {}
-  policyTypes: [Ingress]
-  ingress:
-    - from: [{podSelector: {}}]
-
+  - {}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -45,19 +29,180 @@ metadata:
   name: allow-ingress
   namespace: intelowl
 spec:
-  podSelector: {}
-  policyTypes: [Ingress]
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-web
+  policyTypes:
+  - Ingress
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: uptime-kuma
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: observability
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: envoy
+          gateway.envoyproxy.io/owning-gateway-name: main
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-bootstrap
+  namespace: intelowl
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-web
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - intelowl-web
+          - intelowl-daphne
+          - intelowl-celery-worker
+          - intelowl-celery-beat
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 8001
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-daphne
+  namespace: intelowl
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-daphne
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: intelowl-web
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 8011
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres
+  namespace: intelowl
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - intelowl-web
+          - intelowl-daphne
+          - intelowl-celery-worker
+          - intelowl-celery-beat
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis
+  namespace: intelowl
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - intelowl-web
+          - intelowl-daphne
+          - intelowl-celery-worker
+          - intelowl-celery-beat
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-rabbitmq
+  namespace: intelowl
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: intelowl-rabbitmq
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values:
+          - intelowl-web
+          - intelowl-daphne
+          - intelowl-celery-worker
+          - intelowl-celery-beat
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: uptime-kuma
+      podSelector:
+        matchLabels:
+          app: uptime-kuma
+    ports:
+    - protocol: TCP
+      port: 5672
