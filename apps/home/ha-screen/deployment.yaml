@@ -32,10 +32,10 @@ spec:
               value: http://10.100.1.30:8123
             - name: DASHBOARD_PATH
               value: /ha-screen/main
-            # Each minute: the normal layout, its mirror image, then the kids' cameras. Moving
-            # things around (and the few-pixel shift) keeps static elements from burning in.
+            # Alternate information and kids' cameras every 15 seconds. Use the mirrored
+            # information layout on every other pass, preserving the existing pixel shift.
             - name: ROTATION
-              value: /ha-screen/main:25,/ha-screen/flip:25,/ha-screen/cams:10
+              value: /ha-screen/main:15,/ha-screen/cams:15,/ha-screen/flip:15,/ha-screen/cams:15
             - name: JITTER_PX
               value: "8"
             # The master bath Samsung overscans: keep everything inside a 5% safe area.
