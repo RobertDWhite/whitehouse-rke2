@@ -5,9 +5,9 @@
 # all local decoders are scaled to 0.
 #
 # To enable:
-#   kubectl label node rke2-node-11 sdr.white.fm/rx888-remote-enabled=true
+#   kubectl label node rke2-node-15 sdr.white.fm/rx888-remote-enabled=true
 # To disable again:
-#   kubectl label node rke2-node-11 sdr.white.fm/rx888-remote-enabled-
+#   kubectl label node rke2-node-15 sdr.white.fm/rx888-remote-enabled-
 #
 # Build and push the image before deploying:
 #   docker buildx build --platform linux/amd64 --push \
@@ -28,7 +28,7 @@ spec:
         app: rx888-soapy
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-11
+        kubernetes.io/hostname: rke2-node-15
         sdr.white.fm/rx888-remote-enabled: "true"
       containers:
         - name: rx888-soapy
