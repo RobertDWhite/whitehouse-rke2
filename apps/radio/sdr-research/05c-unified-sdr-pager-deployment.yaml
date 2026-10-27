@@ -1,14 +1,14 @@
-# Third unified-sdr instance for VHF public safety / pager frequencies.
-# Connects to the rtl-tcp service (RTL-SDR serial 00000001, port 1234).
-# Always-on at 155 MHz center covering 153.8–156.2 MHz (police/fire/EMS/pager).
-# No scanning — continuous monitoring.
+# Third unified-sdr instance on the otherwise idle RTL-SDR serial 00000001
+# (rtl-tcp service, port 1234, dongle on rke2-node-13). Dwells on 1.25m and
+# hops to NOAA WX/marine and VHF public safety. Runs on node-10 (nodes 11/13
+# are full on CPU requests); it only needs the network to reach rtl_tcp.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: unified-sdr-pager
   namespace: sdr-research
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -19,8 +19,14 @@ spec:
       labels:
         app: unified-sdr-pager
     spec:
+      # node-10 is tainted dedicated=llm:NoSchedule; unified-sdr runs there too.
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: llm
+          effect: NoSchedule
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-13
+        kubernetes.io/hostname: rke2-node-10
       containers:
         - name: unified-sdr-pager
           image: librespace/gnuradio
@@ -35,20 +41,24 @@ spec:
             - name: CAPTURE_ID
               value: "pager"
             - name: FIXED_MONITOR_HZ
-              # 152.480 MHz — common POCSAG pager frequency within 153 MHz capture band
-              value: "152480000"
+              # K8YOJ Batavia 224.000 (~11 km)
+              value: "224000000"
             - name: SAMPLE_RATE
               value: "2400000"
             - name: DWELL_CENTER_HZ
-              # 155 MHz center covers 153.8–156.2 MHz (VHF public safety + pager)
-              value: "155000000"
+              # 223.6 MHz covers ~222.4-224.8: 1.25m repeaters (5 within 55 km)
+              value: "223600000"
             - name: SCAN_CENTERS
-              # No scanning — always-on continuous monitoring
-              value: "[]"
+              # 162.0 (160.8-163.2: NOAA WX + marine) and 155.0 (153.8-156.2:
+              # VHF public safety + pager)
+              value: "[162000000, 155000000]"
+            - name: FM_RECORD_BANDS_HZ
+              # Default stops at 162.0 MHz and would miss NOAA WX (162.40-162.55).
+              value: "150000000-162600000,222000000-225000000"
             - name: DWELL_SEC
-              value: "45"
+              value: "60"
             - name: SCAN_SEC
-              value: "5"
+              value: "8"
             - name: NUM_DYN_FM
               value: "8"
             - name: NUM_DYN_CW
@@ -56,7 +66,7 @@ spec:
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
-              value: "false"
+              value: "true"
             - name: SQUELCH_OPEN_DB
               # Raised from -55: public safety channels have constant carrier;
               # need higher threshold to only trigger on voice modulation

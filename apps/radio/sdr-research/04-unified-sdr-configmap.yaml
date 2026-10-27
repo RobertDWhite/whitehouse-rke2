@@ -765,6 +765,9 @@ data:
                         self.tb.clear_dynamic_slots()
                     self.tb.retune(center)
                     self.tb.inhibit_recordings(RF_SETTLE_SEC)
+                    # The fixed monitor's offset is relative to DWELL_CENTER, so
+                    # off-dwell it hears the wrong frequency; keep it closed.
+                    self.tb.rec_fixed.set_inhibit(SCAN_SEC + RF_SETTLE_SEC)
                     time.sleep(SCAN_SEC)
 
                 # Return to primary

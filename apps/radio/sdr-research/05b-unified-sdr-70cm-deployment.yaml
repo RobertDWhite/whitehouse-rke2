@@ -42,20 +42,22 @@ spec:
             - name: CAPTURE_ID
               value: "70cm"
             - name: FIXED_MONITOR_HZ
-              value: "433920000"
+              # K8DV Owensville 443.450 (analog FM, ~18 km)
+              value: "443450000"
             - name: SAMPLE_RATE
               value: "2400000"
             - name: DWELL_CENTER_HZ
-              # 432 MHz = center of 70cm amateur band (430-440 MHz)
-              value: "432000000"
+              # 443.5 MHz covers ~442.3-444.7: most local 70cm repeater outputs
+              # (RepeaterBook: 10 within 40 km, all 442-445). 432 had none.
+              value: "443500000"
             - name: SCAN_CENTERS
-              # Scanning disabled — retune causes GNURadio SIGSEGV (graph thread race).
-              # 432 MHz center + 2.4 MHz BW covers 430.8–433.2 MHz (simplex + repeater inputs).
-              value: "[]"
+              # Hops: 446.0 (444.8-447.2, national simplex) and 432.0 (weak
+              # signal/ISM). Watch for the old retune SIGSEGV after enabling.
+              value: "[446000000, 432000000]"
             - name: DWELL_SEC
-              value: "45"
+              value: "60"
             - name: SCAN_SEC
-              value: "5"
+              value: "8"
             - name: NUM_DYN_FM
               value: "8"
             - name: NUM_DYN_CW
@@ -63,7 +65,7 @@ spec:
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
-              value: "false"
+              value: "true"
             - name: SQUELCH_OPEN_DB
               value: "-55"
             - name: SQUELCH_CLOSE_DB

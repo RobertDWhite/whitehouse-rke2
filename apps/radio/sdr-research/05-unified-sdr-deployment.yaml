@@ -52,15 +52,15 @@ spec:
               # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz
               value: "146000000"
             - name: SCAN_CENTERS
-              # Scanning disabled — retune causes double-free crash in SoapyRemote/osmosdr.
-              # Re-enable when a dedicated SDR covers airband/pager/weather.
-              # Was: [130000000, 153000000, 162500000]
-              value: "[]"
+              # Hops between 2m dwells (6 MHz each): 10m FM (25.9-31.9),
+              # 6m (49.5-55.5), marine + NOAA WX (156.6-162.6). The old
+              # double-free was in SoapyRemote; this uses native airspy.
+              value: "[28900000, 52500000, 159600000]"
             - name: DWELL_SEC
               # Longer dwell: 6 MHz BW captures all 2m activity simultaneously
               value: "60"
             - name: SCAN_SEC
-              value: "5"
+              value: "8"
             - name: NUM_DYN_FM
               # 12 slots for 6 MHz BW — captures concurrent 2m activity
               value: "12"
@@ -72,7 +72,9 @@ spec:
             - name: SLOT_RECYCLE_SEC
               value: "300"
             - name: CLEAR_SLOTS_ON_RETUNE
-              value: "false"
+              # Slots hold offsets from the center they were assigned at;
+              # clear them on every retune so recordings keep correct labels.
+              value: "true"
             - name: SQUELCH_OPEN_DB
               value: "-50"
             - name: SQUELCH_CLOSE_DB
@@ -105,7 +107,8 @@ spec:
               # Bandplan-true 2m FM voice only: APRS slice + repeater outputs
               # + simplex/repeaters. The Airspy's spur forest lives at
               # 144.4-145.1 and 145.5-146.0 where no US FM voice exists.
-              value: "144380000-144400000,145100000-145500000,146000000-148000000"
+              # Scan hops add 10m FM, 6m, and marine + NOAA WX.
+              value: "144380000-144400000,145100000-145500000,146000000-148000000,29500000-29700000,51000000-54000000,156000000-162600000"
             - name: NOISE_GUARD_ROLLOVERS
               # Deactivate + blocklist a channel after this many consecutive
               # max-duration rollovers (spur signature: squelch never drops).
