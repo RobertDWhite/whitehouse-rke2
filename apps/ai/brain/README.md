@@ -57,6 +57,15 @@ When a folder's git tree changes, brain-sync deploys it through the pages MCP
 so edits made straight to the pages host don't stick. Removing a folder does not
 delete the site; sites without a folder are untouched.
 
+Each entity rebuild also builds a link graph of the repo: every Markdown note
+as a node, every `[[wikilink]]` or relative `.md` link between two notes as an
+undirected edge, resolved the way Obsidian does. Only note paths, folders and
+dates are included, never note text. brain-sync keeps it in memory and serves
+it as `GET /graph.json` (gzip, ETag). The HTTPRoute
+`apps/ai/pages/57-httproute-graph.yaml` exposes that one path on
+`graph.pages.internal.white.fm`, whose viewer is a `Pages/` site, so the data is
+always current and never goes through the pages host or its git mirror.
+
 Two optional files in the brain repo (not here) tune how recordings render;
 editing either re-renders every recording once:
 
