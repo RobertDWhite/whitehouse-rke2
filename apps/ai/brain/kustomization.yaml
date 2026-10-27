@@ -12,6 +12,7 @@ resources:
   - 54-httproute-mcp.yaml
   - 50-briefing-cronjob.yaml
   - 55-messages-cronjob.yaml
+  - 56-imports-cronjob.yaml
   - 60-networkpolicy.yaml
   - 62-referencegrant-pages.yaml
 
@@ -36,6 +37,10 @@ configMapGenerator:
     namespace: brain
     files:
       - messages/messages_sync.py
+  - name: brain-imports-script
+    namespace: brain
+    files:
+      - imports/brain_imports.py
   - name: repo-mirror
     namespace: brain
     options:

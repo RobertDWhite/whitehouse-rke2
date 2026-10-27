@@ -1,0 +1,99 @@
+# brain-imports: every 30 minutes, runs the import scripts listed in the brain repo's
+# .brain/imports.json and commits what they write (script: imports/brain_imports.py).
+# The scripts are code from the brain repo, so they run in the "run" init container,
+# which has no secrets; "fetch" and "commit" hold the Forgejo token. Commits as the
+# brain-sync bot.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: brain-imports
+  namespace: brain
+spec:
+  schedule: "15,45 * * * *"
+  timeZone: America/New_York
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1740
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: brain-imports
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: fetch
+              image: python
+              command: [python3, -u, /app/brain_imports.py, fetch]
+              env: &forgejo-env
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: BRAIN_REPO
+                  value: WhiteHouse/brain
+                - name: FORGEJO_URL
+                  value: http://forgejo.forgejo.svc.cluster.local
+                - name: FORGEJO_TOKEN
+                  valueFrom:
+                    secretKeyRef: {name: brain-sync-env, key: FORGEJO_TOKEN}
+              volumeMounts: &mounts
+                - {name: script, mountPath: /app, readOnly: true}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+              resources: &resources
+                requests: {cpu: 20m, memory: 128Mi}
+                limits: {cpu: "1", memory: 768Mi}
+              securityContext: &container-security
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+            - name: run
+              image: python
+              command: [python3, -u, /app/brain_imports.py, run]
+              env:
+                - name: TZ
+                  value: America/New_York
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: SCRIPT_TIMEOUT_SECONDS
+                  value: "1500"
+                # Shared Ollama router (OpenAI-compatible), for imports that need an LLM.
+                - name: LLM_URL
+                  value: http://ollama-router.ai-stack.svc.cluster.local:11434/v1
+                - name: LLM_MODEL
+                  value: qwen3.8:27b
+              volumeMounts: *mounts
+              resources: *resources
+              securityContext: *container-security
+          containers:
+            - name: commit
+              image: python
+              command: [python3, -u, /app/brain_imports.py, commit]
+              env: *forgejo-env
+              volumeMounts: *mounts
+              resources: *resources
+              securityContext: *container-security
+          volumes:
+            - name: script
+              configMap:
+                name: brain-imports-script
+            - name: work
+              emptyDir:
+                sizeLimit: 2Gi
+            - name: tmp
+              emptyDir:
+                sizeLimit: 256Mi

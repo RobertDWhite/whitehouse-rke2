@@ -333,6 +333,38 @@ Run now: `kubectl -n brain create job --from=cronjob/brain-messages messages-man
 Preview without writing: run the script with `DRY_RUN=1 OUT_DIR=/tmp/out`
 (renders into that directory and keeps its own index there).
 
+## brain-imports
+
+CronJob `brain-imports` (`56-imports-cronjob.yaml`, at :15 and :45) runs import
+scripts that live in the brain repo itself, for sources that have no API worth
+a brain-sync module (script: `imports/brain_imports.py`, standard-library
+Python). What runs is decided only by `.brain/imports.json` in the brain repo:
+
+```json
+{"imports": [{"script": "<folder>/<path>.py", "dest": "<folder>", "reads": ["<path>"]}]}
+```
+
+- `dest`: the folder the script owns. Not `.brain/`, `$ENTITIES_DIR` or `Pages/`.
+- `script`: must be inside `dest`; run as `python3 -I <script>` from a copy of
+  the repo that holds only `dest` and the `reads` paths.
+- `reads`: other repo paths the script may read (optional).
+
+One pod runs three containers in turn, so code from the brain repo never shares
+a container with a token:
+
+| Step | Secrets | Does |
+| --- | --- | --- |
+| `fetch` (init) | `FORGEJO_TOKEN` | Downloads `main` and copies each import's `dest` and `reads` into an emptyDir. |
+| `run` (init) | none | Runs each script (`SCRIPT_TIMEOUT_SECONDS`, 1500). It may use the network and the shared Ollama router (`LLM_URL`, `LLM_MODEL`). |
+| `commit` | `FORGEJO_TOKEN` | Replaces `dest` in the repo with what the script left there, as one commit labeled `import <dest>`. |
+
+A script that exits non-zero or times out changes nothing. If `dest` changed in
+the repo while the script ran (e.g. a hand edit), that import is skipped and
+the next run retries. Imported notes count as entity mentions like any other
+note. Commits as `brain-sync`.
+
+Run now: `kubectl -n brain create job --from=cronjob/brain-imports imports-manual`.
+
 ## Brain Matrix room
 
 Private, end-to-end encrypted room "Brain" (`!izMvHnoMYeLtxUakoz:white.fm`) with
