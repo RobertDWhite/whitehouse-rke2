@@ -29,7 +29,7 @@ spec:
         # start (update-oauth) so the DB always matches the forgejo-oidc Secret.
         # Runs before the web container, so nothing else holds the SQLite DB.
         - name: oauth-source
-          image: codeberg.org/forgejo/forgejo
+          image: data.forgejo.org/forgejo/forgejo
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
@@ -83,7 +83,7 @@ spec:
               drop: [ALL]
       containers:
         - name: forgejo
-          image: codeberg.org/forgejo/forgejo
+          image: data.forgejo.org/forgejo/forgejo
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
