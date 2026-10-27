@@ -120,9 +120,12 @@ spec:
             - name: ENERGY_THRESH_DB
               value: "10"
             - name: RF_GAIN
-              # Airspy Mini gain index (0–21); 18 provides sufficient signal
-              # to exceed RF squelch -40 dBFS in narrowband channels.
-              value: "18"
+              # Airspy Mini gain index (0–21). Overload-limited by local FM
+              # broadcast: at 18 the 88–108 MHz band hit -11 dBFS and the 2m
+              # floor rose ~1 dB per dB of gain. Measured 2026-10-27, NOAA WX
+              # carrier SNR was 24 dB at 8 vs 18 dB at 18. Auto-squelch
+              # re-learns the lower floor on its own.
+              value: "8"
             - name: PPM_CORRECTION
               # Airspy Mini has factory-calibrated TCXO; PPM correction not needed
               value: "0"
