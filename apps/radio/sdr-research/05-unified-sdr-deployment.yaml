@@ -91,6 +91,11 @@ spec:
               # Raise if noise blips open the gate; lower if weak stations are missed.
               # Watch the [SQL] lvl/floor/thr telemetry lines to tune from data.
               value: "8"
+            - name: AUTO_SQUELCH_MIN_DB
+              # Lowest allowed threshold (script default -70). At RF_GAIN 8 the
+              # 2m floor is ~-79 dB, so -70 pinned the gate 9+ dB above noise
+              # and nothing opened in 4.5 h; -85 lets floor+margin apply.
+              value: "-85"
             - name: NOISE_DISCARD_RMS_DB
               # Measured over ACTIVE (non-squelch-gated) samples: noise bursts
               # ~-7 dB, real voice ~-15 dB. Anything at/above this is discarded
@@ -134,7 +139,9 @@ spec:
               cpu: 750m
               memory: 1Gi
             limits:
-              cpu: 3000m
+              # 6 MS/s pipeline used the full 3-core limit and dropped samples
+              # (airspy overflows); node-10 has 20 cores.
+              cpu: 6000m
               memory: 4Gi
           readinessProbe:
             exec:
