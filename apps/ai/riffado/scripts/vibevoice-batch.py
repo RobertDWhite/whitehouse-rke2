@@ -1,20 +1,18 @@
-"""Transcribe Riffado recordings with VibeVoice and re-summarize them.
+"""Backfill: transcribe older Riffado recordings with VibeVoice and re-summarize them.
 
 Usage (from a machine with cluster access; see ../README.md):
     kubectl -n ai-stack port-forward svc/ollama-5090 11434:11434 &
     python3 vibevoice-batch.py                 # every recording not yet on VibeVoice
     python3 vibevoice-batch.py <id> [<id>...]  # just these, even if already done
 
-Riffado v0.6.4 (Bun) drops provider requests after ~4-5 min and its OpenAI SDK
-retries into VibeVoice's 429, so anything VibeVoice needs longer than that for
-can't go through /transcribe. Instead a detached Bun job inside the Riffado pod
-posts the audio straight to VibeVoice (no timeout) and saves the text through
-Riffado's own from-browser endpoint; summaries go through /summary the same
-way. Jobs survive dropped exec streams.
+New recordings no longer need this: VibeVoice is the default provider for Plaud
+sync. A detached Bun job inside the Riffado pod posts the audio straight to
+VibeVoice and saves the text through Riffado's own from-browser endpoint;
+summaries go through /summary the same way. Jobs survive dropped exec streams.
 
 It signs a short-lived Better Auth session for the household account with
-BETTER_AUTH_SECRET and deletes it at the end. It scales vibevoice up first and
-back to 0 when done, and unloads ollama-5090 before each transcription.
+BETTER_AUTH_SECRET and deletes it at the end. It unloads ollama-5090 before
+each transcription.
 """
 import base64, hashlib, hmac, json, secrets, subprocess, sys, time, urllib.parse, urllib.request
 
@@ -130,20 +128,11 @@ def run_job(job, max_minutes):
     return {"status": 0, "step": "timeout", "minutes": max_minutes}
 
 
-def scale(n):
-    subprocess.run(["kubectl", *KC, "-n", "riffado", "scale", "deployment/vibevoice",
-                    f"--replicas={n}"], check=True, capture_output=True)
-    if n:
-        subprocess.run(["kubectl", *KC, "-n", "riffado", "rollout", "status",
-                        "deployment/vibevoice", "--timeout=30m"], check=True)
-
-
 def main():
     users = sql("select id from users").splitlines()
     if len(users) != 1:
         sys.exit(f"expected one Riffado user, found {len(users)}")
     user_id = users[0]
-    scale(1)
     sql("delete from sessions where user_agent = 'vibevoice-batch'")
     token = secrets.token_urlsafe(24)
     sid = "batch-" + secrets.token_hex(6)
@@ -191,8 +180,6 @@ def main():
     finally:
         sql(f"delete from sessions where id = '{sid}'")
         log("session removed")
-        scale(0)
-        log("vibevoice scaled to 0")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ https://github.com/riffado/riffado (AGPL-3.0).
 | `riffado-postgres` | StatefulSet on Longhorn | Postgres 16. Longhorn, not NFS: Postgres on NFS is a corruption risk. |
 | `riffado-postgres-logical-backup` | CronJob 05:40 daily | `pg_dump` to the Synology so the DB is recoverable even if Longhorn is not. 14-day retention. |
 | `speaches` | Deployment, GPU on rke2-node-50 | faster-whisper behind an OpenAI-compatible `/v1/audio/transcriptions`. Loads `large-v3-turbo` in fp16 and keeps it resident. |
-| `vibevoice` | Deployment, GPU on rke2-node-50, **0 replicas** | VibeVoice-ASR with speaker labels, scaled up by hand for a transcription. See below. |
+| `vibevoice` | Deployment, GPU on rke2-node-50 | VibeVoice-ASR with speaker labels; Riffado's default transcription provider. See below. |
 | Audio + backups | NFS `10.100.1.20:/volume1/Personal`, subPaths `Riffado/audio`, `Riffado/db-backups` | Permanent storage on the NAS, same share Gramps uses. |
 
 Summaries use the GB10 Ollama (`http://ollama.ai-stack.svc.cluster.local:11434/v1`).
@@ -45,8 +45,8 @@ stored token/API key/transcript, so it is in the SOPS file and nowhere else.
 
 ## Speaker-labelled transcripts (VibeVoice)
 
-speaches returns plain text. For the occasional recording where who said what
-matters, `vibevoice` runs Microsoft's
+speaches returns plain text, so Plaud sync transcribes with `vibevoice`
+instead. It runs Microsoft's
 [VibeVoice-ASR](https://huggingface.co/microsoft/VibeVoice-ASR) through
 [swallace17/vibevoice-k8s](https://github.com/swallace17/vibevoice-k8s) at
 `f5fb110`. It returns `[hh:mm:ss] Speaker N` blocks in the transcript text. It
@@ -54,10 +54,9 @@ splits recordings over 12 minutes into ~10-minute chunks near pauses and matches
 voices across the chunks. Speaker numbers are anonymous and apply to one
 recording only.
 
-It is **off by default** (Argo ignores its replicas). Its model peaks at
-~21.5 GiB of VRAM on the 5090 alongside everything else on node-50. Plaud sync
-keeps going to speaches. To transcribe recordings with it, run
-[`scripts/vibevoice-batch.py`](scripts/vibevoice-batch.py) from a machine
+Its model peaks at ~21.5 GiB of VRAM on the 5090 alongside everything else on
+node-50. speaches stays up for clean-audio-mcp. To backfill older recordings,
+run [`scripts/vibevoice-batch.py`](scripts/vibevoice-batch.py) from a machine
 with cluster access:
 
 ```sh
@@ -66,21 +65,18 @@ python3 apps/ai/riffado/scripts/vibevoice-batch.py              # all not yet on
 python3 apps/ai/riffado/scripts/vibevoice-batch.py <id> [<id>]  # these, even if done
 ```
 
-It scales vibevoice up, transcribes each recording, re-runs every summary,
-then scales vibevoice back to 0. The first start downloads ~16 GiB of
-weights to the NVMe. Riffado lists these transcripts with provider `browser`
-and model `vibevoice-asr`.
+It transcribes each recording and re-runs every summary. The first start
+downloads ~16 GiB of weights to the NVMe. Riffado lists these transcripts with
+provider `browser` and model `vibevoice-asr`; the Re-transcribe button works
+too.
 
-**Why not Riffado's Re-transcribe button:** v0.6.4 runs on Bun, and its
-provider requests are cut off after ~4-5 minutes whatever
-`WHISPER_REQUEST_TIMEOUT_MS` says. The OpenAI SDK then retries into
-VibeVoice's single-request lock (HTTP 429) and the job is lost. The button
-only works for recordings of about 10 minutes or less. The script instead
-runs a detached Bun job in the Riffado pod that posts the audio to VibeVoice
-with no timeout and saves the result through Riffado's own
-`transcription/from-browser` endpoint. Summaries hit the same cutoff, but the
-SDK's retry usually succeeds; a 90-minute summary took 14 minutes
-(2026-10-20).
+**Bun idle timeout:** v0.6.4 runs on Bun, whose fetch drops a response that
+sends nothing for 300 s, whatever `WHISPER_REQUEST_TIMEOUT_MS` says. VibeVoice
+sends nothing until the transcript is done, so every request over ~5 min was
+lost (the OpenAI SDK then retried into VibeVoice's HTTP 429). Summaries hit
+the same cutoff. `BUN_CONFIG_HTTP_IDLE_TIMEOUT=21600` (seconds) in
+`20-deployment.yaml` lifts it; verified on Bun 1.3.14 in the Riffado image
+(2026-10-27).
 
 Throughput on 2026-10-20, sharing the 5090: 16-57 min recordings took 2-7 min
 each. Chunks where the model loops until it hits its output limit take ~15 min
@@ -88,10 +84,10 @@ before they are split and retried; 38 and 90 min recordings took 31 and 29 min.
 Long recordings over-split speakers (11 labels for 90 min), because
 cross-chunk matching only merges confident matches.
 
-Riffado provider (one-time): Custom, base URL
-`http://vibevoice.riffado.svc.cluster.local/v1`, model **`vibevoice-asr`**
-exactly (a name containing `diarize` takes Riffado's OpenAI diarization path).
-The API key is `VIBEVOICE_API_KEY` in `11-secret.sops.yaml`.
+Riffado provider (one-time, set as the default transcription provider):
+Custom, base URL `http://vibevoice.riffado.svc.cluster.local/v1`, model
+**`vibevoice-asr`** exactly (a name containing `diarize` takes Riffado's OpenAI
+diarization path). The API key is `VIBEVOICE_API_KEY` in `11-secret.sops.yaml`.
 
 Requests are synchronous and one at a time (a second gets HTTP 429). Each loads
 the model and exits, so idle VRAM is ~0. `WHISPER_REQUEST_TIMEOUT_MS` is 6 h to
@@ -120,7 +116,7 @@ buildctl-daemonless.sh build --frontend=dockerfile.v0 \
 Then on node-50:
 `ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import vibevoice.tar`
 (`ctr` lives under `/var/lib/rancher/rke2/data/*/bin/`), then pin it so kubelet
-image GC leaves it alone while the Deployment is at 0 replicas:
+image GC leaves it alone whenever the Deployment is scaled to 0:
 `ctr ... images label <image> io.cri-containerd.pinned=pinned`. Remove the
 tarball and BuildKit state afterwards, and update the tag in
 `54-vibevoice-deployment.yaml`. node-50's root disk was 89% full after the

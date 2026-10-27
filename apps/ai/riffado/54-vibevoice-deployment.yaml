@@ -3,13 +3,13 @@
 # https://github.com/swallace17/vibevoice-k8s (f5fb110). Recordings over 12 min
 # are split near pauses and speakers are matched across chunks.
 #
-# On demand only: replicas is 0 here and Argo ignores /spec/replicas, so it is
-# scaled up for a transcription and back down after (see README.md). speaches
-# stays the default provider for Plaud sync.
+# Riffado's default transcription provider, so Plaud sync gets speaker labels.
+# speaches stays up for clean-audio-mcp.
 #
-# A request loads the model (~21.5 GiB VRAM peak) and frees it when done. The 5090
-# has no VRAM isolation, so the unload-ollama init container evicts whatever
-# ollama-5090 has resident (up to 2h keep-alive) before this starts.
+# A request loads the model (~21.5 GiB VRAM peak) and frees it when done, so idle
+# VRAM is ~0. The 5090 has no VRAM isolation; the unload-ollama init container
+# only frees ollama-5090 at pod start, after that a chunk that runs out of room
+# is retried smaller.
 #
 # Image built on node-50 with BuildKit, imported straight into its containerd and
 # pinned against image GC (the registry is too full for it), hence
@@ -23,7 +23,7 @@ metadata:
   labels:
     app: vibevoice
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
