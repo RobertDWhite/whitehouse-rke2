@@ -13,6 +13,7 @@ Standard library only, so it runs on the stock python image.
 import base64
 import email.header
 import email.utils
+import gzip
 import hashlib
 import html
 import io
@@ -2129,6 +2130,55 @@ def sync_hubspot():
 _entities_last = (0.0, "")
 
 
+# -------------------------------------------------------------- Link graph
+
+# [[target]], [[target|label]], [[target#heading]]; and [label](relative/path.md)
+WIKILINK_RE = re.compile(r"\[\[([^\[\]|#^]+)[^\[\]]*\]\]")
+MDLINK_RE = re.compile(r"\]\(([^()\s]+?\.md)(?:#[^()\s]*)?\)")
+_graph = (b"", b"", "")  # (json, gzipped json, etag) served at /graph.json
+
+
+def build_graph(files, head=""):
+    """Every note and the links between them: what Obsidian's graph view shows.
+
+    Links resolve like Obsidian's: a full repo path, else a path relative to the
+    note, else the shortest path whose file name matches. Links are undirected.
+    Only names, folders and dates are included, never note text.
+    """
+    notes = sorted(p for p in files if p.endswith(".md") and not p.startswith(".brain/"))
+    index = {p[:-3].casefold(): i for i, p in enumerate(notes)}
+    by_name = {}
+    for i, p in sorted(enumerate(notes), key=lambda x: (len(x[1]), x[1])):
+        by_name.setdefault(p.rsplit("/", 1)[-1][:-3].casefold(), i)
+    groups, nodes, edges = [], [], set()
+    for i, path in enumerate(notes):
+        text = files[path]
+        folder = path.rsplit("/", 1)[0] if "/" in path else ""
+        targets = [m.group(1).strip() for m in WIKILINK_RE.finditer(text)]
+        targets += [urllib.parse.unquote(m.group(1)) for m in MDLINK_RE.finditer(text) if "://" not in m.group(1)]
+        for t in targets:
+            t = t.removesuffix(".md").strip("/").casefold()
+            rel = os.path.normpath(f"{folder}/{t}").casefold() if folder else t
+            j = index.get(t, index.get(rel, by_name.get(t.rsplit("/", 1)[-1])))
+            if j is not None and j != i:
+                edges.add((min(i, j), max(i, j)))
+        group = mention_group(path)
+        if group not in groups:
+            groups.append(group)
+        nodes.append([path[:-3], groups.index(group), note_date(path, parse_frontmatter(text))])
+    return {"generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "commit": head,
+            "ui": f"{BRAIN_UI}/{REPO}/src/branch/{BRANCH}/" if BRAIN_UI else "",
+            "groups": groups, "nodes": nodes, "links": [x for e in sorted(edges) for x in e]}
+
+
+def update_graph(files, head):
+    global _graph
+    graph = build_graph(files, head)
+    body = json.dumps(graph, separators=(",", ":"), ensure_ascii=False).encode()
+    _graph = (body, gzip.compress(body, 6), '"%s"' % hashlib.sha1(body).hexdigest()[:16])
+    log.info("graph: %d notes, %d links", len(graph["nodes"]), len(graph["links"]) // 2)
+
+
 # ------------------------------------------------------- Meerkat write-back
 
 
@@ -2353,6 +2403,11 @@ def sync_entities():
     rendered = render_entities(files, cfg)
     apply_changes(ENTITIES_DIR, rendered, list_tree(ENTITIES_DIR), label="entities")
     _entity_pages = rendered
+    try:
+        others = {p: t for p, t in files.items() if not p.startswith(ENTITIES_DIR + "/")}
+        update_graph(others | rendered, head)
+    except Exception:
+        log.exception("graph build failed")
     if MEERKAT_WRITEBACK and MEERKAT_TOKEN and _meerkat_contacts:
         try:
             writeback_meerkat(*writeback_plan(files, cfg))
@@ -2413,6 +2468,28 @@ class Handler(BaseHTTPRequestHandler):
                 f"brain_sync_commits_total {STATE['commits']}",
             ]
             self._send(200, "\n".join(lines) + "\n", "text/plain; version=0.0.4")
+        elif self.path.split("?")[0] == "/graph.json":
+            body, gz, etag = _graph
+            if not body:
+                self._send(503, "graph not built yet\n")
+                return
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            use_gz = "gzip" in (self.headers.get("Accept-Encoding") or "")
+            data = gz if use_gz else body
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("ETag", etag)
+            self.send_header("Vary", "Accept-Encoding")
+            if use_gz:
+                self.send_header("Content-Encoding", "gzip")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self._send(404, "not found\n")
 

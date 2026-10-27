@@ -1,0 +1,16 @@
+# Lets the pages-graph HTTPRoute (apps/ai/pages/57-httproute-graph.yaml) send
+# /graph.json to brain-sync.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: pages-graph
+  namespace: brain
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: pages
+  to:
+    - group: ""
+      kind: Service
+      name: brain-sync
