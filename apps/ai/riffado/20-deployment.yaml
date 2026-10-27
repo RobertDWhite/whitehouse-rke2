@@ -96,6 +96,11 @@ spec:
             # match its six-hour processing cap.
             - name: WHISPER_REQUEST_TIMEOUT_MS
               value: "21600000"
+            # Bun's fetch drops a response that sends nothing for 300 s, which
+            # killed every VibeVoice/summary request over ~5 min whatever the SDK
+            # timeout said. Seconds; matches the six-hour cap above.
+            - name: BUN_CONFIG_HTTP_IDLE_TIMEOUT
+              value: "21600"
             - name: TZ
               value: America/New_York
           volumeMounts:
