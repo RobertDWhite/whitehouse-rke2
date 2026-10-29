@@ -57,14 +57,17 @@ replaced VibeVoice-ASR on 2026-10-29.
 shape VibeVoice did: `[hh:mm:ss] Speaker N` blocks in `text`, plus `segments`,
 `language` and `duration`. Speaker turns come from the model's `<spk:N>` tags
 and the word timings from its CTC timestamp head. It decodes any audio with
-PyAV, sends up to ~59 min per request (the model's limit) and splits longer
-recordings near a pause; speaker numbers restart in each piece. The model tags
+PyAV, sends up to ~30 min per request and splits longer recordings near a
+pause; speaker numbers restart in each piece. (The model takes an hour, but on
+the 32 GB 5090 vLLM's startup profiling of a 60 min clip runs the audio encoder
+out of memory.) The model tags
 at most four speakers.
 
 **On demand.** vLLM only runs while there is work. A request unloads
 ollama-5090's models, starts vLLM (several minutes from cold), transcribes, and vLLM stops after
 `IDLE_SECONDS` (10 min), so idle VRAM is ~0 and the 5090 stays usable for
-ollama/comfyui. vLLM takes 80% of the 5090 (~26 GiB) while it runs, leaving room
+ollama/comfyui. vLLM takes 76% of the 5090 (~24 GiB) while it runs, without MTP speculative
+decoding (its draft workspace did not fit), leaving room
 for speaches. Requests are processed one at a time; others wait their turn.
 
 **Storage.** The 20 GiB checkpoint is on node-50's local disk

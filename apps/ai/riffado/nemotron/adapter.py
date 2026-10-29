@@ -46,6 +46,9 @@ STARTUP_TIMEOUT = int(os.environ.get("VLLM_STARTUP_TIMEOUT", "1800"))
 CHUNK_TARGET = float(os.environ.get("CHUNK_TARGET_SECONDS", "3300"))
 CHUNK_MAX = float(os.environ.get("CHUNK_MAX_SECONDS", "3540"))
 OLLAMA_URL = os.environ.get("OLLAMA_UNLOAD_URL", "")
+# vLLM refuses to start unless --gpu-memory-utilization of the card is free.
+VRAM_NEEDED_GIB = float(os.environ.get("VRAM_NEEDED_GIB", "24.0"))
+VRAM_WAIT_SECONDS = int(os.environ.get("VRAM_WAIT_SECONDS", "1800"))
 TMP_DIR = os.environ.get("ADAPTER_TMP", "/data/tmp")
 SR = 16000
 
@@ -87,6 +90,33 @@ def unload_ollama() -> None:
         log.info("ollama unload skipped: %s", e)
 
 
+def free_vram_gib() -> float | None:
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=30, check=True).stdout
+        return int(out.split()[0]) / 1024
+    except Exception as e:  # noqa: BLE001
+        log.info("nvidia-smi failed: %s", e)
+        return None
+
+
+async def wait_for_vram() -> None:
+    """ollama only lets go of a model once its in-flight request finishes, so
+    keep asking until vLLM's share of the card is actually free."""
+    deadline = time.monotonic() + VRAM_WAIT_SECONDS
+    while True:
+        await asyncio.to_thread(unload_ollama)
+        free = await asyncio.to_thread(free_vram_gib)
+        if free is None or free >= VRAM_NEEDED_GIB:
+            return
+        if time.monotonic() > deadline:
+            raise HTTPException(status_code=503,
+                                detail=f"only {free:.1f} GiB VRAM free, need {VRAM_NEEDED_GIB:.1f}")
+        log.info("waiting for VRAM: %.1f GiB free, need %.1f", free, VRAM_NEEDED_GIB)
+        await asyncio.sleep(15)
+
+
 async def ensure_vllm() -> None:
     global proc
     if proc is not None and proc.poll() is None and state["vllm"] == "ready":
@@ -94,7 +124,7 @@ async def ensure_vllm() -> None:
     if proc is not None and proc.poll() is not None:
         proc = None
     if proc is None:
-        await asyncio.to_thread(unload_ollama)
+        await wait_for_vram()
         cmd = [VLLM_BIN, "serve", MODEL_DIR, "--served-model-name", SERVED_NAME,
                "--host", "127.0.0.1", "--port", str(VLLM_PORT), *VLLM_EXTRA_ARGS]
         log.info("starting vLLM: %s", " ".join(cmd))
@@ -103,6 +133,11 @@ async def ensure_vllm() -> None:
     deadline = time.monotonic() + STARTUP_TIMEOUT
     async with httpx.AsyncClient() as c:
         while time.monotonic() < deadline:
+            # sdr-viewer-api and LAN clients (via ollama-router) reload a model
+            # on ollama-5090 every couple of minutes. Until vLLM has claimed
+            # its share of the card, keep evicting it; afterwards ollama finds
+            # no room and runs those requests mostly on CPU.
+            await asyncio.to_thread(unload_ollama)
             if proc.poll() is not None:
                 state["vllm"] = "stopped"
                 raise HTTPException(status_code=503, detail=f"vLLM exited with {proc.returncode}")
@@ -303,7 +338,15 @@ async def transcriptions(
         state["busy"] = True
         t0 = time.monotonic()
         try:
-            await ensure_vllm()
+            try:
+                await ensure_vllm()
+            except HTTPException as e:
+                # ollama can grab the card again between the VRAM check and
+                # vLLM's own check; one retry covers that race.
+                if e.status_code != 503:
+                    raise
+                log.warning("vLLM start failed (%s), retrying once", e.detail)
+                await ensure_vllm()
             segs: list[dict] = []
             async with httpx.AsyncClient() as client:
                 bounds = split_points(pcm)
