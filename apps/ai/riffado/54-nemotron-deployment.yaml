@@ -1,0 +1,163 @@
+# Speaker-aware transcription for Riffado: NVIDIA Nemotron 3.5 Transcribe
+# (30B-A4B, NVFP4: the only precision NVIDIA supports on the RTX 5090) on vLLM,
+# behind an OpenAI-compatible /v1/audio/transcriptions (nemotron/adapter.py).
+# Replaced VibeVoice-ASR on 2026-10-29.
+#
+# vLLM runs only while there is work. A request unloads ollama-5090, starts
+# vLLM (a few minutes cold), transcribes, and vLLM stops after IDLE_SECONDS, so
+# idle VRAM is ~0 and the 5090 stays usable for ollama/comfyui. Up to ~59 min
+# goes in one request; longer recordings are split near a pause and speaker
+# numbers restart per chunk.
+#
+# The 20 GiB checkpoint is on node-50's local disk (nemotron-models, local-path):
+# from Longhorn it loaded at 8-12 MB/s, 15 min per cold start. The ~15 GiB venv
+# (vLLM + NeMo Speech at NEMO_COMMIT) and compile caches stay on Longhorn
+# (nemotron-transcribe), because node-50's root disk has no room for both. The
+# init container builds/downloads them once; afterwards it is a no-op.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nemotron-transcribe
+  namespace: riffado
+  labels:
+    app: nemotron-transcribe
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nemotron-transcribe
+  template:
+    metadata:
+      labels:
+        app: nemotron-transcribe
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-50
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: PreferNoSchedule
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      terminationGracePeriodSeconds: 90
+      initContainers:
+        - name: setup
+          image: ghcr.io/astral-sh/uv:python3.13-bookworm
+          command: [bash, /scripts/setup.sh]
+          env:
+            - {name: HOME, value: /data/home}
+            - {name: HF_HOME, value: /data/hf}
+            - {name: UV_CACHE_DIR, value: /data/uv-cache}
+            - {name: UV_PYTHON_INSTALL_DIR, value: /data/python}
+            - {name: XDG_CACHE_HOME, value: /data/cache}
+            - {name: NEMO_COMMIT, value: 774bc30ca6813bbb96cd00d9e84aee2206bb8d3f}
+            - {name: MODEL_REPO, value: nvidia/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-NVFP4}
+            - {name: MODEL_REVISION, value: 539e1d17115d8b52de3b4c8b092eb55abd1cc458}
+            - {name: MODEL_DIR, value: /models/Nemotron-3.5-Transcribe-NVFP4}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: models, mountPath: /models}
+            - {name: scripts, mountPath: /scripts}
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {memory: 8Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: api
+          image: ghcr.io/astral-sh/uv:python3.13-bookworm
+          command: [/data/venv/bin/python, /scripts/adapter.py]
+          ports:
+            - name: http
+              containerPort: 8765
+          env:
+            - {name: HOME, value: /data/home}
+            - {name: HF_HOME, value: /data/hf}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: XDG_CACHE_HOME, value: /data/cache}
+            - {name: VLLM_CACHE_ROOT, value: /data/cache/vllm}
+            - {name: PATH, value: /data/venv/bin:/usr/local/bin:/usr/bin:/bin}
+            - {name: MODEL_DIR, value: /models/Nemotron-3.5-Transcribe-NVFP4}
+            - {name: SERVED_MODEL_NAME, value: nemotron-transcribe}
+            - {name: OLLAMA_UNLOAD_URL, value: "http://ollama-5090.ai-stack.svc.cluster.local:11434"}
+            - {name: IDLE_SECONDS, value: "600"}
+            # From NVIDIA's NVFP4 model card.
+            - {name: VLLM_PLUGINS, value: nemo_speechlm}
+            - {name: VLLM_MAX_AUDIO_DECODE_DURATION_S, value: "3600"}
+            - {name: VLLM_MAX_AUDIO_CLIP_FILESIZE_MB, value: "180"}
+            - {name: VLLM_USE_V2_MODEL_RUNNER, value: "0"}
+            - {name: VLLM_DISABLED_KERNELS, value: FlashInferFP8ScaledMMLinearKernel}
+            # The card's flags are for a 96 GB RTX PRO 6000. On the 32 GB 5090:
+            # one sequence at a time, and leave room for speaches (~2.5 GiB).
+            - name: VLLM_EXTRA_ARGS
+              value: >-
+                ["--trust-remote-code", "--dtype", "bfloat16", "--kv-cache-dtype", "fp8",
+                "--gpu-memory-utilization", "0.80",
+                "--max-model-len", "65536", "--max-num-batched-tokens", "4096", "--max-num-seqs", "2",
+                "--enable-chunked-prefill", "--no-enable-prefix-caching",
+                "--use-replayssm", "--mamba-backend", "flashinfer", "--mamba-cache-mode", "none",
+                "--mm-processor-cache-gb", "0", "--no-async-scheduling",
+                "--limit-mm-per-prompt", "{\"audio\":{\"count\":1,\"length\":57600000}}",
+                "--speculative-config", "{\"method\":\"mtp\",\"num_speculative_tokens\":8}",
+                "--reasoning-parser", "nemotron_v3", "--trust-request-mm-kwargs",
+                "--middleware", "nemo.collections.speechlm2.vllm.salm.ctc_serving.ctc_timestamp_middleware"]
+            - name: TRANSCRIPTION_API_KEY
+              valueFrom:
+                secretKeyRef: {name: riffado-env, key: NEMOTRON_API_KEY}
+          resources:
+            # vLLM stages the 20 GiB checkpoint through RAM while loading.
+            # node-50 has 47 GiB in total.
+            requests:
+              cpu: "2"
+              memory: 12Gi
+            limits:
+              cpu: "12"
+              memory: 30Gi
+              nvidia.com/gpu: 1
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: models, mountPath: /models}
+            - {name: scripts, mountPath: /scripts}
+            - {name: shm, mountPath: /dev/shm}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nemotron-transcribe
+        - name: models
+          persistentVolumeClaim:
+            claimName: nemotron-models
+        - name: scripts
+          configMap:
+            name: nemotron-transcribe
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi

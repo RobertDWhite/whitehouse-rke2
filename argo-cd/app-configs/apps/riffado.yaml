@@ -3,12 +3,3 @@ namespace: riffado
 srcPath: apps/ai/riffado
 syncOptions:
 - CreateNamespace=true
-# vibevoice is scaled up by hand for a transcription; keep Argo off its replicas.
-- RespectIgnoreDifferences=true
-ignoreDifferences:
-- group: apps
-  kind: Deployment
-  name: vibevoice
-  namespace: riffado
-  jsonPointers:
-  - /spec/replicas

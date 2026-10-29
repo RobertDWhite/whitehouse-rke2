@@ -9,13 +9,22 @@ resources:
   - 40-pv-nas.yaml
   - 41-pvc-nas.yaml
   - 42-pvc-speaches-models.yaml
-  - 43-pvc-vibevoice-models.yaml
+  - 43-pvc-nemotron.yaml
   - 50-speaches-deployment.yaml
   - 51-speaches-service.yaml
-  - 54-vibevoice-deployment.yaml
-  - 55-vibevoice-service.yaml
+  - 54-nemotron-deployment.yaml
+  - 55-nemotron-service.yaml
   - 53-httproute-internal.yaml
   - 60-networkpolicy.yaml
+
+configMapGenerator:
+  # Adapter + venv setup for nemotron-transcribe; the hash suffix rolls the pod
+  # when either changes.
+  - name: nemotron-transcribe
+    namespace: riffado
+    files:
+      - nemotron/adapter.py
+      - nemotron/setup.sh
 
 generators:
   - ksops.yaml
@@ -29,5 +38,7 @@ images:
     newTag: "0.8.3-cuda@sha256:9abc6968a883e77ead9286c38a6ccf3139dcad518b783deeebb7be2ced50e972"
   - name: postgres
     newTag: "16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab"
+  - name: ghcr.io/astral-sh/uv
+    newTag: "python3.13-bookworm@sha256:47965cdc9d53a515f68f78241161c901e70051ce428f12e791bd7fe19f6a631a"
   - name: busybox
     newTag: "1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
