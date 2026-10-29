@@ -15,7 +15,24 @@ if [ ! -f "$marker" ]; then
   (cd /data/nemo-speech &&
     UV_PROJECT_ENVIRONMENT=/data/venv uv sync --extra asr --extra vllm --locked --no-install-project &&
     uv pip install --python /data/venv/bin/python --no-deps -e . &&
-    uv pip install --python /data/venv/bin/python --no-deps av==19.0.2 opencv-python-headless==5.0.0.93)
+    uv pip install --python /data/venv/bin/python --no-deps av==19.0.2 opencv-python-headless==5.0.0.93 &&
+    # FlashInfer JIT-compiles its NVFP4 GEMMs with this nvcc. The lock pairs
+    # nvcc 13.4 with 13.0 runtime headers, which CCCL refuses to build
+    # ("CUDA compiler and CUDA toolkit headers are incompatible"); 13.0 also
+    # matches node-50's 580 driver.
+    uv pip install --python /data/venv/bin/python --no-deps \
+      "nvidia-cuda-nvcc==13.0.*" "nvidia-cuda-crt==13.0.*" "nvidia-nvvm==13.0.*")
+  # FlashInfer links with -L$CUDA_HOME/lib64{,/stubs} -lcudart -lnvrtc -lcuda;
+  # the wheels only ship versioned libraries under lib/. The stub points at the
+  # driver library the nvidia runtime mounts into the container.
+  cu=$(echo /data/venv/lib/python3*/site-packages/nvidia/cu13)
+  ln -sfn lib "$cu/lib64"
+  for f in "$cu"/lib/lib*.so.[0-9]*; do
+    b=${f%%.so.*}.so
+    [ -e "$b" ] || ln -s "$(basename "$f")" "$b"
+  done
+  mkdir -p "$cu/lib/stubs"
+  ln -sf /usr/lib/x86_64-linux-gnu/libcuda.so.1 "$cu/lib/stubs/libcuda.so"
   touch "$marker"
 fi
 

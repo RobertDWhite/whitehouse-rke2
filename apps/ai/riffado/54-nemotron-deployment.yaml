@@ -5,9 +5,10 @@
 #
 # vLLM runs only while there is work. A request unloads ollama-5090, starts
 # vLLM (a few minutes cold), transcribes, and vLLM stops after IDLE_SECONDS, so
-# idle VRAM is ~0 and the 5090 stays usable for ollama/comfyui. Up to ~59 min
-# goes in one request; longer recordings are split near a pause and speaker
-# numbers restart per chunk.
+# idle VRAM is ~0 and the 5090 stays usable for ollama/comfyui. Up to ~30 min
+# goes in one request (on the 32 GB 5090 vLLM's startup profiling of a 60 min
+# clip runs the audio encoder out of memory); longer recordings are split near
+# a pause and speaker numbers restart per chunk.
 #
 # The 20 GiB checkpoint is on node-50's local disk (nemotron-models, local-path):
 # from Longhorn it loaded at 8-12 MB/s, 15 min per cold start. The ~15 GiB venv
@@ -90,29 +91,40 @@ spec:
             - {name: HF_HUB_OFFLINE, value: "1"}
             - {name: XDG_CACHE_HOME, value: /data/cache}
             - {name: VLLM_CACHE_ROOT, value: /data/cache/vllm}
-            - {name: PATH, value: /data/venv/bin:/usr/local/bin:/usr/bin:/bin}
+            # FlashInfer JIT-compiles NVFP4 kernels on first start with the nvcc
+            # from the venv's CUDA wheels (cached under /data/home afterwards).
+            # Few jobs, one thread each: 32 parallel nvcc/cicc OOM-killed the
+            # container at 30 GiB.
+            - {name: CUDA_HOME, value: /data/venv/lib/python3.12/site-packages/nvidia/cu13}
+            - {name: PATH, value: /data/venv/lib/python3.12/site-packages/nvidia/cu13/bin:/data/venv/bin:/usr/local/bin:/usr/bin:/bin}
+            - {name: MAX_JOBS, value: "3"}
+            - {name: FLASHINFER_NVCC_THREADS, value: "1"}
             - {name: MODEL_DIR, value: /models/Nemotron-3.5-Transcribe-NVFP4}
             - {name: SERVED_MODEL_NAME, value: nemotron-transcribe}
             - {name: OLLAMA_UNLOAD_URL, value: "http://ollama-5090.ai-stack.svc.cluster.local:11434"}
             - {name: IDLE_SECONDS, value: "600"}
             # From NVIDIA's NVFP4 model card.
             - {name: VLLM_PLUGINS, value: nemo_speechlm}
-            - {name: VLLM_MAX_AUDIO_DECODE_DURATION_S, value: "3600"}
+            - {name: VLLM_MAX_AUDIO_DECODE_DURATION_S, value: "1800"}
+            - {name: CHUNK_TARGET_SECONDS, value: "1650"}
+            - {name: CHUNK_MAX_SECONDS, value: "1770"}
             - {name: VLLM_MAX_AUDIO_CLIP_FILESIZE_MB, value: "180"}
             - {name: VLLM_USE_V2_MODEL_RUNNER, value: "0"}
             - {name: VLLM_DISABLED_KERNELS, value: FlashInferFP8ScaledMMLinearKernel}
             # The card's flags are for a 96 GB RTX PRO 6000. On the 32 GB 5090:
-            # one sequence at a time, and leave room for speaches (~2.5 GiB).
+            # 76% of the card (the rest is speaches and other GPU pods, ~6 GiB),
+            # and no MTP speculative decoding: its draft step allocates a
+            # FlashInfer workspace outside vLLM's budget on the first request and
+            # ran the card out of memory.
             - name: VLLM_EXTRA_ARGS
               value: >-
                 ["--trust-remote-code", "--dtype", "bfloat16", "--kv-cache-dtype", "fp8",
-                "--gpu-memory-utilization", "0.80",
+                "--gpu-memory-utilization", "0.76",
                 "--max-model-len", "65536", "--max-num-batched-tokens", "4096", "--max-num-seqs", "2",
                 "--enable-chunked-prefill", "--no-enable-prefix-caching",
                 "--use-replayssm", "--mamba-backend", "flashinfer", "--mamba-cache-mode", "none",
                 "--mm-processor-cache-gb", "0", "--no-async-scheduling",
-                "--limit-mm-per-prompt", "{\"audio\":{\"count\":1,\"length\":57600000}}",
-                "--speculative-config", "{\"method\":\"mtp\",\"num_speculative_tokens\":8}",
+                "--limit-mm-per-prompt", "{\"audio\":{\"count\":1,\"length\":28800000}}",
                 "--reasoning-parser", "nemotron_v3", "--trust-request-mm-kwargs",
                 "--middleware", "nemo.collections.speechlm2.vllm.salm.ctc_serving.ctc_timestamp_middleware"]
             - name: TRANSCRIPTION_API_KEY
