@@ -13,7 +13,7 @@ https://github.com/riffado/riffado (AGPL-3.0).
 | `riffado-postgres` | StatefulSet on Longhorn | Postgres 16. Longhorn, not NFS: Postgres on NFS is a corruption risk. |
 | `riffado-postgres-logical-backup` | CronJob 05:40 daily | `pg_dump` to the Synology so the DB is recoverable even if Longhorn is not. 14-day retention. |
 | `speaches` | Deployment, GPU on rke2-node-50 | faster-whisper behind an OpenAI-compatible `/v1/audio/transcriptions`. Loads `large-v3-turbo` in fp16 and keeps it resident. |
-| `vibevoice` | Deployment, GPU on rke2-node-50 | VibeVoice-ASR with speaker labels; Riffado's default transcription provider. See below. |
+| `nemotron-transcribe` | Deployment, GPU on rke2-node-50 | NVIDIA Nemotron 3.5 Transcribe (NVFP4) on an on-demand vLLM, with speaker labels. See below. |
 | Audio + backups | NFS `10.100.1.20:/volume1/Personal`, subPaths `Riffado/audio`, `Riffado/db-backups` | Permanent storage on the NAS, same share Gramps uses. |
 
 Summaries use the GB10 Ollama (`http://ollama.ai-stack.svc.cluster.local:11434/v1`).
@@ -43,81 +43,67 @@ Secrets (`11-secret.sops.yaml`): `POSTGRES_PASSWORD`, `DATABASE_URL`,
 `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`. Losing `ENCRYPTION_KEY` loses every
 stored token/API key/transcript, so it is in the SOPS file and nowhere else.
 
-## Speaker-labelled transcripts (VibeVoice)
+## Speaker-labelled transcripts (Nemotron 3.5 Transcribe)
 
-speaches returns plain text, so Plaud sync transcribes with `vibevoice`
-instead. It runs Microsoft's
-[VibeVoice-ASR](https://huggingface.co/microsoft/VibeVoice-ASR) through
-[swallace17/vibevoice-k8s](https://github.com/swallace17/vibevoice-k8s) at
-`f5fb110`. It returns `[hh:mm:ss] Speaker N` blocks in the transcript text. It
-splits recordings over 12 minutes into ~10-minute chunks near pauses and matches
-voices across the chunks. Speaker numbers are anonymous and apply to one
-recording only.
+speaches returns plain text, so speaker-labelled transcripts come from
+`nemotron-transcribe`: NVIDIA's
+[Nemotron 3.5 Transcribe](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Transcribe-30B-A4B-NVFP4)
+(30B-A4B, NVFP4: the only precision NVIDIA supports on the RTX 5090) on vLLM
+0.32 with NeMo Speech at the commit in `54-nemotron-deployment.yaml`. It
+replaced VibeVoice-ASR on 2026-10-29.
 
-Its model peaks at ~21.5 GiB of VRAM on the 5090 alongside everything else on
-node-50. speaches stays up for clean-audio-mcp. To backfill older recordings,
-run [`scripts/vibevoice-batch.py`](scripts/vibevoice-batch.py) from a machine
-with cluster access:
+[`nemotron/adapter.py`](nemotron/adapter.py) puts an OpenAI-compatible
+`/v1/audio/transcriptions` in front of vLLM's chat endpoint and returns the same
+shape VibeVoice did: `[hh:mm:ss] Speaker N` blocks in `text`, plus `segments`,
+`language` and `duration`. Speaker turns come from the model's `<spk:N>` tags
+and the word timings from its CTC timestamp head. It decodes any audio with
+PyAV, sends up to ~59 min per request (the model's limit) and splits longer
+recordings near a pause; speaker numbers restart in each piece. The model tags
+at most four speakers.
+
+**On demand.** vLLM only runs while there is work. A request unloads
+ollama-5090's models, starts vLLM (several minutes from cold), transcribes, and vLLM stops after
+`IDLE_SECONDS` (10 min), so idle VRAM is ~0 and the 5090 stays usable for
+ollama/comfyui. vLLM takes 80% of the 5090 (~26 GiB) while it runs, leaving room
+for speaches. Requests are processed one at a time; others wait their turn.
+
+**Storage.** The 20 GiB checkpoint is on node-50's local disk
+(`nemotron-models`, local-path): from Longhorn it loaded at 8-12 MB/s, 15 min
+per cold start. The venv (~15 GiB) and compile caches are on Longhorn
+(`nemotron-transcribe`), because node-50's root disk (~86% full, kubelet image
+GC at 85%) has no room for both. The init container builds the venv and
+downloads the checkpoint on first start (or after bumping `NEMO_COMMIT` /
+`MODEL_REVISION`); otherwise it is a no-op. No image to build: the pod runs the
+stock `ghcr.io/astral-sh/uv` image and the scripts come from a ConfigMap.
+
+Riffado provider: Custom, base URL
+`http://nemotron-transcribe.riffado.svc.cluster.local/v1`, model
+**`nemotron-transcribe`** (a name containing `diarize` takes Riffado's OpenAI
+diarization path). The API key is `NEMOTRON_API_KEY` in `11-secret.sops.yaml`.
+`WHISPER_REQUEST_TIMEOUT_MS` is 6 h. An interrupted run (pod restart, node-50
+rebooting to the desktop) starts over.
+
+To backfill older recordings, run
+[`scripts/transcribe-batch.py`](scripts/transcribe-batch.py) from a machine with
+cluster access:
 
 ```sh
 kubectl -n ai-stack port-forward svc/ollama-5090 11434:11434 &
-python3 apps/ai/riffado/scripts/vibevoice-batch.py              # all not yet on VibeVoice
-python3 apps/ai/riffado/scripts/vibevoice-batch.py <id> [<id>]  # these, even if done
+python3 apps/ai/riffado/scripts/transcribe-batch.py              # all not yet on Nemotron
+python3 apps/ai/riffado/scripts/transcribe-batch.py <id> [<id>]  # these, even if done
 ```
 
-It transcribes each recording and re-runs every summary. The first start
-downloads ~16 GiB of weights to the NVMe. Riffado lists these transcripts with
-provider `browser` and model `vibevoice-asr`; the Re-transcribe button works
-too.
+It transcribes each recording and re-runs every summary. Riffado lists these
+transcripts with provider `browser` and model `nemotron-transcribe`; the
+Re-transcribe button works too.
 
 **Bun idle timeout:** v0.6.4 runs on Bun, whose fetch drops a response that
-sends nothing for 300 s, whatever `WHISPER_REQUEST_TIMEOUT_MS` says. VibeVoice
-sends nothing until the transcript is done, so every request over ~5 min was
-lost (the OpenAI SDK then retried into VibeVoice's HTTP 429). Summaries hit
-the same cutoff. `BUN_CONFIG_HTTP_IDLE_TIMEOUT=21600` (seconds) in
-`20-deployment.yaml` lifts it; verified on Bun 1.3.14 in the Riffado image
-(2026-10-27).
-
-Throughput on 2026-10-20, sharing the 5090: 16-57 min recordings took 2-7 min
-each. Chunks where the model loops until it hits its output limit take ~15 min
-before they are split and retried; 38 and 90 min recordings took 31 and 29 min.
-Long recordings over-split speakers (11 labels for 90 min), because
-cross-chunk matching only merges confident matches.
-
-Riffado provider (one-time, set as the default transcription provider):
-Custom, base URL `http://vibevoice.riffado.svc.cluster.local/v1`, model
-**`vibevoice-asr`** exactly (a name containing `diarize` takes Riffado's OpenAI
-diarization path). The API key is `VIBEVOICE_API_KEY` in `11-secret.sops.yaml`.
-
-Requests are synchronous and one at a time (a second gets HTTP 429). Each loads
-the model and exits, so idle VRAM is ~0. `WHISPER_REQUEST_TIMEOUT_MS` is 6 h to
-match its processing cap. An interrupted run (pod restart, node-50 rebooting to
-the desktop) starts over.
+sends nothing for 300 s, whatever `WHISPER_REQUEST_TIMEOUT_MS` says. The
+transcriber sends nothing until the transcript is done, so every request over
+~5 min was lost. Summaries hit the same cutoff.
+`BUN_CONFIG_HTTP_IDLE_TIMEOUT=21600` (seconds) in `20-deployment.yaml` lifts it;
+verified on Bun 1.3.14 in the Riffado image (2026-10-27).
 
 Manual uploads in v0.6.4 are cut off at 10 MiB by the Next.js middleware despite
 the 500 MiB the UI advertises. Plaud sync downloads server-side and is
 unaffected.
-
-### Rebuilding the image
-
-The image (~15 GB unpacked) is built on node-50 and imported into its
-containerd, because `registry.internal.white.fm` has ~6 GB free. Run a
-privileged `moby/buildkit` pod on node-50 with `/work` as a hostPath under
-`/opt/local-path-provisioner/vibevoice-build` (the NVMe; the root disk is
-small):
-
-```
-buildctl-daemonless.sh build --frontend=dockerfile.v0 \
-  --opt context=https://github.com/swallace17/vibevoice-k8s.git#<commit> \
-  --opt filename=Dockerfile --opt platform=linux/amd64 \
-  --output type=docker,name=registry.internal.white.fm/vibevoice-k8s:<tag>,dest=/work/out/vibevoice.tar
-```
-
-Then on node-50:
-`ctr -a /run/k3s/containerd/containerd.sock -n k8s.io images import vibevoice.tar`
-(`ctr` lives under `/var/lib/rancher/rke2/data/*/bin/`), then pin it so kubelet
-image GC leaves it alone whenever the Deployment is scaled to 0:
-`ctr ... images label <image> io.cri-containerd.pinned=pinned`. Remove the
-tarball and BuildKit state afterwards, and update the tag in
-`54-vibevoice-deployment.yaml`. node-50's root disk was 89% full after the
-first import (2026-10-20), and GC starts at 85%.

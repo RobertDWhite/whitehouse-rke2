@@ -1,0 +1,37 @@
+# nemotron-transcribe's storage, split by how it is read:
+#
+# nemotron-transcribe (Longhorn, single replica): the vLLM + NeMo Speech venv
+# (~15 GiB), compile caches and in-flight uploads. node-50's root disk has no
+# room for these as well as the weights. All of it is rebuilt by the init
+# container if lost.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nemotron-transcribe
+  namespace: riffado
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn-single
+  resources:
+    requests:
+      storage: 150Gi
+---
+# nemotron-models (local-path on node-50): the 20 GiB NVFP4 checkpoint, read on
+# every vLLM cold start. On Longhorn it loaded at 8-12 MB/s (15 min). Takes the
+# space VibeVoice's weights and image used; node-50's root disk sits ~86% full.
+# WaitForFirstConsumer: binds when nemotron-transcribe first schedules.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nemotron-models
+  namespace: riffado
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 40Gi
