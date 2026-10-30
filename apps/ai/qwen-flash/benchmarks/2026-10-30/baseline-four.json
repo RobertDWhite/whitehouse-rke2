@@ -1,0 +1,73 @@
+{
+  "label": "baseline",
+  "concurrency": 4,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "baseline",
+    "concurrency": 4,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.1317189591936767,
+    "elapsed_seconds": 7.08070074999705,
+    "decode_tokens_per_second": 73.54423124978344,
+    "end_to_end_tokens_per_second": 72.30922730355655,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a specialized data structure based on a binary tree, where each node has at most two children, referred to as the left child and the right child. It is defined by a specific ordering property that makes searching, inserting, and deleting elements efficient.\n\n### Core Property\nFor any given node:\n1. All values in the **left subtree** are **less than** the node\u2019s value.\n2. All values in the **right subtree** are **greater than** the node\u2019s value.\n3. Both left and right subtrees must also be binary search trees.\n\nThis property allows for **O(log n)** average-case time complexity for most operations, assuming the tree is balanced.\n\n---\n\n### Key Operations\n\n#### 1. Search\n- **Goal**: Find if a value exists in the tree.\n- **Process**:\n  - Start at the root.\n  - If the target value equals the current node\u2019s value, return `true`.\n  - If the target value is less, move to the left child.\n  - If the target value is greater, move to the right child.\n  - Repeat until the value is found or a null node is reached.\n\n#### 2. Insert\n- **Goal**: Add a new value to the tree while maintaining the BST property.\n- **Process**:\n  - Start at the root.\n  - Traverse down the tree, comparing the new value with each node.\n  - Move left if the new value is smaller, right if larger.\n  - When a null position is reached, insert the new node there.\n\n#### 3. Delete\n- **Goal**: Remove a value from the tree while maintaining the BST property.\n- **Process**:\n  - **Case 1: Node is a leaf** (no children). Simply remove it.\n  - **Case 2: Node has one child**. Replace the node with its child.\n  - **Case 3: Node has two children**. Find the **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree), replace the node\u2019s value with it, and then delete the successor/predecessor node (which will fall into Case 1 or 2).\n\n---\n\n### Advantages & Disadvantages\n- **Advantages**: Efficient search, insertion, and deletion; maintains sorted order; flexible structure"
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "baseline",
+      "concurrency": 4,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.19393491698428988,
+      "elapsed_seconds": 11.489796292036772,
+      "decode_tokens_per_second": 45.242301967079655,
+      "end_to_end_tokens_per_second": 44.56127741401748,
+      "finish_reason": "length",
+      "response": "# LRU Cache Implementation in Python\n\nThe Least Recently Used (LRU) cache is a fundamental data structure in computer science, widely used in operating systems, web browsers, and application memory management. Its primary purpose is to evict the least recently accessed item when the cache reaches its capacity limit. This implementation uses a combination of a doubly linked list and a hash map to achieve **O(1)** time complexity for both `get` and `put` operations.\n\n## Implementation\n\n```python\nfrom typing import Optional, Tuple\n\nclass Node:\n    \"\"\"Doubly linked list node to store key-value pairs.\"\"\"\n    def __init__(self, key: int, value: int):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"\n    LRU Cache implementation using a doubly linked list and a hash map.\n    \n    Invariants:\n    1. The doubly linked list maintains the order of access, with the most recently\n       used item at the head and the least recently used item at the tail.\n    2. The hash map (cache) provides O(1) lookup from key to node.\n    3. The size of the cache never exceeds the specified capacity.\n    4. When capacity is reached, the least recently used item (tail) is evicted.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be a positive integer\")\n        self.capacity: int = capacity\n        self.cache: dict[int, Node] = {}\n        \n        # Sentinel nodes to simplify edge cases\n        self.head: Node = Node(0, 0)  # Dummy head\n        self.tail: Node = Node(0, 0)  # Dummy tail\n        self.head.next = self.tail\n        self.tail.prev = self.head\n        self.size: int = 0\n\n    def _add_to_head(self, node: Node) -> None:\n        \"\"\"Add a node right after the head (most recently used position).\"\"\"\n        node.prev = self.head\n        node.next = self.head.next\n        self.head.next.prev = node\n        self.head.next = node\n\n    def _remove_node(self, node: Node) -> None:\n        \"\"\"Remove"
+    },
+    {
+      "prompt": "operations",
+      "label": "baseline",
+      "concurrency": 4,
+      "prompt_tokens": 55,
+      "output_tokens": 512,
+      "ttft_seconds": 0.17006458388641477,
+      "elapsed_seconds": 11.469621459022164,
+      "decode_tokens_per_second": 45.22786585591517,
+      "end_to_end_tokens_per_second": 44.639659803005415,
+      "finish_reason": "length",
+      "response": "In a Kubernetes rolling deployment of a stateful inference service, the interplay between resource management and lifecycle signals is critical to maintaining low latency and preventing service degradation. Unlike stateless web applications, inference services often have high memory footprints and non-trivial startup times, making the coordination between **resource requests/limits**, **readiness probes**, and **graceful shutdown** essential for stability.\n\n### The Interaction Mechanism\n\nDuring a rolling update, Kubernetes replaces old Pods with new ones in batches. The success of this process relies on three synchronized components:\n\n1.  **Resource Requests and Limits**: These define the Quality of Service (QoS) class. For inference services, **requests** must be set high enough to guarantee the node has sufficient memory and CPU to load the model. If requests are too low, the scheduler might place the Pod on a node that cannot sustain the load, leading to OOMKills. **Limits** prevent a single noisy neighbor from starving the node, but they must be set slightly above the peak usage to avoid throttling during inference spikes.\n2.  **Readiness Probes**: These tell the Service load balancer when a Pod is ready to accept traffic. For inference models, this is not just about the container process starting; it involves loading the model weights into memory. If the readiness probe returns success too early (before the model is fully loaded), the load balancer will send requests to an unready Pod, causing latency spikes or errors.\n3.  **Graceful Shutdown**: When a Pod is terminated, it receives a `SIGTERM`. The application must catch this signal, stop accepting new requests, finish processing in-flight requests, and then exit. If the shutdown is too slow, the Pod may be forcefully killed (`SIGKILL`) after the default grace period (30s), potentially dropping active inference requests.\n\n### Concrete Example\n\nConsider a PyTorch-based ResNet50 inference service.\n\n**Deployment Configuration Snippet:**\n```yaml\nresources:\n  requests:\n    memory: \"4Gi\"  # Must accommodate model weights + runtime overhead\n    cpu: \"2\"\n  limits:\n    memory: \"6Gi\"  # Headroom for batch processing\n    cpu: \"4\"\n\nreadinessProbe:\n  httpGet:\n    path: /health/ready\n    port: 8080\n  initialDelaySeconds: 60  # Time to load model\n  periodSeconds"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "baseline",
+      "concurrency": 4,
+      "prompt_tokens": 66,
+      "output_tokens": 512,
+      "ttft_seconds": 0.19329429185017943,
+      "elapsed_seconds": 11.4897091249004,
+      "decode_tokens_per_second": 45.236480897260606,
+      "end_to_end_tokens_per_second": 44.561615479925244,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model (LLM) inference servers requires isolating specific performance metrics while maintaining strict control over variables. The goal is to compare two servers\u2014let\u2019s call them Server A and Server B\u2014running the same model architecture and weights, ensuring that differences in results stem from the inference engine\u2019s efficiency, not external factors.\n\n### 1. Experimental Setup and Control\nTo ensure validity, both servers must run on identical hardware with the same GPU, CPU, RAM, and OS. The model weights, quantization method (e.g., GGUF, AWQ), and context window size must be identical. Network latency should be minimized by running both servers locally or on the same internal network. Crucially, the model must be loaded into memory before testing begins to exclude cold-start latency from the results.\n\n### 2. Separating Key Components\nA robust benchmark separates the following components to provide granular insights:\n\n*   **Input Processing (Tokenization & Pre-processing):** Measure the time taken to convert raw text prompts into token IDs. This is usually negligible but can vary based on tokenizer efficiency. Use a fixed set of prompts with varying lengths (short, medium, long) to test scalability.\n*   **Output Generation (Inference Latency):** This is the core metric. Measure **Time to First Token (TTFT)** for initial latency and **Tokens Per Second (TPS)** for sustained throughput. TTFT is critical for user experience in coding assistants, as it determines the perceived responsiveness. TPS measures how quickly code completions are generated.\n*   **Concurrency:** Test single-threaded vs. multi-threaded performance. Use a load-testing tool (like `locust` or `k6`) to send simultaneous requests. Measure how TPS degrades as concurrent users increase. Identify the \"knee of the curve\" where performance drops significantly.\n*   **Caching:** Evaluate key-value (KV) cache efficiency. Use prompts with high overlap (e.g., the same codebase context with different questions) to test cache hit rates. Measure the reduction in TTFT and TPS when cache is enabled versus disabled.\n*   **Answer Quality:** This is distinct from speed. Use a static dataset of coding problems (e.g., HumanEval, MBPP) with known correct solutions. Run each server through the same prompts and evaluate outputs using automated metrics (e.g., pass@1 rate) and manual review for correctness, readability, and security.\n\n### 3. Rep"
+    },
+    {
+      "prompt": "coding",
+      "label": "baseline",
+      "concurrency": 4,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.19297108426690102,
+      "elapsed_seconds": 11.487921792082489,
+      "decode_tokens_per_second": 45.248165100100195,
+      "end_to_end_tokens_per_second": 44.568548538768084,
+      "finish_reason": "length",
+      "response": "# LRU Cache Implementation in Python\n\nThe Least Recently Used (LRU) cache is a fundamental data structure in computer science, widely used in operating systems, web browsers, and database management systems. Its primary purpose is to maintain a fixed-size cache where the least recently accessed items are evicted when the cache reaches its capacity. This ensures that the most frequently or recently used items remain in memory, optimizing performance for repeated access patterns.\n\n## Implementation\n\nBelow is a complete, type-annotated implementation of an LRU cache using a doubly linked list and a hash map. The doubly linked list maintains the order of access, while the hash map provides O(1) lookup for keys.\n\n```python\nfrom typing import Optional, Tuple\n\nclass Node:\n    \"\"\"A node in the doubly linked list.\"\"\"\n    def __init__(self, key: int, value: int):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"\n    An LRU (Least Recently Used) Cache implementation.\n    \n    Invariants:\n    1. The cache size never exceeds the specified capacity.\n    2. The doubly linked list maintains the order of access, with the most recently\n       used item at the head and the least recently used item at the tail.\n    3. The hash map (self.cache) always contains exactly the nodes present in the\n       doubly linked list, ensuring O(1) access to any node.\n    4. The head and tail are sentinel nodes that simplify boundary conditions.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be a positive integer\")\n        self.capacity = capacity\n        self.cache: dict[int, Node] = {}\n        \n        # Sentinel nodes to simplify edge cases\n        self.head = Node(0, 0)  # Most recently used end\n        self.tail = Node(0, 0)  # Least recently used end\n        self.head.next = self.tail\n        self.tail.prev = self.head\n    \n    def _remove(self, node: Node) -> None:\n        \"\"\"Remove a node from the doubly linked list.\"\"\"\n        prev_node = node.prev\n        next_node = node.next\n        prev_node.next = next_node\n        next"
+    }
+  ],
+  "wall_seconds": 11.5484503749758,
+  "aggregate_end_to_end_tokens_per_second": 177.33981040761856
+}

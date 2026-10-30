@@ -1,0 +1,60 @@
+{
+  "label": "mtp3",
+  "concurrency": 1,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "mtp3",
+    "concurrency": 1,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.5110993748530746,
+    "elapsed_seconds": 4.5419416250661016,
+    "decode_tokens_per_second": 126.81685516391994,
+    "end_to_end_tokens_per_second": 112.7271203078372,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a specialized data structure based on binary trees, where each node has at most two children, referred to as the left child and the right child. It is defined by a specific ordering property that makes searching, inserting, and deleting elements efficient.\n\n### Core Property\nFor any given node `N`:\n1. All values in the **left subtree** of `N` are **less than** `N`'s value.\n2. All values in the **right subtree** of `N` are **greater than** `N`'s value.\n3. Both left and right subtrees must also be binary search trees.\n\nThis property allows for **O(log n)** average-case time complexity for most operations, assuming the tree is balanced.\n\n---\n\n### Key Operations\n\n#### 1. Search\n- **Goal**: Find if a value exists in the tree.\n- **Process**:\n  - Start at the root.\n  - If the target value equals the current node\u2019s value, return `true`.\n  - If the target value is **less** than the current node\u2019s value, move to the **left** child.\n  - If the target value is **greater**, move to the **right** child.\n  - Repeat until the value is found or a null node is reached.\n\n#### 2. Insert\n- **Goal**: Add a new value to the tree while maintaining the BST property.\n- **Process**:\n  - Start at the root.\n  - Traverse down the tree using the same logic as search (left if smaller, right if larger).\n  - When a null position is reached, create a new node with the given value and attach it as a leaf.\n\n#### 3. Delete\n- **Goal**: Remove a value from the tree while preserving the BST structure.\n- **Cases**:\n  1. **Node is a leaf** (no children): Simply remove it.\n  2. **Node has one child**: Replace the node with its child.\n  3. **Node has two children**:\n     - Find the **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree).\n     - Replace the node\u2019s value with the successor/predecessor\u2019s value.\n     - Delete the successor/predecessor node (which will fall into case 1 or "
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "mtp3",
+      "concurrency": 1,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.6216257917694747,
+      "elapsed_seconds": 4.757886624895036,
+      "decode_tokens_per_second": 123.66281764012992,
+      "end_to_end_tokens_per_second": 107.61080293948686,
+      "finish_reason": "length",
+      "response": "# LRU Cache Implementation in Python\n\nThe Least Recently Used (LRU) cache is a fundamental data structure in computer science, widely used in operating systems, web browsers, and database management systems. Its primary purpose is to maintain a fixed-size cache where the least recently accessed items are evicted when the cache reaches its capacity. This ensures that the most frequently or recently used items remain in memory, optimizing performance for repeated access patterns.\n\n## Implementation\n\nBelow is a complete, type-annotated implementation of an LRU cache using a doubly linked list and a hash map. The doubly linked list maintains the order of access, while the hash map provides O(1) lookup for nodes.\n\n```python\nfrom typing import Optional, Tuple\n\nclass Node:\n    \"\"\"A node in the doubly linked list.\"\"\"\n    def __init__(self, key: int, value: int):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"\n    An LRU Cache with O(1) get and put operations.\n    \n    Invariants:\n    1. The doubly linked list maintains the order of access, with the most recently\n       used item at the head and the least recently used item at the tail.\n    2. The hash map (cache) maps keys to nodes, ensuring O(1) access.\n    3. The size of the cache never exceeds the specified capacity.\n    4. When the cache is full, the least recently used item (tail) is evicted.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be positive\")\n        self.capacity = capacity\n        self.cache: dict[int, Node] = {}\n        \n        # Dummy head and tail nodes to simplify edge cases\n        self.head: Node = Node(0, 0)  # Dummy head\n        self.tail: Node = Node(0, 0)  # Dummy tail\n        self.head.next = self.tail\n        self.tail.prev = self.head\n        self.size: int = 0\n\n    def _add_to_head(self, node: Node) -> None:\n        \"\"\"Add a node right after the head (most recently used).\"\"\"\n        node.prev = self.head\n        node.next"
+    },
+    {
+      "prompt": "operations",
+      "label": "mtp3",
+      "concurrency": 1,
+      "prompt_tokens": 55,
+      "output_tokens": 512,
+      "ttft_seconds": 0.47167045809328556,
+      "elapsed_seconds": 5.820770957972854,
+      "decode_tokens_per_second": 95.53342523284013,
+      "end_to_end_tokens_per_second": 87.96085667976695,
+      "finish_reason": "length",
+      "response": "In a Kubernetes rolling deployment of a stateful inference service, the interplay between resource management and lifecycle signals is critical to maintaining service availability and preventing node instability. Unlike stateless web services, inference models often require significant memory and CPU to load weights and process tensors, making resource configuration and graceful shutdown non-negotiable.\n\nResource requests and limits form the foundation of this stability. The **request** guarantees a minimum amount of CPU and memory for the pod, ensuring the scheduler places the pod on a node with sufficient capacity. For an inference service, this request must reflect the baseline memory needed to load the model. The **limit** acts as a hard ceiling; if the container exceeds this, the kernel\u2019s OOM killer terminates it. In inference workloads, setting limits too close to requests can cause thrashing if batch sizes fluctuate, while setting them too high risks \"noisy neighbor\" effects on shared nodes.\n\nDuring a rolling update, Kubernetes replaces old pods with new ones one by one. This is where **readiness probes** and **graceful shutdown** become vital. The readiness probe determines if a pod is ready to receive traffic. For an inference service, this probe must verify not just that the process is alive, but that the model is fully loaded and the inference engine is initialized. If the probe fails, the pod is removed from the Service\u2019s endpoint list, preventing traffic from hitting an uninitialized instance.\n\nHowever, readiness probes only control incoming traffic. They do not stop existing connections. This is where **graceful shutdown** interacts with the deployment strategy. When Kubernetes decides to terminate an old pod, it sends a `SIGTERM` signal. The application must catch this signal, stop accepting new requests, and finish processing existing in-flight requests before exiting. If the application ignores `SIGTERM` and exits immediately, active inference requests will fail with connection resets, causing latency spikes and errors for users.\n\nThe interaction sequence is as follows:\n1.  **New Pod Starts**: The new pod starts, loads the model, and passes the readiness probe.\n2.  **Traffic Shift**: Once the new pod is ready, Kubernetes adds it to the Service endpoints. Traffic begins flowing to both old and new pods.\n3.  **Old Pod Termination**: Kubernetes sends `SIGTERM` to the old pod.\n4.  **Drain Phase**: The old pod stops accepting new requests but continues serving existing ones. The readiness probe is typically removed or ignored during this phase to prevent premature removal"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "mtp3",
+      "concurrency": 1,
+      "prompt_tokens": 66,
+      "output_tokens": 512,
+      "ttft_seconds": 0.4956241250038147,
+      "elapsed_seconds": 5.983005458023399,
+      "decode_tokens_per_second": 93.2144614819885,
+      "end_to_end_tokens_per_second": 85.5757200276981,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model (LLM) inference servers requires isolating specific performance dimensions to avoid conflating system overhead with model capability. To compare two coding assistants effectively, we must treat the inference server as a black box while rigorously controlling the input pipeline, concurrency model, and evaluation metrics. The goal is to measure latency, throughput, and correctness independently.\n\n**1. Separation of Concerns**\n\nTo ensure validity, the benchmark architecture must decouple five distinct components:\n\n*   **Input Processing:** This involves tokenization and prompt formatting. Both servers must use the exact same tokenizer and prompt template. Any discrepancy here introduces bias. The benchmark should feed raw text strings into the API, allowing the server to handle tokenization, but the input payload must be identical in byte size and token count.\n*   **Output Generation:** This is the core inference phase. We measure Time to First Token (TTFT) and Tokens Per Second (TPS). TTFT measures the latency before the first character appears, crucial for user experience. TPS measures sustained generation speed. These metrics must be recorded at the API response level, not just the model\u2019s internal computation.\n*   **Concurrency:** Coding assistants often handle multiple users. The benchmark must simulate varying levels of parallel requests. We should measure performance at low concurrency (single user) and high concurrency (simulated team usage). The key metric here is \"requests per second\" (RPS) while maintaining a target latency threshold (e.g., 95th percentile latency < 2 seconds).\n*   **Caching:** Many local servers implement key-value (KV) cache reuse for repeated prompts. The benchmark must have two phases: a \"cold start\" phase (no cache) and a \"warm\" phase (repeated prompts). Comparing servers without distinguishing these phases is misleading, as caching can artificially inflate throughput.\n*   **Answer Quality:** Performance is useless if the code is incorrect. Quality must be measured separately from speed. This involves executing the generated code against test cases and checking for semantic equivalence.\n\n**2. Reproducible Measurement Steps**\n\n1.  **Environment Standardization:** Run both servers on identical hardware (same CPU, GPU, RAM, OS) and software stack (same CUDA version, PyTorch version). Use a fixed random seed for all model initializations.\n2.  **Dataset Selection:** Use a curated dataset of 1,000 coding problems (e.g., from HumanEval or"
+    }
+  ],
+  "wall_seconds": 16.56175370933488,
+  "aggregate_end_to_end_tokens_per_second": 92.74380158993958
+}

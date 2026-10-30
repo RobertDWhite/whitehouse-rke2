@@ -1,58 +1,25 @@
-# qwen-flash
+# Spark inference
 
-Qwen3.8-Flash-Next (125B sparse MoE, 6B active) served by vLLM on node-10 (DGX Spark / GB10),
-using the [blazux/qwen3.8-Flash-DGX](https://github.com/blazux/qwen3.8-Flash-DGX) recipe.
-OpenAI-compatible API at `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1` (LAN:
-`http://10.99.5.128:8000/v1` via the `qwen-flash-lb` LoadBalancer), model
-`qwen3.8-flash-next`, with tool calling and reasoning parsers enabled.
+The `qwen-flash` service runs NVIDIA Qwen3.6-35B-A3B-NVFP4 on the DGX Spark (GB10, node-10). The OpenAI-compatible API remains at `http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1`, with LAN access through `http://10.99.5.128:8000/v1`. The served model identifier is **`qwen3.6-35b-a3b`**.
 
-## How it fits on one GB10
+The deployment follows [NVIDIA's Spark recipe](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4): Marlin NVFP4 weights, FlashInfer attention, FP8 KV cache, and three-token MTP speculative decoding with a Triton draft backend. Async scheduling and prefix caching are enabled. The context limit is 131072 tokens, with up to four sequences and an 8192-token prefill batch.
 
-The NVFP4 checkpoint is ~124 GiB, but 48 GiB of it is an n-gram embedding table that each
-token reads only a few rows of. The recipe memory-maps that table from local NVMe, so
-~75 GiB of weights live in the 128 GB unified pool. The rest of the pool goes to KV cache
-(fp8), and page cache holds the hot rows of the table. That is why the model volume is
-`local-path` on node-10 and not Longhorn.
+## Memory and startup
 
-node-10's Ollama was retired when this went in. The shared Ollama router uses
-the Mac mini as primary and the RTX 5090 as failover; this vLLM endpoint is
-separate. vLLM sizes its KV cache explicitly (`--kv-cache-memory-bytes`, 12 GiB fp8) rather
-than by fraction. On the GB10, CUDA counts page cache as used, so the free memory vLLM
-checks at boot drifts with every file read, and the recipe's 0.80 failed that check. Leave the remaining ~20% alone: it is the page cache that
-holds the hot rows of the n-gram table, and prefill speed depends on it.
+The model checkpoint occupies approximately 22 GiB. vLLM uses a 0.4 GPU memory budget. Because CUDA and Linux share the same physical memory, the startup guard requires 64 GiB of available host memory, and a watchdog stops vLLM below 8 GiB. The existing host GPU clock cap remains at 2200 MHz. The pod requests 48 GiB and has a 64 GiB memory limit; the host watchdog also covers CUDA allocations outside cgroup accounting.
 
-## Startup
+The init container downloads the pinned checkpoint revision `1355db6a052410cfd62085d94b58866fd0f2c3c5` into `/hf/benchmark`, reusing the benchmark cache. Compilation caches persist on the existing local model PVC. The older Qwen3.8-Flash-Next weights remain on that PVC for rollback.
 
-1. `fetch-weights` downloads `nvidia/Qwen3.8-Flash-Next-NVFP4` at a pinned revision into the
-   volume (resumable; a no-op once complete).
-2. `prepare-hybrid` converts four shards' dense side layers to blockwise fp8, the recipe's
-   recommended "hybrid" layout (+20% decode, same quality). It runs once (`.prepared` marker).
-3. `vllm` loads ~75 GiB and compiles CUDA graphs. The first boot takes several minutes; compile
-   caches persist on the volume.
+The deployment reuses the tested local ARM64 vLLM 0.31.0 image, `registry.internal.white.fm/qwen38-flash-dgx:v0.31-1139abf`. Despite the image name, it supports the smaller model. It uses `imagePullPolicy: Never`: rebuilding the Spark requires rebuilding/importing this image from the [original recipe](https://github.com/blazux/qwen3.8-Flash-DGX/tree/1139abf38990583d3f5503ea3a7525e791468567) before starting the deployment.
 
-## The image
+## Validation
 
-The recipe patches the official `vllm/vllm-openai:v0.31.0` and compiles a GB10 (sm_121a)
-top-k kernel, so it is built on node-10 itself and imported into node-10's containerd
-(`imagePullPolicy: Never`). The in-cluster registry is too small for it (~20 GB).
+[The benchmark report](benchmarks/2026-10-30/RESULTS.md) includes raw timings and reproducible requests. The smaller model achieved 124 output tokens/sec on a short coding prompt and 208 tokens/sec across four requests. Other single-request prompts achieved 93–96 tokens/sec. A roughly 20K-token coding input achieved 116 output tokens/sec.
 
-To rebuild, for example after bumping the recipe commit, run a privileged BuildKit pod on
-node-10:
+These tests disabled thinking through `chat_template_kwargs.enable_thinking=false`; clients can choose their reasoning behavior. The deployment does not force that request setting. Short throughput tests capped generation at 512 output tokens. Tool-call, JSON-output, and context-retrieval smoke checks passed; model-quality equivalence to the larger checkpoint has not been established.
 
-```
-buildctl-daemonless.sh build --frontend=dockerfile.v0 \
-  --opt context=https://github.com/blazux/qwen3.8-Flash-DGX.git#<commit> \
-  --opt filename=Dockerfile --opt platform=linux/arm64 \
-  --output type=docker,name=registry.internal.white.fm/qwen38-flash-dgx:<tag>,dest=/out/qwen38-flash-dgx.tar
-```
+## Clients and rollback
 
-Use `moby/buildkit`, with `/out` as a hostPath under `/var/lib/qwen-flash-build`. Then import
-the tarball on the node:
+OpenCode, App Store Reviews, and Congress Trades use the new served identifier. The service addresses remain unchanged. Clients managed outside Git must also select `qwen3.6-35b-a3b`. Hermes and the FreshRSS BI pipeline currently select separate Ollama models and retain those selections.
 
-```
-/var/lib/rancher/rke2/bin/ctr -a /run/k3s/containerd/containerd.sock -n k8s.io \
-  images import /var/lib/qwen-flash-build/qwen38-flash-dgx.tar
-```
-
-Then update the image tag in `20-deployment.yaml`. If node-10 is ever rebuilt, the image has
-to be rebuilt too.
+Rollback requires reverting the deployment and client-model changes together. The older model previously failed its startup memory budget on this shared node; reverting its configuration alone does not establish that it can serve successfully.

@@ -1,0 +1,60 @@
+{
+  "label": "baseline",
+  "concurrency": 1,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "baseline",
+    "concurrency": 1,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.17523320810869336,
+    "elapsed_seconds": 7.006198166869581,
+    "decode_tokens_per_second": 74.8092578951435,
+    "end_to_end_tokens_per_second": 73.0781499188975,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a specialized data structure based on a binary tree, where each node has at most two children, referred to as the left child and the right child. It is defined by a specific ordering property that makes searching, inserting, and deleting elements efficient.\n\n### Core Property\nFor any given node:\n1. All values in the **left subtree** are **less than** the node\u2019s value.\n2. All values in the **right subtree** are **greater than** the node\u2019s value.\n3. Both left and right subtrees must also be binary search trees.\n\nThis property allows for **O(log n)** average-case time complexity for most operations, assuming the tree is balanced.\n\n---\n\n### Key Operations\n\n#### 1. Search\n- **Goal**: Find if a value exists in the tree.\n- **Process**:\n  - Start at the root.\n  - If the target value equals the current node\u2019s value, return `true`.\n  - If the target value is less, move to the left child.\n  - If the target value is greater, move to the right child.\n  - Repeat until the value is found or a null node is reached.\n\n#### 2. Insert\n- **Goal**: Add a new value to the tree while maintaining the BST property.\n- **Process**:\n  - Start at the root.\n  - Traverse down the tree, comparing the new value with each node.\n  - Move left if the new value is smaller, right if larger.\n  - When a null position is reached, insert the new node there.\n\n#### 3. Delete\n- **Goal**: Remove a value from the tree while maintaining the BST property.\n- **Process**:\n  - **Case 1: Node is a leaf** (no children). Simply remove it.\n  - **Case 2: Node has one child**. Replace the node with its child.\n  - **Case 3: Node has two children**. Find the **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree), replace the node\u2019s value with it, and then delete the successor/predecessor node (which will fall into Case 1 or 2).\n\n---\n\n### Advantages & Disadvantages\n- **Advantages**: Efficient search, insertion, and deletion; in-order traversal yields sorted data"
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "baseline",
+      "concurrency": 1,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.11505829077214003,
+      "elapsed_seconds": 6.972101625055075,
+      "decode_tokens_per_second": 74.55660205596655,
+      "end_to_end_tokens_per_second": 73.43553314829308,
+      "finish_reason": "length",
+      "response": "# LRU Cache Implementation in Python\n\nThe Least Recently Used (LRU) cache is a fundamental data structure in computer science, widely used in operating systems, web browsers, and database management systems. Its primary purpose is to maintain a fixed-size cache of items, evicting the least recently accessed item when the cache reaches its capacity. This ensures that the most frequently or recently used items remain in memory, optimizing performance for repeated access patterns.\n\n## Implementation\n\nBelow is a complete, type-annotated implementation of an LRU cache using a doubly linked list and a hash map. The doubly linked list maintains the order of access, while the hash map provides O(1) lookup for nodes.\n\n```python\nfrom typing import Optional, Tuple\n\nclass Node:\n    \"\"\"A node in the doubly linked list.\"\"\"\n    def __init__(self, key: int, value: int):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"\n    An LRU (Least Recently Used) Cache implementation.\n    \n    Invariants:\n    1. The cache size never exceeds the specified capacity.\n    2. The doubly linked list maintains the order of access, with the most recently\n       used item at the head and the least recently used item at the tail.\n    3. The hash map (self.cache) always contains exactly the nodes in the linked list.\n    4. The head and tail are sentinel nodes that simplify boundary conditions.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be positive\")\n        self.capacity = capacity\n        self.cache: dict[int, Node] = {}\n        \n        # Sentinel nodes to simplify edge cases\n        self.head = Node(0, 0)  # Most recently used end\n        self.tail = Node(0, 0)  # Least recently used end\n        self.head.next = self.tail\n        self.tail.prev = self.head\n    \n    def _remove(self, node: Node) -> None:\n        \"\"\"Remove a node from the doubly linked list.\"\"\"\n        prev_node = node.prev\n        next_node = node.next\n        prev_node.next = next_node\n        next_node.prev = prev_node\n    \n    def _add_to_front(self,"
+    },
+    {
+      "prompt": "operations",
+      "label": "baseline",
+      "concurrency": 1,
+      "prompt_tokens": 55,
+      "output_tokens": 512,
+      "ttft_seconds": 0.07715112483128905,
+      "elapsed_seconds": 7.010863916948438,
+      "decode_tokens_per_second": 73.70449033270695,
+      "end_to_end_tokens_per_second": 73.02951620017382,
+      "finish_reason": "length",
+      "response": "In a Kubernetes rolling deployment of a stateful inference service, the interplay between resource management and lifecycle signals is critical to maintaining service availability and preventing node instability. Unlike stateless web applications, inference services often handle long-running requests and consume significant GPU or CPU resources, making precise configuration essential.\n\n**Resource Requests and Limits** form the foundation of scheduling and stability. The `requests` value dictates the minimum resources guaranteed to a pod, ensuring the scheduler places it on a node with sufficient capacity. The `limits` value caps the maximum resources a pod can consume. In inference workloads, setting appropriate limits is vital to prevent a single pod from monopolizing GPU memory, which could cause OOMKills or starve neighboring pods. During a rolling update, Kubernetes ensures that the new version\u2019s resource requests do not exceed the cluster\u2019s available capacity, preventing scheduling failures.\n\n**Readiness Probes** control traffic flow. A readiness probe checks if the application is ready to serve requests. For an inference service, this might involve checking if the model has been loaded into memory. Crucially, the probe must distinguish between \"not yet ready\" and \"unhealthy.\" If the probe fails, Kubernetes removes the pod from the Service\u2019s endpoint list, stopping new traffic from being routed to it. However, existing connections may remain active depending on the service configuration.\n\n**Graceful Shutdown** is the final piece of the puzzle. When Kubernetes decides to terminate a pod (e.g., during a rolling update), it sends a `SIGTERM` signal. The application must catch this signal, stop accepting new requests, and finish processing existing in-flight requests before exiting. The `terminationGracePeriodSeconds` field in the Pod spec defines the maximum time Kubernetes waits for the pod to exit after sending `SIGTERM`. If the pod does not exit within this window, Kubernetes sends `SIGKILL`, forcefully terminating the process, which can lead to dropped requests or corrupted state.\n\n**Concrete Example:**\nConsider a PyTorch-based inference service. The Pod spec includes:\n- `resources.requests`: 4 CPU, 16Gi memory, 1 GPU.\n- `resources.limits`: 4 CPU, 16Gi memory, 1 GPU.\n- `readinessProbe`: An HTTP GET to `/health` that returns 200 only after the model is loaded.\n- `terminationGracePeriodSeconds`: 60.\n\nThe application code registers a signal handler for `SIGTERM`. Upon receiving it, the"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "baseline",
+      "concurrency": 1,
+      "prompt_tokens": 66,
+      "output_tokens": 512,
+      "ttft_seconds": 0.07777341734617949,
+      "elapsed_seconds": 7.034635292366147,
+      "decode_tokens_per_second": 73.46143488811819,
+      "end_to_end_tokens_per_second": 72.78273552512562,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model (LLM) inference servers requires a modular architecture that isolates specific performance metrics. To accurately compare two servers\u2014let\u2019s call them Server A and Server B\u2014while evaluating their suitability for coding assistants, we must decouple the pipeline into five distinct components: input processing, output generation, concurrency management, caching mechanisms, and answer quality. This separation ensures that improvements in one area do not mask deficiencies in another.\n\n**1. Input Processing and Preprocessing**\nThe first stage involves tokenizing and preparing the prompt. To ensure fairness, both servers must receive identical preprocessed inputs. We should measure the latency between receiving the raw text payload and the moment the model begins its first computation step (Time to First Token, or TTFT). This metric isolates the efficiency of the input queue, tokenizer, and initial context window management. To prevent bias, the input dataset should be a fixed, static collection of coding problems (e.g., from HumanEval or MBPP) with varying lengths and complexities. Any variation in input size must be normalized or stratified across test runs.\n\n**2. Output Generation and Latency**\nThis stage measures the speed of token generation. The key metric here is Tokens Per Second (TPS) and Total Generation Time. For coding assistants, the distribution of generation times is critical; a server might have a high average TPS but suffer from high variance, causing unpredictable user experience. We should record the time from the first token to the final token. It is crucial to disable any dynamic batching optimizations that might artificially inflate TPS by waiting for multiple requests, unless the benchmark explicitly tests batched performance. Instead, we should test both single-stream and multi-stream scenarios to understand real-world responsiveness.\n\n**3. Concurrency and Throughput**\nCoding assistants often handle multiple users simultaneously. To measure concurrency, we will simulate a load profile using a tool like `locust` or `k6`. We will gradually increase the number of concurrent requests until the system reaches a saturation point (e.g., 95th percentile latency exceeds a threshold). The benchmark should report the maximum sustainable concurrency level and the degradation curve of latency as load increases. This reveals how well each server handles memory pressure and GPU utilization under stress.\n\n**4. Caching Efficiency**\nMany coding tasks involve repetitive patterns (e.g., similar function signatures or boilerplate code). We must evaluate the effectiveness of key-value (KV) cache reuse. The benchmark should include a sequence of prompts with high"
+    }
+  ],
+  "wall_seconds": 21.01766850007698,
+  "aggregate_end_to_end_tokens_per_second": 73.08136961025788
+}
