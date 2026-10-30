@@ -1,32 +1,14 @@
-# Qwen3.8-Flash-Next (125B sparse, 6B active) on node-10's GB10, served by vLLM with
-# the blazux/qwen3.8-Flash-DGX recipe (https://github.com/blazux/qwen3.8-Flash-DGX).
-#
-# The recipe keeps the 48 GiB n-gram (PLE) table on NVMe via mmap, so only ~75 GiB of
-# weights sit in the 128 GB unified pool; the rest is KV cache and page cache for the
-# table. Its patched vLLM image is built on node-10 (arm64, compiles a GB10 kernel) and
-# imported straight into node-10's containerd, hence imagePullPolicy: Never. Rebuild
-# with the build pod described in README.md when bumping the recipe commit.
-#
-# Flags below are scripts/serve.sh's "native" profile (MODE=hybrid YARN=0 CTX=262144)
-# resolved at recipe commit 1139abf, with the fp8 KV cache. node-10's Ollama was
-# retired (its traffic goes to the 5090), so vLLM sizes its KV cache explicitly
-# (3 GiB fp8) instead of the recipe's 0.80 fraction; see the comment on the flags.
+# Qwen3.6-35B-A3B-NVFP4 on GB10, using the measured NVIDIA Spark recipe.
+# See benchmarks/2026-10-30/RESULTS.md. Keep the 2200 MHz host clock cap.
+# The existing local vLLM image supports both models; preserve the larger
+# checkpoint for rollback. CUDA shares host memory, so retain the host watchdog.
+# A 0.4 GPU budget and 64 GiB startup gate leave room for cluster services.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: qwen-flash
 spec:
-  # node-10 needs /etc/sysctl.d/90-gb10-unified-memory.conf (vm.dirty_bytes=1G,
-  # vm.dirty_background_bytes=256M, vm.min_free_kbytes=1G). Without it, Longhorn
-  # rebuild writes filled up to 20% of the unified pool with dirty pages and the
-  # node hung with vLLM loaded (2026-10-16/17).
-  # On 2026-10-26 a start with 12 GiB KV and 8 seqs used up the 119.7 GiB unified pool
-  # (NVRM NV_ERR_NO_MEMORY) and hard-reset node-10. GPU allocations are not charged to
-  # the pod's memory limit, so the limit below never fires. Guards since then: smaller
-  # KV/batch/context, the mem-check init container (refuses to start unless enough is free),
-  # and the mem-watchdog sidecar (kills vLLM if the node gets close to empty).
   replicas: 1
-  # One GPU memory pool and an RWO local volume: never run two at once.
   strategy:
     type: Recreate
   selector:
@@ -50,16 +32,13 @@ spec:
           value: llm
           effect: PreferNoSchedule
       terminationGracePeriodSeconds: 60
-      # Lets mem-watchdog see and kill the vLLM processes.
       shareProcessNamespace: true
       initContainers:
-        # vLLM needs ~88 GiB of host memory (74 weights + 3 KV + 1.5 graphs + ~5 process
-        # memory + activations). Wait until the
-        # node has MIN_GIB available (page cache counts as available) instead of
-        # starting into a pool that can't hold it. /proc/meminfo is the host's.
         - name: mem-check
           image: busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
-          command: ["sh", "-c"]
+          command:
+            - sh
+            - -c
           args:
             - |
               while :; do
@@ -68,151 +47,129 @@ spec:
                 echo "MemAvailable ${avail} GiB < ${MIN_GIB} GiB; waiting"; sleep 30
               done
           env:
-            - {name: MIN_GIB, value: "96"}
+            - name: MIN_GIB
+              value: '64'
           resources:
-            requests: {cpu: 10m, memory: 8Mi}
-            limits: {memory: 32Mi}
-        # Resumable: hf download skips files already complete, so restarts cost seconds.
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
         - name: fetch-weights
-          image: python:3.12-slim
-          command: ["bash", "-ec"]
-          args:
-            - |
-              pip install --no-cache-dir --quiet "huggingface_hub[hf_xet]>=0.35"
-              hf download "$MODEL" --revision "$REVISION" --max-workers 8
-              mkdir -p /hf/tools
-              python3 -c "import urllib.request,sys; urllib.request.urlretrieve(sys.argv[1], '/hf/tools/fp8_convert.py')" \
-                "https://raw.githubusercontent.com/blazux/qwen3.8-Flash-DGX/${RECIPE_COMMIT}/tools/fp8_convert.py"
-          env:
-            - {name: MODEL, value: nvidia/Qwen3.8-Flash-Next-NVFP4}
-            - {name: REVISION, value: fc694b54fb0174e0913e6adf86691ef85a4ead47}
-            - {name: RECIPE_COMMIT, value: 1139abf38990583d3f5503ea3a7525e791468567}
-            - {name: HF_HOME, value: /hf}
-            - {name: HF_HUB_DISABLE_XET, value: "0"}
-            - {name: HF_XET_HIGH_PERFORMANCE, value: "1"}
-          resources:
-            requests: {cpu: "2", memory: 2Gi}
-            limits: {memory: 8Gi}
-          volumeMounts:
-            - {name: models, mountPath: /hf}
-        # scripts/prepare-hybrid.sh: copy the snapshot (relative symlinks, instant) and
-        # rewrite 4 shards' dense side layers to blockwise fp8 (+20% decode, same quality).
-        # Skipped once .prepared exists.
-        - name: prepare-hybrid
           image: registry.internal.white.fm/qwen38-flash-dgx:v0.31-1139abf
           imagePullPolicy: Never
-          command: ["bash", "-ec"]
-          args:
-            - |
-              SRC=/hf/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/$REVISION
-              DST=$SRC-fp8hybrid
-              if [ -f "$DST/.prepared" ]; then echo "hybrid checkpoint already prepared"; exit 0; fi
-              rm -rf "$DST"
-              cp -a "$SRC" "$DST"
-              rm -f "$DST/model.safetensors.index.json"
-              cp "$SRC/model.safetensors.index.json" "$DST/model.safetensors.index.json"
-              python3 /hf/tools/fp8_convert.py "$DST" | tee "$DST/fp8_convert.log"
-              n=$(python3 -c "import json;print(sum(1 for k in json.load(open('$DST/model.safetensors.index.json'))['weight_map'] if k.endswith('weight_scale_inv')))")
-              [ "$n" -gt 0 ] || { echo "conversion produced no fp8 tensors"; exit 1; }
-              chmod 644 "$DST"/*.safetensors "$DST"/model.safetensors.index.json
-              touch "$DST/.prepared"
-              echo "done: $n fp8 side-layer tensors"
+          command:
+            - hf
+            - download
+            - nvidia/Qwen3.6-35B-A3B-NVFP4
+            - --revision
+            - 1355db6a052410cfd62085d94b58866fd0f2c3c5
+            - --max-workers
+            - '4'
           env:
-            - {name: REVISION, value: fc694b54fb0174e0913e6adf86691ef85a4ead47}
+            - name: HF_HOME
+              value: /hf/benchmark
+            - name: HF_HUB_DISABLE_XET
+              value: '0'
+            - name: HF_XET_HIGH_PERFORMANCE
+              value: '1'
           resources:
-            requests: {cpu: "4", memory: 16Gi}
-            limits: {memory: 64Gi}
+            requests:
+              cpu: '2'
+              memory: 2Gi
+            limits:
+              memory: 16Gi
           volumeMounts:
-            - {name: models, mountPath: /hf}
+            - name: models
+              mountPath: /hf
       containers:
         - name: vllm
           image: registry.internal.white.fm/qwen38-flash-dgx:v0.31-1139abf
           imagePullPolicy: Never
           args:
-            - /hf/hub/models--nvidia--Qwen3.8-Flash-Next-NVFP4/snapshots/fc694b54fb0174e0913e6adf86691ef85a4ead47-fp8hybrid
-            - --served-model-name=qwen3.8-flash-next
-            - --host=0.0.0.0
-            - --port=8000
-            - --load-format=safetensors
-            # 128K, not the recipe's 262K: a 262K request needs >= 4.2 GiB of KV, and with
-            # 6 GiB KV node-10 was down to 5 GiB MemAvailable once vLLM was ready
-            # (2026-10-26, watchdog kill). OpenCode prompts are ~15-60K tokens.
-            - --max-model-len=131072
-            - --max-num-seqs=4
-            # KV cache sized explicitly (the recipe's KV_CACHE_MEM): 3 GiB of fp8 KV,
-            # ~187K tokens (~62K tokens per GiB), more than one full 128K request.
-            # 12 GiB with 8 seqs reset the node on 2026-10-26.
-            # vLLM refuses to start unless gpu-memory-utilization x 119.7 GiB is free,
-            # and on the GB10 CUDA counts page cache as used, so "free" drifts as the
-            # 140 GB of checkpoint files are read (95.66 GiB, then 92.6). A fixed KV
-            # size makes the footprint ~83 GiB regardless (74 weights + 3 KV +
-            # activations), and the low utilization just keeps the boot check from
-            # tripping. The kernel reclaims page cache as vLLM really allocates;
-            # what stays free is page cache for the mmapped PLE table.
-            - --gpu-memory-utilization=0.70
-            - --kv-cache-memory-bytes=3221225472
-            - --kv-cache-dtype=fp8_e4m3
-            - --enable-prefix-caching
-            - --enable-prompt-tokens-details
+            - /hf/benchmark/hub/models--nvidia--Qwen3.6-35B-A3B-NVFP4/snapshots/1355db6a052410cfd62085d94b58866fd0f2c3c5
+            - --served-model-name
+            - qwen3.6-35b-a3b
+            - --host
+            - 0.0.0.0
+            - --port
+            - '8000'
+            - --kv-cache-dtype
+            - fp8
+            - --attention-backend
+            - flashinfer
+            - --moe-backend
+            - marlin
+            - --gpu-memory-utilization
+            - '0.4'
+            - --max-model-len
+            - '131072'
+            - --max-num-seqs
+            - '4'
+            - --max-num-batched-tokens
+            - '8192'
             - --enable-chunked-prefill
-            - --max-num-batched-tokens=2048
-            - -cc.cudagraph_mode=PIECEWISE
-            - -cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen4_exp_ple_short_conv","vllm::qwen4_exp_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::gdn_attention_core_xpu","vllm::olmo_hybrid_gdn_full_forward","vllm::sparse_attn_indexer","vllm::rocm_aiter_sparse_attn_indexer","vllm::deepseek_v4_attention","vllm::hpc_rope_norm_forward","vllm::unified_kv_cache_update","vllm::unified_mla_kv_cache_update","vllm::ple_mmap_lookup_ids"]
-            - --no-enable-flashinfer-autotune
+            - --async-scheduling
+            - --enable-prefix-caching
+            - --reasoning-parser
+            - qwen3
+            - --tool-call-parser
+            - qwen3_xml
             - --enable-auto-tool-choice
-            - --tool-call-parser=qwen3_coder
-            - --reasoning-parser=qwen3
-            - --speculative-config={"method":"mtp","num_speculative_tokens":2}
+            - --speculative-config
+            - '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
           env:
-            - {name: HF_HOME, value: /hf}
-            - {name: HF_HUB_OFFLINE, value: "1"}
-            - {name: VLLM_PLE_MMAP, value: "1"}
-            - {name: VLLM_PLE_MMAP_WORKERS, value: "32"}
-            - {name: VLLM_PLE_MMAP_PREWARM, value: "0"}
-            - {name: VLLM_PLE_MMAP_MADVISE, value: random}
-            - {name: VLLM_PLE_MMAP_FAST_ROWS, value: "0"}
-            - {name: VLLM_QSA_EXACT_TOPK, value: "0"}
-            - {name: VLLM_QSA_DET_TOPK, value: "1"}
-            - {name: VLLM_QSA_DET_LIB, value: /opt/llm/kernel-det/_C_det.so}
-            - {name: VLLM_MTP_DRAFT_VOCAB, value: /opt/llm/draft_vocab_65536.npy}
-            - {name: VLLM_USE_FLASHINFER_SAMPLER, value: "1"}
-            - {name: VLLM_ALLOW_LONG_MAX_MODEL_LEN, value: "0"}
-            - {name: VLLM_FP8_HYBRID, value: "1"}
-            - {name: VLLM_USE_DEEP_GEMM, value: "0"}
+            - name: HF_HOME
+              value: /hf/benchmark
+            - name: HF_HUB_OFFLINE
+              value: '1'
           ports:
-            - {name: http, containerPort: 8000}
-          # First boot loads ~75 GiB and compiles CUDA graphs; later boots reuse the
-          # compile caches below.
+            - name: http
+              containerPort: 8000
           startupProbe:
-            httpGet: {path: /health, port: http}
+            httpGet:
+              path: /health
+              port: http
             periodSeconds: 20
             failureThreshold: 90
           readinessProbe:
-            httpGet: {path: /health, port: http}
+            httpGet:
+              path: /health
+              port: http
             periodSeconds: 15
           livenessProbe:
-            httpGet: {path: /health, port: http}
+            httpGet:
+              path: /health
+              port: http
             periodSeconds: 30
             failureThreshold: 5
           resources:
-            # GB10 memory is unified: CUDA allocations count against this cgroup.
-            requests: {cpu: "4", memory: 88Gi, nvidia.com/gpu: 1}
-            limits: {memory: 116Gi, nvidia.com/gpu: 1}
+            requests:
+              cpu: '4'
+              memory: 48Gi
+              nvidia.com/gpu: 1
+            limits:
+              memory: 64Gi
+              nvidia.com/gpu: 1
           volumeMounts:
-            - {name: models, mountPath: /hf}
-            - {name: models, mountPath: /root/.cache/vllm, subPath: cache/vllm}
-            - {name: models, mountPath: /root/.cache/flashinfer, subPath: cache/flashinfer}
-            - {name: models, mountPath: /root/.triton, subPath: cache/triton}
-            - {name: models, mountPath: /root/.nv, subPath: cache/nv}
-            - {name: dshm, mountPath: /dev/shm}
-        # Last line of defence: if the node's MemAvailable drops below MIN_GIB, SIGKILL
-        # vLLM so the driver frees its memory before NVRM runs out and the node resets.
-        # Kills every process outside this container (by mount namespace) except the
-        # pause process, so vLLM's EngineCore child, which holds the GPU memory, dies
-        # too. The vllm container then restarts (crash-loop backoff), visible as restarts.
+            - name: models
+              mountPath: /hf
+            - name: models
+              mountPath: /root/.cache/vllm
+              subPath: benchmark/compile-cache/vllm
+            - name: models
+              mountPath: /root/.cache/flashinfer
+              subPath: benchmark/compile-cache/flashinfer
+            - name: models
+              mountPath: /root/.triton
+              subPath: benchmark/compile-cache/.triton
+            - name: dshm
+              mountPath: /dev/shm
         - name: mem-watchdog
           image: busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
-          command: ["sh", "-c"]
+          command:
+            - sh
+            - -c
           args:
             - |
               echo "watching MemAvailable, kill below ${MIN_GIB} GiB"
@@ -232,10 +189,14 @@ spec:
                 sleep 1
               done
           env:
-            - {name: MIN_GIB, value: "4"}
+            - name: MIN_GIB
+              value: '8'
           resources:
-            requests: {cpu: 10m, memory: 8Mi}
-            limits: {memory: 32Mi}
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
       volumes:
         - name: models
           persistentVolumeClaim:
@@ -243,4 +204,4 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 16Gi
+            sizeLimit: 8Gi

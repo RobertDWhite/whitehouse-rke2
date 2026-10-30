@@ -5,7 +5,7 @@ web UI (`opencode web`) at https://opencode.internal.white.fm.
 
 - **Runs on the DGX Spark** (rke2-node-10, arm64), next to its model backend.
   The upstream image `ghcr.io/anomalyco/opencode` is multi-arch.
-- **Models**: defaults to Qwen3.8 Flash Next through the in-cluster vLLM API
+- **Models**: defaults to Qwen3.6 35B A3B through the in-cluster vLLM API
   (`qwen-flash.qwen-flash:8000/v1`) for both coding and lightweight tasks — see
   `15-configmap.yaml`. The Ollama provider remains available for manually
   selecting Qwen3.8 27B or Qwen3 0.6B through the Mac mini primary, with the
