@@ -131,6 +131,33 @@ grep . /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
 
 (Not persistent across reboot by design — remove once fans are in.)
 
+**2026-10-30:** the 1500 MHz cap had been lost on a reboot (GPU back at
+~2400 MHz, hottest zones 87 °C). Re-capped at **2200 MHz** and made it
+persistent with a systemd unit:
+
+```bash
+cat > /etc/systemd/system/gpu-clock-cap.service <<'EOF2'
+[Unit]
+Description=Cap GB10 GPU clock at 2200 MHz (thermal; no ACPI trip points)
+After=nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/nvidia-smi -pm 1
+ExecStart=/usr/bin/nvidia-smi -lgc 0,2200
+ExecStop=/usr/bin/nvidia-smi -rgc
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF2
+systemctl daemon-reload && systemctl enable --now gpu-clock-cap.service
+nvidia-smi --query-gpu=clocks.gr,temperature.gpu --format=csv   # expect <= 2200 MHz
+```
+
+Remove with `systemctl disable --now gpu-clock-cap.service` (ExecStop runs `-rgc`).
+
 ## 6. Cap dirty page cache (added 2026-10-17)
 
 With vLLM loaded, node-10 hung (and the night before hard-reset three times)
