@@ -59,6 +59,15 @@ PROMPT = (
 )
 
 app = FastAPI()
+
+
+@app.exception_handler(HTTPException)
+async def openai_error(_: Request, exc: HTTPException) -> JSONResponse:
+    # Riffado's OpenAI client only reads {"error": {"message": ...}}; FastAPI's
+    # default {"detail": ...} showed up there as "503 status code (no body)".
+    return JSONResponse(status_code=exc.status_code,
+                        content={"error": {"message": str(exc.detail), "type": "server_error",
+                                           "code": exc.status_code}})
 work_lock = asyncio.Lock()
 state = {"vllm": "stopped", "busy": False, "last_used": 0.0}
 proc: subprocess.Popen | None = None
