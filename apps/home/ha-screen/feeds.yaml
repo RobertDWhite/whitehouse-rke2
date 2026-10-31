@@ -83,6 +83,9 @@ spec:
         - name: nginx
           mountPath: /usr/share/nginx/html/index.html
           subPath: index.html
+        - name: nginx
+          mountPath: /usr/share/nginx/html/weather-tv.html
+          subPath: weather-tv.html
         readinessProbe:
           httpGet:
             path: /stream.m3u8
@@ -207,6 +210,9 @@ spec:
         - name: nginx
           mountPath: /usr/share/nginx/html/index.html
           subPath: index.html
+        - name: nginx
+          mountPath: /usr/share/nginx/html/weather-tv.html
+          subPath: weather-tv.html
         readinessProbe:
           httpGet:
             path: /stream.m3u8
@@ -276,7 +282,7 @@ spec:
         - name: DASHBOARD_PATH
           value: /house-feeds/radar
         - name: ROTATION
-          value: /house-feeds/radar:30,/house-feeds/forecast:15
+          value: /house-feeds/wx-current:15,/house-feeds/radar:25,/house-feeds/wx-hourly:25,/house-feeds/wx-daily:20,/house-feeds/wx-alerts:20,/house-feeds/radar:25,/house-feeds/wx-outlook1:20,/house-feeds/wx-outlook2:15,/house-feeds/wx-outlook3:15,/house-feeds/wx-hwo:30
         - name: JITTER_PX
           value: '8'
         - name: FIT_PATHS
@@ -331,6 +337,9 @@ spec:
         - name: nginx
           mountPath: /usr/share/nginx/html/index.html
           subPath: index.html
+        - name: nginx
+          mountPath: /usr/share/nginx/html/weather-tv.html
+          subPath: weather-tv.html
         readinessProbe:
           httpGet:
             path: /stream.m3u8
