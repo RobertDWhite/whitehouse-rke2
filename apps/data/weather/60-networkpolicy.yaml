@@ -34,6 +34,18 @@ spec:
       ports:
         - port: 8080
           protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ha-screen
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [ha-screen, ha-screen-weather, ha-screen-summary, ha-screen-cameras]
+      ports:
+        - port: 8080
+          protocol: TCP
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
