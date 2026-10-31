@@ -204,7 +204,10 @@ data:
             if self.wf is None:
                 return
             self.wf.close()
-            if self.samples_written < self.min_samples:
+            if (self.samples_written < self.min_samples
+                    or (not self.is_cw and self.samples_written <= 2 * self.audio_rate
+                        and not (144370000 <= self.freq_hz <= 144410000
+                                 or 145805000 <= self.freq_hz <= 145845000))):
                 try:
                     os.remove(self._tmp_path)
                     print(f"[REC] Discarded short recording {self.current_path}", flush=True)
