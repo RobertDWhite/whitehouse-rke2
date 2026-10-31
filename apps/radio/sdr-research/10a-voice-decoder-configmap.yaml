@@ -10,7 +10,9 @@ data:
     import re
     import time
     import wave
-    from faster_whisper import WhisperModel
+    import json
+    import urllib.request
+    import uuid
 
     AUDIO_DIRS = tuple(
         path.strip()
@@ -21,23 +23,15 @@ data:
         if path.strip()
     )
     TEXT_DIR = "/data/text/voice"
-    MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
-    WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cuda")
-    WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "float16")
-    WHISPER_ENFORCE_GPU = os.getenv("WHISPER_ENFORCE_GPU", "true").lower() in ("1", "true", "yes", "on")
+    MODEL_NAME = "nemotron-transcribe"
+    API_URL = os.environ["TRANSCRIPTION_BASE_URL"].rstrip("/") + "/audio/transcriptions"
+    API_KEY = os.environ["TRANSCRIPTION_API_KEY"]
+    API_TIMEOUT = int(os.getenv("TRANSCRIPTION_TIMEOUT_SEC", "3600"))
     MIN_FILE_AGE_SEC = int(os.getenv("MIN_FILE_AGE_SEC", "120"))
     MIN_STABLE_SEC = int(os.getenv("MIN_STABLE_SEC", "30"))
     CHUNK_SEC = int(os.getenv("CHUNK_SEC", "30"))
     RETRY_EMPTY_TRANSCRIPTS = os.getenv("RETRY_EMPTY_TRANSCRIPTS", "true").lower() in ("1", "true", "yes", "on")
-    # Whisper segment-level noise rejection. Raise no_speech_threshold to discard
-    # more uncertain segments; lower compression_ratio_threshold to drop repetitive
-    # hallucinated output.
-    NO_SPEECH_THRESHOLD = float(os.getenv("NO_SPEECH_THRESHOLD", "0.7"))
-    COMPRESSION_RATIO_THRESHOLD = float(os.getenv("COMPRESSION_RATIO_THRESHOLD", "2.0"))
-    LOG_PROB_THRESHOLD = float(os.getenv("LOG_PROB_THRESHOLD", "-1.0"))
-
-    # Whisper hallucinates these phrases from silence/noise. Any segment whose
-    # entire text matches is treated as non-speech and discarded.
+    # Discard complete noise/filler phrases from radio audio.
     _HALLUCINATION_RE = re.compile(
         r"^\s*(?:"
         r"[^\w]+"                                            # only punctuation / symbols
@@ -52,18 +46,6 @@ data:
         os.makedirs(audio_dir, exist_ok=True)
     os.makedirs(TEXT_DIR, exist_ok=True)
 
-    try:
-        model = WhisperModel(
-            MODEL_NAME,
-            device=WHISPER_DEVICE,
-            compute_type=WHISPER_COMPUTE_TYPE,
-        )
-    except Exception as e:
-        if WHISPER_DEVICE == "cuda" and not WHISPER_ENFORCE_GPU:
-            print(f"CUDA Whisper init failed ({e}); falling back to CPU")
-            model = WhisperModel(MODEL_NAME, device="cpu", compute_type="int8")
-        else:
-            raise
     file_state = {}
     APRS_BANDS_HZ = (
         (144370000, 144410000),
@@ -72,7 +54,7 @@ data:
 
     print(
         "Voice decoder started "
-        f"(model={MODEL_NAME}, device={WHISPER_DEVICE}, compute_type={WHISPER_COMPUTE_TYPE}, "
+        f"(model={MODEL_NAME}, endpoint={API_URL}, "
         f"audio_dirs={','.join(AUDIO_DIRS)})"
     )
 
@@ -169,23 +151,36 @@ data:
                 else:
                     audio_input = io.BytesIO(wav_bytes_for_frames(wf, start_frame, num_frames))
 
+                # Commit no transcript unless every chunk succeeds. A failed
+                # request must remain retryable, never become "no speech".
                 try:
-                    segments, _ = model.transcribe(
-                        audio_input,
-                        language="en",
-                        vad_filter=True,
-                        condition_on_previous_text=False,
-                        no_speech_threshold=NO_SPEECH_THRESHOLD,
-                        compression_ratio_threshold=COMPRESSION_RATIO_THRESHOLD,
-                    )
+                    if isinstance(audio_input, str):
+                        with open(audio_input, "rb") as source:
+                            audio = source.read()
+                    else:
+                        audio = audio_input.getvalue()
+                    boundary = uuid.uuid4().hex
+                    parts = []
+                    for key, value in (("model", MODEL_NAME), ("language", "en"), ("response_format", "json")):
+                        parts.append((f"--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n").encode())
+                    parts.append((f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n").encode())
+                    parts.extend([audio, f"\r\n--{boundary}--\r\n".encode()])
+                    request = urllib.request.Request(API_URL, data=b"".join(parts), headers={
+                        "Authorization": "Bearer " + API_KEY,
+                        "Content-Type": "multipart/form-data; boundary=" + boundary,
+                    })
+                    with urllib.request.urlopen(request, timeout=API_TIMEOUT) as response:
+                        result = json.load(response)
+                    segments = result.get("segments")
+                    if not isinstance(segments, list) or not all(isinstance(seg, dict) and isinstance(seg.get("text"), str) for seg in segments):
+                        raise ValueError("Invalid transcription segments")
                     for seg in segments:
-                        if seg.avg_logprob < LOG_PROB_THRESHOLD:
-                            continue
-                        line = seg.text.strip()
+                        line = seg["text"].strip()
                         if line and not _HALLUCINATION_RE.match(line):
                             lines.append(line)
                 except Exception as e:
-                    print(f"Transcribe chunk failed for {path}: {e}")
+                    print(f"Nemotron request failed for {path}: {type(e).__name__}; retrying later")
+                    return None
 
         return lines
 
@@ -255,7 +250,12 @@ data:
 
             num_chunks = max(1, int(duration_sec / CHUNK_SEC + 0.5))
             print(f"Transcribing {wav_path} ({duration_sec:.1f}s, {num_chunks} chunk(s))")
+            if now < file_state[wav_path].get("retry_after", 0):
+                continue
             lines = transcribe_file(wav_path, duration_sec)
+            if lines is None:
+                file_state[wav_path]["retry_after"] = time.time() + 300
+                continue
 
             tmp_path = txt_path + ".tmp"
             with open(tmp_path, "w") as f:
