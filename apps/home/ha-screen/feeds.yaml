@@ -1,0 +1,365 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ha-screen-cameras
+  namespace: ha-screen
+  labels:
+    app: ha-screen-cameras
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ha-screen-cameras
+  template:
+    metadata:
+      labels:
+        app: ha-screen-cameras
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: stream
+        image: registry.internal.white.fm/ha-screen-stream
+        env:
+        - name: HA_URL
+          value: http://10.100.1.30:8123
+        - name: DASHBOARD_PATH
+          value: /house-feeds/cameras
+        - name: ROTATION
+          value: ''
+        - name: JITTER_PX
+          value: '8'
+        - name: FIT_PATHS
+          value: /house-feeds/main,/house-feeds/flip
+        - name: SAFE_PCT
+          value: '2'
+        - name: PAGE_BG
+          value: '#000000'
+        - name: CARD_BG
+          value: '#141414'
+        - name: CLIENT_ID
+          value: https://screen.internal.white.fm/
+        - name: HLS_DIR
+          value: /hls
+        envFrom:
+        - secretRef:
+            name: ha-screen-login
+        volumeMounts:
+        - name: hls
+          mountPath: /hls
+        - name: dshm
+          mountPath: /dev/shm
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - test $(( $(date +%s) - $(stat -c %Y /hls/stream.m3u8) )) -lt 60
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 512Mi
+          limits:
+            memory: 3Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+      - name: web
+        image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: hls
+          mountPath: /usr/share/nginx/html/hls
+          readOnly: true
+        - name: nginx
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        - name: nginx
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        readinessProbe:
+          httpGet:
+            path: /stream.m3u8
+            port: 8080
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: hls
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+      - name: nginx
+        configMap:
+          name: ha-screen-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ha-screen-cameras
+  namespace: ha-screen
+spec:
+  selector:
+    app: ha-screen-cameras
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ha-screen-summary
+  namespace: ha-screen
+  labels:
+    app: ha-screen-summary
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ha-screen-summary
+  template:
+    metadata:
+      labels:
+        app: ha-screen-summary
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: stream
+        image: registry.internal.white.fm/ha-screen-stream
+        env:
+        - name: HA_URL
+          value: http://10.100.1.30:8123
+        - name: DASHBOARD_PATH
+          value: /house-feeds/main
+        - name: ROTATION
+          value: /house-feeds/main:30,/house-feeds/flip:30
+        - name: JITTER_PX
+          value: '8'
+        - name: FIT_PATHS
+          value: /house-feeds/main,/house-feeds/flip
+        - name: SAFE_PCT
+          value: '2'
+        - name: PAGE_BG
+          value: '#000000'
+        - name: CARD_BG
+          value: '#141414'
+        - name: CLIENT_ID
+          value: https://screen.internal.white.fm/
+        - name: HLS_DIR
+          value: /hls
+        envFrom:
+        - secretRef:
+            name: ha-screen-login
+        volumeMounts:
+        - name: hls
+          mountPath: /hls
+        - name: dshm
+          mountPath: /dev/shm
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - test $(( $(date +%s) - $(stat -c %Y /hls/stream.m3u8) )) -lt 60
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            memory: 1536Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      - name: web
+        image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: hls
+          mountPath: /usr/share/nginx/html/hls
+          readOnly: true
+        - name: nginx
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        - name: nginx
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        readinessProbe:
+          httpGet:
+            path: /stream.m3u8
+            port: 8080
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: hls
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+      - name: nginx
+        configMap:
+          name: ha-screen-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ha-screen-summary
+  namespace: ha-screen
+spec:
+  selector:
+    app: ha-screen-summary
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ha-screen-weather
+  namespace: ha-screen
+  labels:
+    app: ha-screen-weather
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ha-screen-weather
+  template:
+    metadata:
+      labels:
+        app: ha-screen-weather
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+      - name: stream
+        image: registry.internal.white.fm/ha-screen-stream
+        env:
+        - name: HA_URL
+          value: http://10.100.1.30:8123
+        - name: DASHBOARD_PATH
+          value: /house-feeds/radar
+        - name: ROTATION
+          value: /house-feeds/radar:30,/house-feeds/forecast:15
+        - name: JITTER_PX
+          value: '8'
+        - name: FIT_PATHS
+          value: /house-feeds/main,/house-feeds/flip
+        - name: SAFE_PCT
+          value: '2'
+        - name: PAGE_BG
+          value: '#000000'
+        - name: CARD_BG
+          value: '#141414'
+        - name: CLIENT_ID
+          value: https://screen.internal.white.fm/
+        - name: HLS_DIR
+          value: /hls
+        envFrom:
+        - secretRef:
+            name: ha-screen-login
+        volumeMounts:
+        - name: hls
+          mountPath: /hls
+        - name: dshm
+          mountPath: /dev/shm
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - test $(( $(date +%s) - $(stat -c %Y /hls/stream.m3u8) )) -lt 60
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 300m
+            memory: 512Mi
+          limits:
+            memory: 1536Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      - name: web
+        image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: hls
+          mountPath: /usr/share/nginx/html/hls
+          readOnly: true
+        - name: nginx
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        - name: nginx
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        readinessProbe:
+          httpGet:
+            path: /stream.m3u8
+            port: 8080
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: hls
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 256Mi
+      - name: nginx
+        configMap:
+          name: ha-screen-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ha-screen-weather
+  namespace: ha-screen
+spec:
+  selector:
+    app: ha-screen-weather
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
