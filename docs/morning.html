@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media daily · 2 Nov 2026</title>
+  <style>
+    :root {
+      --background: transparent;
+      --foreground: var(--foreground, #e8eaed);
+      --muted: #9aa0a6;
+      --muted-foreground: #9aa0a6;
+      --card: #1a1d23;
+      --border: #2a2f38;
+      --primary: #8ab4f8;
+      --accent: #81c995;
+      --destructive: #f28b82;
+      --warning: #fdd663;
+      --success: #81c995;
+      --info: #8ab4f8;
+      --chart-1: #8ab4f8;
+      --chart-2: #fdd663;
+      --chart-3: #f28b82;
+      --chart-4: #81c995;
+      --chart-5: #c58af9;
+      --chart-6: #78d9ec;
+      --radius: 12px;
+      --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    html, body { margin: 0; padding: 0; background: transparent; color: var(--foreground); font-family: var(--font-sans); }
+    h1 { font-size: 22px; font-weight: 650; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .card h2 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .ok { color: var(--success); }
+    .warn { color: var(--warning); }
+    .bad { color: var(--destructive); }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+    .bar-label { width: 92px; color: var(--muted); flex-shrink: 0; }
+    .bar-track { flex: 1; height: 10px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .bar-fill { height: 10px; border-radius: 99px; }
+    .bar-val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+    ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+    li { margin: 4px 0; }
+    .span2 { grid-column: 1 / -1; }
+    .chart { height: 180px; }
+    code { font-family: var(--font-mono); font-size: 12px; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .span2 { grid-column: auto; } }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Media daily</h1>
+    <p class="sub">Monday · 2 November 2026 · Tautulli / Plex / Radarr / Sonarr / T3</p>
+
+    <div class="grid">
+      <div class="card span2">
+        <h2>Run results</h2>
+        <table>
+          <thead><tr><th>Step</th><th>Status</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>1. Tautulli activity</td>
+              <td class="ok">Fixed, retried OK</td>
+              <td>Argo had reverted media-mcp to <code>tautulli.tautulli.svc</code>. Added a live DNS alias Service <code>tautulli</code> → the same endpoints as <code>tautulli-app</code>. Opened PR #939 so git points at the real hostname. 1 stream, 2023 kbps WAN transcode.</td>
+            </tr>
+            <tr>
+              <td>2. Plex library refresh</td>
+              <td class="ok">Scanned</td>
+              <td>Sections 1 Movies, 2 TV, 3 White Home Videos, 5 Stamper, 9 Docs Movies, 10 Docs Series, 11 Music, 12 Surveillance, 14 Videos, 15 Bible.</td>
+            </tr>
+            <tr>
+              <td>3. Radarr queue</td>
+              <td class="ok">Search started</td>
+              <td>MoviesSearch for <em>Daddy's Home 2</em> (2017, id 1132, command 2893881). Already in queue, stalled with no connections. Queue depth 108.</td>
+            </tr>
+            <tr>
+              <td>4. Sonarr queue</td>
+              <td class="ok">Search started</td>
+              <td>SeriesSearch for <em>The Great British Bake Off</em> (id 188, 134/160 files, command 3033623). Queue depth 332, dominated by duplicate Planet Earth grabs.</td>
+            </tr>
+            <tr>
+              <td>5. T3 queue</td>
+              <td class="ok">Empty</td>
+              <td>This thread has 0 queued messages.</td>
+            </tr>
+            <tr>
+              <td>6. Retry</td>
+              <td class="ok">Tautulli recovered</td>
+              <td>First tautulli_activity / home_stats / history failed DNS. Alias Service restored them. Prowlarr queue still 404. Argo immediately reverted a live media-mcp env patch.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Queue depth</h2>
+        <div class="chart">
+          <div class="bar-row"><div class="bar-label">Sonarr</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--chart-2)"></div></div><div class="bar-val">332</div></div>
+          <div class="bar-row"><div class="bar-label">Radarr</div><div class="bar-track"><div class="bar-fill" style="width:32.5%;background:var(--chart-1)"></div></div><div class="bar-val">108</div></div>
+          <div class="bar-row"><div class="bar-label">Readarr</div><div class="bar-track"><div class="bar-fill" style="width:2%;background:var(--chart-4)"></div></div><div class="bar-val">0</div></div>
+          <div class="bar-row"><div class="bar-label">T3 queue</div><div class="bar-track"><div class="bar-fill" style="width:2%;background:var(--chart-5)"></div></div><div class="bar-val">0</div></div>
+          <div class="bar-row"><div class="bar-label">Streams</div><div class="bar-track"><div class="bar-fill" style="width:8%;background:var(--chart-6)"></div></div><div class="bar-val">1</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Now playing</h2>
+        <table>
+          <tr><th>Title</th><td>Along Came Polly (2004)</td></tr>
+          <tr><th>User</th><td>foot611 · 55" TCL Roku TV</td></tr>
+          <tr><th>Progress</th><td>85% · 2 Mbps 720p transcode · 2023 kbps WAN</td></tr>
+          <tr><th>Source</th><td>1080p remux · DTS-HD MA 5.1 → AAC stereo</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Recent watches</h2>
+        <ul>
+          <li>foot611 · Along Came Polly · Roku</li>
+          <li>robertomano24 · The Middle (Spring Cleaning, The Math Class, Hecks on a Plane, Friends, Lies and Videotape) · tvOS</li>
+        </ul>
+        <p class="sub" style="margin-top:10px">Most-watched movie: Along Came Polly (30 plays). Most-watched show: The Middle (248 plays). Fresh in Plex: Diary of a Wimpy Kid (2021).</p>
+      </div>
+
+      <div class="card">
+        <h2>Still open</h2>
+        <ul>
+          <li class="warn">media-mcp TAUTULLI_URL still wrong on <code>main</code>; PR #939. Live DNS alias unblocks Tautulli until merge. Argo prune may delete the alias.</li>
+          <li class="warn">Radarr queue samples are stalled with no connections (Daddy's Home 2, Transporter 3, Christmas titles).</li>
+          <li class="warn">Sonarr queue is flooded with duplicate Planet Earth items.</li>
+          <li class="warn">Prowlarr <code>/api/v1/queue</code> returns 404.</li>
+          <li class="warn">FileBot compose (5 min interval, minLengthMS=0) still needs a DSM container recreate.</li>
+          <li>/volume1 Media was 100% full on the last check (1.0T free of 123T).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

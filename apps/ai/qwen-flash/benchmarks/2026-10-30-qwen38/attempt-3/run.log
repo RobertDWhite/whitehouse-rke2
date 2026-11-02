@@ -1,0 +1,55 @@
+application.argoproj.io/qwen-flash annotated
+deployment.apps/qwen-flash scaled
+pod/qwen-flash-8567f8654b-cs6dh condition met
+pod/spark38-benchmark created
+pod/spark38-benchmark condition met
+72
+Startup 0s: 
+Startup 22s: (APIServer pid=72) INFO 10-30 17:41:27 [vllm.py:1497] Resolved Engram configuration: EngramConfig(cpu_offload=True, embedding_across_dp=False, dp_shared_memory=False, table_memory='device', disk_resident_scales=False, projection_tp=False)
+(APIServer pid=72) INFO 10-30 17:41:27 [vllm.py:929] Auto-enabling VLLM_USE_BREAKABLE_CUDAGRAPH=1. Set VLLM_USE_BREAKABLE_CUDAGRAPH=0 to opt out.
+(APIServer pid=72) INFO 10-30 17:41:27 [kernel.py:430] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'], gelu_and_mul_sparse=['triton', 'native'])
+(APIServer pid=72) WARNING 10-30 17:41:27 [vllm.py:2385] max_num_scheduled_tokens is set to 1024 based on the speculative decoding settings. This may lead to suboptimal performance. Consider increasing max_num_batched_tokens to accommodate the additional draft token slots, or decrease num_speculative_tokens.
+(APIServer pid=72) INFO 10-30 17:41:28 [compilation.py:336] Enabled custom fusions: norm_quant, act_quant
+
+Startup 43s: (EngineCore pid=243) INFO 10-30 17:41:38 [qwen_gdn_linear_attn.py:821] GDN decode kernel: b12x
+(EngineCore pid=243) INFO 10-30 17:41:38 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=243) INFO 10-30 17:41:39 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+
+Startup 64s: (EngineCore pid=243) INFO 10-30 17:41:38 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=243) INFO 10-30 17:41:39 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+
+Startup 84s: (EngineCore pid=243) INFO 10-30 17:41:39 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+
+Startup 105s: b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:02
+
+Startup 126s: b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:02
+b12x routing checkpoint shards: 10/21 shards routed, 48.58 GB selected on rank 0, 1:17
+b12x routing checkpoint shards: 12/21 shards routed, 58.58 GB selected on rank 0, 1:33
+
+Startup 147s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:47
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:51
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:51
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 110.48 s total loading; ROUTE 110.47s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=243) INFO 10-30 17:43:30 [default_loader.py:575] Loading weights took 110.48 seconds
+
+pod "spark38-benchmark" deleted from qwen-flash namespace
+deployment.apps/qwen-flash scaled
+application.argoproj.io/qwen-flash annotated
+application.argoproj.io/qwen-flash annotated
+Production configuration restored; checking readiness.
+Waiting for deployment "qwen-flash" rollout to finish: 0 of 1 updated replicas are available...

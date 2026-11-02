@@ -1,0 +1,220 @@
+application.argoproj.io/qwen-flash annotated
+deployment.apps/qwen-flash scaled
+pod/qwen-flash-8567f8654b-sm8cv condition met
+pod/spark38-benchmark created
+pod/spark38-benchmark condition met
+72
+Startup 1s: 
+Startup 21s: (APIServer pid=72) INFO 10-30 17:53:31 [scheduler.py:403] Chunked prefill is enabled with max_num_batched_tokens=1024.
+(APIServer pid=72) INFO 10-30 17:53:31 [vllm.py:1497] Resolved Engram configuration: EngramConfig(cpu_offload=True, embedding_across_dp=False, dp_shared_memory=False, table_memory='device', disk_resident_scales=False, projection_tp=False)
+(APIServer pid=72) INFO 10-30 17:53:31 [vllm.py:929] Auto-enabling VLLM_USE_BREAKABLE_CUDAGRAPH=1. Set VLLM_USE_BREAKABLE_CUDAGRAPH=0 to opt out.
+(APIServer pid=72) INFO 10-30 17:53:31 [kernel.py:430] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'], gelu_and_mul_sparse=['triton', 'native'])
+(APIServer pid=72) INFO 10-30 17:53:32 [compilation.py:336] Enabled custom fusions: norm_quant, act_quant
+
+Startup 42s: (EngineCore pid=243) INFO 10-30 17:53:43 [qwen_gdn_linear_attn.py:821] GDN decode kernel: b12x
+(EngineCore pid=243) INFO 10-30 17:53:43 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=243) INFO 10-30 17:53:44 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:13
+
+Startup 62s: (EngineCore pid=243) INFO 10-30 17:53:43 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=243) INFO 10-30 17:53:44 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:13
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+
+Startup 83s: (EngineCore pid=243) INFO 10-30 17:53:44 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:13
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+
+Startup 104s: b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:13
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:03
+
+Startup 125s: b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:03
+b12x routing checkpoint shards: 10/21 shards routed, 48.58 GB selected on rank 0, 1:18
+b12x routing checkpoint shards: 12/21 shards routed, 58.58 GB selected on rank 0, 1:34
+
+Startup 146s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:48
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 111.80 s total loading; ROUTE 111.80s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=243) INFO 10-30 17:55:36 [default_loader.py:575] Loading weights took 111.80 seconds
+
+Startup 166s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:48
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 111.80 s total loading; ROUTE 111.80s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=243) INFO 10-30 17:55:36 [default_loader.py:575] Loading weights took 111.80 seconds
+
+Startup 187s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:48
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 111.80 s total loading; ROUTE 111.80s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=243) INFO 10-30 17:55:36 [default_loader.py:575] Loading weights took 111.80 seconds
+
+Startup 208s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:48
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 111.80 s total loading; ROUTE 111.80s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=243) INFO 10-30 17:55:36 [default_loader.py:575] Loading weights took 111.80 seconds
+
+Startup 229s: b12x planning programs gemm.blockscaled_precision: 0/56 ready, candidates 0/88 prepared, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:03
+b12x compiling gemm.blockscaled_precision: 0/56 ready, candidates 0/88 prepared, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:04
+b12x preparing candidates gemm.blockscaled_precision: 0/56 ready, candidates 3/88 prepared, rank 0 batch 3, 2 measured, 0 cached, 0 restored, 0 rejected, 7 compilations, 0:06
+b12x compiling gemm.blockscaled_precision: 0/56 ready, candidates 71/88 prepared, rank 0 batch 72, 71 measured, 0 cached, 0 restored, 0 rejected, 79 compilations, 0:16
+b12x autotuning gemm.blockscaled_precision: 1/56 ready, candidates 3/88 prepared, rank 0 batch 3, round 2/3, 90 measured, 0 cached, 0 restored, 0 rejected, 95 compilations, 0:17
+
+Startup 250s: b12x preparing candidates gemm.blockscaled_precision: 0/56 ready, candidates 3/88 prepared, rank 0 batch 3, 2 measured, 0 cached, 0 restored, 0 rejected, 7 compilations, 0:06
+b12x compiling gemm.blockscaled_precision: 0/56 ready, candidates 71/88 prepared, rank 0 batch 72, 71 measured, 0 cached, 0 restored, 0 rejected, 79 compilations, 0:16
+b12x autotuning gemm.blockscaled_precision: 1/56 ready, candidates 3/88 prepared, rank 0 batch 3, round 2/3, 90 measured, 0 cached, 0 restored, 0 rejected, 95 compilations, 0:17
+b12x priming gemm.blockscaled_precision: 2/56 ready, candidates 88/88 prepared, rank 0 batch 88, 264 measured, 0 cached, 0 restored, 0 rejected, 151 compilations, 0:24
+b12x compiling gemm.blockscaled_precision: 5/56 ready, candidates 58/96 prepared, rank 0 batch 59, 439 measured, 0 cached, 0 restored, 0 rejected, 223 compilations, 0:34
+
+Startup 271s: b12x priming gemm.blockscaled_precision: 2/56 ready, candidates 88/88 prepared, rank 0 batch 88, 264 measured, 0 cached, 0 restored, 0 rejected, 151 compilations, 0:24
+b12x compiling gemm.blockscaled_precision: 5/56 ready, candidates 58/96 prepared, rank 0 batch 59, 439 measured, 0 cached, 0 restored, 0 rejected, 223 compilations, 0:34
+b12x calibrating gemm.blockscaled_precision: 6/56 ready, candidates 44/96 prepared, rank 0 batch 44, 520 measured, 0 cached, 0 restored, 0 rejected, 273 compilations, 0:40
+b12x autotuning gemm.blockscaled_precision: 8/56 ready, candidates 36/96 prepared, rank 0 batch 36, round 0/3, 704 measured, 0 cached, 0 restored, 0 rejected, 359 compilations, 0:50
+b12x compiling gemm.blockscaled_precision: 10/56 ready, candidates 77/96 prepared, rank 0 batch 78, 871 measured, 0 cached, 0 restored, 0 rejected, 429 compilations, 1:00
+
+Startup 292s: b12x calibrating gemm.blockscaled_precision: 6/56 ready, candidates 44/96 prepared, rank 0 batch 44, 520 measured, 0 cached, 0 restored, 0 rejected, 273 compilations, 0:40
+b12x autotuning gemm.blockscaled_precision: 8/56 ready, candidates 36/96 prepared, rank 0 batch 36, round 0/3, 704 measured, 0 cached, 0 restored, 0 rejected, 359 compilations, 0:50
+b12x compiling gemm.blockscaled_precision: 10/56 ready, candidates 77/96 prepared, rank 0 batch 78, 871 measured, 0 cached, 0 restored, 0 rejected, 429 compilations, 1:00
+b12x autotuning gemm.blockscaled_precision: 13/56 ready, candidates 15/96 prepared, rank 0 batch 15, round 2/3, 1096 measured, 0 cached, 0 restored, 0 rejected, 521 compilations, 1:10
+b12x compiling gemm.blockscaled_precision: 15/56 ready, candidates 55/96 prepared, rank 0 batch 56, 1262 measured, 0 cached, 0 restored, 0 rejected, 588 compilations, 1:20
+
+Startup 313s: b12x compiling gemm.blockscaled_precision: 10/56 ready, candidates 77/96 prepared, rank 0 batch 78, 871 measured, 0 cached, 0 restored, 0 rejected, 429 compilations, 1:00
+b12x autotuning gemm.blockscaled_precision: 13/56 ready, candidates 15/96 prepared, rank 0 batch 15, round 2/3, 1096 measured, 0 cached, 0 restored, 0 rejected, 521 compilations, 1:10
+b12x compiling gemm.blockscaled_precision: 15/56 ready, candidates 55/96 prepared, rank 0 batch 56, 1262 measured, 0 cached, 0 restored, 0 rejected, 588 compilations, 1:20
+b12x compiling gemm.blockscaled_precision: 16/56 ready, candidates 91/96 prepared, rank 0 batch 92, 1394 measured, 0 cached, 0 restored, 0 rejected, 680 compilations, 1:30
+b12x compiling gemm.blockscaled_precision: 20/56 ready, candidates 31/56 prepared, rank 0 batch 32, 1651 measured, 0 cached, 0 restored, 0 rejected, 747 compilations, 1:40
+
+Startup 334s: b12x autotuning quantization.csf_block_expansion: 25/56 ready, candidates 3/10 prepared, rank 0 batch 3, round 2/3, 1875 measured, 0 cached, 0 restored, 0 rejected, 842 compilations, 1:50
+b12x calibrating quantization.csf_block_expansion: 26/56 ready, candidates 1/10 prepared, rank 0 batch 1, 1883 measured, 0 cached, 0 restored, 0 rejected, 880 compilations, 1:52
+b12x preparing candidates quantization.csf_block_expansion: 28/56 ready, candidates 1/30 prepared, rank 0 batch 1, 1903 measured, 0 cached, 0 restored, 0 rejected, 891 compilations, 1:53
+b12x priming quantization.csf_block_expansion: 28/56 ready, candidates 30/30 prepared, rank 0 batch 30, 1933 measured, 0 cached, 0 restored, 0 rejected, 900 compilations, 1:55
+b12x compiling moe.decode: 30/56 ready, candidates 0/150 prepared, 1943 measured, 0 cached, 0 restored, 0 rejected, 938 compilations, 2:02
+
+Startup 354s: b12x priming quantization.csf_block_expansion: 28/56 ready, candidates 30/30 prepared, rank 0 batch 30, 1933 measured, 0 cached, 0 restored, 0 rejected, 900 compilations, 1:55
+b12x compiling moe.decode: 30/56 ready, candidates 0/150 prepared, 1943 measured, 0 cached, 0 restored, 0 rejected, 938 compilations, 2:02
+b12x preparing candidates moe.decode: 30/56 ready, candidates 1/150 prepared, rank 0 batch 1, 1943 measured, 0 cached, 0 restored, 0 rejected, 1006 compilations, 2:08
+b12x calibrating moe.decode: 30/56 ready, candidates 6/150 prepared, rank 0 batch 6, 1948 measured, 0 cached, 0 restored, 0 rejected, 1022 compilations, 2:10
+b12x compiling moe.decode: 30/56 ready, candidates 15/150 prepared, rank 0 batch 16, 1958 measured, 0 cached, 0 restored, 0 rejected, 1066 compilations, 2:20
+
+Startup 375s: b12x calibrating moe.decode: 30/56 ready, candidates 6/150 prepared, rank 0 batch 6, 1948 measured, 0 cached, 0 restored, 0 rejected, 1022 compilations, 2:10
+b12x compiling moe.decode: 30/56 ready, candidates 15/150 prepared, rank 0 batch 16, 1958 measured, 0 cached, 0 restored, 0 rejected, 1066 compilations, 2:20
+b12x compiling moe.decode: 30/56 ready, candidates 19/150 prepared, rank 0 batch 20, 1962 measured, 0 cached, 0 restored, 0 rejected, 1094 compilations, 2:31
+b12x autotuning moe.decode: 30/56 ready, candidates 24/150 prepared, rank 0 batch 24, round 0/3, 1966 measured, 0 cached, 0 restored, 0 rejected, 1110 compilations, 2:32
+b12x compiling moe.decode: 30/56 ready, candidates 34/150 prepared, rank 0 batch 35, 1977 measured, 0 cached, 0 restored, 0 rejected, 1150 compilations, 2:42
+
+Startup 396s: b12x compiling moe.decode: 30/56 ready, candidates 19/150 prepared, rank 0 batch 20, 1962 measured, 0 cached, 0 restored, 0 rejected, 1094 compilations, 2:31
+b12x autotuning moe.decode: 30/56 ready, candidates 24/150 prepared, rank 0 batch 24, round 0/3, 1966 measured, 0 cached, 0 restored, 0 rejected, 1110 compilations, 2:32
+b12x compiling moe.decode: 30/56 ready, candidates 34/150 prepared, rank 0 batch 35, 1977 measured, 0 cached, 0 restored, 0 rejected, 1150 compilations, 2:42
+b12x compiling moe.decode: 30/56 ready, candidates 42/150 prepared, rank 0 batch 43, 1985 measured, 0 cached, 0 restored, 0 rejected, 1182 compilations, 2:52
+b12x compiling moe.decode: 30/56 ready, candidates 52/150 prepared, rank 0 batch 53, 1995 measured, 0 cached, 0 restored, 0 rejected, 1222 compilations, 3:02
+
+Startup 416s: b12x compiling moe.decode: 30/56 ready, candidates 34/150 prepared, rank 0 batch 35, 1977 measured, 0 cached, 0 restored, 0 rejected, 1150 compilations, 2:42
+b12x compiling moe.decode: 30/56 ready, candidates 42/150 prepared, rank 0 batch 43, 1985 measured, 0 cached, 0 restored, 0 rejected, 1182 compilations, 2:52
+b12x compiling moe.decode: 30/56 ready, candidates 52/150 prepared, rank 0 batch 53, 1995 measured, 0 cached, 0 restored, 0 rejected, 1222 compilations, 3:02
+b12x compiling moe.decode: 30/56 ready, candidates 59/150 prepared, rank 0 batch 60, 2002 measured, 0 cached, 0 restored, 0 rejected, 1254 compilations, 3:13
+b12x compiling moe.decode: 30/56 ready, candidates 71/150 prepared, rank 0 batch 72, 2014 measured, 0 cached, 0 restored, 0 rejected, 1298 compilations, 3:23
+
+Startup 437s: b12x compiling moe.decode: 30/56 ready, candidates 52/150 prepared, rank 0 batch 53, 1995 measured, 0 cached, 0 restored, 0 rejected, 1222 compilations, 3:02
+b12x compiling moe.decode: 30/56 ready, candidates 59/150 prepared, rank 0 batch 60, 2002 measured, 0 cached, 0 restored, 0 rejected, 1254 compilations, 3:13
+b12x compiling moe.decode: 30/56 ready, candidates 71/150 prepared, rank 0 batch 72, 2014 measured, 0 cached, 0 restored, 0 rejected, 1298 compilations, 3:23
+b12x compiling moe.decode: 30/56 ready, candidates 77/150 prepared, rank 0 batch 78, 2020 measured, 0 cached, 0 restored, 0 rejected, 1326 compilations, 3:33
+b12x compiling moe.decode: 30/56 ready, candidates 90/150 prepared, rank 0 batch 91, 2033 measured, 0 cached, 0 restored, 0 rejected, 1374 compilations, 3:43
+
+Startup 458s: b12x compiling moe.decode: 30/56 ready, candidates 71/150 prepared, rank 0 batch 72, 2014 measured, 0 cached, 0 restored, 0 rejected, 1298 compilations, 3:23
+b12x compiling moe.decode: 30/56 ready, candidates 77/150 prepared, rank 0 batch 78, 2020 measured, 0 cached, 0 restored, 0 rejected, 1326 compilations, 3:33
+b12x compiling moe.decode: 30/56 ready, candidates 90/150 prepared, rank 0 batch 91, 2033 measured, 0 cached, 0 restored, 0 rejected, 1374 compilations, 3:43
+b12x compiling moe.decode: 30/56 ready, candidates 99/150 prepared, rank 0 batch 100, 2042 measured, 0 cached, 0 restored, 0 rejected, 1410 compilations, 3:53
+b12x compiling moe.decode: 30/56 ready, candidates 108/150 prepared, rank 0 batch 109, 2051 measured, 0 cached, 0 restored, 0 rejected, 1446 compilations, 4:04
+
+Startup 479s: b12x compiling moe.decode: 30/56 ready, candidates 90/150 prepared, rank 0 batch 91, 2033 measured, 0 cached, 0 restored, 0 rejected, 1374 compilations, 3:43
+b12x compiling moe.decode: 30/56 ready, candidates 99/150 prepared, rank 0 batch 100, 2042 measured, 0 cached, 0 restored, 0 rejected, 1410 compilations, 3:53
+b12x compiling moe.decode: 30/56 ready, candidates 108/150 prepared, rank 0 batch 109, 2051 measured, 0 cached, 0 restored, 0 rejected, 1446 compilations, 4:04
+b12x compiling moe.decode: 30/56 ready, candidates 120/150 prepared, rank 0 batch 121, 2063 measured, 0 cached, 0 restored, 0 rejected, 1494 compilations, 4:14
+b12x compiling moe.decode: 30/56 ready, candidates 128/150 prepared, rank 0 batch 129, 2071 measured, 0 cached, 0 restored, 0 rejected, 1526 compilations, 4:24
+
+Startup 499s: b12x compiling moe.decode: 30/56 ready, candidates 108/150 prepared, rank 0 batch 109, 2051 measured, 0 cached, 0 restored, 0 rejected, 1446 compilations, 4:04
+b12x compiling moe.decode: 30/56 ready, candidates 120/150 prepared, rank 0 batch 121, 2063 measured, 0 cached, 0 restored, 0 rejected, 1494 compilations, 4:14
+b12x compiling moe.decode: 30/56 ready, candidates 128/150 prepared, rank 0 batch 129, 2071 measured, 0 cached, 0 restored, 0 rejected, 1526 compilations, 4:24
+b12x compiling moe.decode: 30/56 ready, candidates 140/150 prepared, rank 0 batch 141, 2083 measured, 0 cached, 0 restored, 0 rejected, 1574 compilations, 4:34
+b12x compiling moe.decode: 30/56 ready, candidates 147/150 prepared, rank 0 batch 148, 2090 measured, 0 cached, 0 restored, 0 rejected, 1604 compilations, 4:44
+
+pod "spark38-benchmark" deleted from qwen-flash namespace
+deployment.apps/qwen-flash scaled
+application.argoproj.io/qwen-flash annotated
+application.argoproj.io/qwen-flash annotated
+Production configuration restored; checking readiness.
+Waiting for deployment "qwen-flash" rollout to finish: 0 of 1 updated replicas are available...
+deployment "qwen-flash" successfully rolled out
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1321, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              encode_chunked=req.has_header('Transfer-encoding'))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1358, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1404, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1353, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1113, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1057, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1023, in connect
+    self.sock = self._create_connection(
+                ~~~~~~~~~~~~~~~~~~~~~~~^
+        (self.host,self.port), self.timeout, self.source_address)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 870, in create_connection
+    raise exceptions[0]
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 855, in create_connection
+    sock.connect(sa)
+    ~~~~~~~~~~~~^^^^
+ConnectionRefusedError: [Errno 61] Connection refused
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robert/Documents/GitHub/whitehouse-rke2/apps/ai/qwen-flash/benchmarks/2026-10-30-qwen38/run_benchmark.py", line 55, in <module>
+    with urllib.request.urlopen(BASE+'/models', timeout=3) as r:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 187, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 487, in open
+    response = self._open(req, data)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 504, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 464, in _call_chain
+    result = func(*args)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1350, in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1324, in do_open
+    raise URLError(err)
+urllib.error.URLError: <urlopen error [Errno 61] Connection refused>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robert/Documents/GitHub/whitehouse-rke2/apps/ai/qwen-flash/benchmarks/2026-10-30-qwen38/run_benchmark.py", line 65, in <module>
+    raise RuntimeError('Benchmark container stopped; see watchdog log')
+RuntimeError: Benchmark container stopped; see watchdog log

@@ -1,0 +1,73 @@
+{
+  "label": "qwen38-no-mtp-heuristic-four",
+  "concurrency": 4,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "qwen38-no-mtp-heuristic-four",
+    "concurrency": 4,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.14441529102623463,
+    "elapsed_seconds": 20.02365112490952,
+    "decode_tokens_per_second": 25.705555454166046,
+    "end_to_end_tokens_per_second": 25.56976231787566,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a node-based data structure that organizes data in a hierarchical manner, allowing for efficient searching, insertion, and deletion. It is a specialized version of a binary tree where each node has at most two children, referred to as the **left child** and the **right child**.\n\n### Key Property\nThe defining characteristic of a BST is the **ordering property**:\n- For any given node `N`:\n  - All values in the **left subtree** are **less than** `N`'s value.\n  - All values in the **right subtree** are **greater than** `N`'s value.\n- This property must hold recursively for every node in the tree.\n\n### Core Operations\n\n1. **Search**\n   - Start at the root.\n   - Compare the target value with the current node\u2019s value.\n   - If the target is smaller, move to the left child.\n   - If the target is larger, move to the right child.\n   - Repeat until the value is found or a null node is reached (indicating absence).\n   - **Time Complexity**: Average case **O(log n)**, worst case **O(n)** (if the tree is skewed).\n\n2. **Insertion**\n   - Similar to search: traverse the tree to find the appropriate leaf position.\n   - Insert the new node as a child of the last non-null node visited.\n   - **Time Complexity**: Same as search.\n\n3. **Deletion**\n   - Find the node to delete.\n   - Handle three cases:\n     - **Leaf node**: Simply remove it.\n     - **One child**: Replace the node with its child.\n     - **Two children**: Replace the node\u2019s value with its **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree), then delete that successor/predecessor node.\n   - **Time Complexity**: Same as search.\n\n### Advantages\n- Efficient average-case performance for dynamic datasets.\n- Maintains sorted order, enabling fast range queries and ordered traversals (in-order traversal yields sorted output).\n\n### Limitations\n- Performance degrades to **O(n)** if the tree becomes unbalanced (e.g., inserting sorted data creates a linked-list-like structure).\n- Self-balancing BSTs (like AVL trees or Red-Black trees)"
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "qwen38-no-mtp-heuristic-four",
+      "concurrency": 4,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.10838520899415016,
+      "elapsed_seconds": 28.106502250302583,
+      "decode_tokens_per_second": 18.251257191559752,
+      "end_to_end_tokens_per_second": 18.216425346718054,
+      "finish_reason": "length",
+      "response": "An LRU (Least Recently Used) cache is a fixed-size cache that evicts the least recently used items when capacity is exceeded. The core challenge is maintaining O(1) time complexity for both `get` and `put` operations while tracking access order. This is achieved by combining a hash map for fast key-value lookups with a doubly linked list to maintain the order of usage.\n\n### Invariants\n\n1. **Capacity Constraint**: The number of items in the cache never exceeds the specified capacity.\n2. **Uniqueness**: Each key appears at most once in the cache.\n3. **Ordering**: The doubly linked list maintains items in order of recent usage, with the head representing the most recently used item and the tail representing the least recently used item.\n4. **Consistency**: The hash map and linked list are always in sync; every key in the map has a corresponding node in the list, and vice versa.\n\n### Implementation\n\n```python\nfrom typing import Optional, Dict\n\nclass Node:\n    \"\"\"Doubly linked list node for LRU cache.\"\"\"\n    def __init__(self, key: int = 0, value: int = 0):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"LRU Cache with O(1) get and put operations.\"\"\"\n    \n    def __init__(self, capacity: int):\n        self.capacity = capacity\n        self.cache: Dict[int, Node] = {}\n        # Dummy head and tail to simplify edge cases\n        self.head = Node()\n        self.tail = Node()\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node) -> None:\n        \"\"\"Remove a node from the linked list.\"\"\"\n        node.prev.next = node.next\n        node.next.prev = node.prev\n\n    def _add_to_head(self, node: Node) -> None:\n        \"\"\"Add a node right after the head (most recently used).\"\"\"\n        node.prev = self.head\n        node.next = self.head.next\n        self.head.next.prev = node\n        self.head.next = node\n\n    def get(self, key: int) -> int:\n        \"\"\"Return value if key exists, else -1. Marks key as recently used.\"\"\"\n       "
+    },
+    {
+      "prompt": "operations",
+      "label": "qwen38-no-mtp-heuristic-four",
+      "concurrency": 4,
+      "prompt_tokens": 55,
+      "output_tokens": 512,
+      "ttft_seconds": 0.20988729130476713,
+      "elapsed_seconds": 28.19949183287099,
+      "decode_tokens_per_second": 18.25680046796918,
+      "end_to_end_tokens_per_second": 18.156355548335895,
+      "finish_reason": "length",
+      "response": "Deploying a stateful inference service on Kubernetes requires precise orchestration of resource management, health checks, and lifecycle hooks to ensure zero-downtime updates. The interaction between resource requests, limits, readiness probes, and graceful shutdown mechanisms forms the backbone of a reliable rolling deployment strategy.\n\n**Resource Requests and Limits**\nIn Kubernetes, `requests` guarantee the minimum resources (CPU and memory) a pod needs to be scheduled, while `limits` cap the maximum resources a pod can consume. For an inference service, which is often memory-intensive due to model weights, setting accurate requests is critical. If requests are too low, the scheduler might place pods on nodes with insufficient actual capacity, leading to OOMKills. If limits are too tight, the container may be throttled or killed during peak inference loads. During a rolling update, the new pods must fit within the cluster\u2019s available resources. If the new version requires more memory than the old one, and the cluster is saturated, the new pods will remain in `Pending` state, stalling the deployment.\n\n**Readiness Probes**\nReadiness probes determine when a pod is ready to accept traffic. For an inference service, this is not just about the process starting; it involves loading the model into memory and warming up the inference engine. A common mistake is using a simple TCP check, which passes as soon as the port opens, even if the model is still loading. Instead, an HTTP GET probe should hit a `/health/ready` endpoint that returns `200 OK` only after the model is fully loaded and the first dummy inference has completed. During a rolling deployment, Kubernetes will not route traffic to a new pod until its readiness probe passes. This ensures that users are never sent to a pod that cannot serve requests.\n\n**Graceful Shutdown**\nWhen a pod is terminated (e.g., during a rolling update), Kubernetes sends a `SIGTERM` signal. The application must handle this signal to stop accepting new requests, finish processing in-flight requests, and then exit. If the application exits immediately upon `SIGTERM`, in-flight requests are dropped, causing errors for users. To prevent this, the `terminationGracePeriodSeconds` field in the pod spec must be set to a value longer than the maximum expected request duration. Additionally, the application should implement a pre-stop hook or handle `SIGTERM` by entering a \"draining\" state where it rejects new connections but completes existing ones.\n\n**Concrete Example**\nConsider a PyTorch"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "qwen38-no-mtp-heuristic-four",
+      "concurrency": 4,
+      "prompt_tokens": 66,
+      "output_tokens": 512,
+      "ttft_seconds": 0.055526666808873415,
+      "elapsed_seconds": 28.09982862463221,
+      "decode_tokens_per_second": 18.221271074962242,
+      "end_to_end_tokens_per_second": 18.220751693523948,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model inference servers requires isolating the specific variables that influence performance. When comparing two servers (e.g., llama.cpp vs. vLLM) for coding assistants, you must decouple the hardware\u2019s raw compute capability from the software\u2019s optimization strategies. The goal is to measure how efficiently each server utilizes the same underlying hardware to deliver high-quality code completions.\n\n**Separating Input Processing and Output Generation**\nThe first step is distinguishing between prefill (input processing) and decode (output generation). Prefill involves processing the prompt tokens, which is compute-bound and parallelizable. Decode involves generating tokens one by one, which is memory-bandwidth-bound. To separate these, use prompts of varying lengths. For prefill, measure the time to process a 4,000-token prompt with `max_tokens=1`. For decode, use a short prompt (e.g., 10 tokens) and request 500 tokens. This isolates the server\u2019s ability to handle long contexts versus its token generation speed.\n\n**Concurrency and Throughput**\nCoding assistants often serve multiple users or handle parallel requests. Benchmarking single-stream latency is insufficient. You must test concurrency by sending simultaneous requests. Use a load generator to send N concurrent requests, where N ranges from 1 to the server\u2019s maximum batch size. Measure two key metrics: Time to First Token (TTFT), which reflects user-perceived responsiveness, and Inter-Token Latency (ITL), which reflects the smoothness of the streaming output. A fair comparison requires holding the total number of requests constant across servers while varying the concurrency level to identify the saturation point of each server.\n\n**Caching Strategies**\nLocal servers often employ different caching mechanisms, such as KV-cache management or prefix caching. To test this, design a \"warm-up\" phase. Send identical prompts repeatedly. If a server supports prefix caching, the second request should have a significantly lower TTFT because the KV-cache for the shared prefix is reused. If the server does not support this, the TTFT should remain consistent. To ensure fairness, you must explicitly enable or disable these features in both servers\u2019 configurations. If one server lacks prefix caching, it should be disabled in the other to compare raw compute performance, or enabled in both to compare optimization capabilities.\n\n**Answer Quality**\nPerformance is meaningless if the output is incorrect. For coding assistants, quality is measured by functional correctness. Use a standardized dataset like HumanEval or MBPP. For each"
+    },
+    {
+      "prompt": "coding",
+      "label": "qwen38-no-mtp-heuristic-four",
+      "concurrency": 4,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 28.11531341681257,
+      "elapsed_seconds": 47.98701749974862,
+      "decode_tokens_per_second": 25.715132293608523,
+      "end_to_end_tokens_per_second": 10.669552447236008,
+      "finish_reason": "length",
+      "response": "An LRU (Least Recently Used) cache is a fixed-size cache that evicts the least recently used items when capacity is exceeded. The core invariant is that the most recently accessed item is always at the \"front\" of the usage order, while the least recently used item is at the \"back.\" When capacity is reached, the item at the back is evicted.\n\nTo achieve O(1) time complexity for both `get` and `put` operations, we combine a hash map (dictionary) for O(1) key lookups with a doubly linked list to maintain access order. Python\u2019s `collections.OrderedDict` provides this functionality natively, but implementing it manually with a custom doubly linked list demonstrates deeper understanding. Below is a clean implementation using `OrderedDict` for simplicity and correctness, with full type annotations.\n\n```python\nfrom collections import OrderedDict\nfrom typing import Optional, Any\n\nclass LRUCache:\n    \"\"\"\n    A Least Recently Used (LRU) cache with O(1) get and put operations.\n    \n    Invariants:\n    1. The cache never exceeds its specified capacity.\n    2. The most recently used item is always at the end of the OrderedDict.\n    3. The least recently used item is always at the beginning of the OrderedDict.\n    4. All keys in the cache are unique.\n    \"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be a positive integer.\")\n        self.capacity: int = capacity\n        self.cache: OrderedDict[int, Any] = OrderedDict()\n\n    def get(self, key: int) -> Optional[Any]:\n        \"\"\"\n        Retrieve the value associated with the key.\n        If the key exists, it is marked as most recently used.\n        Returns None if the key is not found.\n        \"\"\"\n        if key not in self.cache:\n            return None\n        # Move the accessed key to the end (most recently used)\n        self.cache.move_to_end(key)\n        return self.cache[key]\n\n    def put(self, key: int, value: Any) -> None:\n        \"\"\"\n        Insert or update the value for the given key.\n        If the key already exists, its value is updated and it is marked as most recently used.\n        If the key is new and the cache is at capacity, the least recently used"
+    }
+  ],
+  "wall_seconds": 47.9966572499834,
+  "aggregate_end_to_end_tokens_per_second": 42.66963820695468
+}
