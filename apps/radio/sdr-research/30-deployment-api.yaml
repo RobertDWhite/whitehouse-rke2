@@ -56,15 +56,16 @@ spec:
               value: "pager:30,eas:365,aprs:180,hfdl:30,vdl2:30,acars:30"
             - name: OLLAMA_ENABLED
               value: "true"
+            # Tagging uses the vLLM server on node-10 (apps/ai/qwen-flash); a /v1
+            # URL selects its OpenAI-compatible API. ollama-router's Mac mini
+            # primary stopped answering (every call hit the 120s timeout and
+            # stalled the indexer loop). Model must match its /v1/models id.
             - name: OLLAMA_URL
-              value: "http://ollama-router.ai-stack.svc.cluster.local:11434"
+              value: "http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1"
             - name: OLLAMA_MODEL
-              # qwen3.8:27b is installed on the Mac mini router primary.
-              # Previously llama3.1:8b; deepseek-r1:14b before that was removed
-              # from ollama-router (every tagging call 404'd, tripping the breaker).
-              value: "qwen3.8:27b"
+              value: "qwen3.6-35b-a3b"
             - name: OLLAMA_TIMEOUT_SECONDS
-              value: "120"
+              value: "20"
             - name: OLLAMA_MAX_TAGS
               value: "8"
             - name: OLLAMA_MAX_PER_CYCLE
