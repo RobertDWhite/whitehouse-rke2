@@ -1,0 +1,60 @@
+{
+  "label": "qwen36-mtp3-long",
+  "concurrency": 1,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "qwen36-mtp3-long",
+    "concurrency": 1,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.19239083398133516,
+    "elapsed_seconds": 4.4312195419333875,
+    "decode_tokens_per_second": 120.5926989611256,
+    "end_to_end_tokens_per_second": 115.54381252268287,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a specialized data structure based on binary trees, where each node has at most two children, referred to as the left child and the right child. It is defined by a specific ordering property that makes searching, inserting, and deleting elements efficient.\n\n### Core Property\nFor any given node:\n1. All values in the **left subtree** are **less than** the node\u2019s value.\n2. All values in the **right subtree** are **greater than** the node\u2019s value.\n3. Both left and right subtrees must also be binary search trees.\n\nThis property allows for **O(log n)** average-case time complexity for most operations, assuming the tree is balanced.\n\n---\n\n### Key Operations\n\n#### 1. Search\n- **Goal**: Find if a value exists in the tree.\n- **Process**:\n  - Start at the root.\n  - If the target value equals the current node\u2019s value, return `true`.\n  - If the target value is less, move to the left child.\n  - If the target value is greater, move to the right child.\n  - Repeat until the value is found or a null node is reached.\n\n#### 2. Insertion\n- **Goal**: Add a new value to the tree while maintaining the BST property.\n- **Process**:\n  - Start at the root.\n  - Traverse down the tree: go left if the new value is smaller, right if larger.\n  - When a null position is reached, insert the new node there.\n  - This ensures the new value is placed in the correct sorted position.\n\n#### 3. Deletion\n- **Goal**: Remove a value from the tree while preserving the BST structure.\n- **Cases**:\n  1. **Leaf Node** (no children): Simply remove it.\n  2. **One Child**: Replace the node with its child.\n  3. **Two Children**: Find the **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree), replace the node\u2019s value with it, and then delete the successor/predecessor node (which will fall into case 1 or 2).\n\n#### 4. Traversal\nCommon ways to visit all nodes:\n- **In-order**: Left \u2192 Root \u2192 Right (yields values in sorted order).\n-"
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "qwen36-mtp3-long",
+      "concurrency": 1,
+      "prompt_tokens": 19852,
+      "output_tokens": 512,
+      "ttft_seconds": 3.381647542119026,
+      "elapsed_seconds": 7.562532417010516,
+      "decode_tokens_per_second": 122.22646509844199,
+      "end_to_end_tokens_per_second": 67.70218913023776,
+      "finish_reason": "length",
+      "response": "Here is a complete implementation of an LRU (Least Recently Used) Cache in Python, designed to meet the requirements of capacity limits, efficient retrieval, and proper replacement policies.\n\n### Implementation\n\n```python\nfrom typing import Optional, Tuple\n\nclass Node:\n    \"\"\"Doubly linked list node to store key-value pairs.\"\"\"\n    def __init__(self, key: int, value: int):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"\n    LRU Cache implementation using a Hash Map and Doubly Linked List.\n    \n    Invariants:\n    1. The cache size never exceeds the specified capacity.\n    2. The most recently used item is always at the head (right after dummy head).\n    3. The least recently used item is always at the tail (right before dummy tail).\n    4. All operations (get/put) are O(1) time complexity.\n    \"\"\"\n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be positive\")\n        self.capacity = capacity\n        self.cache: dict[int, Node] = {}\n        \n        # Dummy head and tail nodes to simplify edge cases\n        self.head: Node = Node(0, 0)\n        self.tail: Node = Node(0, 0)\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node) -> None:\n        \"\"\"Remove a node from the doubly linked list.\"\"\"\n        prev_node = node.prev\n        next_node = node.next\n        prev_node.next = next_node\n        next_node.prev = prev_node\n\n    def _add_to_front(self, node: Node) -> None:\n        \"\"\"Add a node immediately after the head (most recent position).\"\"\"\n        first_node = self.head.next\n        self.head.next = node\n        node.prev = self.head\n        node.next = first_node\n        first_node.prev = node\n\n    def _move_to_front(self, node: Node) -> None:\n        \"\"\"Move an existing node to the front (mark as recently used).\"\"\"\n        self._remove(node)\n        self._add_to_front(node)\n\n    def get(self, key"
+    },
+    {
+      "prompt": "operations",
+      "label": "qwen36-mtp3-long",
+      "concurrency": 1,
+      "prompt_tokens": 19845,
+      "output_tokens": 512,
+      "ttft_seconds": 0.7184632918797433,
+      "elapsed_seconds": 6.113814000040293,
+      "decode_tokens_per_second": 94.76287456931772,
+      "end_to_end_tokens_per_second": 83.74477862699547,
+      "finish_reason": "length",
+      "response": "In a Kubernetes environment, managing a stateful inference service during a rolling deployment requires a delicate balance between resource efficiency, availability, and data integrity. The interaction between resource requests, limits, readiness probes, and graceful shutdown mechanisms is critical to preventing service degradation or data loss.\n\nResource requests and limits form the foundation of this stability. The **request** guarantees a minimum amount of CPU and memory, ensuring the pod can start and function. The **limit** caps the maximum resources a pod can consume, preventing any single instance from starving the node. For an inference service, which is often CPU or GPU-intensive, accurate limits are vital. If limits are set too low, the service may be throttled, leading to high latency. If set too high, it risks being OOMKilled (Out of Memory) if the model loading or inference spikes unexpectedly. During a rolling update, the scheduler uses these values to determine if the node has sufficient capacity to schedule the new pod before terminating the old one.\n\nThe **readiness probe** acts as the gatekeeper for traffic. It ensures that a pod only receives traffic once it is fully initialized and ready to serve requests. For a stateful inference service, this is particularly important because loading large models into memory can take time. If the readiness probe is too aggressive, the service might receive traffic before the model is loaded, resulting in errors. Conversely, if it is too slow, the deployment will hang, delaying the rollout. The probe typically checks a specific endpoint (e.g., `/health/ready`) that returns success only when the model is loaded and the inference engine is responsive.\n\n**Graceful shutdown** is the final piece of the puzzle. When Kubernetes decides to terminate a pod (during a rolling update or node drain), it sends a `SIGTERM` signal. The application must catch this signal, stop accepting new requests, and finish processing any in-flight requests before exiting. This is crucial for stateful services to avoid dropping active inference calls. The `terminationGracePeriodSeconds` field in the pod spec defines how long Kubernetes waits for the pod to exit after sending `SIGTERM`. If the pod does not exit within this window, Kubernetes sends a `SIGKILL`, forcing an abrupt termination that can lead to data corruption or incomplete responses.\n\n**Concrete Example:**\nConsider a Python-based inference service using FastAPI and PyTorch. The deployment spec sets `resources.requests` to 4 CPU and 8GB RAM, and `limits` to 8 CPU and 1"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "qwen36-mtp3-long",
+      "concurrency": 1,
+      "prompt_tokens": 19856,
+      "output_tokens": 512,
+      "ttft_seconds": 0.9844219582155347,
+      "elapsed_seconds": 6.57258095825091,
+      "decode_tokens_per_second": 91.45940596439036,
+      "end_to_end_tokens_per_second": 77.8993827922742,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model inference servers requires a rigorous separation of concerns to isolate the performance of the inference engine itself from external variables. The goal is to measure the raw capability of the server to handle coding tasks, ensuring that metrics like latency, throughput, and output quality are comparable across different implementations.\n\n**1. Separation of Concerns**\n\nTo ensure validity, the benchmark must decouple five distinct phases:\n\n*   **Input Processing (Tokenization):** This phase converts raw text into model-readable tokens. To isolate inference performance, tokenization must be pre-computed or measured separately. The benchmark should feed pre-tokenized inputs to the server to eliminate variations in tokenizer efficiency between different software stacks.\n*   **Output Generation (Inference):** This is the core metric. It measures the time taken to generate tokens. We must distinguish between *Time to First Token (TTFT)*, which measures initial processing overhead, and *Tokens Per Second (TPS)*, which measures sustained generation speed.\n*   **Concurrency:** Coding assistants often handle multiple requests. The benchmark must test both single-threaded latency and multi-threaded throughput. Concurrency levels should be varied (e.g., 1, 4, 8, 16 concurrent requests) to identify bottlenecks in the server\u2019s request queue and GPU memory management.\n*   **Caching:** Key-Value (KV) cache reuse is critical for performance. The benchmark should include a \"cache hit\" scenario where identical or highly similar prompts are repeated to measure how effectively the server reuses previous computations. Conversely, it must also test \"cache miss\" scenarios with novel prompts.\n*   **Answer Quality:** Speed is useless if the code is incorrect. Quality must be evaluated independently using a static analysis suite (e.g., linters, compiler checks) and a semantic correctness test (e.g., running the generated code against unit tests). This ensures that optimizations do not degrade accuracy.\n\n**2. Reproducible Measurement Steps**\n\nA reproducible benchmark follows a strict protocol:\n\n1.  **Environment Standardization:** Use identical hardware (GPU model, VRAM, CPU, RAM) and operating systems. Pin GPU frequencies and disable power-saving modes to prevent thermal throttling from skewing results.\n2.  **Dataset Selection:** Use a curated set of coding prompts. Include a mix of simple syntax queries, complex algorithmic problems, and debugging tasks. Each prompt should have a known correct solution.\n3. "
+    }
+  ],
+  "wall_seconds": 20.248999416828156,
+  "aggregate_end_to_end_tokens_per_second": 75.85559999194282
+}

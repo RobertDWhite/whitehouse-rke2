@@ -1,0 +1,218 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "spark38-benchmark",
+    "namespace": "qwen-flash",
+    "labels": {
+      "app": "spark38-benchmark"
+    }
+  },
+  "spec": {
+    "nodeSelector": {
+      "kubernetes.io/hostname": "rke2-node-10"
+    },
+    "tolerations": [
+      {
+        "effect": "NoSchedule",
+        "key": "dedicated",
+        "operator": "Equal",
+        "value": "llm"
+      },
+      {
+        "effect": "PreferNoSchedule",
+        "key": "dedicated",
+        "operator": "Equal",
+        "value": "llm"
+      }
+    ],
+    "runtimeClassName": "nvidia",
+    "shareProcessNamespace": true,
+    "volumes": [
+      {
+        "name": "models",
+        "persistentVolumeClaim": {
+          "claimName": "qwen-flash-models"
+        }
+      },
+      {
+        "emptyDir": {
+          "medium": "Memory",
+          "sizeLimit": "16Gi"
+        },
+        "name": "dshm"
+      }
+    ],
+    "restartPolicy": "Never",
+    "terminationGracePeriodSeconds": 30,
+    "automountServiceAccountToken": false,
+    "containers": [
+      {
+        "env": [
+          {
+            "name": "HF_HOME",
+            "value": "/hf/benchmark38"
+          },
+          {
+            "name": "HF_HUB_OFFLINE",
+            "value": "1"
+          },
+          {
+            "name": "VLLM_PLE_TABLE_MEMORY",
+            "value": "disk"
+          },
+          {
+            "name": "B12X_DISK_BACKEND",
+            "value": "io_uring"
+          },
+          {
+            "name": "CUTE_DSL_ARCH",
+            "value": "sm_121a"
+          },
+          {
+            "name": "SAFETENSORS_FAST_GPU",
+            "value": "1"
+          },
+          {
+            "name": "VLLM_WORKER_MULTIPROC_METHOD",
+            "value": "spawn"
+          },
+          {
+            "name": "VLLM_SSM_CONV_STATE_LAYOUT",
+            "value": "DS"
+          },
+          {
+            "name": "VLLM_USE_AOT_COMPILE",
+            "value": "1"
+          },
+          {
+            "name": "VLLM_USE_MEGA_AOT_ARTIFACT",
+            "value": "1"
+          },
+          {
+            "name": "VLLM_USE_V2_MODEL_RUNNER",
+            "value": "1"
+          },
+          {
+            "name": "B12X_POLICY_MODE",
+            "value": "auto"
+          },
+          {
+            "name": "VLLM_MXFP8_LM_HEAD",
+            "value": "1"
+          },
+          {
+            "name": "VLLM_B12X_MOE_FP4_LAYER_MAX_INPUT_SCALE",
+            "value": "w13"
+          },
+          {
+            "name": "VLLM_B12X_MOE_FP4_FORCE_A16",
+            "value": "1"
+          },
+          {
+            "name": "B12X_W4A16_A4_PREFILL",
+            "value": "1"
+          },
+          {
+            "name": "PYTORCH_ALLOC_CONF",
+            "value": "per_process_memory_fraction:0.65,garbage_collection_threshold:0.6"
+          }
+        ],
+        "image": "eugr/spark-vllm-b12x@sha256:57c24fc397c66d4d28a7d0d5f1d792934fd01a70f4574cff6315fb7bc329d5cb",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "vllm",
+        "ports": [
+          {
+            "containerPort": 8000,
+            "name": "http",
+            "protocol": "TCP"
+          }
+        ],
+        "resources": {
+          "requests": {
+            "cpu": "4",
+            "memory": "64Gi",
+            "nvidia.com/gpu": 1
+          },
+          "limits": {
+            "memory": "96Gi",
+            "nvidia.com/gpu": 1
+          }
+        },
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File",
+        "volumeMounts": [
+          {
+            "mountPath": "/hf",
+            "name": "models"
+          },
+          {
+            "mountPath": "/root/.cache/vllm",
+            "name": "models",
+            "subPath": "benchmark38/compile-cache/vllm"
+          },
+          {
+            "mountPath": "/root/.cache/flashinfer",
+            "name": "models",
+            "subPath": "benchmark38/compile-cache/flashinfer"
+          },
+          {
+            "mountPath": "/root/.triton",
+            "name": "models",
+            "subPath": "benchmark38/compile-cache/.triton"
+          },
+          {
+            "mountPath": "/dev/shm",
+            "name": "dshm"
+          },
+          {
+            "name": "models",
+            "mountPath": "/root/.cache/b12x",
+            "subPath": "benchmark38/compile-cache/b12x"
+          }
+        ],
+        "command": [
+          "sleep",
+          "86400"
+        ],
+        "securityContext": {
+          "capabilities": {
+            "add": [
+              "IPC_LOCK",
+              "SYS_RESOURCE"
+            ]
+          }
+        }
+      },
+      {
+        "args": [
+          "echo \"watching MemAvailable, kill below ${MIN_GIB} GiB\"\nwhile :; do\n  avail=$(awk '/^MemAvailable:/{print int($2/1048576)}' /proc/meminfo)\n  if [ \"$avail\" -lt \"$MIN_GIB\" ]; then\n    echo \"$(date) MemAvailable ${avail} GiB < ${MIN_GIB} GiB: killing vLLM\"\n    me=$(readlink /proc/self/ns/mnt)\n    for d in /proc/[0-9]*; do\n      pid=${d#/proc/}\n      [ \"$pid\" = 1 ] && continue\n      ns=$(readlink \"$d/ns/mnt\" 2>/dev/null)\n      [ \"$ns\" != \"$me\" ] && kill -9 \"$pid\" 2>/dev/null\n    done\n    sleep 10\n  fi\n  sleep 1\ndone\n"
+        ],
+        "command": [
+          "sh",
+          "-c"
+        ],
+        "env": [
+          {
+            "name": "MIN_GIB",
+            "value": "10"
+          }
+        ],
+        "image": "busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "mem-watchdog",
+        "resources": {
+          "limits": {
+            "memory": "32Mi"
+          },
+          "requests": {
+            "cpu": "10m",
+            "memory": "8Mi"
+          }
+        },
+        "terminationMessagePath": "/dev/termination-log",
+        "terminationMessagePolicy": "File"
+      }
+    ]
+  }
+}

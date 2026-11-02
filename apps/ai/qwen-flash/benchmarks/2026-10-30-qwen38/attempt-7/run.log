@@ -1,0 +1,119 @@
+application.argoproj.io/qwen-flash annotated
+deployment.apps/qwen-flash scaled
+pod/qwen-flash-8567f8654b-kxhdf condition met
+pod/spark38-benchmark created
+pod/spark38-benchmark condition met
+76
+Startup 0s: 
+Startup 21s: (APIServer pid=76) INFO 10-30 18:09:12 [vllm.py:1497] Resolved Engram configuration: EngramConfig(cpu_offload=True, embedding_across_dp=False, dp_shared_memory=False, table_memory='device', disk_resident_scales=False, projection_tp=False)
+(APIServer pid=76) INFO 10-30 18:09:12 [vllm.py:929] Auto-enabling VLLM_USE_BREAKABLE_CUDAGRAPH=1. Set VLLM_USE_BREAKABLE_CUDAGRAPH=0 to opt out.
+(APIServer pid=76) INFO 10-30 18:09:12 [kernel.py:430] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'], gelu_and_mul_sparse=['triton', 'native'])
+(APIServer pid=76) WARNING 10-30 18:09:12 [vllm.py:2385] max_num_scheduled_tokens is set to 1024 based on the speculative decoding settings. This may lead to suboptimal performance. Consider increasing max_num_batched_tokens to accommodate the additional draft token slots, or decrease num_speculative_tokens.
+(APIServer pid=76) INFO 10-30 18:09:12 [compilation.py:336] Enabled custom fusions: norm_quant, act_quant
+
+Startup 43s: (EngineCore pid=245) INFO 10-30 18:09:23 [qwen_gdn_linear_attn.py:821] GDN decode kernel: b12x
+(EngineCore pid=245) INFO 10-30 18:09:23 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=245) INFO 10-30 18:09:24 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+
+Startup 64s: (EngineCore pid=245) INFO 10-30 18:09:23 [mamba_utils.py:38] VLLM_SSM_CONV_STATE_LAYOUT env detected. Setting SSM conv state layout to DS.
+(EngineCore pid=245) INFO 10-30 18:09:24 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+
+Startup 84s: (EngineCore pid=245) INFO 10-30 18:09:24 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+
+Startup 105s: b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:14
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:03
+
+Startup 126s: b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:30
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:47
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:03
+b12x routing checkpoint shards: 10/21 shards routed, 48.58 GB selected on rank 0, 1:20
+b12x routing checkpoint shards: 12/21 shards routed, 58.58 GB selected on rank 0, 1:35
+
+Startup 147s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:49
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:52
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 112.17 s total loading; ROUTE 112.17s · SETUP 0.00s · PLAN 0.00s · READ 0.01s · SYNC 0.00s
+(EngineCore pid=245) INFO 10-30 18:11:17 [default_loader.py:575] Loading weights took 112.17 seconds
+
+Startup 189s: 
+pod "spark38-benchmark" deleted from qwen-flash namespace
+deployment.apps/qwen-flash scaled
+application.argoproj.io/qwen-flash annotated
+application.argoproj.io/qwen-flash annotated
+Production configuration restored; checking readiness.
+Waiting for deployment "qwen-flash" rollout to finish: 0 of 1 updated replicas are available...
+deployment "qwen-flash" successfully rolled out
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1321, in do_open
+    h.request(req.get_method(), req.selector, req.data, headers,
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+              encode_chunked=req.has_header('Transfer-encoding'))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1358, in request
+    self._send_request(method, url, body, headers, encode_chunked)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1404, in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1353, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1113, in _send_output
+    self.send(msg)
+    ~~~~~~~~~^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1057, in send
+    self.connect()
+    ~~~~~~~~~~~~^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1023, in connect
+    self.sock = self._create_connection(
+                ~~~~~~~~~~~~~~~~~~~~~~~^
+        (self.host,self.port), self.timeout, self.source_address)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 870, in create_connection
+    raise exceptions[0]
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 855, in create_connection
+    sock.connect(sa)
+    ~~~~~~~~~~~~^^^^
+ConnectionRefusedError: [Errno 61] Connection refused
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robert/Documents/GitHub/whitehouse-rke2/apps/ai/qwen-flash/benchmarks/2026-10-30-qwen38/run_benchmark.py", line 55, in <module>
+    with urllib.request.urlopen(BASE+'/models', timeout=3) as r:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 187, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 487, in open
+    response = self._open(req, data)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 504, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 464, in _call_chain
+    result = func(*args)
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1350, in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Library/Frameworks/Python.framework/Versions/3.14/lib/python3.14/urllib/request.py", line 1324, in do_open
+    raise URLError(err)
+urllib.error.URLError: <urlopen error [Errno 61] Connection refused>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robert/Documents/GitHub/whitehouse-rke2/apps/ai/qwen-flash/benchmarks/2026-10-30-qwen38/run_benchmark.py", line 73, in <module>
+    raise RuntimeError('Server process exited; see vllm.log')
+RuntimeError: Server process exited; see vllm.log

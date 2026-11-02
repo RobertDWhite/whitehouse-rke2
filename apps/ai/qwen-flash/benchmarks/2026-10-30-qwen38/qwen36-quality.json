@@ -1,0 +1,447 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "thinking": false,
+  "results": [
+    {
+      "case": "closure",
+      "passed": true,
+      "expected": {
+        "result": [
+          2,
+          2,
+          2
+        ]
+      },
+      "seconds": 0.2255664998665452,
+      "response": {
+        "id": "chatcmpl-9bb9a16682905548",
+        "object": "chat.completion",
+        "created": 1793377117,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"result\": [2, 2, 2]}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 51,
+          "total_tokens": 64,
+          "completion_tokens": 13,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "aliasing",
+      "passed": false,
+      "expected": {
+        "result": [
+          [
+            0,
+            1
+          ],
+          [
+            9
+          ],
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      "seconds": 0.2700140839442611,
+      "response": {
+        "id": "chatcmpl-953ee36fe60aa168",
+        "object": "chat.completion",
+        "created": 1793377117,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"result\": [\"[[0, 1], [9], [0, 1]]\"]}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 58,
+          "total_tokens": 79,
+          "completion_tokens": 21,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "lru",
+      "passed": false,
+      "expected": {
+        "keys": [
+          "A",
+          "D"
+        ],
+        "A": 4
+      },
+      "seconds": 0.7100215000100434,
+      "response": {
+        "id": "chatcmpl-936ec0bb86de82e5",
+        "object": "chat.completion",
+        "created": 1793377117,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"keys\": [\n    \"D\",\n    \"B\",\n    \"C\"\n  ],\n  \"A\": 4\n}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 81,
+          "total_tokens": 116,
+          "completion_tokens": 35,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "binary_search",
+      "passed": true,
+      "expected": {
+        "replacement": "lo = mid + 1",
+        "result": 1
+      },
+      "seconds": 0.7383927921764553,
+      "response": {
+        "id": "chatcmpl-9e2d81d5ca156859",
+        "object": "chat.completion",
+        "created": 1793377118,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"replacement\": \"lo = mid + 1\",\n  \"result\": 1\n}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 112,
+          "total_tokens": 136,
+          "completion_tokens": 24,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "sql_null",
+      "passed": false,
+      "expected": {
+        "not_in": 0,
+        "not_exists": 2
+      },
+      "seconds": 0.20994866685941815,
+      "response": {
+        "id": "chatcmpl-b117ef09e339976a",
+        "object": "chat.completion",
+        "created": 1793377119,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\"not_in\": 1, \"not_exists\": 2}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 96,
+          "total_tokens": 111,
+          "completion_tokens": 15,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "deployment",
+      "passed": true,
+      "expected": {
+        "replacement_can_schedule": false,
+        "readiness_restarts_container": false
+      },
+      "seconds": 0.26533841667696834,
+      "response": {
+        "id": "chatcmpl-935e49e27f70d79c",
+        "object": "chat.completion",
+        "created": 1793377119,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"replacement_can_schedule\": false,\n  \"readiness_restarts_container\": false\n}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 94,
+          "total_tokens": 117,
+          "completion_tokens": 23,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "intervals",
+      "passed": false,
+      "expected": {
+        "intervals": [
+          [
+            1,
+            4
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            8,
+            12
+          ]
+        ]
+      },
+      "seconds": 0.46375591726973653,
+      "response": {
+        "id": "chatcmpl-9f654ba2de448c8a",
+        "object": "chat.completion",
+        "created": 1793377119,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"intervals\": [\n    [1, 5],\n    [2, 3],\n    [5, 6],\n    [8, 12]\n  ]\n}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 66,
+          "total_tokens": 113,
+          "completion_tokens": 47,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    },
+    {
+      "case": "retry",
+      "passed": false,
+      "expected": {
+        "success_probability": 0.875,
+        "expected_attempts": 1.75
+      },
+      "seconds": 0.3671448747627437,
+      "response": {
+        "id": "chatcmpl-9fafb48e44af28b0",
+        "object": "chat.completion",
+        "created": 1793377120,
+        "model": "qwen3.6-35b-a3b",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"success_probability\": 0.875,\n  \"expected_attempts\": 1.875\n}",
+              "refusal": null,
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "reasoning": null
+            },
+            "logprobs": null,
+            "finish_reason": "stop",
+            "stop_reason": null,
+            "token_ids": null,
+            "routed_experts": null
+          }
+        ],
+        "service_tier": null,
+        "system_fingerprint": "vllm-0.31.0-fb97177f",
+        "usage": {
+          "prompt_tokens": 55,
+          "total_tokens": 84,
+          "completion_tokens": 29,
+          "prompt_tokens_details": null,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          }
+        },
+        "prompt_logprobs": null,
+        "prompt_token_ids": null,
+        "prompt_text": null,
+        "kv_transfer_params": null,
+        "ec_transfer_params": null,
+        "metrics": null
+      }
+    }
+  ]
+}

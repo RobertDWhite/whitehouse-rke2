@@ -1,0 +1,87 @@
+application.argoproj.io/qwen-flash annotated
+deployment.apps/qwen-flash scaled
+pod/qwen-flash-8567f8654b-67vpp condition met
+pod/spark38-benchmark created
+pod/spark38-benchmark condition met
+72
+Startup 0s: 
+Startup 21s: (APIServer pid=72) INFO 10-30 18:16:21 [vllm.py:1497] Resolved Engram configuration: EngramConfig(cpu_offload=True, embedding_across_dp=False, dp_shared_memory=False, table_memory='device', disk_resident_scales=False, projection_tp=False)
+(APIServer pid=72) INFO 10-30 18:16:21 [vllm.py:929] Auto-enabling VLLM_USE_BREAKABLE_CUDAGRAPH=1. Set VLLM_USE_BREAKABLE_CUDAGRAPH=0 to opt out.
+(APIServer pid=72) INFO 10-30 18:16:21 [kernel.py:430] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['vllm_c', 'native'], fused_add_rms_norm=['vllm_c', 'native'], gelu_and_mul_sparse=['triton', 'native'])
+(APIServer pid=72) WARNING 10-30 18:16:21 [vllm.py:2385] max_num_scheduled_tokens is set to 1024 based on the speculative decoding settings. This may lead to suboptimal performance. Consider increasing max_num_batched_tokens to accommodate the additional draft token slots, or decrease num_speculative_tokens.
+(APIServer pid=72) INFO 10-30 18:16:21 [compilation.py:336] Enabled custom fusions: norm_quant, act_quant
+
+Restarted interrupted port-forward
+Startup 57s: 
+Kubelet exec transport unavailable; process state unknown
+Restarted interrupted port-forward
+Startup 78s: (EngineCore pid=241) INFO 10-30 18:16:33 [vocab_parallel_embedding.py:437] Quantizing LM head shards to MXFP8 with BF16 activations.
+b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:16
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:33
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:50
+
+Startup 98s: b12x routing checkpoint shards: 0/21 shards routed, 0.00 GB selected on rank 0, 0:00
+b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:16
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:33
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:50
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:07
+
+Restarted interrupted port-forward
+Startup 119s: b12x routing checkpoint shards: 2/21 shards routed, 8.58 GB selected on rank 0, 0:16
+b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:33
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:50
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:07
+b12x routing checkpoint shards: 10/21 shards routed, 48.58 GB selected on rank 0, 1:23
+
+Startup 140s: b12x routing checkpoint shards: 4/21 shards routed, 18.58 GB selected on rank 0, 0:33
+b12x routing checkpoint shards: 6/21 shards routed, 28.58 GB selected on rank 0, 0:50
+b12x routing checkpoint shards: 8/21 shards routed, 38.58 GB selected on rank 0, 1:07
+b12x routing checkpoint shards: 10/21 shards routed, 48.58 GB selected on rank 0, 1:23
+b12x routing checkpoint shards: 12/21 shards routed, 58.58 GB selected on rank 0, 1:40
+
+Restarted interrupted port-forward
+Startup 161s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:55
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:58
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:59
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 118.41 s total loading; ROUTE 118.41s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=241) INFO 10-30 18:18:32 [default_loader.py:575] Loading weights took 118.41 seconds
+
+Startup 182s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:55
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:58
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:59
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 118.41 s total loading; ROUTE 118.41s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=241) INFO 10-30 18:18:32 [default_loader.py:575] Loading weights took 118.41 seconds
+
+Restarted interrupted port-forward
+Startup 202s: b12x routing checkpoint shards: 14/21 shards routed, 68.42 GB selected on rank 0, 1:55
+b12x routing checkpoint shards: 21/21 shards routed, 71.41 GB selected on rank 0, 1:58
+b12x reading and scattering weights: 21/21 shards routed, 71.41 GB selected on rank 0, 1:59
+b12x weights loaded: 71.41 GB selected on rank 0 · 72.38 GB physical reads; 118.41 s total loading; ROUTE 118.41s · SETUP 0.00s · PLAN 0.00s · READ 0.00s · SYNC 0.00s
+(EngineCore pid=241) INFO 10-30 18:18:32 [default_loader.py:575] Loading weights took 118.41 seconds
+
+Startup 223s: (EngineCore pid=241) INFO 10-30 18:19:42 [interface.py:1084] Padding mamba page size by 0.13% to ensure that mamba page size and attention page size are exactly equal.
+(EngineCore pid=241) INFO 10-30 18:19:42 [utils.py:407] Using BLHNC KV cache layout.
+(EngineCore pid=241) INFO 10-30 18:19:42 [b12x_prepare.py:576] b12x weights preparation uses 1 compiler workers
+b12x warming heuristics gemm.blockscaled_precision: 0/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:00, tuning stopped; completing required preparation
+b12x warming heuristics quantization.csf_block_expansion: 43/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:03, tuning stopped; completing required preparation
+
+Restarted interrupted port-forward
+Startup 244s: b12x warming heuristics moe.decode: 48/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:07, tuning stopped; completing required preparation
+b12x warming heuristics moe.decode: 55/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:17, tuning stopped; completing required preparation
+b12x warming heuristics norm.hyperconnection: 57/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:19, tuning stopped; completing required preparation
+b12x warming heuristics sequence.ple_embedding: 61/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:19, tuning stopped; completing required preparation
+b12x warming heuristics sequence.mtp_feedback: 86/103 ready, 0 measured, 0 cached, 0 restored, 0 rejected, 0 compilations, 0:26, tuning stopped; completing required preparation
+
+Startup 265s: (APIServer pid=72)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/utils.py", line 1253, in launch_core_engines
+(APIServer pid=72)     wait_for_engine_startup(
+(APIServer pid=72)   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/utils.py", line 1333, in wait_for_engine_startup
+(APIServer pid=72)     raise RuntimeError(
+(APIServer pid=72) RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+
+pod "spark38-benchmark" deleted from qwen-flash namespace
+deployment.apps/qwen-flash scaled
+application.argoproj.io/qwen-flash annotated
+application.argoproj.io/qwen-flash annotated
+Production configuration restored; checking readiness.
+Waiting for deployment "qwen-flash" rollout to finish: 0 of 1 updated replicas are available...

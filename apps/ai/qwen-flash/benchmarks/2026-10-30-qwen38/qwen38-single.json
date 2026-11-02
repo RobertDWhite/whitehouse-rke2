@@ -1,0 +1,60 @@
+{
+  "label": "qwen38-no-mtp-heuristic-single",
+  "concurrency": 1,
+  "warmup": {
+    "prompt": "warmup",
+    "label": "qwen38-no-mtp-heuristic-single",
+    "concurrency": 1,
+    "prompt_tokens": 25,
+    "output_tokens": 512,
+    "ttft_seconds": 0.45560479210689664,
+    "elapsed_seconds": 20.445763000287116,
+    "decode_tokens_per_second": 25.56333767150934,
+    "end_to_end_tokens_per_second": 25.041863196438797,
+    "finish_reason": "length",
+    "response": "A **Binary Search Tree (BST)** is a node-based data structure that organizes data in a hierarchical manner, allowing for efficient searching, insertion, and deletion. It is a specialized version of a binary tree where each node has at most two children, referred to as the **left child** and the **right child**.\n\n### Key Property\nThe defining characteristic of a BST is the **ordering property**:\n- For any given node `N`:\n  - All values in the **left subtree** are **less than** `N`'s value.\n  - All values in the **right subtree** are **greater than** `N`'s value.\n- This property must hold recursively for every node in the tree.\n\n### Core Operations\n\n1. **Search**\n   - Start at the root.\n   - Compare the target value with the current node\u2019s value.\n   - If the target is smaller, move to the left child.\n   - If the target is larger, move to the right child.\n   - Repeat until the value is found or a null node is reached (indicating absence).\n   - **Time Complexity**: Average case **O(log n)**, worst case **O(n)** (if the tree is skewed).\n\n2. **Insertion**\n   - Similar to search: traverse the tree to find the appropriate leaf position.\n   - Insert the new node as a child of the last non-null node visited.\n   - **Time Complexity**: Same as search.\n\n3. **Deletion**\n   - Find the node to delete.\n   - Handle three cases:\n     - **Leaf node**: Simply remove it.\n     - **One child**: Replace the node with its child.\n     - **Two children**: Replace the node\u2019s value with its **in-order successor** (smallest value in the right subtree) or **in-order predecessor** (largest value in the left subtree), then delete that successor/predecessor node.\n   - **Time Complexity**: Same as search.\n\n### Advantages\n- Efficient average-case performance for dynamic datasets.\n- Maintains sorted order, enabling fast range queries and ordered traversals (in-order traversal yields sorted output).\n\n### Limitations\n- Performance degrades to **O(n)** if the tree becomes unbalanced (e.g., inserting sorted data creates a linked-list-like structure).\n- Self-balancing BSTs (like AVL trees or Red-Black trees)"
+  },
+  "results": [
+    {
+      "prompt": "coding",
+      "label": "qwen38-no-mtp-heuristic-single",
+      "concurrency": 1,
+      "prompt_tokens": 62,
+      "output_tokens": 512,
+      "ttft_seconds": 0.48152379179373384,
+      "elapsed_seconds": 20.48144870856777,
+      "decode_tokens_per_second": 25.550312512148437,
+      "end_to_end_tokens_per_second": 24.9982316820109,
+      "finish_reason": "length",
+      "response": "An LRU (Least Recently Used) cache is a fixed-size cache that evicts the least recently used items when capacity is exceeded. The core challenge is maintaining O(1) time complexity for both `get` and `put` operations while tracking access order. This is achieved by combining a hash map for fast key-value lookups with a doubly linked list to maintain the order of usage.\n\n### Invariants\n\n1. **Capacity Constraint**: The number of items in the cache never exceeds the specified capacity.\n2. **Uniqueness**: Each key appears at most once in the cache.\n3. **Ordering**: The doubly linked list maintains items in order of recent usage, with the head representing the most recently used item and the tail representing the least recently used item.\n4. **Consistency**: The hash map and linked list are always in sync; every key in the map has a corresponding node in the list, and vice versa.\n\n### Implementation\n\n```python\nfrom typing import Optional, Dict\n\nclass Node:\n    \"\"\"Doubly linked list node for LRU cache.\"\"\"\n    def __init__(self, key: int = 0, value: int = 0):\n        self.key = key\n        self.value = value\n        self.prev: Optional['Node'] = None\n        self.next: Optional['Node'] = None\n\nclass LRUCache:\n    \"\"\"LRU Cache with O(1) get and put operations.\"\"\"\n    \n    def __init__(self, capacity: int):\n        if capacity <= 0:\n            raise ValueError(\"Capacity must be positive\")\n        self.capacity = capacity\n        self.cache: Dict[int, Node] = {}\n        # Dummy head and tail to simplify edge cases\n        self.head = Node()  # Most recently used\n        self.tail = Node()  # Least recently used\n        self.head.next = self.tail\n        self.tail.prev = self.head\n\n    def _remove(self, node: Node) -> None:\n        \"\"\"Remove a node from the linked list.\"\"\"\n        node.prev.next = node.next\n        node.next.prev = node.prev\n\n    def _add_to_head(self, node: Node) -> None:\n        \"\"\"Add a node right after the head (most recently used).\"\"\"\n        node.prev = self.head\n        node.next = self.head.next\n        self.head.next.prev = node\n        self.head.next = node\n\n    def get(self,"
+    },
+    {
+      "prompt": "operations",
+      "label": "qwen38-no-mtp-heuristic-single",
+      "concurrency": 1,
+      "prompt_tokens": 55,
+      "output_tokens": 512,
+      "ttft_seconds": 0.40042675007134676,
+      "elapsed_seconds": 20.258804165758193,
+      "decode_tokens_per_second": 25.732439080590666,
+      "end_to_end_tokens_per_second": 25.272962599904684,
+      "finish_reason": "length",
+      "response": "Deploying a stateful inference service on Kubernetes requires precise orchestration of resource management, health checks, and lifecycle hooks to ensure zero-downtime updates. The interaction between resource requests, limits, readiness probes, and graceful shutdown mechanisms forms the backbone of a reliable rolling deployment strategy.\n\n**Resource Requests and Limits**\nIn a rolling update, Kubernetes gradually replaces old pods with new ones. `requests` guarantee that the scheduler places the pod on a node with sufficient available CPU and memory. For an inference service, accurate requests are critical; under-provisioning leads to CPU throttling or OOMKills, while over-provisioning wastes cluster capacity. `limits` act as a ceiling. If a pod exceeds its memory limit, it is terminated. During a deployment, if new pods have higher resource demands than the available node capacity, the rollout may stall because the scheduler cannot place the new pods. This creates a deadlock if the old pods are not terminated quickly enough to free up resources.\n\n**Readiness Probes**\nReadiness probes determine when a pod is ready to receive traffic. For an inference service, this is not just about the process starting, but about the model being fully loaded into memory and the inference engine being initialized. A common mistake is using a simple TCP port check. Instead, a custom HTTP endpoint (e.g., `/health/ready`) should verify that the model weights are loaded and the server is accepting connections. If the readiness probe fails, the pod is removed from the Service\u2019s endpoints, preventing traffic from reaching an unready instance. This ensures that during a rolling update, traffic is only routed to pods that are fully functional.\n\n**Graceful Shutdown**\nWhen a pod is terminated (either due to a rollout or scaling down), Kubernetes sends a `SIGTERM` signal. The application must handle this signal to stop accepting new requests, finish processing in-flight requests, and then exit. If the application exits immediately upon `SIGTERM`, clients may receive connection errors. The `terminationGracePeriodSeconds` field in the Pod spec defines how long Kubernetes waits before sending `SIGKILL`. For inference services, this period must be long enough to complete the longest expected inference request.\n\n**Concrete Example**\nConsider a PyTorch-based image classification service.\n1.  **Resources:** The pod requests 2 CPUs and 4Gi memory, with limits of 4 CPUs and 8Gi.\n2.  **Readiness:** A `/ready` endpoint returns 200 only"
+    },
+    {
+      "prompt": "reasoning",
+      "label": "qwen38-no-mtp-heuristic-single",
+      "concurrency": 1,
+      "prompt_tokens": 66,
+      "output_tokens": 512,
+      "ttft_seconds": 0.29400274995714426,
+      "elapsed_seconds": 20.199756833259016,
+      "decode_tokens_per_second": 25.671241799128538,
+      "end_to_end_tokens_per_second": 25.3468397776447,
+      "finish_reason": "length",
+      "response": "Designing a fair benchmark for local language model inference servers requires isolating the specific variables that influence performance. When comparing two servers (e.g., llama.cpp vs. vLLM) for coding assistants, you must decouple the hardware\u2019s raw compute power from the software\u2019s optimization strategies. The goal is to measure how efficiently each server utilizes the same underlying hardware to deliver high-quality code completions.\n\n**Separating Input Processing and Output Generation**\nThe first step is to distinguish between prefill (input processing) and decode (output generation) phases. Prefill involves processing the prompt tokens, which is compute-bound and parallelizable. Decode involves generating tokens one by one, which is memory-bandwidth-bound. To separate these, use prompts of varying lengths. For prefill, measure \"Time to First Token\" (TTFT) using long, static prompts (e.g., 2,000 tokens of code context). For decode, measure \"Inter-Token Latency\" (ITL) or \"Tokens Per Second\" (TPS) by generating a fixed number of tokens (e.g., 128) after the first token is received. Ensure the model weights are identical across both servers to eliminate model variance.\n\n**Concurrency and Caching**\nConcurrency tests simulate real-world usage where multiple users or agents request completions simultaneously. Use a load generator to send requests at increasing rates (e.g., 1, 5, 10, 20 concurrent requests). Measure throughput (total tokens/sec) and latency percentiles (P50, P95, P99). High concurrency often exposes bottlenecks in batch scheduling.\n\nCaching is critical for coding assistants, where context windows are large and repetitive. Test two types of caching:\n1.  **Prompt Caching:** Send identical long prompts repeatedly. Measure the speedup on the second request. Some servers cache the KV cache of the prompt; others do not.\n2.  **Prefix Caching:** Send prompts that share a common prefix (e.g., the same file content) but differ in the suffix. This tests the server\u2019s ability to reuse computed KV cache states. Disable caching in one run to establish a baseline, then enable it to measure the efficiency gain.\n\n**Answer Quality**\nPerformance is meaningless if the output is incorrect. For coding assistants, use a standardized dataset like HumanEval or MBPP. However, since local models may vary in temperature and sampling parameters, fix these strictly (e.g.,"
+    }
+  ],
+  "wall_seconds": 60.94021033262834,
+  "aggregate_end_to_end_tokens_per_second": 25.205032795523543
+}
