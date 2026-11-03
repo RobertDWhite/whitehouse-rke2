@@ -2875,13 +2875,222 @@
       "type": "piechart"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 133
+      },
+      "id": 1050,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(account) (codex_sessions_by_account{job=\"claude-code-stats\"})",
+          "legendFormat": "{{account}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Account",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 133
+      },
+      "id": 1051,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(account) (codex_tokens_by_account{job=\"claude-code-stats\"})",
+          "legendFormat": "{{account}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Tokens by Account",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 133
+      },
+      "id": 1052,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(account) (codex_messages_by_account{job=\"claude-code-stats\"})",
+          "legendFormat": "{{account}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Messages by Account",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#10A37F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 133
+      },
+      "id": 1053,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum by(account) (codex_cost_by_account_usd{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "{{account}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Est. Cost by Account",
+      "type": "stat"
+    },
+    {
       "title": "Codex \u2014 Projects",
       "type": "row",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 133
+        "y": 139
       },
       "collapsed": false
     },
@@ -2902,7 +3111,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 134
+        "y": 140
       },
       "id": 1010,
       "options": {
@@ -2947,7 +3156,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 134
+        "y": 140
       },
       "id": 1011,
       "options": {
@@ -2982,7 +3191,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 142
+        "y": 148
       },
       "collapsed": false
     },
@@ -3003,7 +3212,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 143
+        "y": 149
       },
       "id": 1020,
       "options": {
@@ -3048,7 +3257,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 143
+        "y": 149
       },
       "id": 1021,
       "options": {
@@ -3094,7 +3303,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 151
+        "y": 157
       },
       "collapsed": false
     },
@@ -3173,7 +3382,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 152
+        "y": 158
       },
       "id": 1030,
       "options": {
@@ -3218,7 +3427,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 160
+        "y": 166
       },
       "collapsed": false
     },
@@ -3243,7 +3452,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 161
+        "y": 167
       },
       "id": 1040,
       "options": {
@@ -3293,7 +3502,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 161
+        "y": 167
       },
       "id": 1041,
       "options": {
@@ -3520,7 +3729,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 168
+        "y": 174
       },
       "collapsed": false,
       "id": 1100,
@@ -3552,7 +3761,7 @@
         "h": 5,
         "w": 4,
         "x": 0,
-        "y": 169
+        "y": 175
       },
       "id": 1101,
       "options": {
@@ -3606,7 +3815,7 @@
         "h": 5,
         "w": 4,
         "x": 4,
-        "y": 169
+        "y": 175
       },
       "id": 1102,
       "options": {
@@ -3659,7 +3868,7 @@
         "h": 5,
         "w": 4,
         "x": 8,
-        "y": 169
+        "y": 175
       },
       "id": 1103,
       "options": {
@@ -3703,7 +3912,7 @@
         "h": 5,
         "w": 12,
         "x": 12,
-        "y": 169
+        "y": 175
       },
       "id": 1104,
       "options": {
@@ -3745,7 +3954,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 174
+        "y": 180
       },
       "collapsed": false,
       "id": 1110,
@@ -3768,7 +3977,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 175
+        "y": 181
       },
       "id": 1111,
       "options": {
@@ -3813,7 +4022,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 175
+        "y": 181
       },
       "id": 1112,
       "options": {
@@ -3858,7 +4067,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 175
+        "y": 181
       },
       "id": 1113,
       "options": {
@@ -3893,7 +4102,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 183
+        "y": 189
       },
       "collapsed": false
     },
@@ -3923,7 +4132,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 184
+        "y": 190
       },
       "id": 1300,
       "options": {
@@ -3976,7 +4185,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 184
+        "y": 190
       },
       "id": 1301,
       "options": {
@@ -4029,7 +4238,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 184
+        "y": 190
       },
       "id": 1302,
       "options": {
@@ -4082,7 +4291,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 184
+        "y": 190
       },
       "id": 1303,
       "options": {
@@ -4135,7 +4344,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 184
+        "y": 190
       },
       "id": 1304,
       "options": {
@@ -4188,7 +4397,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 184
+        "y": 190
       },
       "id": 1305,
       "options": {
@@ -4232,7 +4441,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 188
+        "y": 194
       },
       "id": 1310,
       "options": {
@@ -4284,7 +4493,7 @@
         "h": 8,
         "w": 9,
         "x": 6,
-        "y": 188
+        "y": 194
       },
       "id": 1311,
       "options": {
@@ -4329,7 +4538,7 @@
         "h": 8,
         "w": 9,
         "x": 15,
-        "y": 188
+        "y": 194
       },
       "id": 1312,
       "options": {
@@ -4374,7 +4583,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 196
+        "y": 202
       },
       "id": 1313,
       "options": {
@@ -4430,7 +4639,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 196
+        "y": 202
       },
       "id": 1314,
       "options": {
@@ -4475,7 +4684,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 204
+        "y": 210
       },
       "collapsed": false
     },
@@ -4505,7 +4714,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 205
+        "y": 211
       },
       "id": 1400,
       "options": {
@@ -4558,7 +4767,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 205
+        "y": 211
       },
       "id": 1401,
       "options": {
@@ -4611,7 +4820,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 205
+        "y": 211
       },
       "id": 1402,
       "options": {
@@ -4664,7 +4873,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 205
+        "y": 211
       },
       "id": 1403,
       "options": {
@@ -4717,7 +4926,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 205
+        "y": 211
       },
       "id": 1404,
       "options": {
@@ -4770,7 +4979,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 205
+        "y": 211
       },
       "id": 1405,
       "options": {
@@ -4814,7 +5023,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 209
+        "y": 215
       },
       "id": 1410,
       "options": {
@@ -4866,7 +5075,7 @@
         "h": 8,
         "w": 9,
         "x": 6,
-        "y": 209
+        "y": 215
       },
       "id": 1411,
       "options": {
@@ -4911,7 +5120,7 @@
         "h": 8,
         "w": 9,
         "x": 15,
-        "y": 209
+        "y": 215
       },
       "id": 1412,
       "options": {
@@ -4956,7 +5165,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 217
+        "y": 223
       },
       "id": 1413,
       "options": {
@@ -5012,7 +5221,7 @@
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 217
+        "y": 223
       },
       "id": 1414,
       "options": {
@@ -5058,7 +5267,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 225
+        "y": 231
       },
       "panels": [],
       "id": 1200,
@@ -5074,7 +5283,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 226
+        "y": 232
       },
       "description": "Macs whose claude-stats-exporter (:9101) Prometheus can currently scrape",
       "targets": [
@@ -5137,7 +5346,7 @@
         "h": 4,
         "w": 7,
         "x": 4,
-        "y": 226
+        "y": 232
       },
       "targets": [
         {
@@ -5214,7 +5423,7 @@
         "h": 4,
         "w": 7,
         "x": 11,
-        "y": 226
+        "y": 232
       },
       "targets": [
         {
@@ -5291,7 +5500,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 226
+        "y": 232
       },
       "targets": [
         {
@@ -5368,7 +5577,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 230
+        "y": 236
       },
       "targets": [
         {
@@ -5443,7 +5652,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 230
+        "y": 236
       },
       "targets": [
         {
@@ -5531,7 +5740,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 230
+        "y": 236
       },
       "targets": [
         {
@@ -5607,7 +5816,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 238
+        "y": 244
       },
       "targets": [
         {
@@ -5876,7 +6085,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 246
+        "y": 252
       },
       "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
       "targets": [
@@ -6003,7 +6212,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 246
+        "y": 252
       },
       "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
       "targets": [
@@ -6131,7 +6340,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 254
+        "y": 260
       },
       "targets": [
         {
@@ -6250,7 +6459,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 254
+        "y": 260
       },
       "targets": [
         {
@@ -6325,7 +6534,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 262
+        "y": 268
       },
       "targets": [
         {
@@ -6463,7 +6672,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 262
+        "y": 268
       },
       "targets": [
         {

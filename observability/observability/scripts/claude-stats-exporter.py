@@ -327,6 +327,17 @@ def codex_source(meta):
     return "other"
 
 
+def codex_account(meta):
+    """personal / business. On this setup T3's ACP "Codex" instance (originator
+    t3-code) and Codex Desktop's work mode are the business login; T3's
+    "ChatGPT - Personal" instance (openai_token_sharing), Codex Desktop and the
+    CLI use the personal one. Sessions don't record the account itself."""
+    orig = str(meta.get("originator") or "").lower()
+    if orig == "t3-code" or "work" in orig:
+        return "business"
+    return "personal"
+
+
 def scan_codex():
     total_sessions = 0
     total_tokens = 0
@@ -334,6 +345,7 @@ def scan_codex():
     total_tool_calls = 0
     by_source_sessions = Counter()
     by_source_tokens = Counter()
+    acct = {k: Counter() for k in ("sessions", "tokens", "messages", "tool_calls", "cost")}
     proj_sessions = Counter()
     proj_tokens = Counter()
     daily_sessions = Counter()
@@ -386,7 +398,14 @@ def scan_codex():
         inp = u.get("input_tokens", 0) or 0
         cached = u.get("cached_input_tokens", 0) or 0
         out = u.get("output_tokens", 0) or 0
-        cost += ((inp - cached) * CODEX_PRICE[0] + cached * CODEX_PRICE[2] + out * CODEX_PRICE[1]) / 1e6
+        session_cost = ((inp - cached) * CODEX_PRICE[0] + cached * CODEX_PRICE[2] + out * CODEX_PRICE[1]) / 1e6
+        cost += session_cost
+        a = codex_account(meta)
+        acct["sessions"][a] += 1
+        acct["tokens"][a] += tokens
+        acct["messages"][a] += msgs
+        acct["tool_calls"][a] += tools
+        acct["cost"][a] += session_cost
 
         total_sessions += 1
         total_tokens += tokens
@@ -407,7 +426,7 @@ def scan_codex():
     return {
         "sessions": total_sessions, "tokens": total_tokens, "messages": total_messages,
         "tool_calls": total_tool_calls, "by_source_sessions": by_source_sessions,
-        "by_source_tokens": by_source_tokens, "proj_sessions": proj_sessions,
+        "by_source_tokens": by_source_tokens, "by_account": acct, "proj_sessions": proj_sessions,
         "proj_tokens": proj_tokens, "daily_sessions": daily_sessions, "daily_tokens": daily_tokens,
         "daily_messages": daily_messages, "daily_tool_calls": daily_tool_calls,
         "hour_sessions": hour_sessions, "tool_usage": tool_usage, "cost": cost,
@@ -788,6 +807,14 @@ def render(cl, cache, cx, cw, gk, oc, up):
     o.family("codex_tokens_by_source", "Tokens by source")
     for s, n in cx["by_source_tokens"].items():
         o.sample("codex_tokens_by_source", n, source=s)
+    for key, help_ in (("sessions", "Sessions"), ("tokens", "Tokens"), ("messages", "Messages"),
+                       ("tool_calls", "Tool calls")):
+        o.family("codex_%s_by_account" % key, "%s by ChatGPT account (personal/business)" % help_)
+        for a, n in sorted(cx["by_account"][key].items()):
+            o.sample("codex_%s_by_account" % key, n, account=a)
+    o.family("codex_cost_by_account_usd", "Estimated Codex cost in USD by ChatGPT account")
+    for a, n in sorted(cx["by_account"]["cost"].items()):
+        o.sample("codex_cost_by_account_usd", round(n, 4), account=a)
     o.family("codex_project_sessions", "Sessions per project")
     for p, n in cx["proj_sessions"].items():
         o.sample("codex_project_sessions", n, project=p)
