@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: cw-decoder
   namespace: sdr-research
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -12,6 +14,8 @@ spec:
       app: cw-decoder
   template:
     metadata:
+      annotations:
+        sdr-research/cw-timing: "dot-dash-clusters-v1"
       labels:
         app: cw-decoder
     spec:

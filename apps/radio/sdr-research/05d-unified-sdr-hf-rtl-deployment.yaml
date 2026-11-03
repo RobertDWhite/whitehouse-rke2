@@ -1,0 +1,161 @@
+# Blog V4 serial 00000002 on node-15: temporary 160m through 10m CW coverage.
+# This captures CW envelopes only. HF SSB and RX888-based digital decoders remain unavailable.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unified-sdr-hf-rtl
+  namespace: sdr-research
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unified-sdr-hf-rtl
+  template:
+    metadata:
+      labels:
+        app: unified-sdr-hf-rtl
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: rke2-node-15
+      containers:
+      - name: unified-sdr-hf-rtl
+        image: librespace/gnuradio
+        securityContext:
+          allowPrivilegeEscalation: false
+        command:
+        - /bin/bash
+        - -c
+        - python3 -u /scripts/unified_sdr.py
+        env:
+        - name: CAPTURE_DEVICE_SERIAL
+          value: "00000002"
+        - name: RTL_TCP_HOST
+          value: rtl-tcp-70cm.sdr-research.svc.cluster.local
+        - name: RTL_TCP_PORT
+          value: '1235'
+        - name: CAPTURE_ID
+          value: hf-rtl
+        - name: CAPTURE_SOURCE
+          value: rtl-hf
+        - name: FIXED_MONITOR_ENABLED
+          value: 'false'
+        - name: SAMPLE_RATE
+          value: '2400000'
+        - name: DWELL_CENTER_HZ
+          value: '7650000'
+        - name: FIXED_MONITOR_HZ
+          value: '7030000'
+        - name: SCAN_CENTERS
+          value: '[2200000, 3850000, 10600000, 14600000, 18650000, 21650000, 25050000,
+            28650000]'
+        - name: FM_RECORD_BANDS_HZ
+          value: ''
+        - name: CW_RECORD_BANDS_HZ
+          value: 1800000-2000000,3500000-3600000,7000000-7125000,10100000-10130000,14000000-14150000,18068000-18095000,21000000-21150000,24890000-24915000,28000000-28150000
+        - name: DWELL_SEC
+          value: '30'
+        - name: SCAN_SEC
+          value: '20'
+        - name: RF_SETTLE_SEC
+          value: '2.0'
+        - name: NUM_DYN_FM
+          value: '0'
+        - name: NUM_DYN_CW
+          value: '6'
+        - name: NUM_DYN_ACARS
+          value: '0'
+        - name: SLOT_RECYCLE_SEC
+          value: '120'
+        - name: RF_SQUELCH_DB
+          value: '-40'
+        - name: AUTO_SQUELCH_MIN_DB
+          value: '-90'
+        - name: AUTO_SQUELCH_MARGIN_DB
+          value: '6'
+        - name: SQUELCH_OPEN_DB
+          value: '-55'
+        - name: SQUELCH_CLOSE_DB
+          value: '-60'
+        - name: TAIL_SEC
+          value: '1.5'
+        - name: MIN_REC_SEC
+          value: '0.5'
+        - name: MAX_REC_SEC
+          value: '120'
+        - name: FFT_SIZE
+          value: '16384'
+        - name: FFT_INTERVAL
+          value: '0.5'
+        - name: ENERGY_THRESH_DB
+          value: '10'
+        - name: RF_GAIN
+          value: '28'
+        - name: PPM_CORRECTION
+          value: '0'
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 3000m
+            memory: 2Gi
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -lc
+            - python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json';
+              ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts
+              < 90 else 1)"
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -lc
+            - python3 -c "import json,os,time,sys; p=f'/data/detections/sdr_heartbeat_{os.getenv(\"CAPTURE_ID\",\"default\")}.json';
+              ts=float(json.load(open(p)).get('timestamp', 0)); sys.exit(0 if time.time()-ts
+              < 90 else 1)"
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 5
+        volumeMounts:
+        - name: artifacts
+          mountPath: /data
+        - name: scripts
+          mountPath: /scripts
+        - name: dshm
+          mountPath: /dev/shm
+      terminationGracePeriodSeconds: 20
+      volumes:
+      - name: artifacts
+        persistentVolumeClaim:
+          claimName: sdr-artifacts-rwx
+      - name: scripts
+        configMap:
+          name: unified-sdr-scripts
+          defaultMode: 493
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+      initContainers:
+      - name: wait-for-rtl-tcp
+        image: busybox:stable
+        command:
+        - /bin/sh
+        - -c
+        - until nc -z rtl-tcp-70cm.sdr-research.svc.cluster.local 1235; do sleep 3;
+          done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 8Mi

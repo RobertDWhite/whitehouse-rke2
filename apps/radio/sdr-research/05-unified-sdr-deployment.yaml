@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: unified-sdr
   namespace: sdr-research
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -15,7 +17,7 @@ spec:
       labels:
         app: unified-sdr
       annotations:
-        sdr-research/channel-filter: "multistage-v1"
+        sdr-research/channel-filter: "receiver-allocation-v2"
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
       # node-10 is tainted dedicated=llm:NoSchedule (reserved for the vLLM
@@ -34,6 +36,11 @@ spec:
             privileged: true
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
+            - name: CAPTURE_DEVICE_SERIAL
+              value: "10A862DC343A4F63"
+            - name: CAPTURE_SOURCE
+              # Airspy Mini serial 10A862DC343A4F63 on node-10.
+              value: "airspy-2m"
             # Airspy Mini via direct local USB access on node-10.
             # SoapyRemote control connected successfully but delivered empty sample
             # buffers; using the native osmosdr airspy source removes that layer.
@@ -53,10 +60,8 @@ spec:
               # Center of 2m amateur band; 6 MHz BW covers 143–149 MHz
               value: "146000000"
             - name: SCAN_CENTERS
-              # Hops between 2m dwells (6 MHz each): 10m FM (25.9-31.9),
-              # 6m (49.5-55.5), marine + NOAA WX (156.6-162.6). The old
-              # double-free was in SoapyRemote; this uses native airspy.
-              value: "[28900000, 52500000, 159600000]"
+              # Keep full 2m coverage continuous; other radios handle scans.
+              value: "[]"
             - name: DWELL_SEC
               # Longer dwell: 6 MHz BW captures all 2m activity simultaneously
               value: "60"
@@ -107,11 +112,8 @@ spec:
               # on close — deterministic noise backstop.
               value: "-9"
             - name: FM_RECORD_BANDS_HZ
-              # Bandplan-true 2m FM voice only: APRS slice + repeater outputs
-              # + simplex/repeaters. The Airspy's spur forest lives at
-              # 144.4-145.1 and 145.5-146.0 where no US FM voice exists.
-              # Scan hops add 10m FM, 6m, and marine + NOAA WX.
-              value: "144380000-144400000,145100000-145500000,146000000-148000000,29500000-29700000,51000000-54000000,156000000-162600000"
+              # APRS, FM repeater outputs, and simplex on 2m.
+              value: "144380000-144400000,145100000-145500000,145805000-145845000,146000000-148000000"
             - name: NOISE_GUARD_ROLLOVERS
               # Deactivate + blocklist a channel after this many consecutive
               # max-duration rollovers (spur signature: squelch never drops).
@@ -125,7 +127,8 @@ spec:
             - name: MAX_REC_SEC
               value: "120"
             - name: FFT_SIZE
-              value: "4096"
+              # 183 Hz bins keep CW carriers inside the 200 Hz channel filter.
+              value: "32768"
             - name: FFT_INTERVAL
               value: "1.0"
             - name: ENERGY_THRESH_DB

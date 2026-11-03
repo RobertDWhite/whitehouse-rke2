@@ -1,10 +1,12 @@
-# Second unified-sdr instance for 70cm (432 MHz band).
-# Connects to the rtl-tcp-70cm service (second RTL-SDR dongle).
+# General-purpose RTL on node-13: UHF ham, 1.25m, and VHF emergency scans.
+# The separate serial 1090 receiver belongs to ADS-B and is excluded.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: unified-sdr-70cm
   namespace: sdr-research
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -18,12 +20,12 @@ spec:
         app: unified-sdr-70cm
     spec:
       nodeSelector:
-        kubernetes.io/hostname: rke2-node-15
+        kubernetes.io/hostname: rke2-node-13
       initContainers:
         - name: wait-for-rtl-tcp
           image: busybox:stable
           command: ["/bin/sh", "-c",
-            "until nc -z rtl-tcp-70cm.sdr-research.svc.cluster.local 1235; do echo 'waiting for rtl_tcp...'; sleep 3; done"]
+            "until nc -z rtl-tcp.sdr-research.svc.cluster.local 1234; do echo 'waiting for rtl_tcp...'; sleep 3; done"]
           resources:
             requests:
               cpu: 10m
@@ -35,10 +37,22 @@ spec:
             allowPrivilegeEscalation: false
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
+            - name: CAPTURE_DEVICE_SERIAL
+              value: "00000001"
+            - name: AUTO_SQUELCH_MIN_DB
+              value: "-85"
+            - name: CW_RECORD_BANDS_HZ
+              value: "432000000-432100000"
+            - name: FM_RECORD_BANDS_HZ
+              # FM ham and the VHF emergency window; no weather scan.
+              value: "433000000-450000000,222000000-225000000,153800000-156100000"
+            - name: CAPTURE_SOURCE
+              # Generic R820T serial 00000001 on node-13; never serial 1090.
+              value: "rtl-70cm"
             - name: RTL_TCP_HOST
-              value: "rtl-tcp-70cm.sdr-research.svc.cluster.local"
+              value: "rtl-tcp.sdr-research.svc.cluster.local"
             - name: RTL_TCP_PORT
-              value: "1235"
+              value: "1234"
             - name: CAPTURE_ID
               value: "70cm"
             - name: FIXED_MONITOR_HZ
@@ -51,15 +65,14 @@ spec:
               # (RepeaterBook: 10 within 40 km, all 442-445). 432 had none.
               value: "443500000"
             - name: SCAN_CENTERS
-              # Hops: 446.0 (444.8-447.2, national simplex) and 432.0 (weak
-              # signal/ISM). Watch for the old retune SIGSEGV after enabling.
-              value: "[446000000, 432000000]"
+              # Cover remaining 70cm outputs/simplex, weak-signal CW, 1.25m, and VHF emergency.
+              value: "[441250000, 445500000, 447500000, 449000000, 432500000, 224000000, 155000000]"
             - name: DWELL_SEC
               value: "60"
             - name: RF_SETTLE_SEC
               value: "2.0"
             - name: SCAN_SEC
-              value: "8"
+              value: "12"
             - name: NUM_DYN_FM
               value: "8"
             - name: NUM_DYN_CW
@@ -92,7 +105,8 @@ spec:
             - name: MAX_REC_SEC
               value: "120"
             - name: FFT_SIZE
-              value: "4096"
+              # 146 Hz bins resolve CW within its 200 Hz channel filter.
+              value: "16384"
             - name: FFT_INTERVAL
               value: "1.0"
             - name: ENERGY_THRESH_DB
@@ -101,8 +115,8 @@ spec:
               # 40 dB for 70cm: compensates for RTL-SDR's ~4 dB worse noise figure at 432 vs 145 MHz
               value: "40"
             - name: PPM_CORRECTION
-              # Measured 2026-02-28 via rtl_test -p; Blog V4 R828D cumulative converged to 30 PPM
-              value: "30"
+              # Use this receiver's setting, not the former Blog V4 calibration.
+              value: "0"
           resources:
             requests:
               cpu: 500m
