@@ -299,8 +299,13 @@ def load_stats_cache():
 # Codex (rollout JSONL)
 # ----------------------------------------------------------------------------
 def codex_source(meta):
-    src = (meta.get("source") or "").lower()
-    orig = (meta.get("originator") or "").lower()
+    src = meta.get("source") or ""
+    orig = meta.get("originator") or ""
+    # Newer Codex writes subagent sessions as {"subagent": {...}}.
+    if isinstance(src, dict):
+        return "subagent" if "subagent" in src else "other"
+    src = str(src).lower()
+    orig = str(orig).lower()
     if src in ("cli", "vscode", "exec"):
         return src
     if "vscode" in orig or "desktop" in orig:
