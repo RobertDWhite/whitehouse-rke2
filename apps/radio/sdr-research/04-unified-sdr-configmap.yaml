@@ -90,11 +90,7 @@ data:
     NUM_DYN_CW     = int(os.getenv("NUM_DYN_CW", "4"))
     DYN_SLOT_FREQ_TOLERANCE_HZ = int(os.getenv("DYN_SLOT_FREQ_TOLERANCE_HZ", "2500"))
     SLOT_RECYCLE_SEC = float(os.getenv("SLOT_RECYCLE_SEC", "300"))
-    # IMPORTANT: clearing slots on retune calls lock()/disconnect()/connect()/unlock() per slot.
-    # GNURadio 3.10 connect()/disconnect() are NOT safe for concurrent calls from multiple threads
-    # (FFTDetector and ScanScheduler both call into the graph simultaneously → SIGSEGV).
-    # Hardcode False here; RF squelch prevents out-of-band recordings on stale slots.
-    CLEAR_SLOTS_ON_RETUNE = False
+    # Slots are pre-wired; deactivation does not mutate the GNU Radio graph.
     # VHF airband ACARS (128-132 MHz) uses AM modulation — must use envelope detection,
     # not NBFM. Intercept these frequencies before FM/CW slot routing.
     ACARS_FREQ_MIN = 128_000_000
@@ -307,6 +303,8 @@ data:
         def __init__(self):
             gr.top_block.__init__(self, "Unified SDR")
             self._state_lock = threading.Lock()
+            self._tune_lock = threading.RLock()
+            self.settle_until = 0.0
             self._gr_lock = threading.Lock()  # serialise all connect()/disconnect() across threads
             self.current_center_hz = DWELL_CENTER
 
@@ -578,15 +576,21 @@ data:
                 return self.current_center_hz
 
         def retune(self, center_hz):
-            self.src.set_center_freq(center_hz)
-            with self._state_lock:
-                self.current_center_hz = center_hz
-            # Channel offsets now point at different spectrum — re-learn floors.
-            self.fixed_sq_state.clear()
-            for slot in self.dyn_fm:
-                slot["sq_state"].clear()
-            for slot in self.dyn_cw:
-                slot["sq_state"].clear()
+            # Serialize slot assignment with tuning. Never carry a channel offset
+            # or FFT frame from one band into another band's frequency labels.
+            with self._tune_lock:
+                self.rec_fixed.deactivate()
+                self.deactivate_all_dynamic()
+                self.src.set_center_freq(center_hz)
+                with self._state_lock:
+                    self.current_center_hz = center_hz
+                self.fft_sink.reset()
+                self.settle_until = time.time() + RF_SETTLE_SEC
+                self.fixed_sq_state.clear()
+                if center_hz == DWELL_CENTER:
+                    self.rec_fixed.activate(self.fixed_freq)
+                    self.rec_fixed.set_inhibit(RF_SETTLE_SEC)
+
 
     # ---------------------------------------------------------------------------
     # FFT energy detector (background thread)
@@ -603,8 +607,12 @@ data:
             while True:
                 time.sleep(FFT_INTERVAL)
                 try:
-                    self._noise_guard()
-                    self._scan_fft()
+                    with self.tb._tune_lock:
+                        if time.time() < self.tb.settle_until:
+                            self.tb.fft_sink.reset()
+                            continue
+                        self._noise_guard()
+                        self._scan_fft()
                 except Exception as e:
                     print(f"[FFT] Error: {e}", flush=True)
 
@@ -760,22 +768,11 @@ data:
                 # Scan secondary bands
                 for center in SCAN_CENTERS:
                     print(f"[SCAN] Retuning to {center/1e6:.1f} MHz", flush=True)
-                    self.tb.close_all_recordings()
-                    if CLEAR_SLOTS_ON_RETUNE:
-                        self.tb.clear_dynamic_slots()
                     self.tb.retune(center)
-                    self.tb.inhibit_recordings(RF_SETTLE_SEC)
-                    # The fixed monitor's offset is relative to DWELL_CENTER, so
-                    # off-dwell it hears the wrong frequency; keep it closed.
-                    self.tb.rec_fixed.set_inhibit(SCAN_SEC + RF_SETTLE_SEC)
                     time.sleep(SCAN_SEC)
 
-                # Return to primary
                 print(f"[SCAN] Returning to {DWELL_CENTER/1e6:.1f} MHz", flush=True)
-                if CLEAR_SLOTS_ON_RETUNE:
-                    self.tb.clear_dynamic_slots()
                 self.tb.retune(DWELL_CENTER)
-                self.tb.inhibit_recordings(RF_SETTLE_SEC)
 
     # ---------------------------------------------------------------------------
     # Adaptive RF squelch (background thread)
@@ -826,20 +823,21 @@ data:
             time.sleep(5)  # let the flowgraph settle
             while True:
                 try:
-                    lines = [self._update(
-                        f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
-                        self.tb.rf_squelch_fixed, self.tb.rec_fixed,
-                        self.tb.fixed_sq_state)]
-                    for slot in self.tb.dyn_fm + self.tb.dyn_cw:
-                        if slot["freq"] is None:
-                            continue
-                        lines.append(self._update(
-                            f"{slot['freq']/1e6:.4f}", slot["probe"],
-                            slot["rf_squelch"], slot["recorder"],
-                            slot["sq_state"]))
-                    if time.time() - self._last_log >= AUTO_SQUELCH_LOG_SEC:
-                        print(f"[SQL] {' | '.join(lines)}", flush=True)
-                        self._last_log = time.time()
+                    with self.tb._tune_lock:
+                        lines = [self._update(
+                            f"{self.tb.fixed_freq/1e6:.4f}", self.tb.probe_fixed,
+                            self.tb.rf_squelch_fixed, self.tb.rec_fixed,
+                            self.tb.fixed_sq_state)]
+                        for slot in self.tb.dyn_fm + self.tb.dyn_cw:
+                            if slot["freq"] is None:
+                                continue
+                            lines.append(self._update(
+                                f"{slot['freq']/1e6:.4f}", slot["probe"],
+                                slot["rf_squelch"], slot["recorder"],
+                                slot["sq_state"]))
+                        if time.time() - self._last_log >= AUTO_SQUELCH_LOG_SEC:
+                            print(f"[SQL] {' | '.join(lines)}", flush=True)
+                            self._last_log = time.time()
                 except Exception as e:
                     print(f"[SQL] Error: {e}", flush=True)
                 time.sleep(AUTO_SQUELCH_INTERVAL)
@@ -873,7 +871,9 @@ data:
             time.sleep(10)
             while True:
                 try:
-                    self._tick()
+                    with self.tb._tune_lock:
+                        if time.time() >= self.tb.settle_until:
+                            self._tick()
                 except Exception as e:
                     print(f"[SAT] Error: {e}", flush=True)
                 time.sleep(30)
