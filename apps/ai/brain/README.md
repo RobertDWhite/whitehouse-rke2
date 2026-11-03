@@ -187,7 +187,9 @@ kubectl -n brain exec deploy/brain-sync -- python3 -c \
 ```
 
 Metrics: `brain_sync_last_success_timestamp_seconds{source}` (`google` covers
-calendar and mail); alerts
+calendar and mail), plus content counts from each link-graph build: `brain_notes{group}`,
+`brain_note_links`, `brain_notes_unlinked`, `brain_notes_dated_within{days}`,
+`brain_entities`, `brain_entity_mentions`. Grafana dashboard **Brain** (`brain.json`); alerts
 `BrainSyncStale` and `BrainSyncDown` in `cluster-alerts.yml`.
 
 ## brain-mcp

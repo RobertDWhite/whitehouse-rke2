@@ -100,6 +100,10 @@ spec:
               value: "true"
             - name: GF_USERS_AUTO_ASSIGN_ORG_ROLE
               value: "Viewer"
+            # Text panels may embed iframes (e.g. internal viewers). Only admins can
+            # edit dashboards: users sign up as Viewer and dashboards are file-provisioned.
+            - name: GF_PANELS_DISABLE_SANITIZE_HTML
+              value: "true"
             - name: GF_RENDERING_SERVER_URL
               value: "http://localhost:8081/render"
             - name: GF_RENDERING_CALLBACK_URL

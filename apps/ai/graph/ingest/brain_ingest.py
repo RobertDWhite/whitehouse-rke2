@@ -79,6 +79,7 @@ DATE_KEYS = [
     if k.strip()
 ]
 METRICS_PORT = int(env('METRICS_PORT', '9100'))
+GRAPH_STATS_SECONDS = int(env('GRAPH_STATS_SECONDS', '300'))
 # Bump to re-ingest everything after changing how notes are rendered.
 RENDER_VERSION = env('RENDER_VERSION', '1')
 
@@ -95,7 +96,23 @@ METRICS: dict[str, float] = {
     'episodes_added_total': 0,
     'episodes_removed_total': 0,
     'errors_total': 0,
+    'notes_done_total': 0,
+    'note_seconds_total': 0.0,
 }
+# Size of the knowledge graph, refreshed every GRAPH_STATS_SECONDS from Neo4j.
+GRAPH: dict = {}
+
+GRAPH_STATS_QUERY = '''
+CALL { MATCH (n:Entity) RETURN count(n) AS entities }
+CALL { MATCH (e:Episodic) RETURN count(e) AS episodes }
+CALL { MATCH (c:Community) RETURN count(c) AS communities }
+CALL { MATCH ()-[r:RELATES_TO]->() RETURN count(r) AS facts, count(r.invalid_at) AS invalidated }
+RETURN entities, episodes, communities, facts, invalidated
+'''
+ENTITY_TYPES_QUERY = '''
+MATCH (n:Entity) UNWIND labels(n) AS label WITH label WHERE label <> 'Entity'
+RETURN label, count(*) AS n
+'''
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
@@ -121,7 +138,28 @@ class MetricsHandler(BaseHTTPRequestHandler):
             f'graphiti_ingest_episodes_removed_total {m["episodes_removed_total"]}',
             '# TYPE graphiti_ingest_errors_total counter',
             f'graphiti_ingest_errors_total {m["errors_total"]}',
+            '# HELP graphiti_ingest_note_seconds Time spent ingesting notes (sum/count per note).',
+            '# TYPE graphiti_ingest_note_seconds summary',
+            f'graphiti_ingest_note_seconds_sum {m["note_seconds_total"]}',
+            f'graphiti_ingest_note_seconds_count {m["notes_done_total"]}',
         ]
+        g = GRAPH
+        if g:
+            lines += [
+                '# HELP graphiti_graph_nodes Nodes in the knowledge graph, by kind.',
+                '# TYPE graphiti_graph_nodes gauge',
+                f'graphiti_graph_nodes{{kind="entity"}} {g["entities"]}',
+                f'graphiti_graph_nodes{{kind="episode"}} {g["episodes"]}',
+                f'graphiti_graph_nodes{{kind="community"}} {g["communities"]}',
+                '# HELP graphiti_graph_facts Fact edges, by whether a newer fact invalidated them.',
+                '# TYPE graphiti_graph_facts gauge',
+                f'graphiti_graph_facts{{state="current"}} {g["facts"] - g["invalidated"]}',
+                f'graphiti_graph_facts{{state="invalidated"}} {g["invalidated"]}',
+                '# TYPE graphiti_graph_entities gauge',
+            ] + [f'graphiti_graph_entities{{type="{t}"}} {n}' for t, n in sorted(g['types'].items())] + [
+                '# TYPE graphiti_graph_stats_timestamp_seconds gauge',
+                f'graphiti_graph_stats_timestamp_seconds {g["at"]}',
+            ]
         body = ('\n'.join(lines) + '\n').encode()
         self.send_response(200)
         self.send_header('Content-Type', 'text/plain; version=0.0.4')
@@ -446,6 +484,10 @@ async def cycle(ing: Ingester, state: dict) -> None:
         state['failures'].pop(path, None)
         save_state(state)
         done += 1
+        METRICS['notes_done_total'] += 1
+        METRICS['note_seconds_total'] += time.time() - t0
+        METRICS['notes_ingested'] = len(state['notes'])
+        METRICS['notes_pending'] = len(pending) - done
         log.info(
             'ingested %d/%d: %s (%d episode(s), %.0fs)',
             done, min(BATCH_SIZE, len(pending)), path, len(uuids), time.time() - t0,
@@ -460,6 +502,24 @@ async def cycle(ing: Ingester, state: dict) -> None:
     METRICS['last_success'] = time.time()
     METRICS['last_cycle_seconds'] = time.time() - started
     log.info('cycle done: %d ingested, %d still pending', done, METRICS['notes_pending'])
+
+
+async def graph_stats_loop(ing: Ingester) -> None:
+    driver = ing.graphiti.driver
+    while not STOP.is_set():
+        try:
+            records, _, _ = await driver.execute_query(GRAPH_STATS_QUERY)
+            types, _, _ = await driver.execute_query(ENTITY_TYPES_QUERY)
+            r = records[0]
+            GRAPH.update({k: r[k] for k in ('entities', 'episodes', 'communities', 'facts', 'invalidated')})
+            GRAPH['types'] = {re.sub(r'[^A-Za-z0-9_]', '_', t['label']): t['n'] for t in types}
+            GRAPH['at'] = time.time()
+        except Exception as e:  # noqa: BLE001
+            log.warning('graph stats failed: %s', e)
+        try:
+            await asyncio.wait_for(STOP.wait(), timeout=GRAPH_STATS_SECONDS)
+        except asyncio.TimeoutError:
+            pass
 
 
 def is_connection_error(e: BaseException) -> bool:
@@ -489,6 +549,7 @@ async def main() -> None:
     state = load_state()
     METRICS['notes_ingested'] = len(state['notes'])
     once = env('RUN_ONCE') == '1'
+    stats = asyncio.create_task(graph_stats_loop(ing))
     while not STOP.is_set():
         try:
             await cycle(ing, state)
@@ -501,6 +562,8 @@ async def main() -> None:
             await asyncio.wait_for(STOP.wait(), timeout=INTERVAL_SECONDS)
         except asyncio.TimeoutError:
             pass
+    STOP.set()
+    await stats
     await ing.graphiti.close()
 
 
