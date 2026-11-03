@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: sdr-viewer-api
   namespace: sdr-research
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   replicas: 1
   strategy:
@@ -32,6 +34,7 @@ spec:
       containers:
         - name: api
           image: registry.internal.white.fm/sdr-viewer-api:1.7.11
+          command: ["python", "/policy/recording_policy.py"]
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsUser: 1000
@@ -147,6 +150,9 @@ spec:
             - name: APRS_IS_FILTER
               value: "r/39.0/-84.0/100"
           volumeMounts:
+            - name: recording-policy
+              mountPath: /policy
+              readOnly: true
             - name: sdr-artifacts
               mountPath: /data
             - name: sdr-artifacts-hf
@@ -184,6 +190,9 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
       volumes:
+        - name: recording-policy
+          configMap:
+            name: sdr-recording-policy
         - name: sdr-artifacts
           persistentVolumeClaim:
             claimName: sdr-artifacts-rwx

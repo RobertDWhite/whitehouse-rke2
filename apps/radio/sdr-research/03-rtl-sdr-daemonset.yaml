@@ -64,52 +64,36 @@ spec:
             - /bin/sh
             - -c
             - |
-              # Avoid USB transfer starvation under sustained rtl_tcp load.
-              echo 0 > /sys/module/usbcore/parameters/usbfs_memory_mb || true
-              echo "usbfs_memory_mb=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb || echo unknown)"
-
-              # Unbind dvb_usb_rtl28xxu from all RTL-SDR devices — the kernel
-              # DVB driver claims generic RTL2838 dongles, blocking librtlsdr.
-              # Container is privileged so we can write to sysfs.
-              DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
-              if [ -d "$DVB_DRV" ]; then
-                for dev in "$DVB_DRV"/*/; do
-                  devid=$(basename "$dev")
-                  case "$devid" in
-                    *:*) echo -n "$devid" > "$DVB_DRV/unbind" 2>/dev/null && \
-                         echo "Unbound $devid from dvb_usb_rtl28xxu" || true ;;
-                  esac
-                done
-              fi
-
-              echo "Starting rtl_tcp for pager (serial ${RTL_DEVICE_SERIAL})"
-              # Workaround: rtl_tcp -d treats "00000001" as octal → int 1,
-              # selecting device index 1 (wrong device) instead of doing a
-              # serial lookup. Find the correct index by parsing enumeration.
-              DEV_INDEX=""
-              for i in 0 1 2 3; do
-                # rtl_eeprom exits 1 even after a successful read (current
-                # legacycode/rtlsdr:latest), so match on its output only.
-                INFO=$(rtl_eeprom -d $i 2>&1 || true)
-                if echo "$INFO" | grep -q "Serial number:.*${RTL_DEVICE_SERIAL}"; then
-                  DEV_INDEX=$i
-                  break
-                fi
-              done
-              if [ -z "$DEV_INDEX" ]; then
-                echo "WARN: Serial ${RTL_DEVICE_SERIAL} not found; waiting for the correct pager dongle"
-                sleep 10
-                exit 1
-              fi
-              echo "Resolved serial ${RTL_DEVICE_SERIAL} to device index ${DEV_INDEX}"
+              set -eu
+              # All device actions are scoped to the configured serial. Never bind ADS-B.
+              [ "${RTL_DEVICE_SERIAL}" != "1090" ] || exit 64
               while true; do
-                rtl_tcp \
-                  -d ${DEV_INDEX} \
-                  -a 0.0.0.0 \
-                  -p 1234 \
-                  -s ${RTL_SAMPLE_RATE} \
-                  -n 32
-                echo "rtl_tcp exited, restarting in 2s..."
+                DVB_DRV=/sys/bus/usb/drivers/dvb_usb_rtl28xxu
+                for usb in /sys/bus/usb/devices/*; do
+                  [ -f "$usb/serial" ] || continue
+                  [ "$(cat "$usb/serial")" = "${RTL_DEVICE_SERIAL}" ] || continue
+                  for interface in "$usb":*; do
+                    [ -L "$interface/driver" ] || continue
+                    [ "$(readlink -f "$interface/driver")" = "$DVB_DRV" ] || continue
+                    devid=$(basename "$interface")
+                    printf '%s' "$devid" > "$DVB_DRV/unbind"
+                    echo "Unbound target serial ${RTL_DEVICE_SERIAL}: $devid"
+                  done
+                done
+                # Invalid-index enumeration reads USB descriptors without opening a receiver.
+                ENUM=$(timeout 5 rtl_tcp -d 99 2>&1 || true)
+                DEV_INDEX=$(printf '%s\n' "$ENUM" | awk -v serial="$RTL_DEVICE_SERIAL" '
+                  /^[[:space:]]*[0-9]+:/ {
+                    n=$1; sub(/:$/, "", n); sub(/^.*SN:[[:space:]]*/, "")
+                    if ($0 == serial) print n
+                  }')
+                case "$DEV_INDEX" in
+                  ''|*[!0-9]*) echo "Target serial ${RTL_DEVICE_SERIAL} absent or ambiguous; retrying"; sleep 5; continue ;;
+                esac
+                echo "Using serial ${RTL_DEVICE_SERIAL} at index ${DEV_INDEX}"
+                # Small bounded IQ queue limits old samples remaining across a retune.
+                rtl_tcp -d "$DEV_INDEX" -a 0.0.0.0 -p 1234 -s "$RTL_SAMPLE_RATE" -n 8 || true
+                echo "Target server exited; re-resolving serial before reopening"
                 sleep 2
               done
       volumes:
