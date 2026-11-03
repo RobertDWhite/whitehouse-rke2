@@ -11,6 +11,7 @@ data:
     fixed voice monitor, dynamic FM channels, and dynamic CW channels.
     """
     import os, sys, json, time, wave, struct, threading, math
+    from functools import lru_cache
     import numpy as np
     from gnuradio import gr, blocks, filter, analog, fft
     from bandplan import (
@@ -300,6 +301,53 @@ data:
             return n
 
     # ---------------------------------------------------------------------------
+    # Channel filtering: decimate broadly before applying a narrow passband.
+    # ---------------------------------------------------------------------------
+
+
+    @lru_cache(maxsize=16)
+    def channel_filter_plan(sample_rate, output_rate, cutoff, transition, intermediate):
+        if sample_rate > intermediate and sample_rate % intermediate == 0:
+            first_decim = sample_rate // intermediate
+            first_taps = filter.firdes.low_pass(
+                1.0, sample_rate, intermediate / 4, intermediate / 4)
+            second_decim = intermediate // output_rate
+            second_taps = filter.firdes.low_pass(1.0, intermediate, cutoff, transition)
+            # Equivalent input-rate FIR gives the exact white-noise power gain
+            # used to seed adaptive squelch, including both stages' responses.
+            expanded = np.zeros((len(second_taps) - 1) * first_decim + 1)
+            expanded[::first_decim] = second_taps
+            nfft = 1 << (len(first_taps) + len(expanded) - 2).bit_length()
+            impulse = np.fft.irfft(
+                np.fft.rfft(first_taps, nfft) * np.fft.rfft(expanded, nfft), nfft)
+            noise_gain = float(np.dot(impulse, impulse))
+        else:
+            first_decim = int(sample_rate / output_rate)
+            first_taps = filter.firdes.low_pass(1.0, sample_rate, cutoff, transition)
+            second_decim, second_taps = 1, None
+            noise_gain = sum(x*x for x in first_taps)
+        return first_decim, first_taps, second_decim, second_taps, noise_gain
+
+
+    class ChannelFilter(gr.hier_block2):
+        def __init__(self, plan, offset, sample_rate):
+            gr.hier_block2.__init__(self, "channel filter",
+                gr.io_signature(1, 1, gr.sizeof_gr_complex),
+                gr.io_signature(1, 1, gr.sizeof_gr_complex))
+            first_decim, first_taps, second_decim, second_taps, _ = plan
+            self.xlate = filter.freq_xlating_fir_filter_ccf(
+                first_decim, first_taps, offset, sample_rate)
+            if second_taps is None:
+                self.connect(self, self.xlate, self)
+            else:
+                self.narrow = filter.fir_filter_ccf(second_decim, second_taps)
+                self.connect(self, self.xlate, self.narrow, self)
+
+        def set_center_freq(self, offset):
+            self.xlate.set_center_freq(offset)
+
+
+    # ---------------------------------------------------------------------------
     # Flowgraph
     # ---------------------------------------------------------------------------
     class UnifiedSDR(gr.top_block):
@@ -344,12 +392,10 @@ data:
             # --- Fixed voice monitor ---
             self.fixed_freq = FIXED_MONITOR_HZ
             offset_fixed = self.fixed_freq - DWELL_CENTER
-            decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
-            taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
-                                             NBFM_DEV * 2, NBFM_DEV * 0.5)
-            self.fm_noise_gain = sum(x*x for x in taps_fm)
-            self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
-                decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
+            fm_plan = channel_filter_plan(
+                SAMPLE_RATE, AUDIO_RATE_FM, NBFM_DEV * 2, NBFM_DEV * 0.5, 240000)
+            self.fm_noise_gain = fm_plan[-1]
+            self.xlate_fixed = ChannelFilter(fm_plan, offset_fixed, SAMPLE_RATE)
             self.rf_squelch_fixed = analog.pwr_squelch_cc(
                 RF_SQUELCH_DB, 0.001, 10, False)
             self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
@@ -367,8 +413,7 @@ data:
             # --- Dynamic FM slots (pre-wired with inhibited recorders) ---
             self.dyn_fm = []
             for i in range(NUM_DYN_FM):
-                xlate = filter.freq_xlating_fir_filter_ccf(
-                    decim_fm, taps_fm, 0, SAMPLE_RATE)
+                xlate = ChannelFilter(fm_plan, 0, SAMPLE_RATE)
                 rf_squelch = analog.pwr_squelch_cc(
                     RF_SQUELCH_DB, 0.001, 10, False)
                 nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
@@ -385,14 +430,12 @@ data:
                 })
 
             # --- Dynamic CW slots (pre-wired with inhibited recorders) ---
-            decim_cw = int(SAMPLE_RATE / AUDIO_RATE_CW)
-            taps_cw = filter.firdes.low_pass(1.0, SAMPLE_RATE,
-                                             CW_BW, 50)
-            self.cw_noise_gain = sum(x*x for x in taps_cw)
+            cw_plan = channel_filter_plan(
+                SAMPLE_RATE, AUDIO_RATE_CW, CW_BW, 50, 48000)
+            self.cw_noise_gain = cw_plan[-1]
             self.dyn_cw = []
             for i in range(NUM_DYN_CW):
-                xlate = filter.freq_xlating_fir_filter_ccf(
-                    decim_cw, taps_cw, 0, SAMPLE_RATE)
+                xlate = ChannelFilter(cw_plan, 0, SAMPLE_RATE)
                 # CW slots need an RF gate just like FM: without one, every noise
                 # blip in the CW subbands opens the envelope recorder and floods
                 # the cw decoder with undecodable files.
