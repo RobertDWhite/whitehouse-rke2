@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "AI Code Assistants \u2014 Claude Code + Codex: sessions, tokens, tools, projects, files, costs",
+  "description": "AI Code Assistants \u2014 Claude Code + Codex + Grok Build + OpenCode: sessions, tokens, tools, projects, files, costs",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -423,7 +423,7 @@
           "instant": true
         }
       ],
-      "title": "Messages: Claude vs Codex",
+      "title": "Messages by Tool",
       "type": "bargauge"
     },
     {
@@ -498,7 +498,7 @@
           "instant": true
         }
       ],
-      "title": "Tool Calls: Claude vs Codex",
+      "title": "Tool Calls by Tool",
       "type": "bargauge"
     },
     {
@@ -586,7 +586,7 @@
           "instant": true
         }
       ],
-      "title": "Tokens: Claude vs Codex",
+      "title": "Tokens by Tool",
       "type": "piechart"
     },
     {
@@ -716,9 +716,29 @@
           "expr": "sum by(date) (codex_daily_tool_calls{job=\"claude-code-stats\"})",
           "legendFormat": "Codex Tool Calls",
           "refId": "D"
+        },
+        {
+          "expr": "sum by(date) (grok_daily_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "Grok Messages",
+          "refId": "E"
+        },
+        {
+          "expr": "sum by(date) (grok_daily_tool_calls{job=\"claude-code-stats\"})",
+          "legendFormat": "Grok Tool Calls",
+          "refId": "F"
+        },
+        {
+          "expr": "sum by(date) (opencode_daily_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "OpenCode Messages",
+          "refId": "G"
+        },
+        {
+          "expr": "sum by(date) (opencode_daily_tool_calls{job=\"claude-code-stats\"})",
+          "legendFormat": "OpenCode Tool Calls",
+          "refId": "H"
         }
       ],
-      "title": "Daily Activity \u2014 Claude vs Codex",
+      "title": "Daily Activity by Tool",
       "type": "timeseries"
     },
     {
@@ -3867,6 +3887,1170 @@
       "type": "bargauge"
     },
     {
+      "title": "Grok Build \u2014 Lifetime Totals & Usage",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 183
+      },
+      "collapsed": false
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 184
+      },
+      "id": 1300,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_sessions{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Sessions",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 184
+      },
+      "id": 1301,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_messages{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Messages",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 184
+      },
+      "id": 1302,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_tool_calls{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Tool Calls",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 184
+      },
+      "id": 1303,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_tokens{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Tokens",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 184
+      },
+      "id": 1304,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_cost_usd{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Cost (Recorded)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#1D1D1F",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 184
+      },
+      "id": 1305,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(grok_total_projects{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "Grok Build Projects",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 188
+      },
+      "id": 1310,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(source) (grok_sessions_by_source{job=\"claude-code-stats\"})",
+          "legendFormat": "{{source}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Source",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 6,
+        "y": 188
+      },
+      "id": 1311,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(model) (grok_model_tokens{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{model}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Tokens by Model",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 15,
+        "y": 188
+      },
+      "id": 1312,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(tool) (grok_tool_usage_total{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{tool}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Tool Usage (Top 10)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 196
+      },
+      "id": 1313,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(project) (grok_project_sessions{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{project}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Project",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "none"
+            },
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 196
+      },
+      "id": 1314,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(date) (grok_daily_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "Sessions",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by(date) (grok_daily_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "Messages",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by(date) (grok_daily_tool_calls{job=\"claude-code-stats\"})",
+          "legendFormat": "Tool Calls",
+          "refId": "C"
+        }
+      ],
+      "title": "Grok Build Daily Activity",
+      "type": "timeseries"
+    },
+    {
+      "title": "OpenCode \u2014 Lifetime Totals & Usage",
+      "type": "row",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 204
+      },
+      "collapsed": false
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 205
+      },
+      "id": 1400,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_sessions{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Sessions",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 205
+      },
+      "id": 1401,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_messages{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Messages",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 205
+      },
+      "id": 1402,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_tool_calls{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Tool Calls",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 205
+      },
+      "id": 1403,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_tokens{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Tokens",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 205
+      },
+      "id": 1404,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_cost_usd{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Cost (Recorded)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#F5A623",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 205
+      },
+      "id": 1405,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(opencode_total_projects{job=\"claude-code-stats\"})",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "OpenCode Projects",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 209
+      },
+      "id": 1410,
+      "options": {
+        "displayLabels": [
+          "name",
+          "value"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(agent) (opencode_sessions_by_agent{job=\"claude-code-stats\"})",
+          "legendFormat": "{{agent}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Agent",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 6,
+        "y": 209
+      },
+      "id": 1411,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(model) (opencode_model_tokens{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{model}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Tokens by Model",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 15,
+        "y": 209
+      },
+      "id": 1412,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(tool) (opencode_tool_usage_total{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{tool}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Tool Usage (Top 10)",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 217
+      },
+      "id": 1413,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "minVizWidth": 0,
+        "minVizHeight": 10
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by(project) (opencode_project_sessions{job=\"claude-code-stats\"}))",
+          "legendFormat": "{{project}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "title": "Sessions by Project",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "stacking": {
+              "mode": "none"
+            },
+            "barAlignment": 0,
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 217
+      },
+      "id": 1414,
+      "options": {
+        "legend": {
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by(date) (opencode_daily_sessions{job=\"claude-code-stats\"})",
+          "legendFormat": "Sessions",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by(date) (opencode_daily_messages{job=\"claude-code-stats\"})",
+          "legendFormat": "Messages",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by(date) (opencode_daily_tool_calls{job=\"claude-code-stats\"})",
+          "legendFormat": "Tool Calls",
+          "refId": "C"
+        }
+      ],
+      "title": "OpenCode Daily Activity",
+      "type": "timeseries"
+    },
+    {
       "type": "row",
       "title": "By Device \u2014 Primary vs Mac mini",
       "collapsed": false,
@@ -3874,7 +5058,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 183
+        "y": 225
       },
       "panels": [],
       "id": 1200,
@@ -3890,7 +5074,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 184
+        "y": 226
       },
       "description": "Macs whose claude-stats-exporter (:9101) Prometheus can currently scrape",
       "targets": [
@@ -3953,7 +5137,7 @@
         "h": 4,
         "w": 7,
         "x": 4,
-        "y": 184
+        "y": 226
       },
       "targets": [
         {
@@ -4030,7 +5214,7 @@
         "h": 4,
         "w": 7,
         "x": 11,
-        "y": 184
+        "y": 226
       },
       "targets": [
         {
@@ -4107,7 +5291,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 184
+        "y": 226
       },
       "targets": [
         {
@@ -4184,7 +5368,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 188
+        "y": 230
       },
       "targets": [
         {
@@ -4259,7 +5443,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 188
+        "y": 230
       },
       "targets": [
         {
@@ -4347,7 +5531,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 188
+        "y": 230
       },
       "targets": [
         {
@@ -4423,7 +5607,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 196
+        "y": 238
       },
       "targets": [
         {
@@ -4692,7 +5876,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 204
+        "y": 246
       },
       "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
       "targets": [
@@ -4819,7 +6003,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 204
+        "y": 246
       },
       "description": "Per-device split of the last 30 days present in the exporters' daily gauges",
       "targets": [
@@ -4947,7 +6131,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 212
+        "y": 254
       },
       "targets": [
         {
@@ -5066,7 +6250,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 212
+        "y": 254
       },
       "targets": [
         {
@@ -5141,7 +6325,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 220
+        "y": 262
       },
       "targets": [
         {
@@ -5279,7 +6463,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 220
+        "y": 262
       },
       "targets": [
         {
