@@ -17,6 +17,7 @@ spec:
       labels:
         app: sdr-viewer-api
       annotations:
+        sdr-research/frequency-stats: "grouped-tags-cache-v1"
         kubectl.kubernetes.io/restartedAt: "2026-05-03T19:00:00Z"
     spec:
       serviceAccountName: sdr-viewer-api
@@ -150,6 +151,10 @@ spec:
             - name: APRS_IS_FILTER
               value: "r/39.0/-84.0/100"
           volumeMounts:
+            - name: api-stats
+              mountPath: /app/app/routers/stats.py
+              subPath: stats.py
+              readOnly: true
             - name: recording-policy
               mountPath: /policy
               readOnly: true
@@ -190,6 +195,9 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
       volumes:
+        - name: api-stats
+          configMap:
+            name: sdr-api-stats
         - name: recording-policy
           configMap:
             name: sdr-recording-policy
