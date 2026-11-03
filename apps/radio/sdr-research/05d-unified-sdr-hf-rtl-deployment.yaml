@@ -1,5 +1,5 @@
-# Blog V4 serial 00000002 on node-15: temporary 160m through 10m CW coverage.
-# This captures CW envelopes only. HF SSB and RX888-based digital decoders remain unavailable.
+# Blog V4 serial 00000002 on node-15: 160m through 6m CW and 10m/6m FM.
+# HF SSB and RX888-based digital decoders remain unavailable.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,11 +51,11 @@ spec:
           value: '7030000'
         - name: SCAN_CENTERS
           value: '[2200000, 3850000, 10600000, 14600000, 18650000, 21650000, 25050000,
-            28650000]'
+            28650000, 50500000, 52500000, 53250000]'
         - name: FM_RECORD_BANDS_HZ
-          value: ''
+          value: 29500000-29700000,51000000-54000000
         - name: CW_RECORD_BANDS_HZ
-          value: 1800000-2000000,3500000-3600000,7000000-7125000,10100000-10130000,14000000-14150000,18068000-18095000,21000000-21150000,24890000-24915000,28000000-28150000
+          value: 1800000-2000000,3500000-3570000,7000000-7040000,10100000-10130000,14000000-14070000,18068000-18095000,21000000-21070000,24890000-24913000,28000000-28070000,50000000-50100000
         - name: DWELL_SEC
           value: '30'
         - name: SCAN_SEC
@@ -63,7 +63,7 @@ spec:
         - name: RF_SETTLE_SEC
           value: '2.0'
         - name: NUM_DYN_FM
-          value: '0'
+          value: '2'
         - name: NUM_DYN_CW
           value: '6'
         - name: NUM_DYN_ACARS
