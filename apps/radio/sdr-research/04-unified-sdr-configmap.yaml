@@ -332,6 +332,7 @@ data:
                 sys.exit(1)
 
             # --- FFT energy-detection path ---
+            self.fft_window_power = sum(x*x for x in fft.window.blackmanharris(FFT_SIZE))
             self.fft_s2v = blocks.stream_to_vector(gr.sizeof_gr_complex, FFT_SIZE)
             self.fft     = fft.fft_vcc(FFT_SIZE, True,
                                         fft.window.blackmanharris(FFT_SIZE),
@@ -346,6 +347,7 @@ data:
             decim_fm = int(SAMPLE_RATE / AUDIO_RATE_FM)
             taps_fm = filter.firdes.low_pass(1.0, SAMPLE_RATE,
                                              NBFM_DEV * 2, NBFM_DEV * 0.5)
+            self.fm_noise_gain = sum(x*x for x in taps_fm)
             self.xlate_fixed = filter.freq_xlating_fir_filter_ccf(
                 decim_fm, taps_fm, offset_fixed, SAMPLE_RATE)
             self.rf_squelch_fixed = analog.pwr_squelch_cc(
@@ -384,6 +386,7 @@ data:
             decim_cw = int(SAMPLE_RATE / AUDIO_RATE_CW)
             taps_cw = filter.firdes.low_pass(1.0, SAMPLE_RATE,
                                              CW_BW, 50)
+            self.cw_noise_gain = sum(x*x for x in taps_cw)
             self.dyn_cw = []
             for i in range(NUM_DYN_CW):
                 xlate = filter.freq_xlating_fir_filter_ccf(
@@ -473,7 +476,7 @@ data:
             slot["freq"] = None
             slot["assigned_at"] = None
 
-        def _assign_fm_slot(self, freq_hz):
+        def _assign_fm_slot(self, freq_hz, noise_floor=None):
             """Assign a detected FM frequency to an available dynamic slot."""
             for slot in self.dyn_fm:
                 if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
@@ -493,12 +496,18 @@ data:
             out_dir = route_voice_dir(freq_hz)
             target["xlate"].set_center_freq(offset)
             target["recorder"].activate(freq_hz, out_dir)
-            target["sq_state"].clear()  # re-learn the noise floor at the new offset
+            target["sq_state"].clear()
+            if noise_floor is not None:
+                target["sq_state"]["floor"] = noise_floor
+                threshold = min(max(noise_floor + AUTO_SQUELCH_MARGIN_DB,
+                                    AUTO_SQUELCH_MIN_DB), AUTO_SQUELCH_MAX_DB)
+                target["rf_squelch"].set_threshold(threshold)
+                target["sq_state"]["thr"] = threshold
             target["freq"] = freq_hz
             target["assigned_at"] = time.time()
             print(f"[DYN] FM slot {target['idx']} → {freq_hz/1e6:.4f} MHz ({os.path.basename(out_dir)})", flush=True)
 
-        def _assign_cw_slot(self, freq_hz):
+        def _assign_cw_slot(self, freq_hz, noise_floor=None):
             """Assign a detected CW frequency to an available dynamic slot."""
             for slot in self.dyn_cw:
                 if frequency_matches(slot["freq"], freq_hz, DYN_SLOT_FREQ_TOLERANCE_HZ):
@@ -516,7 +525,13 @@ data:
             offset = freq_hz - self.get_center_hz()
             target["xlate"].set_center_freq(offset)
             target["recorder"].activate(freq_hz)
-            target["sq_state"].clear()  # re-learn the noise floor at the new offset
+            target["sq_state"].clear()
+            if noise_floor is not None:
+                target["sq_state"]["floor"] = noise_floor
+                threshold = min(max(noise_floor + AUTO_SQUELCH_MARGIN_DB,
+                                    AUTO_SQUELCH_MIN_DB), AUTO_SQUELCH_MAX_DB)
+                target["rf_squelch"].set_threshold(threshold)
+                target["sq_state"]["thr"] = threshold
             target["freq"] = freq_hz
             target["assigned_at"] = time.time()
             print(f"[DYN] CW slot {target['idx']} → {freq_hz/1e6:.4f} MHz", flush=True)
@@ -693,6 +708,14 @@ data:
             if in_region:
                 regions.append((start, FFT_SIZE))
 
+            # Allocate scarce channels to the strongest peaks first.
+            regions.sort(key=lambda region: float(np.max(power_db[region[0]:region[1]])),
+                         reverse=True)
+            # A detected carrier is signal, not the channel's noise floor. Convert
+            # median FFT-bin power into filtered channel power (window + FIR gains).
+            input_noise = float(np.median(frame)) / (self.tb.fft_window_power * math.log(2))
+            fm_floor = 10 * math.log10(input_noise * self.tb.fm_noise_gain + 1e-30)
+            cw_floor = 10 * math.log10(input_noise * self.tb.cw_noise_gain + 1e-30)
             for (s, e) in regions:
                 peak_idx = s + np.argmax(power_db[s:e])
                 peak_freq = freqs[peak_idx]
@@ -727,9 +750,9 @@ data:
                     # Do not mirror the fixed monitor channel into a dynamic slot.
                     if abs(peak_freq - self.tb.fixed_freq) <= 15000:
                         continue
-                    self.tb._assign_fm_slot(int(round(peak_freq)))
+                    self.tb._assign_fm_slot(int(round(peak_freq)), fm_floor)
                 elif slot_mode == "CW":
-                    self.tb._assign_cw_slot(int(round(peak_freq)))
+                    self.tb._assign_cw_slot(int(round(peak_freq)), cw_floor)
 
             self.detections = detections
             self._write_detections()
