@@ -17,6 +17,7 @@ spec:
       labels:
         app: unified-sdr
       annotations:
+        sdr-research/audio-capture: "headroom-preroll-v1"
         sdr-research/channel-filter: "receiver-allocation-v2"
         kubectl.kubernetes.io/restartedAt: "2026-02-26T04:00:00Z"
     spec:
@@ -36,6 +37,12 @@ spec:
             privileged: true
           command: ["/bin/bash", "-c", "python3 -u /scripts/unified_sdr.py"]
           env:
+            - name: FM_HEADROOM_DB
+              value: "6"
+            - name: FM_PREROLL_SEC
+              value: "0.35"
+            - name: DIAGNOSTICS_ENABLED
+              value: "true"
             - name: CAPTURE_DEVICE_SERIAL
               value: "10A862DC343A4F63"
             - name: CAPTURE_SOURCE

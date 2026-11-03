@@ -13,6 +13,7 @@ data:
     fixed voice monitor, dynamic FM channels, and dynamic CW channels.
     """
     import os, sys, json, time, wave, struct, threading, math
+    from collections import deque
     from functools import lru_cache
     import numpy as np
     from gnuradio import gr, blocks, filter, analog, fft
@@ -44,6 +45,11 @@ data:
     TAIL_SEC       = float(os.getenv("TAIL_SEC", "1.5"))
     MIN_REC_SEC    = float(os.getenv("MIN_REC_SEC", "0.5"))
     MAX_REC_SEC    = float(os.getenv("MAX_REC_SEC", "120"))
+    # Apply headroom only at FM PCM conversion; RF/noise decisions stay unscaled.
+    FM_PCM_GAIN    = 10 ** (-float(os.getenv("FM_HEADROOM_DB", "6")) / 20.0)
+    FM_PREROLL_SEC = max(0.0, min(float(os.getenv("FM_PREROLL_SEC", "0.35")), 2.0))
+    DIAGNOSTICS_ENABLED = os.getenv("DIAGNOSTICS_ENABLED", "false").lower() == "true"
+    DIAGNOSTIC_ROOT = "/data/diagnostics"
     RF_SQUELCH_DB  = float(os.getenv("RF_SQUELCH_DB", "-50"))
     # Adaptive RF squelch: track each channel's noise floor and hold the squelch
     # threshold a fixed margin above it. Static thresholds have failed in both
@@ -160,13 +166,19 @@ data:
         def __init__(self, freq_hz, audio_rate, out_dir, is_cw=False,
                      open_db=SQUELCH_OPEN, close_db=SQUELCH_CLOSE,
                      tail_seconds=TAIL_SEC, min_seconds=MIN_REC_SEC,
-                     max_seconds=MAX_REC_SEC, inhibited=False):
+                     max_seconds=MAX_REC_SEC, inhibited=False, rf_gated=False):
             gr.sync_block.__init__(self, name="SquelchRecorder",
-                                   in_sig=[np.float32], out_sig=None)
+                                   in_sig=[np.float32] * (2 if rf_gated else 1), out_sig=None)
             self.freq_hz      = freq_hz
             self.audio_rate   = audio_rate
             self.out_dir      = out_dir
             self.is_cw        = is_cw
+            self.rf_gated     = rf_gated
+            self.pcm_gain     = FM_PCM_GAIN if rf_gated else 1.0
+            self._preroll = deque()
+            self._preroll_count = 0
+            self._preroll_limit = int(FM_PREROLL_SEC * audio_rate) if rf_gated else 0
+            self._preroll_written = 0
             self.open_thresh  = 10 ** (open_db / 20.0)
             self.close_thresh = 10 ** (close_db / 20.0)
             self.tail_samples = int(tail_seconds * audio_rate)
@@ -174,6 +186,7 @@ data:
             self.max_samples  = int(max_seconds * audio_rate)
 
             self.state         = self.IDLE
+            self.idle_since    = time.time()
             self.wf            = None
             self.current_path  = None
             self.samples_written = 0
@@ -202,13 +215,38 @@ data:
             self._sumsq = 0.0
             self._nactive = 0
             self.current_path = path
+            self._preroll_written = 0
             print(f"[REC] Opened {path}", flush=True)
+
+        def _clear_preroll(self):
+            self._preroll.clear()
+            self._preroll_count = 0
+
+        def _remember(self, samples):
+            if not self._preroll_limit:
+                return
+            chunk = samples[-self._preroll_limit:].copy()
+            self._preroll.append(chunk)
+            self._preroll_count += len(chunk)
+            while self._preroll_count > self._preroll_limit:
+                excess = self._preroll_count - self._preroll_limit
+                oldest = self._preroll.popleft()
+                if len(oldest) > excess:
+                    self._preroll.appendleft(oldest[excess:])
+                    self._preroll_count -= excess
+                else:
+                    self._preroll_count -= len(oldest)
+
+        def _write_audio(self, samples):
+            pcm = (np.clip(samples * self.pcm_gain, -1.0, 1.0) * 32767).astype(np.int16)
+            self.wf.writeframes(pcm.tobytes())
+            self.samples_written += len(samples)
 
         def _close_wav(self):
             if self.wf is None:
                 return
             self.wf.close()
-            if self.samples_written < self.min_samples:
+            if self.samples_written - self._preroll_written < self.min_samples:
                 try:
                     os.remove(self._tmp_path)
                     print(f"[REC] Discarded short recording {self.current_path}", flush=True)
@@ -230,7 +268,10 @@ data:
                         with open(metadata_path + ".tmp", "w") as metadata:
                             json.dump({"capture_id": CAPTURE_ID, "source_sdr": CAPTURE_SOURCE,
                                        "device_serial": CAPTURE_DEVICE_SERIAL,
-                                       "frequency_hz": self.freq_hz, "sample_rate": SAMPLE_RATE}, metadata)
+                                       "frequency_hz": self.freq_hz, "sample_rate": SAMPLE_RATE,
+                                       "pcm_gain": self.pcm_gain,
+                                       "preroll_seconds": self._preroll_written / self.audio_rate,
+                                       "unscaled_active_rms_db": rms_db}, metadata)
                         os.replace(metadata_path + ".tmp", metadata_path)
                         os.rename(self._tmp_path, self.current_path)
                         print(f"[REC] Closed {self.current_path} "
@@ -238,6 +279,7 @@ data:
                     except OSError as e:
                         print(f"[REC] Rename failed for {self.current_path}: {e}", flush=True)
             self.wf = None
+            self.idle_since = time.time()
 
         def close_if_recording(self):
             """Force-close for retune."""
@@ -250,6 +292,7 @@ data:
             """Suppress squelch-open for duration_sec (called after retune for PLL settling)."""
             with self._lock:
                 self._inhibit_until = time.time() + duration_sec
+                self._clear_preroll()
 
         def activate(self, freq_hz, out_dir=None):
             """Reconfigure and un-inhibit this recorder for a new frequency."""
@@ -258,6 +301,8 @@ data:
                     self._close_wav()
                     self.state = self.IDLE
                 self.freq_hz = freq_hz
+                self._clear_preroll()
+                self.idle_since = time.time()
                 if out_dir is not None:
                     self.out_dir = out_dir
                 self._inhibit_until = 0.0
@@ -267,6 +312,7 @@ data:
             """Inhibit forever and close any open recording."""
             with self._lock:
                 self._inhibit_until = float('inf')
+                self._clear_preroll()
                 if self.state == self.RECORDING:
                     self._close_wav()
                     self.state = self.IDLE
@@ -274,14 +320,29 @@ data:
         def work(self, input_items, output_items):
             samples = input_items[0]
             n = len(samples)
-            rms = math.sqrt(np.mean(samples ** 2) + 1e-30)
+            # The second input is RF power AFTER the RF gate. The audio input is
+            # demodulated BEFORE that gate, preserving a bounded lead-in buffer.
+            mask = input_items[1] > 0 if self.rf_gated else None
+            measured = samples[mask] if self.rf_gated else samples
+            rms = math.sqrt(float(np.mean(measured ** 2)) + 1e-30) if len(measured) else 0.0
 
             with self._lock:
+                opened = False
                 if self.state == self.IDLE:
+                    if time.time() < self._inhibit_until:
+                        self._clear_preroll()
+                        return n
                     if rms > self.open_thresh and time.time() >= self._inhibit_until:
                         self._open_wav()
+                        for chunk in self._preroll:
+                            self._write_audio(chunk)
+                        self._preroll_written = self._preroll_count
+                        self._clear_preroll()
                         self.state = self.RECORDING
                         self.tail_counter = 0
+                        opened = True
+                    else:
+                        self._remember(samples)
                 elif self.state == self.RECORDING:
                     if rms < self.close_thresh:
                         self.tail_counter += n
@@ -290,17 +351,18 @@ data:
                             self.state = self.IDLE
                             # A squelch-close means real inter-transmission silence.
                             self.consecutive_rollovers = 0
+                            self._remember(samples)
                             return n
                     else:
                         self.tail_counter = 0
 
                 if self.state == self.RECORDING and self.wf is not None:
-                    pcm = (np.clip(samples, -1.0, 1.0) * 32767).astype(np.int16)
-                    self.wf.writeframes(pcm.tobytes())
-                    self.samples_written += n
+                    # Keep the opening block's lead-in; silence closed-gate tails.
+                    audio = np.where(mask, samples, 0.0) if self.rf_gated and not opened else samples
+                    self._write_audio(audio)
                     if rms > ACTIVE_AUDIO_RMS:
-                        self._sumsq += rms * rms * n
-                        self._nactive += n
+                        self._sumsq += rms * rms * len(measured)
+                        self._nactive += len(measured)
                     # Roll over when the recording hits the max duration.
                     if self.samples_written >= self.max_samples:
                         print(f"[REC] Max duration reached, rolling over {self.current_path}", flush=True)
@@ -311,6 +373,92 @@ data:
             return n
 
     # ---------------------------------------------------------------------------
+    class BoundedDiagnosticRecorder(gr.sync_block):
+        """On-request raw FM audio/RF measurements, outside indexed recordings.
+
+        Only the existing fixed-channel graph feeds this sink; no device is opened.
+        Requests use /data/diagnostics/<capture_id>/request.json and are capped at
+        30 seconds. A request for another channel is rejected rather than mislabeled.
+        """
+
+        def __init__(self, freq_hz, is_tuned):
+            gr.sync_block.__init__(self, name="BoundedDiagnosticRecorder",
+                                   in_sig=[np.float32] * 3, out_sig=None)
+            self.freq_hz = freq_hz
+            self.is_tuned = is_tuned
+            self.directory = os.path.join(DIAGNOSTIC_ROOT, CAPTURE_ID)
+            os.makedirs(self.directory, exist_ok=True)
+            self.next_check = 0.0
+            self.wf = None
+
+        def _request(self):
+            request_path = os.path.join(self.directory, "request.json")
+            try:
+                with open(request_path) as f:
+                    request = json.load(f)
+                os.remove(request_path)
+            except FileNotFoundError:
+                return
+            duration = float(request["duration_seconds"])
+            if (int(request["frequency_hz"]) != self.freq_hz or
+                    not math.isfinite(duration) or duration <= 0 or not self.is_tuned()):
+                raise ValueError("Diagnostic channel is not tuned or duration is invalid")
+            self.path = os.path.join(self.directory, f"{self.freq_hz}_{time.time_ns()}.wav")
+            self.wf = wave.open(self.path + ".part", "wb")
+            self.wf.setnchannels(1)
+            self.wf.setsampwidth(2)
+            self.wf.setframerate(AUDIO_RATE_FM)
+            self.remaining = max(1, int(min(duration, 30.0) * AUDIO_RATE_FM))
+            self.total = 0
+            self.rf_sum = 0.0
+            self.rf_open = 0
+            self.peak = 0.0
+            print(f"[DIAG] Capturing before squelch: {self.path}", flush=True)
+
+        def _finish(self, reason="complete"):
+            self.wf.close()
+            self.wf = None
+            os.replace(self.path + ".part", self.path)
+            metadata = {
+                "frequency_hz": self.freq_hz, "capture_id": CAPTURE_ID,
+                "source_sdr": CAPTURE_SOURCE, "device_serial": CAPTURE_DEVICE_SERIAL,
+                "duration_seconds": self.total / AUDIO_RATE_FM,
+                "pcm_gain": 0.125, "before_squelch": True, "reason": reason,
+                "rf_mean_dbfs": 10 * math.log10(self.rf_sum / max(1, self.total) + 1e-30),
+                "rf_gate_open_fraction": self.rf_open / max(1, self.total),
+                "unscaled_audio_peak": self.peak,
+            }
+            with open(self.path + ".json.tmp", "w") as f:
+                json.dump(metadata, f)
+            os.replace(self.path + ".json.tmp", self.path + ".json")
+            print(f"[DIAG] Finished {self.path}: {metadata}", flush=True)
+
+        def work(self, input_items, output_items):
+            audio, power, gate = input_items
+            n = len(audio)
+            now = time.monotonic()
+            if self.wf is None and now >= self.next_check:
+                self.next_check = now + 1.0
+                try:
+                    self._request()
+                except (OSError, ValueError, KeyError, TypeError) as e:
+                    print(f"[DIAG] Request rejected: {e}", flush=True)
+            if self.wf is not None:
+                if not self.is_tuned():
+                    self._finish("retuned")
+                    return n
+                count = min(n, self.remaining)
+                self.wf.writeframes((np.clip(audio[:count] * 0.125, -1, 1) * 32767).astype('<i2').tobytes())
+                self.rf_sum += float(np.sum(power[:count]))
+                self.rf_open += int(np.count_nonzero(gate[:count] > 0))
+                self.peak = max(self.peak, float(np.max(np.abs(audio[:count]))))
+                self.total += count
+                self.remaining -= count
+                if self.remaining == 0:
+                    self._finish()
+            return n
+
+
     # Channel filtering: decimate broadly before applying a narrow passband.
     # ---------------------------------------------------------------------------
 
@@ -437,13 +585,24 @@ data:
             self.xlate_fixed = ChannelFilter(fm_plan, offset_fixed, SAMPLE_RATE)
             self.rf_squelch_fixed = analog.pwr_squelch_cc(
                 RF_SQUELCH_DB, 0.001, 10, False)
+            self.gate_fixed = blocks.complex_to_mag_squared(1)
             self.nbfm_fixed = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
             self.dc_fixed = filter.dc_blocker_ff(128, True)
             self.rec_fixed = SquelchRecorder(
                 self.fixed_freq, AUDIO_RATE_FM, route_voice_dir(self.fixed_freq),
-                inhibited=not FIXED_MONITOR_ENABLED)
-            self.connect(self.src, self.xlate_fixed, self.rf_squelch_fixed,
-                         self.nbfm_fixed, self.dc_fixed, self.rec_fixed)
+                inhibited=not FIXED_MONITOR_ENABLED, rf_gated=True)
+            self.connect(self.src, self.xlate_fixed, self.nbfm_fixed, self.dc_fixed,
+                         (self.rec_fixed, 0))
+            self.connect(self.xlate_fixed, self.rf_squelch_fixed, self.gate_fixed,
+                         (self.rec_fixed, 1))
+            if DIAGNOSTICS_ENABLED:
+                self.diagnostic = BoundedDiagnosticRecorder(
+                    self.fixed_freq,
+                    lambda: self.get_center_hz() == DWELL_CENTER and time.time() >= self.settle_until)
+                self.diagnostic_power = blocks.complex_to_mag_squared(1)
+                self.connect(self.dc_fixed, (self.diagnostic, 0))
+                self.connect(self.xlate_fixed, self.diagnostic_power, (self.diagnostic, 1))
+                self.connect(self.gate_fixed, (self.diagnostic, 2))
 
             # --- RF power probe on fixed channel (feeds AutoSquelch) ---
             self.probe_fixed = analog.probe_avg_mag_sqrd_c(0, 0.001)
@@ -456,15 +615,17 @@ data:
                 xlate = ChannelFilter(fm_plan, 0, SAMPLE_RATE)
                 rf_squelch = analog.pwr_squelch_cc(
                     RF_SQUELCH_DB, 0.001, 10, False)
+                gate = blocks.complex_to_mag_squared(1)
                 nbfm = analog.quadrature_demod_cf(NBFM_DEMOD_GAIN)
                 dc_block = filter.dc_blocker_ff(128, True)
-                rec = SquelchRecorder(0, AUDIO_RATE_FM, VOICE_DIR, inhibited=True)
+                rec = SquelchRecorder(0, AUDIO_RATE_FM, VOICE_DIR, inhibited=True, rf_gated=True)
                 probe = analog.probe_avg_mag_sqrd_c(0, 0.001)
-                self.connect(self.src, xlate, rf_squelch, nbfm, dc_block, rec)
+                self.connect(self.src, xlate, nbfm, dc_block, (rec, 0))
+                self.connect(xlate, rf_squelch, gate, (rec, 1))
                 self.connect(xlate, probe)
                 self.dyn_fm.append({
                     "xlate": xlate, "rf_squelch": rf_squelch,
-                    "nbfm": nbfm, "dc_block": dc_block, "recorder": rec, "probe": probe,
+                    "nbfm": nbfm, "dc_block": dc_block, "gate": gate, "recorder": rec, "probe": probe,
                     "sq_state": {},
                     "freq": None, "assigned_at": None, "idx": i
                 })
@@ -533,7 +694,11 @@ data:
                 # Only evict slots that are IDLE (not actively recording)
                 if rec is not None and rec.state == SquelchRecorder.RECORDING:
                     continue
-                age = now - slot.get("assigned_at", now)
+                # A steady FFT spur refreshes assigned_at even when RF squelch
+                # never opens. Recycle by actual recorder idleness, so those
+                # detections cannot reserve every channel indefinitely.
+                idle_since = getattr(rec, "idle_since", None)
+                age = now - (idle_since if idle_since is not None else slot.get("assigned_at", now))
                 if age > SLOT_RECYCLE_SEC and age > best_age:
                     best = slot
                     best_age = age
