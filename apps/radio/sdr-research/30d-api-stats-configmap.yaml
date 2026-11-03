@@ -1,0 +1,603 @@
+apiVersion: v1
+data:
+  stats.py: |+
+    import re
+    import threading
+    import time
+    from collections import Counter, OrderedDict
+    from fastapi import APIRouter, Depends, Query, Response
+    from sqlalchemy import func, text
+    from sqlalchemy.orm import Session
+
+    from ..database import get_db
+    from ..models import Recording, Repeater
+    from ..services.known_freqs import classify_frequency_group, frequency_group_label
+    from ..services.tagging import parse_ai_tags
+
+    router = APIRouter()
+    _CALLSIGN_TAG_RE = re.compile(r"^[AKNW][A-Z0-9]{2,6}$")
+
+    def _safe_parse_tags(raw_tags):
+        if isinstance(raw_tags, list):
+            return [str(tag).strip() for tag in raw_tags if str(tag).strip()]
+        return parse_ai_tags(raw_tags)
+
+
+    def _count_grouped_tags(rows, callsigns_only=False):
+        """Preserve per-record tag counts without transferring each recording."""
+        counts = Counter()
+        for raw_tags, occurrences in rows:
+            for tag in _safe_parse_tags(raw_tags):
+                if not callsigns_only or _CALLSIGN_TAG_RE.match(tag):
+                    counts[tag] += occurrences
+        return counts
+
+
+    def _frequency_group_fields(
+        frequency_hz: float | None,
+        frequency_label: str | None,
+        mode: str | None = None,
+        repeater_id: int | None = None,
+    ) -> dict:
+        group = classify_frequency_group(
+            frequency_hz=frequency_hz,
+            label=frequency_label,
+            mode=mode,
+            repeater_id=repeater_id,
+        )
+        return {
+            "frequency_group": group,
+            "frequency_group_label": frequency_group_label(group),
+        }
+
+    # Mount FT8/WSPR spots router as sub-router of stats
+    # (main.py can't be overridden via configmap, so we piggyback here)
+    try:
+        from . import spots as _spots_module
+        router.include_router(_spots_module.router)
+    except Exception as _e:
+        print(f"[stats] spots router not available: {_e}")
+
+    # Same trick for the weather intelligence router (NWS / SPC proxy).
+    try:
+        from . import weather as _weather_module
+        router.include_router(_weather_module.router)
+    except Exception as _e:
+        print(f"[stats] weather router not available: {_e}")
+
+    _cache: dict = {}
+    _CACHE_TTL = 60.0  # seconds
+    _cache_lock = threading.Lock()
+
+
+    # Sync `def` on purpose: FastAPI runs it in the threadpool, so the ~4 s of
+    # full-table aggregation on a large recordings table cannot freeze the event
+    # loop (which stalls every other request in the app). The lock makes the
+    # recompute single-flight; concurrent callers get the previous snapshot.
+    @router.get("")
+    def get_stats(response: Response, db: Session = Depends(get_db)):
+        response.headers["Cache-Control"] = "public, max-age=60"
+        now = time.monotonic()
+        if _cache.get("ts") and now - _cache["ts"] < _CACHE_TTL:
+            return _cache["data"]
+
+        # Block only when there is no snapshot at all (first call after boot);
+        # otherwise serve the stale snapshot while one thread recomputes.
+        if not _cache_lock.acquire(blocking=_cache.get("data") is None):
+            return _cache["data"]
+        try:
+            if _cache.get("ts") and time.monotonic() - _cache["ts"] < _CACHE_TTL:
+                return _cache["data"]
+            return _compute_stats(db)
+        finally:
+            _cache_lock.release()
+
+
+    def _compute_stats(db: Session):
+        total_recordings = db.query(func.count(Recording.id)).scalar() or 0
+        total_duration = db.query(func.sum(Recording.duration_seconds)).scalar() or 0.0
+
+        mode_rows = (
+            db.query(Recording.mode, func.count(Recording.id))
+            .group_by(Recording.mode)
+            .all()
+        )
+        by_mode = {mode: cnt for mode, cnt in mode_rows}
+
+        transcript_len = func.length(func.trim(func.coalesce(Recording.transcript, "")))
+        with_transcript = (
+            db.query(func.count(Recording.id)).filter(transcript_len > 0).scalar() or 0
+        )
+
+        daily_rows = db.execute(
+            text(
+                """
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE(timestamp)
+                ORDER BY day DESC
+                """
+            )
+        ).fetchall()
+        daily = [{"date": str(row.day), "count": row.cnt} for row in daily_rows]
+
+        tag_counter = _count_grouped_tags(
+            db.query(Recording.ai_tags, func.count(Recording.id))
+            .filter(Recording.ai_tags.isnot(None))
+            .group_by(Recording.ai_tags)
+            .yield_per(1000)
+        )
+        top_tags = [
+            {"tag": tag, "count": count}
+            for tag, count in tag_counter.most_common(20)
+        ]
+
+        total_repeaters = db.query(func.count(Repeater.id)).scalar() or 0
+        matched_recordings = (
+            db.query(func.count(Recording.id))
+            .filter(Recording.repeater_id.isnot(None))
+            .scalar() or 0
+        )
+
+        labeled_recordings = (
+            db.query(func.count(Recording.id))
+            .filter(Recording.frequency_label.isnot(None))
+            .scalar() or 0
+        )
+
+        freq_rows = db.execute(
+            text(
+                """
+                SELECT frequency_hz, frequency_label, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz IS NOT NULL
+                GROUP BY frequency_hz, frequency_label
+                """
+            )
+        ).fetchall()
+        collapsed_freqs = {}
+        frequency_group_totals: Counter[str] = Counter()
+        for row in freq_rows:
+            label = row.frequency_label.strip() if isinstance(row.frequency_label, str) else row.frequency_label
+            hz = float(row.frequency_hz) if row.frequency_hz is not None else None
+            count = int(row.cnt or 0)
+            fields = _frequency_group_fields(hz, label)
+            frequency_group_totals[fields["frequency_group"]] += count
+            if fields["frequency_group"] == "emergency":
+                key = ("group", fields["frequency_group"])
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {
+                        "frequency_hz": None,
+                        "label": fields["frequency_group_label"],
+                        "count": 0,
+                        "is_grouped": True,
+                        "collapsed_labels": set(),
+                        **fields,
+                    },
+                )
+                if label:
+                    entry["collapsed_labels"].add(label)
+            elif label:
+                # Collapse all labeled frequencies (APRS/repeater labels) into one row per label.
+                key = ("label", label)
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {"frequency_hz": None, "label": label, "count": 0, "is_grouped": False, **fields},
+                )
+            else:
+                key = ("freq", hz)
+                entry = collapsed_freqs.setdefault(
+                    key,
+                    {"frequency_hz": hz, "label": label, "count": 0, "is_grouped": False, **fields},
+                )
+            entry["count"] += count
+        for entry in collapsed_freqs.values():
+            if isinstance(entry.get("collapsed_labels"), set):
+                entry["collapsed_labels"] = sorted(entry["collapsed_labels"])
+        top_frequencies = sorted(
+            collapsed_freqs.values(),
+            key=lambda item: item["count"],
+            reverse=True,
+        )[:10]
+        top_frequency_groups = [
+            {
+                "frequency_group": group,
+                "frequency_group_label": frequency_group_label(group),
+                "count": count,
+            }
+            for group, count in frequency_group_totals.most_common()
+        ]
+
+        hour_rows = db.execute(
+            text(
+                """
+                SELECT EXTRACT(HOUR FROM timestamp)::int AS hour, COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY EXTRACT(HOUR FROM timestamp)::int
+                ORDER BY hour
+                """
+            )
+        ).fetchall()
+        by_hour_map = {row.hour: row.cnt for row in hour_rows}
+        by_hour = [{"hour": h, "count": by_hour_map.get(h, 0)} for h in range(24)]
+
+        top_callsigns = [
+            {"callsign": tag, "count": count}
+            for tag, count in tag_counter.items()
+            if _CALLSIGN_TAG_RE.match(tag)
+        ]
+        top_callsigns.sort(key=lambda item: item["count"], reverse=True)
+        top_callsigns = top_callsigns[:10]
+
+        result = {
+            "total_recordings": total_recordings,
+            "total_duration_seconds": round(total_duration, 1),
+            "by_mode": by_mode,
+            "with_transcript": with_transcript,
+            "without_transcript": total_recordings - with_transcript,
+            "with_frequency_label": labeled_recordings,
+            "matched_to_repeater": matched_recordings,
+            "total_repeaters_known": total_repeaters,
+            "daily_last_30": daily,
+            "top_tags": top_tags,
+            "top_frequency_groups": top_frequency_groups,
+            "top_frequencies": top_frequencies,
+            "by_hour": by_hour,
+            "top_callsigns": top_callsigns,
+        }
+        _cache["data"] = result
+        _cache["ts"] = time.monotonic()
+        return result
+
+
+    # Keep repeated frequency-page requests from rescanning the same history.
+    # Grouping tag sets below bounds Python work by distinct tag sets, rather than
+    # millions of individual APRS packets. Cache keys retain the requested tolerance.
+    _frequency_cache = OrderedDict()
+    _frequency_cache_lock = threading.Lock()
+    _FREQUENCY_CACHE_LIMIT = 128
+
+
+    def _cached_frequency_stats(key):
+        with _frequency_cache_lock:
+            entry = _frequency_cache.get(key)
+            if entry is None:
+                return None
+            timestamp, data = entry
+            if time.monotonic() - timestamp >= _CACHE_TTL:
+                del _frequency_cache[key]
+                return None
+            _frequency_cache.move_to_end(key)
+            return data
+
+
+    def _store_frequency_stats(key, data):
+        with _frequency_cache_lock:
+            _frequency_cache[key] = (time.monotonic(), data)
+            _frequency_cache.move_to_end(key)
+            while len(_frequency_cache) > _FREQUENCY_CACHE_LIMIT:
+                _frequency_cache.popitem(last=False)
+        return data
+
+
+    @router.get("/frequency/{frequency_hz}")
+    def get_frequency_stats(
+        frequency_hz: float,
+        response: Response,
+        tolerance_hz: float = Query(default=10000.0, ge=100.0, le=500000.0),
+        db: Session = Depends(get_db),
+    ):
+        """Detailed statistics for a specific frequency (+/- tolerance_hz)."""
+        response.headers["Cache-Control"] = "public, max-age=60"
+        key = (frequency_hz, tolerance_hz)
+        cached = _cached_frequency_stats(key)
+        if cached is not None:
+            return cached
+        result = _compute_frequency_stats(frequency_hz, tolerance_hz, db)
+        return _store_frequency_stats(key, result)
+
+
+    def _compute_frequency_stats(frequency_hz, tolerance_hz, db):
+        freq_min = frequency_hz - tolerance_hz
+        freq_max = frequency_hz + tolerance_hz
+
+        base_q = db.query(Recording).filter(
+            Recording.frequency_hz.between(freq_min, freq_max)
+        )
+
+        total = base_q.count()
+        if total == 0:
+            fields = _frequency_group_fields(frequency_hz, None)
+            return {
+                "frequency_hz": frequency_hz,
+                "tolerance_hz": tolerance_hz,
+                "label": None,
+                **fields,
+                "recordings_total": 0,
+                "by_mode": {},
+                "daily_last_30": [],
+                "by_hour": [{"hour": h, "count": 0} for h in range(24)],
+                "top_callsigns": [],
+                "repeaters": [],
+                "recent_recordings": [],
+            }
+
+        label_row = (
+            db.query(Recording.frequency_label, func.count(Recording.id).label("cnt"))
+            .filter(Recording.frequency_hz.between(freq_min, freq_max))
+            .filter(Recording.frequency_label.isnot(None))
+            .group_by(Recording.frequency_label)
+            .order_by(func.count(Recording.id).desc())
+            .first()
+        )
+        label = label_row.frequency_label if label_row else None
+
+        mode_rows = (
+            base_q.with_entities(Recording.mode, func.count(Recording.id))
+            .group_by(Recording.mode)
+            .all()
+        )
+        by_mode = {mode: cnt for mode, cnt in mode_rows}
+
+        daily_rows = db.execute(
+            text(
+                """
+                SELECT DATE(timestamp) AS day, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz BETWEEN :fmin AND :fmax
+                  AND timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE(timestamp)
+                ORDER BY day DESC
+                """
+            ),
+            {"fmin": freq_min, "fmax": freq_max},
+        ).fetchall()
+        daily = [{"date": str(row.day), "count": row.cnt} for row in daily_rows]
+
+        hour_rows = db.execute(
+            text(
+                """
+                SELECT EXTRACT(HOUR FROM timestamp)::int AS hour, COUNT(*) AS cnt
+                FROM recordings
+                WHERE frequency_hz BETWEEN :fmin AND :fmax
+                  AND timestamp >= NOW() - INTERVAL '30 days'
+                GROUP BY EXTRACT(HOUR FROM timestamp)::int
+                ORDER BY hour
+                """
+            ),
+            {"fmin": freq_min, "fmax": freq_max},
+        ).fetchall()
+        hour_map = {row.hour: row.cnt for row in hour_rows}
+        by_hour = [{"hour": h, "count": hour_map.get(h, 0)} for h in range(24)]
+
+        callsign_counter = _count_grouped_tags(
+            db.query(Recording.ai_tags, func.count(Recording.id))
+            .filter(
+                Recording.frequency_hz.between(freq_min, freq_max),
+                Recording.ai_tags.isnot(None),
+            )
+            .group_by(Recording.ai_tags)
+            .yield_per(1000),
+            callsigns_only=True,
+        )
+        top_callsigns = [
+            {"callsign": tag, "count": count}
+            for tag, count in callsign_counter.most_common(10)
+        ]
+
+        repeater_rows = (
+            db.query(Repeater)
+            .filter(Repeater.frequency_hz.between(freq_min, freq_max))
+            .limit(5)
+            .all()
+        )
+        repeaters = [
+            {
+                "id": r.id,
+                "callsign": r.callsign,
+                "frequency_hz": r.frequency_hz,
+                "location": r.location,
+                "state": r.state,
+                "pl_tone": r.pl_tone,
+                "use": r.use,
+            }
+            for r in repeater_rows
+        ]
+        fields = _frequency_group_fields(
+            frequency_hz,
+            label,
+            repeater_id=repeater_rows[0].id if repeater_rows else None,
+        )
+
+        recent = (
+            base_q.order_by(Recording.timestamp.desc())
+            .limit(10)
+            .all()
+        )
+        recent_recordings = [
+            {
+                "id": r.id,
+                "mode": r.mode,
+                "frequency_hz": r.frequency_hz,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "duration_seconds": r.duration_seconds,
+                "has_transcript": bool((r.transcript or "").strip()),
+                "frequency_label": r.frequency_label,
+                **_frequency_group_fields(r.frequency_hz, r.frequency_label, r.mode, r.repeater_id),
+                "signal_db": r.signal_db,
+            }
+            for r in recent
+        ]
+
+        return {
+            "frequency_hz": frequency_hz,
+            "tolerance_hz": tolerance_hz,
+            "label": label,
+            **fields,
+            "recordings_total": total,
+            "by_mode": by_mode,
+            "daily_last_30": daily,
+            "by_hour": by_hour,
+            "top_callsigns": top_callsigns,
+            "repeaters": repeaters,
+            "recent_recordings": recent_recordings,
+        }
+
+
+    @router.get("/activity")
+    def get_activity(response: Response, days: int = 30, db: Session = Depends(get_db)):
+        """
+        Frequency × hour-of-day activity heatmap.
+        Returns a grid: for each frequency label, the count per hour (0-23).
+        """
+        response.headers["Cache-Control"] = "public, max-age=300"
+        rows = db.execute(
+            text(
+                """
+                SELECT
+                    COALESCE(frequency_label, 'Unknown') AS label,
+                    MIN(frequency_hz) AS frequency_hz,
+                    EXTRACT(HOUR FROM timestamp)::int AS hour,
+                    COUNT(*) AS cnt
+                FROM recordings
+                WHERE timestamp >= NOW() - INTERVAL ':d days'
+                  AND timestamp IS NOT NULL
+                GROUP BY label, hour
+                ORDER BY label, hour
+                """.replace(":d", str(int(days)))
+            )
+        ).fetchall()
+        series_map: dict[tuple[str, str], dict] = {}
+        for row in rows:
+            label = row.label
+            fields = _frequency_group_fields(
+                row.frequency_hz,
+                None if label == "Unknown" else label,
+            )
+            display_label = fields["frequency_group_label"] if fields["frequency_group"] == "emergency" else label
+            key = (fields["frequency_group"], display_label)
+            series = series_map.setdefault(
+                key,
+                {
+                    "label": display_label,
+                    "data": [0] * 24,
+                    "total": 0,
+                    "is_grouped": fields["frequency_group"] == "emergency",
+                    **fields,
+                },
+            )
+            series["data"][row.hour] += row.cnt
+            series["total"] += row.cnt
+            if fields["frequency_group"] == "emergency" and label != "Unknown":
+                series.setdefault("collapsed_labels", set())
+                series["collapsed_labels"].add(label)
+        sorted_series = sorted(
+            series_map.values(),
+            key=lambda item: item["total"],
+            reverse=True,
+        )[:20]
+        for series in sorted_series:
+            if isinstance(series.get("collapsed_labels"), set):
+                series["collapsed_labels"] = sorted(series["collapsed_labels"])
+        return {
+            "days": days,
+            "hours": list(range(24)),
+            "series": sorted_series,
+        }
+
+
+    # Band frequency order for sorting (lowest freq first)
+    _BAND_ORDER = {
+        "160m": 0, "80m": 1, "60m": 2, "40m": 3, "30m": 4,
+        "20m": 5, "17m": 6, "15m": 7, "12m": 8, "10m": 9, "6m": 10,
+    }
+
+
+    @router.get("/bands/activity")
+    def band_activity(response: Response, hours: int = 1, db: Session = Depends(get_db)):
+        """Real-time band conditions based on FT8/WSPR spot activity."""
+        response.headers["Cache-Control"] = "public, max-age=30"
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+
+        rows = db.execute(
+            text("""
+                SELECT
+                    band,
+                    COUNT(*) AS spot_count,
+                    COUNT(DISTINCT callsign) AS unique_callsigns,
+                    MAX(distance_km) AS farthest_km,
+                    AVG(snr_db) AS avg_snr,
+                    ARRAY_AGG(DISTINCT mode) AS modes,
+                    MAX("timestamp") AS last_spot_at
+                FROM spots
+                WHERE "timestamp" >= :cutoff
+                  AND band IS NOT NULL
+                GROUP BY band
+            """),
+            {"cutoff": cutoff},
+        ).mappings().all()
+
+        # For each band, find the callsign of the farthest spot
+        farthest_map = {}
+        if rows:
+            farthest_rows = db.execute(
+                text("""
+                    SELECT DISTINCT ON (band)
+                        band, callsign, distance_km
+                    FROM spots
+                    WHERE "timestamp" >= :cutoff
+                      AND band IS NOT NULL
+                      AND distance_km IS NOT NULL
+                    ORDER BY band, distance_km DESC
+                """),
+                {"cutoff": cutoff},
+            ).mappings().all()
+            farthest_map = {r["band"]: r["callsign"] for r in farthest_rows}
+
+        bands = []
+        for r in rows:
+            count = r["spot_count"]
+            if count > 10:
+                status = "open"
+            elif count >= 1:
+                status = "marginal"
+            else:
+                status = "closed"
+
+            last_spot = r["last_spot_at"]
+            if isinstance(last_spot, datetime):
+                last_spot = last_spot.isoformat()
+
+            bands.append({
+                "band": r["band"],
+                "spot_count": count,
+                "unique_callsigns": r["unique_callsigns"],
+                "farthest_km": round(r["farthest_km"], 1) if r["farthest_km"] else None,
+                "farthest_callsign": farthest_map.get(r["band"]),
+                "avg_snr": round(r["avg_snr"], 1) if r["avg_snr"] is not None else None,
+                "modes": list(r["modes"]) if r["modes"] else [],
+                "status": status,
+                "last_spot_at": last_spot,
+            })
+
+        bands.sort(key=lambda b: _BAND_ORDER.get(b["band"], 99))
+
+        return {"hours": hours, "bands": bands}
+
+    # ── On-air activity feeds (POTA / SOTA / contests) ───────────────────────────
+    @router.get("/activity/feeds")
+    def activity_feeds():
+        from ..services.activity_feeds import get_activity_feeds
+        return get_activity_feeds()
+
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: sdr-api-stats
+  namespace: sdr-research
