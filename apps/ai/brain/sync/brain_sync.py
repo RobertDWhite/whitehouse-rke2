@@ -130,6 +130,9 @@ STATE = {
     "last_error": {k: 0.0 for k in ("meerkat", "riffado", "pages", "hubspot", "entities", "google")},
     "files_written": 0,
     "commits": 0,
+    "entities": 0,
+    "mentions": 0,
+    "graph": {},  # content stats from the last link-graph build, see update_graph
 }
 _wake = threading.Event()
 
@@ -1222,7 +1225,8 @@ def render_entities(files, cfg):
         "few minutes; don't edit pages here. Tune matching in `.brain/entities.json`\n"
         "(aliases, merges, extra entities, names to ignore).\n"
     )
-    log.info("entities: %d entities, %d mentions", len(items), sum(len(v) for v in mentions.values()))
+    STATE["entities"], STATE["mentions"] = len(items), sum(len(v) for v in mentions.values())
+    log.info("entities: %d entities, %d mentions", STATE["entities"], STATE["mentions"])
     return files_out
 
 
@@ -2177,6 +2181,27 @@ def update_graph(files, head):
     body = json.dumps(graph, separators=(",", ":"), ensure_ascii=False).encode()
     _graph = (body, gzip.compress(body, 6), '"%s"' % hashlib.sha1(body).hexdigest()[:16])
     log.info("graph: %d notes, %d links", len(graph["nodes"]), len(graph["links"]) // 2)
+    STATE["graph"] = graph_stats(graph)
+
+
+def graph_stats(graph):
+    """Counts for /metrics: notes per group, links, unlinked notes, notes dated recently."""
+    per_group = [0] * len(graph["groups"])
+    degree = [0] * len(graph["nodes"])
+    for i in graph["links"]:
+        degree[i] += 1
+    today = datetime.now(timezone.utc).date()
+    recent = {7: 0, 30: 0, 365: 0}
+    for _, g, date in graph["nodes"]:
+        per_group[g] += 1
+        try:
+            age = (today - datetime.strptime(date, "%Y-%m-%d").date()).days
+        except ValueError:
+            continue
+        for days in recent:
+            recent[days] += 0 <= age < days
+    return {"built": time.time(), "notes": dict(zip(graph["groups"], per_group)),
+            "links": len(graph["links"]) // 2, "orphans": degree.count(0), "recent": recent}
 
 
 # ------------------------------------------------------- Meerkat write-back
@@ -2466,7 +2491,28 @@ class Handler(BaseHTTPRequestHandler):
                 f"brain_sync_files_written_total {STATE['files_written']}",
                 "# TYPE brain_sync_commits_total counter",
                 f"brain_sync_commits_total {STATE['commits']}",
+                "# TYPE brain_entities gauge",
+                f"brain_entities {STATE['entities']}",
+                "# TYPE brain_entity_mentions gauge",
+                f"brain_entity_mentions {STATE['mentions']}",
             ]
+            g = STATE["graph"]
+            if g:
+                lines += ["# HELP brain_notes Notes in the repo, by folder group (as on entity pages).",
+                          "# TYPE brain_notes gauge"]
+                for k, v in sorted(g["notes"].items()):
+                    k = k.replace("\\", "\\\\").replace('"', '\\"')
+                    lines.append(f'brain_notes{{group="{k}"}} {v}')
+                lines += [
+                    "# TYPE brain_note_links gauge", f"brain_note_links {g['links']}",
+                    "# HELP brain_notes_unlinked Notes with no links in or out.",
+                    "# TYPE brain_notes_unlinked gauge", f"brain_notes_unlinked {g['orphans']}",
+                    "# HELP brain_notes_dated_within Notes whose date falls in the last N days.",
+                    "# TYPE brain_notes_dated_within gauge",
+                ] + [f'brain_notes_dated_within{{days="{d}"}} {n}' for d, n in g["recent"].items()] + [
+                    "# TYPE brain_graph_built_timestamp_seconds gauge",
+                    f"brain_graph_built_timestamp_seconds {g['built']}",
+                ]
             self._send(200, "\n".join(lines) + "\n", "text/plain; version=0.0.4")
         elif self.path.split("?")[0] == "/graph.json":
             body, gz, etag = _graph

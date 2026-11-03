@@ -78,8 +78,11 @@ re-ingest everything after changing how notes are rendered.
 
 Metrics: `graphiti_ingest_last_success_timestamp_seconds`,
 `graphiti_ingest_notes{state="total|ingested|pending|failed"}`,
-`graphiti_ingest_episodes_added_total`, `graphiti_ingest_errors_total`
-(Prometheus job `graphiti-ingest`).
+`graphiti_ingest_episodes_added_total`, `graphiti_ingest_errors_total`,
+`graphiti_ingest_note_seconds` (sum/count per note), and the graph's size read
+from Neo4j every `GRAPH_STATS_SECONDS` (300): `graphiti_graph_nodes{kind}`,
+`graphiti_graph_facts{state="current|invalidated"}`, `graphiti_graph_entities{type}`
+(Prometheus job `graphiti-ingest`). Grafana dashboard **Brain** (`brain.json`).
 
 ```sh
 kubectl -n graph logs deploy/graphiti-ingest --tail=50
