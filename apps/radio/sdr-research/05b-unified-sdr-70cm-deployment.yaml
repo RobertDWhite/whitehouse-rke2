@@ -68,12 +68,13 @@ spec:
             - name: SAMPLE_RATE
               value: "2400000"
             - name: DWELL_CENTER_HZ
-              # 443.5 MHz covers ~442.3-444.7: most local 70cm repeater outputs
+              # 443.5075 MHz covers the usable ~442.43-444.59 MHz span: local outputs
               # (RepeaterBook: 10 within 40 km, all 442-445). 432 had none.
-              value: "443500000"
+              value: "443507500"
             - name: SCAN_CENTERS
-              # Cover remaining 70cm outputs/simplex, weak-signal CW, 1.25m, and VHF emergency.
-              value: "[441250000, 445500000, 447500000, 449000000, 432500000, 224000000, 155000000]"
+              # Overlap usable spans; offset from channel centers to avoid the DC exclusion.
+              # Scan other 70cm outputs/simplex, CW, 1.25m, and VHF emergency.
+              value: "[441407500, 445507500, 447507500, 449007500, 432507500, 224007500, 155007500]"
             - name: DWELL_SEC
               value: "60"
             - name: RF_SETTLE_SEC
