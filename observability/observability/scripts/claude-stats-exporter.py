@@ -7,6 +7,11 @@ Scrapes, on the Mac it runs on:
   * Claude Code stats cache   ~/.claude/stats-cache.json           (optional)
   * Codex rollouts            ~/.codex/sessions/**/*.jsonl
   * Cowork sessions           ~/Library/Application Support/Claude/local-agent-mode-sessions/**/local_*.json
+  * Grok Build sessions       ~/.grok/sessions/<cwd>/<id>/{summary,usage}.json + events/chat_history.jsonl
+  * OpenCode sessions         ~/.local/share/opencode/opencode.db (SQLite, read-only)
+
+Sessions started from T3 Code are included: T3 drives the same CLIs, so they
+write to the same places (Codex/Grok sessions are tagged source="t3").
 
 and serves them on :9101/metrics for the `claude-code-stats` job in
 observability/observability/02-config-prometheus.yaml (one target per Mac,
@@ -24,6 +29,7 @@ import glob
 import json
 import os
 import re
+import sqlite3
 import sys
 import threading
 import time
@@ -35,6 +41,8 @@ HOME = os.path.expanduser("~")
 CLAUDE_DIR = os.path.join(HOME, ".claude")
 CODEX_DIR = os.path.join(HOME, ".codex", "sessions")
 COWORK_DIR = os.path.join(HOME, "Library", "Application Support", "Claude", "local-agent-mode-sessions")
+GROK_DIR = os.path.join(HOME, ".grok", "sessions")
+OPENCODE_DB = os.path.join(HOME, ".local", "share", "opencode", "opencode.db")
 
 # USD per 1M tokens: (input, output, cache_read, cache_write). Anthropic list
 # prices; cache read = 10% of input (25% on fable-5-1), cache write = 125%.
@@ -306,6 +314,8 @@ def codex_source(meta):
         return "subagent" if "subagent" in src else "other"
     src = str(src).lower()
     orig = str(orig).lower()
+    if "t3" in orig:
+        return "t3"
     if src in ("cli", "vscode", "exec"):
         return src
     if "vscode" in orig or "desktop" in orig:
@@ -449,6 +459,115 @@ def scan_cowork():
 
 
 # ----------------------------------------------------------------------------
+# Grok Build and OpenCode (shared shape, rendered as grok_* / opencode_*)
+# ----------------------------------------------------------------------------
+def agent_stats():
+    return {
+        "sessions": 0, "messages": 0, "tool_calls": 0, "tokens": 0, "cost": 0.0,
+        "by_source_sessions": Counter(), "by_model_sessions": Counter(),
+        "by_model_tokens": Counter(), "proj_sessions": Counter(), "proj_tokens": Counter(),
+        "daily_sessions": Counter(), "daily_messages": Counter(),
+        "daily_tool_calls": Counter(), "daily_tokens": Counter(),
+        "hour_sessions": Counter(), "tool_usage": Counter(), "projects": set(),
+    }
+
+
+def add_session(st, start, cwd, source, model, tokens, msgs, tools, cost=0.0):
+    pl = project_label(cwd)
+    st["sessions"] += 1
+    st["messages"] += msgs
+    st["tool_calls"] += tools
+    st["tokens"] += tokens
+    st["cost"] += cost
+    st["by_source_sessions"][source] += 1
+    st["by_model_sessions"][model or "unknown"] += 1
+    st["proj_sessions"][pl] += 1
+    st["proj_tokens"][pl] += tokens
+    st["projects"].add(pl)
+    if start:
+        d = local_date(start)
+        st["daily_sessions"][d] += 1
+        st["daily_messages"][d] += msgs
+        st["daily_tool_calls"][d] += tools
+        st["daily_tokens"][d] += tokens
+        st["hour_sessions"]["%02d" % local_hour(start)] += 1
+
+
+def load_json(path):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def scan_grok():
+    st = agent_stats()
+    for sdir in glob.glob(os.path.join(GROK_DIR, "*", "*", "")):
+        summ = load_json(os.path.join(sdir, "summary.json"))
+        if not isinstance(summ, dict):
+            continue
+        usage = (load_json(os.path.join(sdir, "usage.json")) or {}).get("session") or {}
+        msgs = 0
+        for rec in iter_jsonl(os.path.join(sdir, "chat_history.jsonl")):
+            if rec.get("type") in ("user", "assistant"):
+                msgs += 1
+        tools = 0
+        for rec in iter_jsonl(os.path.join(sdir, "events.jsonl")):
+            if rec.get("type") == "tool_started":
+                tools += 1
+                st["tool_usage"][rec.get("tool_name") or "unknown"] += 1
+        for model, mu in (usage.get("modelUsage") or {}).items():
+            st["by_model_tokens"][model] += mu.get("totalTokens", 0) or 0
+        source = "t3" if str(summ.get("request_id") or "").startswith("t3-") else "cli"
+        cwd = (summ.get("info") or {}).get("cwd") or ""
+        # xAI bills in "USD ticks" (1e-10 USD).
+        cost = (usage.get("costUsdTicks", 0) or 0) / 1e10
+        add_session(st, parse_ts(summ.get("created_at")), cwd, source,
+                    usage.get("primaryModelId") or summ.get("current_model_id"),
+                    usage.get("totalTokens", 0) or 0, msgs, tools, cost)
+    return st
+
+
+def scan_opencode():
+    st = agent_stats()
+    if not os.path.exists(OPENCODE_DB):
+        return st
+    db = sqlite3.connect("file:%s?mode=ro" % OPENCODE_DB, uri=True, timeout=5)
+    try:
+        msgs = Counter()
+        for sid, n in db.execute(
+                "SELECT session_id, count(*) FROM message"
+                " WHERE json_extract(data, '$.role') IN ('user', 'assistant') GROUP BY 1"):
+            msgs[sid] = n
+        tools = Counter()
+        for sid, tool in db.execute(
+                "SELECT session_id, json_extract(data, '$.tool') FROM part"
+                " WHERE json_extract(data, '$.type') = 'tool'"):
+            tools[sid] += 1
+            st["tool_usage"][tool or "unknown"] += 1
+        for model, provider, n in db.execute(
+                "SELECT json_extract(data, '$.modelID'), json_extract(data, '$.providerID'),"
+                " sum(json_extract(data, '$.tokens.total')) FROM message"
+                " WHERE json_extract(data, '$.role') = 'assistant' GROUP BY 1, 2"):
+            st["by_model_tokens"]["%s/%s" % (provider, model)] += n or 0
+        for sid, cwd, agent, model, cost, tokens, created in db.execute(
+                "SELECT id, directory, agent, model, cost,"
+                " tokens_input + tokens_output + tokens_reasoning + tokens_cache_read + tokens_cache_write,"
+                " time_created FROM session"):
+            try:
+                m = json.loads(model) if model else {}
+                model = "%s/%s" % (m.get("providerID"), m.get("id")) if m else None
+            except ValueError:
+                pass
+            add_session(st, parse_ts(created), cwd, agent or "unknown", model,
+                        tokens or 0, msgs[sid], tools[sid], cost or 0.0)
+    finally:
+        db.close()
+    return st
+
+
+# ----------------------------------------------------------------------------
 # rendering
 # ----------------------------------------------------------------------------
 class Out:
@@ -476,7 +595,49 @@ def fmt(v):
     return str(v)
 
 
-def render(cl, cache, cx, cw):
+def render_agent(o, prefix, name, st, source_label):
+    """grok_* / opencode_* families, mirroring the codex_* layout."""
+    o.family(prefix + "_total_sessions", "Total %s sessions" % name)
+    o.sample(prefix + "_total_sessions", st["sessions"])
+    o.family(prefix + "_total_messages", "Total %s user/assistant messages" % name)
+    o.sample(prefix + "_total_messages", st["messages"])
+    o.family(prefix + "_total_tool_calls", "Total %s tool calls" % name)
+    o.sample(prefix + "_total_tool_calls", st["tool_calls"])
+    o.family(prefix + "_total_tokens", "Total %s tokens" % name)
+    o.sample(prefix + "_total_tokens", st["tokens"])
+    o.family(prefix + "_total_cost_usd", "%s cost in USD as recorded by the tool" % name)
+    o.sample(prefix + "_total_cost_usd", round(st["cost"], 4))
+    o.family(prefix + "_total_projects", "Distinct %s projects" % name)
+    o.sample(prefix + "_total_projects", len(st["projects"]))
+    o.family(prefix + "_sessions_by_" + source_label, "%s sessions by %s" % (name, source_label))
+    for k, n in st["by_source_sessions"].most_common():
+        o.sample(prefix + "_sessions_by_" + source_label, n, **{source_label: k})
+    o.family(prefix + "_sessions_by_model", "%s sessions by primary model" % name)
+    for k, n in st["by_model_sessions"].most_common():
+        o.sample(prefix + "_sessions_by_model", n, model=k)
+    o.family(prefix + "_model_tokens", "%s tokens by model" % name)
+    for k, n in st["by_model_tokens"].most_common():
+        o.sample(prefix + "_model_tokens", n, model=k)
+    o.family(prefix + "_project_sessions", "%s sessions per project" % name)
+    for k, n in st["proj_sessions"].most_common():
+        o.sample(prefix + "_project_sessions", n, project=k)
+    o.family(prefix + "_project_tokens", "%s tokens per project" % name)
+    for k, n in st["proj_tokens"].most_common():
+        o.sample(prefix + "_project_tokens", n, project=k)
+    o.family(prefix + "_tool_usage_total", "%s tool invocations by name" % name)
+    for k, n in st["tool_usage"].most_common():
+        o.sample(prefix + "_tool_usage_total", n, tool=k)
+    for key in ("sessions", "messages", "tool_calls", "tokens"):
+        fam = "%s_daily_%s" % (prefix, key)
+        o.family(fam, "Daily %s %s" % (name, key.replace("_", " ")))
+        for d in sorted(st["daily_" + key]):
+            o.sample(fam, st["daily_" + key][d], date=d)
+    o.family(prefix + "_hour_sessions", "%s sessions by hour of day" % name)
+    for h in sorted(st["hour_sessions"]):
+        o.sample(prefix + "_hour_sessions", st["hour_sessions"][h], hour=h)
+
+
+def render(cl, cache, cx, cw, gk, oc, up):
     o = Out()
 
     # --- claude_stats_* : from stats-cache.json when present, else the JSONL scan
@@ -676,54 +837,80 @@ def render(cl, cache, cx, cw):
     for h in sorted(cw["hourly"]):
         o.sample("cowork_hour_sessions", cw["hourly"][h], hour=h)
 
+    # --- grok / opencode
+    render_agent(o, "grok", "Grok Build", gk, "source")
+    render_agent(o, "opencode", "OpenCode", oc, "agent")
+
     # --- cross-tool aggregates
-    all_projects = set(P) | set(cx["proj_sessions"]) | cw["project_names"]
+    all_projects = (set(P) | set(cx["proj_sessions"]) | cw["project_names"]
+                    | gk["projects"] | oc["projects"])
+    tools = (("claude", cl), ("codex", cx), ("grok", gk), ("opencode", oc))
     o.family("ai_total_sessions", "Total sessions across all AI tools")
-    o.sample("ai_total_sessions", cl["sessions"] + cx["sessions"] + cw["sessions"])
-    o.family("ai_total_messages", "Total messages across all AI tools")
-    o.sample("ai_total_messages", cl["messages"] + cx["messages"])
-    o.family("ai_total_tool_calls", "Total tool calls across all AI tools")
-    o.sample("ai_total_tool_calls", cl["tool_calls"] + cx["tool_calls"])
-    o.family("ai_total_tokens", "Total tokens across all AI tools")
-    o.sample("ai_total_tokens", cl["tokens"] + cx["tokens"])
+    o.sample("ai_total_sessions", sum(t["sessions"] for _, t in tools) + cw["sessions"])
+    for key in ("messages", "tool_calls", "tokens"):
+        o.family("ai_total_" + key, "Total %s across all AI tools" % key.replace("_", " "))
+        o.sample("ai_total_" + key, sum(t[key] for _, t in tools))
     o.family("ai_total_projects", "Total projects across all AI tools")
     o.sample("ai_total_projects", len(all_projects))
     o.family("ai_sessions_by_tool", "Sessions by AI tool")
-    o.sample("ai_sessions_by_tool", cl["sessions"], tool="claude")
-    o.sample("ai_sessions_by_tool", cx["sessions"], tool="codex")
+    for name, t in tools:
+        o.sample("ai_sessions_by_tool", t["sessions"], tool=name)
     o.sample("ai_sessions_by_tool", cw["sessions"], tool="cowork")
-    o.family("ai_messages_by_tool", "Messages by AI tool")
-    o.sample("ai_messages_by_tool", cl["messages"], tool="claude")
-    o.sample("ai_messages_by_tool", cx["messages"], tool="codex")
-    o.family("ai_tool_calls_by_tool", "Tool calls by AI tool")
-    o.sample("ai_tool_calls_by_tool", cl["tool_calls"], tool="claude")
-    o.sample("ai_tool_calls_by_tool", cx["tool_calls"], tool="codex")
-    o.family("ai_tokens_by_tool", "Tokens by AI tool")
-    o.sample("ai_tokens_by_tool", cl["tokens"], tool="claude")
-    o.sample("ai_tokens_by_tool", cx["tokens"], tool="codex")
+    for key, help_ in (("messages", "Messages"), ("tool_calls", "Tool calls"), ("tokens", "Tokens")):
+        o.family("ai_%s_by_tool" % key, "%s by AI tool" % help_)
+        for name, t in tools:
+            o.sample("ai_%s_by_tool" % key, t[key], tool=name)
     o.family("ai_total_cost_usd", "Estimated total cost in USD across all AI tools")
-    o.sample("ai_total_cost_usd", round(cl["cost"] + cx["cost"], 4))
+    o.sample("ai_total_cost_usd", round(sum(t["cost"] for _, t in tools), 4))
     o.family("ai_cost_by_tool_usd", "Cost in USD by AI tool")
-    o.sample("ai_cost_by_tool_usd", round(cl["cost"], 4), tool="claude")
-    o.sample("ai_cost_by_tool_usd", round(cx["cost"], 4), tool="codex")
+    for name, t in tools:
+        o.sample("ai_cost_by_tool_usd", round(t["cost"], 4), tool=name)
+    o.family("ai_daily_messages_by_tool", "Daily messages by AI tool")
+    for name, t in (("claude", {"daily_messages": {d: v["messages"] for d, v in cl["daily"].items()}}),
+                    ("codex", cx), ("grok", gk), ("opencode", oc)):
+        for d in sorted(t["daily_messages"]):
+            o.sample("ai_daily_messages_by_tool", t["daily_messages"][d], tool=name, date=d)
 
     # --- exporter health
     o.family("claude_stats_exporter_scrape_duration_seconds", "Time to rescan all sources")
     o.sample("claude_stats_exporter_scrape_duration_seconds", round(cl.get("_elapsed", 0.0), 3))
     o.family("claude_stats_exporter_last_success_timestamp_seconds", "Unix time of the last successful rescan")
     o.sample("claude_stats_exporter_last_success_timestamp_seconds", int(cl.get("_ts", 0)))
+    o.family("claude_stats_exporter_source_up", "1 if the source's last scan succeeded (0 = serving its last good data)")
+    for name, ok in sorted(up.items()):
+        o.sample("claude_stats_exporter_source_up", 1 if ok else 0, source=name)
     return o.text()
+
+
+LAST_GOOD = {}
+
+
+def scan(name, fn, up):
+    """Run one source's scanner; on failure keep its last good result so a
+    format change in one tool doesn't freeze every other tool's metrics."""
+    try:
+        LAST_GOOD[name] = fn()
+        up[name] = True
+    except Exception as e:
+        sys.stderr.write("[claude-stats-exporter] %s scan failed: %r\n" % (name, e))
+        up[name] = False
+        if name not in LAST_GOOD:
+            raise
+    return LAST_GOOD[name]
 
 
 def collect():
     t0 = time.time()
-    cl = scan_claude()
+    up = {}
+    cl = dict(scan("claude", scan_claude, up))
     cache = load_stats_cache()
-    cx = scan_codex()
-    cw = scan_cowork()
+    cx = scan("codex", scan_codex, up)
+    cw = scan("cowork", scan_cowork, up)
+    gk = scan("grok", scan_grok, up)
+    oc = scan("opencode", scan_opencode, up)
     cl["_elapsed"] = time.time() - t0
     cl["_ts"] = time.time()
-    return render(cl, cache, cx, cw)
+    return render(cl, cache, cx, cw, gk, oc, up)
 
 
 # ----------------------------------------------------------------------------
