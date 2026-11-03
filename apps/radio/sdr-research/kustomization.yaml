@@ -95,15 +95,15 @@ images:
   - name: registry.internal.white.fm/sdr-whisper-cuda
     newTag: "0.1.1"
   - name: postgres
-    newTag: "15@sha256:64b99032e218b66b1d1a6334995056e1aa57f50a0c522cc856e72dff0e4b0d63"
+    newTag: "15@sha256:40e8c839f86c404f9bd1c456bb83f11b205f2cd95d753b34c2d074e89ecee786"
   # Migrating to OSS images at ghcr.io/w3rdw/sdr-research-* (see commit history).
   # Stage 1: remap to OSS image; configmap-override mounts still win at runtime.
   # Stage 2: unmount overrides — image's baked code becomes authoritative.
   # Stage 3: delete 30a-configmap-api-overrides.yaml entirely.
   - name: registry.internal.white.fm/sdr-viewer-api
     newName: ghcr.io/w3rdw/sdr-research-api
-    # RepeaterBook export query by FIPS state_id + local radius filter; fixed row parsing (W3RDW/sdr-research-oss@0963797).
-    newTag: "sha-0963797"
+    # Auto-delete click-burst voice artifacts; vLLM tagging (W3RDW/sdr-research-oss@ba8aafe).
+    newTag: "sha-ba8aafe"
   - name: registry.internal.white.fm/sdr-viewer-ui
     newName: ghcr.io/w3rdw/sdr-research-ui
     # Admin page RepeaterBook block/backoff status (W3RDW/sdr-research-oss@b484e7f).
@@ -126,7 +126,8 @@ images:
     newTag: "0.3.0"
   - name: registry.internal.white.fm/hf-combined-decoder
     newName: ghcr.io/w3rdw/sdr-research-hf-combined
-    newTag: "0.3.0"
+    # Per-phase SIGALRM watchdog restarts the pod when the RX888 driver wedges (W3RDW/sdr-research-oss@c0feeda).
+    newTag: "sha-c0feeda"
   - name: registry.internal.white.fm/ft8-wspr-decoder
     newName: ghcr.io/w3rdw/sdr-research-ft8-wspr
     newTag: "0.3.0"
