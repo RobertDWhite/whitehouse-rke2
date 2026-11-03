@@ -38,6 +38,15 @@ read-only), are committed to the `pages-sites` git mirror, and survive redeploys
 a deploy never overwrites a live writable file. The `cards` site uses this for
 saved collages (`collages/saved.json`).
 
+## No images in git
+
+The `pages-sites` mirror never contains image files (jpg, png, gif, webp, heic,
+svg, ico, ...): pages-mcp excludes them and untracks any found on startup, and
+the history was rewritten on 2026-11-03 to remove those already committed.
+Images are served from the volume and kept at their source on Synology (e.g. the
+Cards archive's `_site/img/`). If the volume is lost, the git restore brings back
+pages without images; redeploy each site from its source.
+
 ## Sites owned by the brain repo
 
 Some sites are published from the Forgejo repo `WhiteHouse/brain`, where
