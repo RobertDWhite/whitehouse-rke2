@@ -16,6 +16,8 @@ spec:
       app: unified-sdr-hf-rtl
   template:
     metadata:
+      annotations:
+        sdr-research/audio-capture: "headroom-preroll-v1"
       labels:
         app: unified-sdr-hf-rtl
     spec:
@@ -31,6 +33,10 @@ spec:
         - -c
         - python3 -u /scripts/unified_sdr.py
         env:
+        - name: FM_HEADROOM_DB
+          value: "6"
+        - name: FM_PREROLL_SEC
+          value: "0.35"
         - name: CAPTURE_DEVICE_SERIAL
           value: "00000002"
         - name: RTL_TCP_HOST
