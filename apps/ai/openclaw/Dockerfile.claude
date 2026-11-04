@@ -1,14 +1,38 @@
-ARG OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.10.10
+ARG OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.10.10@sha256:1e5ee6c7d02d5b5f64f9cf26a30c7ef7d4ec292f0d25fa590f4b7e103e8bf799
 FROM ${OPENCLAW_IMAGE}
 
 USER root
+
+# Pull current Debian security updates (perl, gnutls, brotli, ...) on top of the
+# upstream image.
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
+# dompurify 3.4.16 (pnpm store) has a critical advisory fixed in the 3.4.17
+# patch release; swap the package contents in place (same major/minor API).
+RUN set -eux; \
+    dir="$(ls -d /app/node_modules/.pnpm/dompurify@3.4.16/node_modules/dompurify 2>/dev/null || true)"; \
+    if [ -n "$dir" ]; then \
+      tmp="$(mktemp -d)"; \
+      cd "$tmp"; \
+      npm pack dompurify@3.4.17 --silent; \
+      tar -xzf dompurify-3.4.17.tgz; \
+      rm -rf "$dir"/*; \
+      cp -a package/. "$dir"/; \
+      cd /; rm -rf "$tmp" /root/.npm; \
+      node -e "console.log('dompurify', require('$dir/package.json').version)"; \
+    fi
 
 ENV NPM_CONFIG_CACHE=/home/openclaw/.openclaw/.npm \
     npm_config_cache=/home/openclaw/.openclaw/.npm
 
 # Install the official Claude Code CLI so OpenClaw can route `claude-cli/*`
 # model refs through the supported local binary path.
-RUN npm install -g @anthropic-ai/claude-code \
- && claude --version
+# npm 12 blocks install scripts by default; claude-code needs its postinstall
+# to fetch the platform-native binary.
+RUN npm install -g --allow-scripts=@anthropic-ai/claude-code @anthropic-ai/claude-code \
+ && claude --version \
+ && rm -rf /home/openclaw/.openclaw/.npm
 
 USER node
