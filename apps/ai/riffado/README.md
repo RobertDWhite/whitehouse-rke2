@@ -76,8 +76,10 @@ per cold start. The venv (~15 GiB) and compile caches are on Longhorn
 (`nemotron-transcribe`), because node-50's root disk (~86% full, kubelet image
 GC at 85%) has no room for both. The init container builds the venv and
 downloads the checkpoint on first start (or after bumping `NEMO_COMMIT` /
-`MODEL_REVISION`); otherwise it is a no-op. No image to build: the pod runs the
-stock `ghcr.io/astral-sh/uv` image and the scripts come from a ConfigMap.
+`MODEL_REVISION`); otherwise it is a no-op. The pod runs a small runtime image
+(`nemotron/Dockerfile`: trixie-slim, gcc/g++ for FlashInfer's JIT, git, uv),
+pushed as `registry.internal.white.fm/nemotron-runtime`; the scripts come from a
+ConfigMap.
 
 Riffado provider: Custom, base URL
 `http://nemotron-transcribe.riffado.svc.cluster.local/v1`, model

@@ -1,4 +1,4 @@
-FROM registry.white.fm/comfyui-nvidia:0.3.58-cuda13.1-dgx-arm64-20260223-1
+FROM registry.internal.white.fm/comfyui-nvidia:0.3.58-cuda13.1-dgx-arm64-20260223-1@sha256:be47f16bdcc39905aac6b646dcc25972dcaf019fcecf018da91d5dd7a5fc6729
 
 USER root
 
@@ -53,5 +53,14 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages faster-whisper
  && python3 -c 'import ctranslate2; print("ctranslate2", ctranslate2.__version__)'
 
 RUN rm -rf /tmp/build /tmp/wheels
+
+# Security: refresh kernel headers (linux-libc-dev, pulled in by the CUDA devel
+# base) and Python deps with critical CVEs. Deliberately narrow: no blanket
+# apt-get upgrade so CUDA/cuDNN/driver-facing packages stay exactly as built.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade linux-libc-dev \
+ && rm -rf /var/lib/apt/lists/* \
+ && python3 -m pip install --no-cache-dir --break-system-packages --upgrade \
+      "certifi>=2026.10.18" "anyio>=4.14.2"
 
 WORKDIR /
