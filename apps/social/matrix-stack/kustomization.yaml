@@ -77,14 +77,13 @@ images:
     newTag: "15@sha256:40e8c839f86c404f9bd1c456bb83f11b205f2cd95d753b34c2d074e89ecee786"
 
   # Synapse
-  # HOLD at v1.160.0 (2026-09-20): v1.161.0 removed the unstable
-  # org.matrix.msc3202.device_id appservice masquerading parameter, and hookshot
-  # (bot-sdk 0.8.0-element.3) still sends only that -> crash loop
-  # "Encryption not possible: server not revealing device ID".
-  # Unpin once https://github.com/matrix-org/matrix-hookshot/issues/1398 ships.
-  # Schema version is 94 on both releases, so the rollback is safe.
+  # v1.164.1 (2026-11-04): the v1.160.0 hold is lifted. Hookshot 7.5.0+ ships
+  # matrix-org/matrix-hookshot#1398 (bot-sdk sends the stable device_id), so it
+  # works with Synapse >= 1.161. Deploy together with the hookshot 7.6.0 bump.
+  # Rollback to v1.160.0 is only safe while the DB schema version is unchanged;
+  # check synapse's schema_version table before downgrading.
   - name: matrixdotorg/synapse
-    newTag: "v1.160.0@sha256:78de1d10bef02e375f861d1cc99f8bedd9381d4f9083ea8b2c22a053477b205f"
+    newTag: "v1.164.1@sha256:fa4aa980f279bcf26d4e7ecc2a2c9a701c73f2ebe8841da9bdcf3b2fdf693d75"
 
   # NGINX
   - name: nginx
@@ -95,10 +94,10 @@ images:
     newTag: "1.38"
   - name: bitnami/kubectl
     newTag: "latest"
-  # Pinned by digest (2026-09-20): the upstream only publishes rolling tags and a
-  # silent :latest change is what surfaced the missing E2EE homeserver flags.
-  - name: halfshot/matrix-hookshot
-    newTag: "latest@sha256:8e6c1f9d2a949bb1025f01bf175ab9dde7e6650d39aa8781f3837d40af5b3484"
+  # Upstream stopped publishing halfshot/matrix-hookshot on Docker Hub at 7.3.3;
+  # releases are versioned on ghcr.io/matrix-org/matrix-hookshot. Pin version+digest.
+  - name: ghcr.io/matrix-org/matrix-hookshot
+    newTag: "7.6.0@sha256:00fdf6d9cd9ff8772a86a6f5b10f34e323f607fbd270c5283d10b514ff70b5be"
   - name: juanluisbaptiste/postfix
     newTag: "alpine"
   - name: quay.io/prometheuscommunity/postgres-exporter
