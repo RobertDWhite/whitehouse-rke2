@@ -55,7 +55,7 @@ spec:
       terminationGracePeriodSeconds: 90
       initContainers:
         - name: setup
-          image: registry.internal.white.fm/nemotron-runtime
+          image: ghcr.io/astral-sh/uv:python3.13-trixie
           command: [bash, /scripts/setup.sh]
           env:
             - {name: HOME, value: /data/home}
@@ -80,7 +80,7 @@ spec:
               drop: [ALL]
       containers:
         - name: api
-          image: registry.internal.white.fm/nemotron-runtime
+          image: ghcr.io/astral-sh/uv:python3.13-trixie
           command: [/data/venv/bin/python, /scripts/adapter.py]
           ports:
             - name: http
