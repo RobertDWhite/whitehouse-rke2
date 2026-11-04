@@ -18,7 +18,10 @@ spec:
       # deref while listing containers over the containerd CRI socket); every
       # agent had been crash-looping for weeks (9k-12k restarts). falcoctl also
       # installs the current container plugin so the bundled copy is superseded.
-      targetRevision: 9.1.0
+      # 2026-11-04: 9.1.0 -> 9.2.2 (Falco 0.45.2, falcoctl 0.14.3, falcosidekick
+      # 2.35.1, UI redis -> redis-stack-server) to clear critical CVEs. Chart now
+      # mounts the runtime socket directories instead of socket files.
+      targetRevision: 9.2.2
       helm:
         values: |
           driver:
@@ -28,9 +31,9 @@ spec:
             config:
               artifact:
                 install:
-                  refs: [falco-rules:5, container:0.7.4]
+                  refs: [falco-rules:5, container:0.7.6]
                 follow:
-                  refs: [falco-rules:5, container:0.7.4]
+                  refs: [falco-rules:5, container:0.7.6]
 
           metrics:
             enabled: true
