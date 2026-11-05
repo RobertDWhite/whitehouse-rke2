@@ -73,6 +73,12 @@ spec:
               alias: "chatgpt"
               params:
                 transport: "auto"
+      # No embeddings key (OPENAI_API_KEY is blanked above). 2026.10.x refuses to
+      # sync memory with an unavailable embedding provider instead of falling
+      # back, so use keyword-only (FTS) recall explicitly.
+      memory:
+        search:
+          provider: "none"
       channels:
         telegram:
           enabled: true
