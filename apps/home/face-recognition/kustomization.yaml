@@ -2,8 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - namespace.yaml
-  - compreface-deployment.yaml
-  - compreface-service.yaml
   - double-take-deployment.yaml
   - double-take-config.yaml
   - double-take-service.yaml
@@ -16,8 +14,6 @@ generators:
   - ksops.yaml
 
 images:
-  - name: exadel/compreface
-    newTag: "1.2.0-arcface-r100"
   # Built from face-api/ (in-cluster buildx; internal registry, not Renovate-tracked).
   - name: registry.internal.white.fm/face-api
     newTag: "0.1.0@sha256:80f220d4f6528c17f555dc7bfbc42922d30efe52a259172846d6b1d2ee512f76"

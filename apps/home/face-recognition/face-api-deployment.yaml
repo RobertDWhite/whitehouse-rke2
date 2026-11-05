@@ -51,12 +51,15 @@ spec:
               value: "4"
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
-            # CompreFace similarity curve (tanh((c0 - d) * c1) + 1) / 2, fitted to
-            # CompreFace arcface-r100 scores on this gallery (see face-api/README.md).
+            # CompreFace similarity curve (tanh((c0 - d) * c1) + 1) / 2, fitted
+            # (least squares, 2,404 genuine/impostor pairs) to CompreFace
+            # arcface-r100 scores for the same faces, 2026-11-05. Held-out
+            # gallery faces: right person >= 0.6 294/300 (CompreFace 287), wrong
+            # person >= 0.6 6/300 (CompreFace 13). See face-api/README.md.
             - name: SIM_C0
-              value: "1.10"
+              value: "1.2725"
             - name: SIM_C1
-              value: "6.0"
+              value: "4.80"
           ports:
             - name: http
               containerPort: 8080

@@ -6,15 +6,20 @@ metadata:
 data:
   config.yml: |
     # Double Take — https://github.com/jakowenko/double-take#configuration
-    # "!secret compreface_key" is expanded from secrets.yml (sops secret double-take-secrets).
+    # "!secret compreface_key" is expanded from secrets.yml (sops secret double-take-secrets);
+    # face-api uses the same key.
     time:
       timezone: America/New_York
 
     detectors:
+      # face-api (our CompreFace-compatible service, face-api/); Double Take's
+      # "compreface" detector speaks its API unchanged.
       compreface:
-        url: http://compreface.face-recognition.svc.cluster.local
+        url: http://face-api.face-recognition.svc.cluster.local
         key: "!secret compreface_key"
-        det_prob_threshold: 0.7   # 0.8 dropped off-angle doorbell faces before recognition ran (Glenn, 2026-09-14); 0.55 judged too loose
+        # SCRFD scores faces lower than CompreFace's RetinaFace did: on the
+        # doorbell history 0.55 here drops the same faces CompreFace's 0.7 did.
+        det_prob_threshold: 0.55
         timeout: 15
 
     detect:
