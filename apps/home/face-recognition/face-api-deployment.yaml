@@ -1,0 +1,97 @@
+# face-api: our CompreFace-compatible recognition service (source in face-api/).
+# SCRFD-10GF detector + ArcFace R50 (insightface buffalo_l) on onnxruntime CPU.
+# Double Take talks to it exactly as it did to CompreFace (same API key, paths
+# and response shapes). The gallery (SQLite + example images) is on face-api-data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: face-api
+  namespace: face-recognition
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: face-api
+  template:
+    metadata:
+      labels:
+        app: face-api
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: kube-vip
+          operator: Equal
+          value: disabled
+          effect: NoSchedule
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: face-api
+          image: registry.internal.white.fm/face-api
+          # Same key Double Take sends (secrets.yml -> compreface_key).
+          command: ["sh", "-c"]
+          args:
+            - |
+              API_KEY=$(grep -m1 "^compreface_key:" /secrets/secrets.yml | sed 's/.*compreface_key:[[:space:]]*//' | tr -d '"\r' | tr -d '[:space:]')
+              [ -n "$API_KEY" ] || { echo "compreface_key missing from secrets.yml" >&2; exit 1; }
+              export API_KEY
+              exec uvicorn app.main:app --host 0.0.0.0 --port 8080 --no-access-log
+          env:
+            - name: ORT_THREADS
+              value: "4"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            # CompreFace similarity curve (tanh((c0 - d) * c1) + 1) / 2, fitted to
+            # CompreFace arcface-r100 scores on this gallery (see face-api/README.md).
+            - name: SIM_C0
+              value: "1.10"
+            - name: SIM_C1
+              value: "6.0"
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - {name: data, mountPath: /data, subPath: gallery}
+            - {name: tmp, mountPath: /tmp}
+            - {name: secrets, mountPath: /secrets/secrets.yml, subPath: secrets.yml, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: face-api-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: secrets
+          secret:
+            secretName: double-take-secrets
