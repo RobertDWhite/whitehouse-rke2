@@ -32,8 +32,14 @@ generators:
 images:
   # Riffado publishes multi-arch tags; the index digest keeps Kyverno's
   # require-image-digest happy. Renovate bumps the tag; refresh the digest with it.
+  # TEMPORARY: upstream main + PR riffado/riffado#328 (Plaud 4.0 accounts), built
+  # in-cluster from 1402ad3 and pushed to the internal registry, amd64 only.
+  # 0.6.4 reads Plaud's "Account migrated to 4.0" reply as an empty file list,
+  # so nothing imported after 2026-10-27. Revert to ghcr.io/riffado/riffado
+  # once a release includes #328 (main's migrations 0036-0038 run on start).
   - name: ghcr.io/riffado/riffado
-    newTag: "0.6.4@sha256:c8d6b1727b154ef3df412e7be58d86b6bd53ba20102e6dde1530637eba767d49"
+    newName: registry.internal.white.fm/riffado
+    newTag: "0.6.4-plaud4-1402ad3@sha256:b7fce77c56c9839e6dac3dc7a27a30cd78977a9d1989141f7241fc9f1512c44e"
   - name: ghcr.io/speaches-ai/speaches
     newTag: "0.8.3-cuda@sha256:9abc6968a883e77ead9286c38a6ccf3139dcad518b783deeebb7be2ced50e972"
   - name: postgres

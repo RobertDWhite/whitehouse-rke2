@@ -25,6 +25,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
+                  # The temporary Plaud 4.0 build is amd64 only.
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: [amd64]
                   - key: kubernetes.io/hostname
                     operator: NotIn
                     values:
