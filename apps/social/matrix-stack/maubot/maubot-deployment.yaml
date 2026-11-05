@@ -43,15 +43,19 @@ spec:
               cpu: 500m
               memory: 512Mi
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /_matrix/maubot/
               port: 29316
             initialDelaySeconds: 10
             periodSeconds: 15
+          # watchdog.py (maubot-watchdog ConfigMap) repairs the GitHub plugin,
+          # client and instance, and fails only if they will not start.
           livenessProbe:
-            tcpSocket:
-              port: 29316
+            exec:
+              command: [python, /watchdog/watchdog.py]
             initialDelaySeconds: 30
-            periodSeconds: 30
+            periodSeconds: 180
+            timeoutSeconds: 120
             failureThreshold: 3
           env:
             - name: POSTGRES_PASSWORD
@@ -60,12 +64,18 @@ spec:
                   name: maubot-secret
                   key: POSTGRES_PASSWORD
           volumeMounts:
+            - name: watchdog
+              mountPath: /watchdog
+              readOnly: true
             - name: maubot-data
               mountPath: /data
             - name: config
               mountPath: /opt/maubot/config.yaml
               subPath: config.yaml
       volumes:
+        - name: watchdog
+          configMap:
+            name: maubot-watchdog
         - name: config
           configMap:
             name: maubot-config

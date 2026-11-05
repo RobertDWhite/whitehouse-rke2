@@ -6,13 +6,11 @@ metadata:
 spec:
   image:
     repository: registry.internal.white.fm/openclaw-claude
-    # Held at 2026.6.8 (OS-patched rebuild, --build-arg
-    # OPENCLAW_IMAGE=ghcr.io/openclaw/openclaw:2026.6.8@sha256:9f55f0cb...).
-    # 2026.10.10 refuses to start on this state: cron/jobs.json predates
-    # 2026-07-01, so the upgrade must go through 2026.9.7 + `openclaw doctor --fix`
-    # first (needs a writable state backup; doctor hit EROFS).
-    tag: "2026.6.8-claude.2"
-    digest: "sha256:c344529d24da2a95b90598a45dacd0f7ec7a31aaaa5b621605467a6d944da767"
+    # 2026.10.10 (2026-11-05). State was migrated through the 2026.9.5 bridge:
+    # `openclaw doctor --fix` on 2026.9.5, then on 2026.10.10, with the instance
+    # suspended. Older builds can no longer open this state (schema 22).
+    tag: "2026.10.10-claude.2"
+    digest: "sha256:435ae88530347cf8529c3fafc1c71b11d3c8208440c1fe5b3671e0c4f465293a"
   envFrom:
     - secretRef:
         name: openclaw-api-keys
