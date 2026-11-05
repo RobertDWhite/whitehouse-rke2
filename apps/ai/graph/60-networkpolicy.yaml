@@ -57,6 +57,13 @@ spec:
         - podSelector:
             matchLabels:
               app: graphiti-ingest
+        # OpenClaw memory search embeddings.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openclaw
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openclaw
       ports:
         - {port: 8080, protocol: TCP}
 ---

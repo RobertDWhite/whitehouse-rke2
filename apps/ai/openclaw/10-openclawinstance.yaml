@@ -73,12 +73,17 @@ spec:
               alias: "chatgpt"
               params:
                 transport: "auto"
-      # No embeddings key (OPENAI_API_KEY is blanked above). 2026.10.x refuses to
-      # sync memory with an unavailable embedding provider instead of falling
-      # back, so use keyword-only (FTS) recall explicitly.
+      # Memory embeddings from the in-cluster TEI service (apps/ai/graph,
+      # Qwen3-Embedding-0.6B, OpenAI-compatible). OPENAI_API_KEY is blanked
+      # above, and 2026.10.x stops memory sync when the configured embedding
+      # provider is unavailable. TEI has no auth; the key is a placeholder.
       memory:
         search:
-          provider: "none"
+          provider: "openai-compatible"
+          model: "Qwen/Qwen3-Embedding-0.6B"
+          remote:
+            baseUrl: "http://embeddings.graph.svc.cluster.local:8080/v1"
+            apiKey: "tei-local"
       channels:
         telegram:
           enabled: true
