@@ -8,6 +8,8 @@ resources:
   - double-take-config.yaml
   - double-take-service.yaml
   - compreface-warmer.yaml
+  - face-api-deployment.yaml
+  - face-api-service.yaml
   - routes.yaml
 
 generators:
@@ -16,5 +18,8 @@ generators:
 images:
   - name: exadel/compreface
     newTag: "1.2.0-arcface-r100"
+  # Built from face-api/ (in-cluster buildx; internal registry, not Renovate-tracked).
+  - name: registry.internal.white.fm/face-api
+    newTag: "0.1.0@sha256:80f220d4f6528c17f555dc7bfbc42922d30efe52a259172846d6b1d2ee512f76"
   - name: jakowenko/double-take
     newTag: "1.13.2"
