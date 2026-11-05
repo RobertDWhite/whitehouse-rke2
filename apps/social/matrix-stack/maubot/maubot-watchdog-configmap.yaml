@@ -1,0 +1,38 @@
+# Liveness check for maubot: logs in to the management API, re-installs the
+# GitHub plugin if it disappeared, and re-enables/starts the @maubot client and
+# github instance; exits 1 (pod restart) if they will not start.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maubot-watchdog
+  namespace: matrix
+data:
+  watchdog.py: |
+    import json, urllib.request
+    from ruamel.yaml import YAML
+    c=YAML(typ="safe").load(open("/data/config.yaml"))
+    base="http://localhost:29316/_matrix/maubot/v1"
+    token=None
+    def req(path,data=None,method=None):
+        body=data if isinstance(data,bytes) else json.dumps(data).encode() if data is not None else None
+        r=urllib.request.Request(base+path,data=body,method=method,headers={"Content-Type":"application/json",**({"Authorization":"Bearer "+token} if token else {})})
+        return json.load(urllib.request.urlopen(r,timeout=30))
+    token=req("/auth/login",{"secret":c["server"]["unshared_secret"]})["token"]
+    try:
+        plugins=req("/plugins")
+        if not any(p["id"]=="xyz.maubot.github" for p in plugins):
+            b=urllib.request.urlopen("https://github.com/maubot/github/releases/download/v0.2.0/xyz.maubot.github-v0.2.0.mbp",timeout=30).read()
+            req("/plugin/xyz.maubot.github",b,"PUT")
+            print("Restored GitHub plugin")
+        for kind,id in [("client","@maubot:white.fm"),("instance","github")]:
+            d=req("/"+kind+"/"+id)
+            if not d["enabled"] or not d["started"]:
+                req("/"+kind+"/"+id,{"enabled":True},"PUT")
+                req("/"+kind+"/"+id,{"started":True},"PUT")
+            d=req("/"+kind+"/"+id)
+            print(kind,id,"enabled",d["enabled"],"started",d["started"])
+            if not d["enabled"] or not d["started"]:
+                raise RuntimeError("Component did not start")
+    except Exception as e:
+        print("Repair failed:",type(e).__name__)
+        raise SystemExit(1)
