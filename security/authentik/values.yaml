@@ -31,9 +31,8 @@ postgresql:
         cpu: 1000m
         memory: 2Gi
 
-    nodeSelector:
-      kubernetes.io/hostname: rke2-node-11
-
+    # No node pin: the data is on Longhorn, so any node can run it. The old
+    # node-11 pin left it Pending once node-11 ran out of CPU to request.
     tolerations:
       - key: kube-vip
         operator: Equal
