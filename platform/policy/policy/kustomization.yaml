@@ -5,6 +5,7 @@ kind: Kustomization
 #
 # General policies enforce in backoffice and audit elsewhere.
 # PHP containment separately enforces in its selected namespaces.
+# keep-storage-off-transient-nodes mutates PVC pods away from rke2-node-50.
 #
 # These resources require the ClusterPolicy CRD installed by the kyverno
 # helm release (argo-cd/applications/kyverno-app.yaml). The kyverno-policies
@@ -17,3 +18,4 @@ resources:
   - disallow-host-path.yaml
   - restrict-image-registries.yaml
   - require-image-digest.yaml
+  - keep-storage-off-transient-nodes.yaml

@@ -1,0 +1,97 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: keep-storage-off-transient-nodes
+  annotations:
+    policies.kyverno.io/title: Keep storage off transient nodes
+    policies.kyverno.io/description: >-
+      rke2-node-50 (the GPU box) comes and goes. Any pod that mounts a PVC
+      gets a required node affinity that excludes it, so neither Longhorn
+      attachments nor local-path data ever land there. GPU pods
+      (nvidia.com/gpu limit) are exempt because node-50 is the only place
+      they can run.
+    # Mutate pods only. Autogen would rewrite Deployment/StatefulSet templates
+    # and fight Argo selfHeal.
+    pod-policies.kyverno.io/autogen-controllers: none
+spec:
+  # Ignore: a Kyverno outage must not block every pod in the cluster.
+  failurePolicy: Ignore
+  background: false
+  rules:
+    # Order matters: append to existing terms first, then add a term when the
+    # pod has none. Rules see the previous rule's patch.
+    - name: append-to-existing-terms
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              operations: [CREATE]
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.volumes[?persistentVolumeClaim || ephemeral] || `[]` | length(@) }}"
+            operator: GreaterThan
+            value: 0
+          - key: "{{ request.object.spec.containers[?resources.limits.\"nvidia.com/gpu\"] || `[]` | length(@) }}"
+            operator: Equals
+            value: 0
+          - key: "{{ request.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms || `[]` | length(@) }}"
+            operator: GreaterThan
+            value: 0
+      mutate:
+        foreach:
+          # nodeSelectorTerms are ORed, so the exclusion goes into every term.
+          - list: "request.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms"
+            preconditions:
+              all:
+                - key: "{{ contains(keys(element), 'matchExpressions') }}"
+                  operator: Equals
+                  value: true
+            patchesJson6902: |-
+              - op: add
+                path: /spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/{{elementIndex}}/matchExpressions/-
+                value:
+                  key: kubernetes.io/hostname
+                  operator: NotIn
+                  values: [rke2-node-50]
+          - list: "request.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms"
+            preconditions:
+              all:
+                - key: "{{ contains(keys(element), 'matchExpressions') }}"
+                  operator: Equals
+                  value: false
+            patchesJson6902: |-
+              - op: add
+                path: /spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/{{elementIndex}}/matchExpressions
+                value:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values: [rke2-node-50]
+
+    - name: add-term-when-none
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              operations: [CREATE]
+      preconditions:
+        all:
+          - key: "{{ request.object.spec.volumes[?persistentVolumeClaim || ephemeral] || `[]` | length(@) }}"
+            operator: GreaterThan
+            value: 0
+          - key: "{{ request.object.spec.containers[?resources.limits.\"nvidia.com/gpu\"] || `[]` | length(@) }}"
+            operator: Equals
+            value: 0
+          - key: "{{ request.object.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms || `[]` | length(@) }}"
+            operator: Equals
+            value: 0
+      mutate:
+        patchStrategicMerge:
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/hostname
+                          operator: NotIn
+                          values: [rke2-node-50]
