@@ -1,4 +1,4 @@
-FROM python:3.15-slim@sha256:f0aecb335180611a3a000c45def529ec8ee768d5d26ff24bae4dfb70594a9121
+FROM python:3.15-slim@sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75
 
 ARG MISP_DASHBOARD_REF=3c1125083aba83ea1ba049dfed625a2798a8878d
 
