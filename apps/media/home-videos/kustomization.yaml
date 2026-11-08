@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-namespace.yaml
+  - 10-storage.yaml
+  - 20-networkpolicy.yaml
+  - 30-media-server.yaml
+  - 35-labels.yaml
+  # The 4x-job-*.yaml Jobs are run by hand (see README.md), not synced.
+
+configMapGenerator:
+  - name: home-videos-indexer
+    namespace: home-videos
+    files:
+      - indexer/indexer.py
+      - indexer/voices.py
+    options:
+      # The Job references the ConfigMap by its plain name.
+      disableNameSuffixHash: true
+  - name: home-videos-labels
+    namespace: home-videos
+    files:
+      - labels/server.py
+
+generators:
+  - ksops.yaml

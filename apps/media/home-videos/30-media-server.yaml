@@ -1,0 +1,105 @@
+# Read-only HTTP server for the tapes themselves, so the home-videos Pages site
+# can play them in the browser and seek to chapters. The conversions are
+# H.264/AAC in .mov, which Chrome and Safari play natively when served as
+# video/mp4. nginx answers Range requests, so seeking works without faststart.
+# Served on the site's own host under /media/ (route: apps/ai/pages/
+# 58-httproute-home-videos.yaml), so the site needs no CORS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: media-server
+  namespace: home-videos
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_tokens off;
+      types { video/mp4 mov mp4 m4v; }
+      default_type application/octet-stream;
+      location /media/ {
+        alias /vhs/;
+        autoindex off;
+        sendfile on;
+        tcp_nopush on;
+        add_header Cache-Control "private, max-age=86400";
+      }
+      location = /healthz { return 200 "ok\n"; }
+      location / { return 404; }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-server
+  namespace: home-videos
+  labels:
+    app: media-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-server
+  template:
+    metadata:
+      labels:
+        app: media-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+      containers:
+        - name: nginx
+          image: docker.io/nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          volumeMounts:
+            - {name: vhs, mountPath: /vhs, readOnly: true}
+            - {name: conf, mountPath: /etc/nginx/conf.d}
+            - {name: tmp, mountPath: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: vhs
+          persistentVolumeClaim: {claimName: vhs, readOnly: true}
+        - name: conf
+          configMap: {name: media-server}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-server
+  namespace: home-videos
+spec:
+  selector:
+    app: media-server
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: pages-home-videos
+  namespace: home-videos
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: pages
+  to:
+    - group: ""
+      kind: Service
+      name: media-server
+    - group: ""
+      kind: Service
+      name: labels

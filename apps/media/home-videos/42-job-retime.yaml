@@ -1,0 +1,72 @@
+# One-shot: re-transcribe the spans that came back without word timings, then
+# re-classify the tapes it changed (see "retime" in indexer/indexer.py).
+#   kubectl create -f apps/media/home-videos/42-job-retime.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-videos-retime
+  namespace: home-videos
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: home-videos-indexer
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [rke2-node-50, rke2-node-10]}
+        # The work volume is ReadWriteOnce: land next to another indexer pod if one is running.
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {app: home-videos-indexer}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1026
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: indexer
+          image: registry.internal.white.fm/clean-audio-mcp:0.5.1@sha256:f7ca9a91cb6464e57c4b8173e77b5a06860adcfb92ef89d4d1ca4ea3d9706982
+          command: [sh, -c]
+          args:
+            - cp /people/people.md /work/White/people.md && exec python3 /scripts/indexer.py retime "$@"
+            - retime
+          env:
+            - {name: SRC, value: /vhs/White}
+            - {name: WORK, value: /work/White}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - name: NEMOTRON_API_KEY
+              valueFrom:
+                secretKeyRef: {name: indexer-env, key: NEMOTRON_API_KEY}
+          resources:
+            requests: {cpu: "1", memory: 1Gi}
+            limits: {cpu: "4", memory: 4Gi}
+          volumeMounts:
+            - {name: vhs, mountPath: /vhs, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: scripts, mountPath: /scripts}
+            - {name: people, mountPath: /people, readOnly: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: vhs
+          persistentVolumeClaim: {claimName: vhs, readOnly: true}
+        - name: work
+          persistentVolumeClaim: {claimName: work}
+        - name: scripts
+          configMap: {name: home-videos-indexer}
+        - name: people
+          secret: {secretName: home-videos-people}

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: home-videos
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: apps/media/home-videos
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: home-videos
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

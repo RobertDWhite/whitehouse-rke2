@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Who's talking · Home Videos</title><style>
+:root{
+  --paper:#f6f1e7; --paper2:#fffdf8; --ink:#23201c; --ink2:#5e574d;
+  --line:#e0d7c6; --accent:#8c5a3c; --ok:#4f7a3a; --warn:#b4552f;
+  --shadow:0 1px 2px rgba(60,45,25,.07),0 8px 22px rgba(60,45,25,.09);
+}
+@media (prefers-color-scheme:dark){
+ :root{--paper:#16140f; --paper2:#1f1c16; --ink:#efe8db; --ink2:#a79c8a; --line:#332e25; --accent:#d5a06a; --ok:#8fbf6a; --warn:#e08055;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.45);}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding-bottom:16rem}
+a{color:var(--accent)}
+.wrap{max-width:62rem;margin:0 auto;padding:0 1.1rem}
+header{padding:2.4rem 0 1.2rem;border-bottom:1px solid var(--line)}
+h1{font:600 2.2rem/1.1 ui-serif,Georgia,serif;margin:0}
+.tag{color:var(--ink2);margin:.5rem 0 0}
+.tag kbd{font:.75rem ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:.25rem;padding:0 .3rem;background:var(--paper2)}
+.prog{margin-top:1rem;font-size:.85rem;color:var(--ink2)}
+.pb{height:6px;background:var(--line);border-radius:3px;margin-top:.35rem;overflow:hidden}.pb i{display:block;height:100%;background:var(--ok)}
+.bar{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:.6rem 0}
+.barin{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.barin input{flex:1;min-width:12rem;font:inherit;padding:.45rem .7rem;border:1px solid var(--line);border-radius:.4rem;background:var(--paper2);color:var(--ink)}
+button{font:inherit;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--paper2);color:var(--ink);border-radius:.4rem;padding:.4rem .75rem}
+.btn:hover{border-color:var(--accent)}
+.btn.main{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.who{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.9rem}
+.who span{font-size:.78rem;border:1px solid var(--line);border-radius:1rem;padding:.05rem .55rem;background:var(--paper2)}
+.who b{font-weight:600}
+.tape{background:var(--paper2);border:1px solid var(--line);border-radius:.6rem;margin:.8rem 0;box-shadow:var(--shadow);overflow:hidden}
+.th{display:grid;grid-template-columns:5.5rem 1fr auto;gap:.8rem;align-items:center;padding:.6rem .8rem;cursor:pointer}
+.th img{width:5.5rem;aspect-ratio:4/3;object-fit:cover;border-radius:.3rem;background:#000}
+.th b{display:block;font:600 1.02rem/1.3 ui-serif,Georgia,serif}
+.th small{color:var(--ink2);font-size:.78rem}
+.mini{width:7rem;font-size:.75rem;color:var(--ink2);text-align:right}
+.mini .pb{height:4px}
+.voices{border-top:1px solid var(--line);display:none}
+.tape.open .voices{display:block}
+.voice{padding:.8rem .9rem;border-top:1px solid var(--line)}
+.voice:first-child{border-top:0}
+.voice.focus{background:color-mix(in srgb,var(--accent) 8%,transparent);box-shadow:inset 3px 0 0 var(--accent)}
+.vh{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap}
+.vtag{font:600 .7rem ui-monospace,Menlo,monospace;color:#fff;border-radius:.25rem;padding:.05rem .35rem}
+.vname{font-weight:600}.vname.none{color:var(--ink2);font-weight:400;font-style:italic}
+.meta{color:var(--ink2);font-size:.78rem}
+.pick{display:flex;flex-wrap:wrap;gap:.3rem;margin:.5rem 0 .3rem}
+.pick button{border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:1rem;padding:.12rem .6rem;font-size:.8rem}
+.pick button:hover{border-color:var(--accent)}
+.pick button.cur{background:var(--accent);border-color:var(--accent);color:#fff}
+.pick button.sug{border-style:dashed;border-color:var(--accent)}
+.pick button kbd{font:.65rem ui-monospace,Menlo,monospace;opacity:.6;margin-right:.25rem}
+.pick .sep{width:100%;height:0}
+.why{font-size:.78rem;color:var(--ink2);margin:.1rem 0 .3rem}
+.clip{display:grid;grid-template-columns:1.8rem 4.2rem 1fr;gap:.4rem;align-items:start;font-size:.86rem;padding:.15rem 0;cursor:pointer;border-radius:.3rem}
+.clip:hover{background:var(--paper)}
+.clip .pl{width:1.6rem;height:1.6rem;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:.65rem;background:var(--paper)}
+.clip.playing .pl{background:var(--accent);color:#fff;border-color:var(--accent)}
+.clip .ts{font:.72rem ui-monospace,Menlo,monospace;color:var(--ink2);padding-top:.2rem}
+details.same{margin-top:.4rem;font-size:.84rem}
+details.same summary{cursor:pointer;color:var(--accent)}
+.sim{display:grid;grid-template-columns:1.4rem 3rem 1fr auto;gap:.4rem;align-items:center;padding:.15rem 0}
+.sim .pct{font:.72rem ui-monospace,Menlo,monospace;color:var(--ink2)}
+.sim .lab{font-size:.75rem;color:var(--ink2)}
+.minor{padding:.5rem .9rem;font-size:.8rem;color:var(--ink2);border-top:1px solid var(--line);cursor:pointer}
+.player{position:fixed;right:1rem;bottom:1rem;width:min(26rem,calc(100vw - 2rem));background:#000;border-radius:.6rem;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:20;display:none}
+.player.on{display:block}
+.player video{width:100%;display:block;aspect-ratio:4/3;background:#000}
+.player .cap{color:#ddd;font-size:.8rem;padding:.4rem .6rem}
+.player .x{position:absolute;top:.3rem;right:.3rem;border:0;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:1.8rem;height:1.8rem}
+.toast{position:fixed;left:50%;bottom:1.2rem;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:.4rem .9rem;border-radius:.4rem;font-size:.85rem;opacity:0;transition:opacity .2s;z-index:30}
+.toast.on{opacity:1}
+.err{color:var(--warn)}
+.c1{background:#b0603a}.c2{background:#3a7ab0}.c3{background:#5a9a3a}.c4{background:#9a3ab0}.c5{background:#b08a3a}.c6{background:#3aa0a0}.c7{background:#a03a5a}.c8{background:#6a6a6a}
+</style></head><body>
+<header><div class="wrap">
+ <h1>Who's talking?</h1>
+ <p class="tag">Name the voices on each tape. A voice matcher grouped the speech into voices (v1, v2, …) and the AI made a first guess.
+  Naming a voice once suggests the same name for matching voices on other tapes. Names show up in the transcripts and in the brain notes.
+  <a href="./">Back to the videos</a>.</p>
+ <p class="tag">Keys: <kbd>n</kbd> next unnamed voice · <kbd>space</kbd> play next clip · <kbd>1</kbd>–<kbd>9</kbd>, <kbd>0</kbd> pick a name · <kbd>a</kbd> accept the suggestion · <kbd>x</kbd> clear · <kbd>s</kbd> skip</p>
+ <div class="prog" id="prog">Loading…</div>
+ <div class="who" id="who"></div>
+</div></header>
+<div class="bar"><div class="wrap"><div class="barin">
+ <input id="q" type="search" placeholder="Find a tape…" autocomplete="off">
+ <button class="btn" id="todo">Only unnamed</button>
+ <button class="btn" id="expand">Open all</button>
+ <button class="btn main" id="next">Next unnamed voice ▸</button>
+</div></div></div>
+<main class="wrap" id="main"></main>
+<div class="player" id="player"><button class="x" id="px" title="Close">×</button><video id="vid" playsinline controls preload="none"></video><div class="cap" id="pcap"></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const VIDEOS = /*VIDEOS*/[];
+const CFG = /*CONFIG*/{};
+const API = "api/labels";
+const MINOR = 8;          // voices with fewer seconds of speech are tucked away
+const MATCH = 0.45;       // show voice matches at or above this similarity
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hms = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = t%60;
+  return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(s).padStart(2,"0"); };
+const dur = t => t >= 3600 ? (t/3600).toFixed(1) + " h" : t >= 60 ? Math.round(t/60) + " min" : Math.round(t) + " s";
+const BY = Object.fromEntries(VIDEOS.map(v => [v.slug, v]));
+const vnum = v => +v.slice(1);
+let VOICES = {}, LABELS = {}, NAMES = [], EMB = {}, focus = null, onlyTodo = false, openAll = false;
+const open = new Set();
+
+function toast(msg, bad) { const t = $("#toast"); t.textContent = msg; t.classList.toggle("err", !!bad); t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1800); }
+const label = k => LABELS[k]?.name || null;
+const keysOf = slug => Object.keys(VOICES[slug] || {}).sort((a, b) => VOICES[slug][b].talk - VOICES[slug][a].talk);
+
+function dot(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+function matches(k) {                       // other voices most like k, best first
+  const e = EMB[k]; if (!e) return [];
+  const out = [];
+  for (const [k2, e2] of Object.entries(EMB)) if (k2 !== k && k2.split("/")[0] !== k.split("/")[0]) out.push([k2, dot(e, e2)]);
+  return out.sort((a, b) => b[1] - a[1]);
+}
+function byName(k) {                        // names of labeled voices like k: [[name, sim]]
+  const best = {};
+  for (const [k2, s] of matches(k)) { const n = label(k2); if (n && n !== "Not speech" && s >= MATCH && !(n in best)) best[n] = s; }
+  return Object.entries(best).sort((a, b) => b[1] - a[1]).slice(0, 3);
+}
+function suggestion(k) {                    // the one name "a" accepts
+  const [slug, v] = k.split("/"); const g = VOICES[slug][v].guess, vm = byName(k)[0];
+  if (vm && vm[1] >= 0.6) return vm[0];
+  if (g?.name && NAMES.includes(g.name)) return g.name;
+  return vm?.[0] || null;
+}
+
+function stats() {
+  let tot = 0, done = 0, n = 0, nd = 0; const who = {};
+  for (const slug in VOICES) for (const v in VOICES[slug]) {
+    const x = VOICES[slug][v], k = slug + "/" + v, l = label(k);
+    tot += x.talk; n++; if (l) { done += x.talk; nd++; (who[l] ||= new Set()).add(slug); }
+  }
+  $("#prog").innerHTML = n ? `${nd} of ${n} voices named, covering ${Math.round(100 * done / Math.max(tot, 1))}% of the talking.
+    <div class="pb"><i style="width:${100 * done / Math.max(tot, 1)}%"></i></div>` : "No voice data yet: the voice matcher hasn't run.";
+  $("#who").innerHTML = Object.entries(who).sort((a, b) => b[1].size - a[1].size)
+    .map(([n, s]) => `<span><b>${esc(n)}</b> · ${s.size} tape${s.size > 1 ? "s" : ""}</span>`).join("");
+}
+
+function voiceHTML(slug, v) {
+  const x = VOICES[slug][v], k = slug + "/" + v, l = label(k), g = x.guess, sug = byName(k);
+  const sugNames = new Set([...(g?.name ? [g.name] : []), ...sug.map(s => s[0])]);
+  const btn = (n, i) => `<button data-name="${esc(n)}" class="${l === n ? "cur" : ""} ${!l && sugNames.has(n) ? "sug" : ""}">${i < 10 ? `<kbd>${(i + 1) % 10}</kbd>` : ""}${esc(n)}</button>`;
+  const why = [g?.name ? `AI guess: <b>${esc(g.name)}</b>${g.confidence ? ` (${esc(g.confidence)})` : ""}${g.why ? ` — ${esc(g.why)}` : ""}` : "",
+    sug.length ? "Sounds like " + sug.map(([n, s]) => `<b>${esc(n)}</b> ${Math.round(s * 100)}%`).join(", ") : ""].filter(Boolean).join(" · ");
+  return `<div class="voice ${focus === k ? "focus" : ""}" data-k="${k}">
+    <div class="vh"><span class="vtag c${(vnum(v) - 1) % 8 + 1}">${v}</span>
+      <span class="vname ${l ? "" : "none"}">${esc(l || "Unnamed")}</span>
+      <span class="meta">${dur(x.talk)} of speech · ${x.n} lines</span></div>
+    ${why ? `<div class="why">${why}</div>` : ""}
+    <div class="pick">${NAMES.map(btn).join("")}<button data-other>Someone else…</button>${l ? `<button data-clear>Clear</button>` : ""}</div>
+    ${x.clips.slice(0, 6).map((c, i) => `<div class="clip" data-s="${slug}" data-a="${c[0]}" data-b="${c[1]}" data-i="${i}">
+      <span class="pl">▶</span><span class="ts">${hms(c[0])}</span><span>${esc(c[2])}</span></div>`).join("")}
+    <details class="same" data-k="${k}"><summary>Same voice on other tapes</summary><div class="simlist">…</div></details>
+  </div>`;
+}
+
+function tapeHTML(v) {
+  const keys = keysOf(v.slug), named = keys.filter(x => label(v.slug + "/" + x)).length;
+  const talk = keys.reduce((a, x) => a + VOICES[v.slug][x].talk, 0);
+  const done = keys.filter(x => label(v.slug + "/" + x)).reduce((a, x) => a + VOICES[v.slug][x].talk, 0);
+  const major = keys.filter(x => VOICES[v.slug][x].talk >= MINOR), minor = keys.filter(x => VOICES[v.slug][x].talk < MINOR);
+  const isOpen = openAll || open.has(v.slug);
+  const date = [v.date_start, v.date_end && v.date_end !== v.date_start ? v.date_end : ""].filter(Boolean).join(" – ") || "Date unknown";
+  return `<section class="tape ${isOpen ? "open" : ""}" data-s="${v.slug}">
+    <div class="th"><img loading="lazy" src="t/${v.slug}/${Math.min(v.n - 1, Math.round(v.dur * 0.12 / CFG.step))}.jpg" alt="">
+      <div><b>${esc(v.title)}</b><small>${esc(date)} · ${hms(v.dur)}</small></div>
+      <div class="mini">${keys.length ? `${named}/${keys.length} named<div class="pb"><i style="width:${100 * done / Math.max(talk, 1)}%"></i></div>` : "no voices yet"}</div></div>
+    <div class="voices">${isOpen ? major.map(x => voiceHTML(v.slug, x)).join("") +
+      (minor.length ? `<div class="minor" data-minor>${minor.length} more voice${minor.length > 1 ? "s" : ""} with only a few seconds of speech ▾</div><div class="minors" hidden>${minor.map(x => voiceHTML(v.slug, x)).join("")}</div>` : "")
+      + (keys.length ? "" : `<div class="minor">The voice matcher hasn't run for this tape yet.</div>`) : ""}</div>
+  </section>`;
+}
+
+function render() {
+  const q = $("#q").value.trim().toLowerCase();
+  const list = VIDEOS.filter(v => (!q || (v.title + " " + v.file).toLowerCase().includes(q))
+    && (!onlyTodo || keysOf(v.slug).some(x => !label(v.slug + "/" + x) && VOICES[v.slug][x].talk >= MINOR)));
+  $("#main").innerHTML = list.map(tapeHTML).join("") || `<p class="meta">Nothing to show.</p>`;
+  stats();
+}
+function rerenderTape(slug) {
+  const el = document.querySelector(`.tape[data-s="${slug}"]`); if (!el) return;
+  const minorsOpen = el.querySelector(".minors") && !el.querySelector(".minors").hidden;
+  el.outerHTML = tapeHTML(BY[slug]);
+  if (minorsOpen) { const m = document.querySelector(`.tape[data-s="${slug}"] .minors`); if (m) m.hidden = false; }
+  stats();
+}
+
+async function setLabels(changes) {
+  try {
+    const r = await fetch(API, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({set: changes})});
+    if (!r.ok) throw new Error((await r.json()).error || r.status);
+    const d = await r.json(); LABELS = d.labels; NAMES = d.names;
+    const slugs = new Set(Object.keys(changes).map(k => k.split("/")[0]));
+    slugs.forEach(rerenderTape);
+    const n = Object.keys(changes).length, name = Object.values(changes)[0];
+    toast(name ? `${n > 1 ? n + " voices" : "Saved"}: ${name}` : "Cleared");
+  } catch (e) { toast("Couldn't save: " + e.message, true); }
+}
+
+// ----------------------------------------------------------- clips
+const vid = $("#vid"); let clipEnd = null, playingEl = null;
+function playClip(el) {
+  const v = BY[el.dataset.s], a = +el.dataset.a, b = +el.dataset.b;
+  const src = `media/${CFG.folder}/${encodeURIComponent(v.file)}`;
+  $("#player").classList.add("on"); $("#pcap").textContent = `${v.title} · ${hms(a)}`;
+  playingEl?.classList.remove("playing"); playingEl = el; el.classList.add("playing");
+  clipEnd = b + 0.4;
+  const go = () => { vid.currentTime = Math.max(0, a - 0.4); vid.play().catch(() => {}); };
+  if (!vid.src.endsWith(src)) { vid.src = src; vid.addEventListener("loadedmetadata", go, {once: true}); vid.load(); } else go();
+}
+vid.addEventListener("timeupdate", () => { if (clipEnd && vid.currentTime > clipEnd) { vid.pause(); clipEnd = null; playingEl?.classList.remove("playing"); } });
+vid.addEventListener("seeking", () => { if (clipEnd && Math.abs(vid.currentTime - clipEnd) > 30) clipEnd = null; });
+$("#px").onclick = () => { vid.pause(); $("#player").classList.remove("on"); };
+
+// ----------------------------------------------------------- focus / keyboard
+function setFocus(k, scroll) {
+  focus = k;
+  document.querySelectorAll(".voice.focus").forEach(e => e.classList.remove("focus"));
+  const el = document.querySelector(`.voice[data-k="${k}"]`);
+  if (el) { el.classList.add("focus"); if (scroll) el.scrollIntoView({block: "center", behavior: "smooth"}); }
+  if (k) history.replaceState(null, "", "#" + k);
+}
+const skipped = new Set();
+function nextUnnamed() {
+  const all = [];
+  for (const v of VIDEOS) for (const x of keysOf(v.slug)) {
+    const k = v.slug + "/" + x;
+    if (!label(k) && !skipped.has(k) && VOICES[v.slug][x].talk >= MINOR) all.push(k);
+  }
+  const i = focus ? all.indexOf(focus) : -1;
+  const k = all[(i + 1) % all.length] || all[0];
+  if (!k) return toast("Every voice with real speech has a name. 🎉");
+  const slug = k.split("/")[0];
+  if (!open.has(slug)) { open.add(slug); rerenderTape(slug); }
+  setFocus(k, true);
+  const first = document.querySelector(`.voice[data-k="${k}"] .clip`); if (first) playClip(first);
+}
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "n") { nextUnnamed(); e.preventDefault(); return; }
+  if (!focus) return;
+  const el = document.querySelector(`.voice[data-k="${focus}"]`); if (!el) return;
+  if (e.key === " ") {
+    const clips = [...el.querySelectorAll(".clip")]; const i = clips.indexOf(playingEl);
+    if (clips.length) playClip(clips[(i + 1) % clips.length]); e.preventDefault();
+  } else if (/^[0-9]$/.test(e.key)) {
+    const n = NAMES[(+e.key + 9) % 10]; if (n) { setLabels({[focus]: n}).then(() => setTimeout(nextUnnamed, 250)); }
+  } else if (e.key === "a") {
+    const n = suggestion(focus); if (n) setLabels({[focus]: n}).then(() => setTimeout(nextUnnamed, 250)); else toast("No suggestion for this voice");
+  } else if (e.key === "x") { setLabels({[focus]: null}); }
+  else if (e.key === "s") { skipped.add(focus); nextUnnamed(); }
+});
+
+// ----------------------------------------------------------- clicks
+document.addEventListener("click", e => {
+  const th = e.target.closest(".th"); if (th) { const s = th.parentElement.dataset.s; open.has(s) ? open.delete(s) : open.add(s); rerenderTape(s); return; }
+  const voice = e.target.closest(".voice"); if (voice && !e.target.closest("details")) setFocus(voice.dataset.k);
+  const clip = e.target.closest(".clip"); if (clip) return playClip(clip);
+  const nb = e.target.closest(".pick button[data-name]"); if (nb) return setLabels({[voice.dataset.k]: nb.dataset.name});
+  if (e.target.closest(".pick button[data-clear]")) return setLabels({[voice.dataset.k]: null});
+  if (e.target.closest(".pick button[data-other]")) { const n = prompt("Who is this? (e.g. an uncle, a coach, a news anchor)"); if (n && n.trim()) setLabels({[voice.dataset.k]: n.trim()}); return; }
+  const mn = e.target.closest("[data-minor]"); if (mn) { mn.nextElementSibling.hidden = !mn.nextElementSibling.hidden; return; }
+  const apply = e.target.closest("button[data-apply]"); if (apply) {
+    const box = apply.closest("details"), k = box.dataset.k, name = label(k);
+    if (!name) return toast("Name this voice first", true);
+    const ks = [...box.querySelectorAll("input:checked")].map(i => i.value);
+    if (ks.length) setLabels(Object.fromEntries(ks.map(x => [x, name])));
+    return;
+  }
+  const sp = e.target.closest(".sim .playsim"); if (sp) return playClip(sp);
+});
+document.addEventListener("toggle", e => {
+  const d = e.target; if (!d.matches?.("details.same") || !d.open) return;
+  const k = d.dataset.k, name = label(k), list = matches(k).filter(([, s]) => s >= MATCH).slice(0, 25);
+  d.querySelector(".simlist").innerHTML = list.length ? list.map(([k2, s]) => {
+    const [slug, v] = k2.split("/"), x = VOICES[slug][v], l = label(k2), c = x.clips[0];
+    return `<label class="sim"><input type="checkbox" value="${k2}" ${!l && s >= 0.6 ? "checked" : ""}>
+      <span class="pct">${Math.round(s * 100)}%</span><span>${esc(BY[slug]?.title || slug)} · ${v} · ${dur(x.talk)}
+      ${c ? `<span class="playsim clip" style="display:inline" data-s="${slug}" data-a="${c[0]}" data-b="${c[1]}">▶ “${esc(c[2].slice(0, 60))}”</span>` : ""}</span>
+      <span class="lab">${l ? esc(l) : "unnamed"}</span></label>`; }).join("") +
+      `<button class="btn" data-apply style="margin-top:.4rem">${name ? `Name the checked ones “${esc(name)}”` : "Name this voice first"}</button>`
+    : `<span class="meta">No close matches on other tapes.</span>`;
+}, true);
+$("#q").addEventListener("input", () => render());
+$("#todo").onclick = e => { onlyTodo = !onlyTodo; e.target.classList.toggle("on", onlyTodo); render(); };
+$("#expand").onclick = e => { openAll = !openAll; e.target.textContent = openAll ? "Close all" : "Open all"; if (!openAll) open.clear(); render(); };
+$("#next").onclick = nextUnnamed;
+
+// ----------------------------------------------------------- load
+(async () => {
+  try {
+    const [vr, lr] = await Promise.all([fetch("data/voices.json").then(r => r.json()), fetch(API).then(r => r.json())]);
+    VOICES = vr; LABELS = lr.labels; NAMES = lr.names;
+    for (const slug in VOICES) for (const v in VOICES[slug]) EMB[slug + "/" + v] = Float32Array.from(VOICES[slug][v].emb);
+  } catch (e) { $("#prog").innerHTML = `<span class="err">Couldn't load voices or labels: ${esc(e.message)}</span>`; }
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (h) { const slug = h.split("/")[0]; if (BY[slug]) open.add(slug); }
+  render();
+  if (h.includes("/")) setFocus(h, true);
+  else if (h && BY[h]) document.querySelector(`.tape[data-s="${h}"]`)?.scrollIntoView({block: "start"});
+})();
+</script>
+</body></html>

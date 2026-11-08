@@ -57,6 +57,10 @@ spec:
             - {name: BATCH_SIZE, value: "10"}
             - {name: INTERVAL_SECONDS, value: "900"}
             - {name: MAX_EPISODE_CHARS, value: "6000"}
+            # Home video transcripts are ~13 MB of raw speech: kept in the brain repo and
+            # searchable there, but not worth hundreds of LLM extractions. The per-tape
+            # summary notes (Home Videos/Tapes) are ingested.
+            - {name: EXCLUDE_GLOBS, value: "Home Videos/Transcripts/*"}
             - {name: SEMAPHORE_LIMIT, value: "2"}
             - {name: GRAPHITI_TELEMETRY_ENABLED, value: "false"}
             - {name: HOME, value: /tmp}

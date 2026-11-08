@@ -1,0 +1,90 @@
+# Speaker labels API (labels/server.py): served at /api/ on the site's host by the
+# route in apps/ai/pages/58-httproute-home-videos.yaml. Keeps its data on its own
+# small volume so the indexer Jobs can still mount the work volume anywhere.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: labels
+  namespace: home-videos
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: labels
+  namespace: home-videos
+  labels: {app: labels}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: labels}
+  template:
+    metadata:
+      labels: {app: labels}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [rke2-node-50, rke2-node-10]}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: labels
+          image: docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+          command: [python3, -u, /app/server.py]
+          env:
+            - {name: DATA, value: /data}
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 500m, memory: 128Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app, readOnly: true}
+            - {name: data, mountPath: /data}
+            - {name: people, mountPath: /config, readOnly: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: app
+          configMap: {name: home-videos-labels}
+        - name: data
+          persistentVolumeClaim: {claimName: labels}
+        - name: people
+          secret:
+            secretName: home-videos-people
+            items: [{key: names.json, path: names.json}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: labels
+  namespace: home-videos
+spec:
+  selector: {app: labels}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

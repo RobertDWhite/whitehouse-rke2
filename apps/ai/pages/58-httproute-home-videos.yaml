@@ -1,0 +1,36 @@
+# The home-videos site plays the VHS conversions straight off the NAS: /media/
+# goes to the read-only nginx in namespace home-videos, /api/ to the speaker-labels
+# API there, and everything else is the static site. An exact hostname wins over
+# the *.pages wildcard route, so this route has to serve the rest of the site too
+# (same pattern as pages-graph).
+# Cross-namespace backends: ReferenceGrant in apps/media/home-videos/30-media-server.yaml.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: pages-home-videos
+  namespace: pages
+spec:
+  parentRefs:
+    - name: main
+      namespace: envoy-gateway-system
+      sectionName: https-pages-internal
+  hostnames:
+    - home-videos.pages.internal.white.fm
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /media/}
+      backendRefs:
+        - name: media-server
+          namespace: home-videos
+          port: 8080
+      timeouts:
+        request: "0s"
+    - matches:
+        - path: {type: PathPrefix, value: /api/}
+      backendRefs:
+        - name: labels
+          namespace: home-videos
+          port: 8080
+    - backendRefs:
+        - name: pages
+          port: 8080

@@ -1,0 +1,68 @@
+# Re-classify all tapes with the current who's-who (12-people.sops.yaml) (titles, chapters, people).
+# Needs tx.json + captions.json from the indexer. Not part of the kustomization.
+#   kubectl -n home-videos delete job home-videos-reclassify --ignore-not-found
+#   kubectl create -f apps/media/home-videos/41-job-reclassify.yaml
+# Takes about an hour for 51 tapes (qwen-flash). Then rebuild the site.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-videos-reclassify
+  namespace: home-videos
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: home-videos-indexer
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # No Longhorn storage on node-50 (Kyverno), and node-10 is the GB10.
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [rke2-node-50, rke2-node-10]}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1026
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: indexer
+          # Reuses the clean-audio-mcp image: Python 3.13 + ffmpeg + httpx.
+          image: registry.internal.white.fm/clean-audio-mcp:0.5.1@sha256:f7ca9a91cb6464e57c4b8173e77b5a06860adcfb92ef89d4d1ca4ea3d9706982
+          # Fresh who-is-who from the ConfigMap, then redo every info.json.
+          command: [sh, -c]
+          args:
+            - cp /people/people.md /work/White/people.md && rm -f /work/White/*/info.json && exec python3 /scripts/indexer.py classify
+          env:
+            - {name: SRC, value: /vhs/White}
+            - {name: WORK, value: /work/White}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - name: NEMOTRON_API_KEY
+              valueFrom:
+                secretKeyRef: {name: indexer-env, key: NEMOTRON_API_KEY}
+          resources:
+            requests: {cpu: "1", memory: 1Gi}
+            limits: {cpu: "4", memory: 4Gi}
+          volumeMounts:
+            - {name: vhs, mountPath: /vhs, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: scripts, mountPath: /scripts}
+            - {name: people, mountPath: /people, readOnly: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: vhs
+          persistentVolumeClaim: {claimName: vhs, readOnly: true}
+        - name: work
+          persistentVolumeClaim: {claimName: work}
+        - name: scripts
+          configMap: {name: home-videos-indexer}
+        - name: people
+          secret: {secretName: home-videos-people}

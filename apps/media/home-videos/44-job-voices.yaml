@@ -1,0 +1,85 @@
+# One-shot: voice fingerprints, voices and name guesses per tape (indexer/voices.py).
+# Re-run after a retime or new tapes; it skips tapes whose voices.json is current.
+#   kubectl -n home-videos delete job home-videos-voices --ignore-not-found
+#   kubectl create -f apps/media/home-videos/44-job-voices.yaml
+# Python packages (CPU torch, SpeechBrain) and the ECAPA model are installed on first
+# run into /work/.cache and reused after that.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-videos-voices
+  namespace: home-videos
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: home-videos-indexer
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [rke2-node-50, rke2-node-10]}
+        # The work volume is ReadWriteOnce: land next to another indexer pod if one is running.
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {app: home-videos-indexer}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1026
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: indexer
+          image: docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+          command: [sh, -c]
+          args:
+            - |
+              set -e
+              PY=/work/.cache/py312
+              if [ ! -f "$PY/.ok-1" ]; then
+                pip install --no-cache-dir --target "$PY" --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchaudio==2.5.1
+                pip install --no-cache-dir --target "$PY" "speechbrain==1.0.3" soundfile "numpy<2.3" "huggingface_hub<0.26"
+                touch "$PY/.ok-1"
+              fi
+              cp /people/people.md /work/White/people.md
+              exec python3 /scripts/voices.py "$@"
+            - voices
+          env:
+            - {name: WORK, value: /work/White}
+            - {name: PYTHONPATH, value: /work/.cache/py312}
+            - {name: HOME, value: /work/.cache/home}
+            - {name: HF_HOME, value: /work/.cache/hf}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - {name: THREADS, value: "6"}
+            - {name: NAMES_FILE, value: /people/names.json}
+          resources:
+            requests: {cpu: "4", memory: 3Gi}
+            limits: {cpu: "6", memory: 6Gi}
+          volumeMounts:
+            - {name: work, mountPath: /work}
+            - {name: scripts, mountPath: /scripts}
+            - {name: people, mountPath: /people, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: work
+          persistentVolumeClaim: {claimName: work}
+        - name: scripts
+          configMap: {name: home-videos-indexer}
+        - name: people
+          secret: {secretName: home-videos-people}
+        - name: tmp
+          emptyDir: {sizeLimit: 4Gi}

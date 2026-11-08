@@ -1,0 +1,49 @@
+# The VHS conversions on the Synology, read-only. The indexer never writes to
+# the NAS; everything it produces goes to the work volume below.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-home-videos-vhs
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+  nfs:
+    server: 10.100.1.20
+    path: /volume1/Media/VHS_Conversions
+    readOnly: true
+  claimRef:
+    name: vhs
+    namespace: home-videos
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vhs
+  namespace: home-videos
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: pv-home-videos-vhs
+  resources:
+    requests:
+      storage: 1Ti
+---
+# Extracted audio, frames, transcripts, captions and the classification JSON.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: work
+  namespace: home-videos
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 30Gi

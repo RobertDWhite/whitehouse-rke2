@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Videos</title><style>
+:root{
+  --paper:#f6f1e7; --paper2:#fffdf8; --ink:#23201c; --ink2:#5e574d;
+  --line:#e0d7c6; --accent:#8c5a3c; --accent2:#a8763f; --warn:#b4552f; --hl:#f3dfb6;
+  --shadow:0 1px 2px rgba(60,45,25,.07),0 8px 22px rgba(60,45,25,.09);
+}
+@media (prefers-color-scheme:dark){
+ :root{
+  --paper:#16140f; --paper2:#1f1c16; --ink:#efe8db; --ink2:#a79c8a;
+  --line:#332e25; --accent:#d5a06a; --accent2:#c98f52; --warn:#e08055; --hl:#4a3a22;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 26px rgba(0,0,0,.45);
+ }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);
+ font:16px/1.6 ui-serif,Georgia,"Iowan Old Style","Times New Roman",serif;-webkit-font-smoothing:antialiased}
+.sans{font-family:ui-sans-serif,system-ui,sans-serif}
+.wrap{max-width:80rem;margin:0 auto;padding:0 1.25rem}
+header.top{padding:4rem 0 2rem;text-align:center;border-bottom:1px solid var(--line)}
+h1{font-size:clamp(2.4rem,6vw,3.6rem);margin:0;letter-spacing:-.02em;font-weight:600}
+.tag{color:var(--ink2);margin:.7rem 0 0;font-size:1.02rem}
+.stats{display:flex;gap:2.2rem;justify-content:center;margin-top:1.8rem;flex-wrap:wrap}
+.stat b{display:block;font-size:1.7rem;line-height:1.2;font-weight:600}
+.stat span{font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink2);font-family:ui-sans-serif,system-ui,sans-serif}
+.progress{margin:1.4rem auto 0;max-width:30rem;font:.8rem ui-sans-serif,system-ui,sans-serif;color:var(--ink2)}
+.progress .pb{height:4px;background:var(--line);border-radius:2px;margin-top:.4rem;overflow:hidden}
+.progress .pb i{display:block;height:100%;background:var(--accent)}
+.bar{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--paper) 92%,transparent);
+ backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:.8rem 0}
+.barin{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+#q{flex:1;min-width:14rem;padding:.6rem .9rem;border:1px solid var(--line);border-radius:.55rem;
+ background:var(--paper2);color:var(--ink);font:inherit;font-size:.95rem}
+#q:focus{outline:2px solid var(--accent);outline-offset:1px}
+.seg{display:flex;border:1px solid var(--line);border-radius:.55rem;overflow:hidden}
+.seg button{border:0;background:var(--paper2);color:var(--ink2);padding:.55rem .85rem;cursor:pointer;font:.84rem ui-sans-serif,system-ui,sans-serif}
+.seg button.on{background:var(--accent);color:var(--paper2)}
+.chips{display:flex;gap:.4rem;overflow-x:auto;padding:.55rem 0 .1rem;scrollbar-width:thin}
+.chip{white-space:nowrap;padding:.38rem .72rem;border:1px solid var(--line);border-radius:2rem;
+ background:var(--paper2);color:var(--ink2);cursor:pointer;font:.82rem ui-sans-serif,system-ui,sans-serif}
+.chip:hover{border-color:var(--accent);color:var(--ink)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--paper2)}
+.chip .ct{opacity:.6;font-size:.78em}
+.chips .lbl{font:.68rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);align-self:center;margin-right:.2rem}
+.folder{padding:3rem 0 1rem;border-bottom:1px solid var(--line)}
+.fhead{margin-bottom:1.4rem;position:relative}
+.fhead h2{font-size:1.85rem;margin:0;letter-spacing:-.01em;font-weight:600}
+.fblurb{color:var(--ink2);margin:.35rem 0 0;max-width:44rem;font-size:.97rem}
+.fct{font:.75rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink2);position:absolute;right:0;top:.5rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(14.5rem,1fr));gap:1.5rem 1.1rem}
+.tile{display:flex;flex-direction:column;gap:.5rem;background:none;border:0;padding:0;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.shot{position:relative;display:block;background:#000;border:1px solid var(--line);border-radius:.45rem;overflow:hidden;
+ aspect-ratio:4/3;box-shadow:var(--shadow);transition:transform .18s ease,box-shadow .18s ease}
+.tile:hover .shot{transform:translateY(-3px);box-shadow:0 4px 8px rgba(60,45,25,.1),0 16px 34px rgba(60,45,25,.16)}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.badge{position:absolute;right:.4rem;bottom:.4rem;background:rgba(20,16,10,.75);color:#fff;
+ font:.68rem ui-sans-serif,system-ui,sans-serif;padding:.15rem .42rem;border-radius:.28rem;letter-spacing:.03em}
+.badge.l{left:.4rem;right:auto}
+.yr{display:block;font:600 .72rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;color:var(--accent2)}
+.ttl{display:block;font-size:.97rem;line-height:1.35;margin-top:.1rem}
+.sub{display:block;font:.76rem ui-sans-serif,system-ui,sans-serif;color:var(--ink2);margin-top:.15rem}
+.empty{padding:4rem 0;text-align:center;color:var(--ink2)}
+.hits{padding:2rem 0 1rem;border-bottom:1px solid var(--line)}
+.hits h2{font-size:1.4rem;margin:0 0 .8rem;font-weight:600}
+.hit{display:grid;grid-template-columns:7rem 1fr;gap:.9rem;align-items:start;padding:.6rem 0;border-top:1px solid var(--line);cursor:pointer}
+.hit:hover .htx{color:var(--accent)}
+.hit img{width:7rem;aspect-ratio:4/3;object-fit:cover;border-radius:.3rem;background:#000}
+.hmeta{font:.74rem ui-sans-serif,system-ui,sans-serif;color:var(--ink2)}
+.htx{font-size:.95rem;line-height:1.5}
+mark{background:var(--hl);color:inherit;border-radius:.15rem;padding:0 .1rem}
+footer{padding:3rem 0 4rem;color:var(--ink2);font-size:.86rem;text-align:center}
+/* player */
+.lb{position:fixed;inset:0;z-index:100;background:rgba(10,8,5,.96);display:none;grid-template-columns:minmax(0,1fr) 26rem}
+.lb.on{display:grid}
+.stage{display:flex;flex-direction:column;min-height:0;padding:1.2rem 1.4rem 1rem}
+.vwrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+video{max-width:100%;max-height:100%;width:100%;background:#000;border-radius:.3rem;aspect-ratio:4/3}
+.strip{display:flex;gap:4px;overflow-x:auto;padding:.7rem 0 .3rem;scrollbar-width:thin}
+.strip button{flex:0 0 auto;border:2px solid transparent;padding:0;background:#000;cursor:pointer;border-radius:.2rem;position:relative}
+.strip button.on{border-color:var(--accent)}
+.strip img{display:block;height:54px;aspect-ratio:4/3;object-fit:cover;opacity:.75}
+.strip button.ch img{opacity:1}
+.strip button:hover img{opacity:1}
+.strip span{position:absolute;left:2px;bottom:1px;font:.58rem ui-sans-serif,system-ui,sans-serif;color:#fff;text-shadow:0 0 3px #000}
+.side{background:var(--paper);display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line)}
+.shead{padding:1.6rem 1.5rem .8rem}
+.shead h3{margin:.2rem 0 .3rem;font-size:1.3rem;line-height:1.25;font-weight:600}
+.lbyr{font:600 .74rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;color:var(--accent2)}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 1.5rem}
+.tabs button{border:0;background:none;padding:.6rem .8rem;cursor:pointer;color:var(--ink2);font:.82rem ui-sans-serif,system-ui,sans-serif;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.pane{flex:1;overflow-y:auto;padding:1rem 1.5rem 2rem;display:none}
+.pane.on{display:block}
+.chap{padding:.65rem .6rem;border-radius:.4rem;cursor:pointer;display:grid;grid-template-columns:4.2rem 1fr;gap:.6rem}
+.chap:hover{background:var(--paper2)}
+.chap.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.chap img{width:4.2rem;aspect-ratio:4/3;object-fit:cover;border-radius:.2rem;background:#000}
+.chap b{display:block;font-size:.93rem;line-height:1.3;font-weight:600}
+.chap small{display:block;font:.72rem ui-sans-serif,system-ui,sans-serif;color:var(--ink2);margin:.1rem 0 .2rem}
+.chap p{margin:0;font-size:.86rem;line-height:1.45;color:var(--ink2)}
+.ln{display:grid;grid-template-columns:3.6rem 1fr;gap:.5rem;padding:.3rem .4rem;border-radius:.3rem;cursor:pointer;font-size:.9rem;line-height:1.45}
+.ln:hover{background:var(--paper2)}
+.ln.on{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.ln .ts{font:.7rem ui-monospace,Menlo,monospace;color:var(--ink2);padding-top:.2rem}
+.ln .sp{font:600 .68rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;margin-right:.35rem}
+.s1{color:#b0603a}.s2{color:#3a7ab0}.s3{color:#5a9a3a}.s4{color:#9a3ab0}.s5{color:#b08a3a}.s6{color:#3aa0a0}.s7{color:#a03a5a}.s8{color:#6a6a6a}
+.ln a.sp{text-decoration:none}.ln a.sp:hover{text-decoration:underline}.ln a.sp.un{opacity:.75;border-bottom:1px dotted currentColor}
+.labl{font:.8rem ui-sans-serif,system-ui,sans-serif;color:var(--ink2);text-align:right;margin:.4rem 0 0}
+dl{margin:0}
+dt{font:.68rem ui-sans-serif,system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);margin-top:1.1rem}
+dd{margin:.25rem 0 0;font-size:.93rem;line-height:1.55}
+.pill{display:inline-block;font:.74rem ui-sans-serif,system-ui,sans-serif;border:1px solid var(--line);border-radius:1rem;padding:.08rem .5rem;margin:.12rem .15rem 0 0;cursor:pointer;background:var(--paper2)}
+.pill:hover{border-color:var(--accent)}
+.hl{cursor:pointer}.hl:hover{color:var(--accent)}
+.mono{font:.72rem ui-monospace,Menlo,monospace;color:var(--ink2);word-break:break-all}
+.x{position:fixed;top:.8rem;right:27rem;z-index:101;width:2.4rem;height:2.4rem;border-radius:50%;border:0;
+ background:rgba(255,255,255,.12);color:#fff;font-size:1.3rem;cursor:pointer}
+.x:hover{background:rgba(255,255,255,.25)}
+.nowcap{color:#cfc6b6;font:.8rem ui-sans-serif,system-ui,sans-serif;min-height:1.2rem;padding-top:.4rem}
+@media (max-width:62rem){
+ .lb.on{display:block;overflow-y:auto}
+ .stage{padding:3.4rem .6rem .5rem}
+ .side{border-left:0;min-height:60vh}
+ .pane{max-height:none}
+ .x{right:.8rem}
+}
+</style></head><body>
+<header class="top"><div class="wrap">
+ <h1>Home Videos</h1>
+ <p class="tag">The White family tapes, 1989–2001: digitised VHS, transcribed and sorted into moments.</p>
+ <div class="stats" id="stats"></div>
+ <div class="progress" id="progress"></div>
+</div></header>
+<div class="bar"><div class="wrap">
+ <div class="barin">
+  <input id="q" type="search" placeholder="Search titles, people, places, and everything that was said…" autocomplete="off">
+  <div class="seg" id="views">
+   <button data-v="moments" class="on">Moments</button><button data-v="years">Years</button><button data-v="tapes">Tapes</button>
+  </div>
+ </div>
+ <div class="chips" id="cats"></div>
+ <div class="chips" id="ppl"></div>
+</div></div>
+<main class="wrap" id="main"></main>
+<p class="wrap labl"><a href="label.html">Who's talking? Name the voices →</a></p>
+<footer>Videos stream from the family NAS. Transcripts are machine-made (NVIDIA Nemotron), so names and words can be wrong.</footer>
+
+<div class="lb" id="lb">
+ <button class="x" id="x" title="Close (Esc)">×</button>
+ <div class="stage">
+  <div class="vwrap"><video id="vid" controls preload="metadata" playsinline></video></div>
+  <div class="nowcap" id="nowcap"></div>
+  <div class="strip" id="strip"></div>
+ </div>
+ <div class="side">
+  <div class="shead"><div class="lbyr" id="lbyr"></div><h3 id="lbt"></h3><div class="sub" id="lbsub"></div></div>
+  <div class="tabs" id="tabs"><button data-p="chapters" class="on">Chapters</button><button data-p="tx">Transcript</button><button data-p="about">About</button></div>
+  <div class="pane on" id="p-chapters"></div>
+  <div class="pane" id="p-tx"></div>
+  <div class="pane" id="p-about"></div>
+ </div>
+</div>
+
+<script>
+const VIDEOS = /*VIDEOS*/[];
+const CFG = /*CONFIG*/{};
+const CAT_ORDER = ["Christmas","Easter","Thanksgiving","Halloween","Birthdays","Anniversaries","Weddings","Babies & Toddlers",
+ "Sports","School & Performances","Vacations & Trips","Family Gatherings","Church","Everyday Life","TV & News","Old Film Reels","Other"];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hms = t => { t = Math.max(0, Math.floor(t)); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = t%60;
+  return (h ? h + ":" + String(m).padStart(2,"0") : m) + ":" + String(s).padStart(2,"0"); };
+const thumb = (v, t) => `t/${v.slug}/${Math.min(v.n - 1, Math.max(0, Math.round(t / CFG.step)))}.jpg`;
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDate = d => { if (!d) return ""; const m = String(d).match(/^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?/); if (!m) return String(d);
+  return m[2] ? (MONTHS[+m[2]-1] + (m[3] ? " " + (+m[3]) : "") + ", " + m[1]) : m[1]; };
+const yearOf = d => { const m = String(d || "").match(/^(\d{4})/); return m ? +m[1] : null; };
+const BY = Object.fromEntries(VIDEOS.map(v => [v.slug, v]));
+
+// Moments: every chapter, or the whole tape if it has no chapters yet.
+const MOMENTS = [];
+for (const v of VIDEOS) {
+  const chs = v.chapters.length ? v.chapters : [{start: 0, end: v.dur, title: v.title, summary: v.summary,
+    category: v.categories[0] || (v.status === "done" ? "Other" : "Not yet sorted"), date: v.date_start, people: v.people, tags: []}];
+  chs.forEach((c, i) => {
+    if (/^blank tape$/i.test(c.title)) return;
+    MOMENTS.push({v, i, ...c, year: yearOf(c.date) || v.year,
+      hay: [c.title, c.summary, c.category, (c.people||[]).join(" "), (c.tags||[]).join(" "), v.title, v.file, v.places.join(" ")].join(" ").toLowerCase()});
+  });
+}
+
+const state = {view: "moments", cat: null, person: null, q: ""};
+let DETAILS = {}, loadingAll = null, LABELS = {};
+fetch("api/labels").then(r => r.json()).then(d => { LABELS = d.labels || {}; if (cur && curD) renderTx(cur, curD); }).catch(() => {});
+const spkName = (slug, n) => n > 0 ? (LABELS[`${slug}/v${n}`]?.name || "v" + n) : n < 0 ? "S" + (-n) : "?";
+const spkCls = n => "s" + ((Math.abs(n) - 1 + 8) % 8 + 1);
+async function detail(slug) {
+  if (!DETAILS[slug]) DETAILS[slug] = fetch(`data/${slug}.json`).then(r => r.json());
+  return DETAILS[slug];
+}
+function loadAll() { return loadingAll ||= Promise.all(VIDEOS.map(v => detail(v.slug).then(d => [v.slug, d]))); }
+
+function stats() {
+  const hrs = VIDEOS.reduce((a, v) => a + v.dur, 0) / 3600;
+  const yrs = VIDEOS.map(v => v.year).filter(Boolean);
+  const chapters = VIDEOS.reduce((a, v) => a + v.chapters.length, 0);
+  $("#stats").innerHTML = [[VIDEOS.length, "tapes"], [Math.round(hrs), "hours"], [chapters, "moments"],
+    [yrs.length ? Math.min(...yrs) + "–" + Math.max(...yrs) : "—", "years"]]
+    .map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  const done = VIDEOS.filter(v => v.status === "done").length;
+  if (done < VIDEOS.length) $("#progress").innerHTML =
+    `Still indexing: ${done} of ${VIDEOS.length} tapes transcribed and sorted.<div class="pb"><i style="width:${100*done/VIDEOS.length}%"></i></div>`;
+}
+
+function chips() {
+  const cc = {}; MOMENTS.forEach(m => cc[m.category] = (cc[m.category] || 0) + 1);
+  const cats = Object.keys(cc).sort((a, b) => (CAT_ORDER.indexOf(a) + 1 || 99) - (CAT_ORDER.indexOf(b) + 1 || 99));
+  $("#cats").innerHTML = `<span class="lbl">Kind</span><button class="chip ${!state.cat ? "on" : ""}" data-c="">All</button>` +
+    cats.map(c => `<button class="chip ${state.cat === c ? "on" : ""}" data-c="${esc(c)}">${esc(c)} <span class="ct">${cc[c]}</span></button>`).join("");
+  const pc = {}; MOMENTS.forEach(m => (m.people || []).forEach(p => pc[p] = (pc[p] || 0) + 1));
+  const ppl = Object.entries(pc).filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1]).slice(0, 30);
+  $("#ppl").innerHTML = ppl.length ? `<span class="lbl">People</span>` + ppl.map(([p, n]) =>
+    `<button class="chip ${state.person === p ? "on" : ""}" data-p="${esc(p)}">${esc(p)} <span class="ct">${n}</span></button>`).join("") : "";
+}
+
+function filtered() {
+  const q = state.q.toLowerCase();
+  return MOMENTS.filter(m => (!state.cat || m.category === state.cat) && (!state.person || (m.people || []).includes(state.person))
+    && (!q || q.split(/\s+/).every(w => m.hay.includes(w))));
+}
+
+const momentTile = m => `<button class="tile" data-s="${m.v.slug}" data-t="${m.start}">
+  <span class="shot"><img loading="lazy" src="${thumb(m.v, m.start + Math.min(15, (m.end - m.start) / 3))}" alt="">
+  <span class="badge">${hms(m.end - m.start)}</span></span>
+  <span class="yr">${esc(fmtDate(m.date) || m.year || "Date unknown")}</span>
+  <span class="ttl">${esc(m.title)}</span><span class="sub">${esc(m.v.title)} · ${hms(m.start)}</span></button>`;
+
+const tapeTile = v => `<button class="tile" data-s="${v.slug}" data-t="0">
+  <span class="shot"><img loading="lazy" src="${thumb(v, v.dur * 0.12)}" alt="">
+  <span class="badge">${hms(v.dur)}</span>${v.status !== "done" ? `<span class="badge l">indexing…</span>` : ""}</span>
+  <span class="yr">${esc([fmtDate(v.date_start), v.date_end && v.date_end !== v.date_start ? fmtDate(v.date_end) : ""].filter(Boolean).join(" – ") || "Date unknown")}</span>
+  <span class="ttl">${esc(v.title)}</span><span class="sub">${v.chapters.length ? v.chapters.length + " moments" : ""}${v.categories.length ? " · " + esc(v.categories.join(", ")) : ""}</span></button>`;
+
+function section(title, blurb, inner, count) {
+  return `<section class="folder"><div class="fhead"><h2>${esc(title)}</h2>${blurb ? `<p class="fblurb">${esc(blurb)}</p>` : ""}
+    <span class="fct">${count}</span></div><div class="grid">${inner}</div></section>`;
+}
+
+function render() {
+  const ms = filtered();
+  let html = "";
+  if (state.q) html += `<section class="hits" id="hits"><h2>Said & seen</h2><div class="hmeta">Searching transcripts…</div></section>`;
+  if (state.view === "tapes") {
+    const slugs = new Set(ms.map(m => m.v.slug));
+    const vs = VIDEOS.filter(v => slugs.has(v.slug));
+    html += vs.length ? section("All tapes", "Each tape as it was recorded, in date order.", vs.map(tapeTile).join(""), vs.length + " tapes") : "";
+  } else if (state.view === "years") {
+    const by = {}; ms.forEach(m => (by[m.year || "Unknown"] ||= []).push(m));
+    for (const y of Object.keys(by).sort()) {
+      const list = by[y].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || a.start - b.start);
+      html += section(String(y), "", list.map(momentTile).join(""), list.length + " moments");
+    }
+  } else {
+    const by = {}; ms.forEach(m => (by[m.category] ||= []).push(m));
+    const cats = Object.keys(by).sort((a, b) => (CAT_ORDER.indexOf(a) + 1 || 99) - (CAT_ORDER.indexOf(b) + 1 || 99));
+    for (const c of cats) {
+      const list = by[c].sort((a, b) => String(a.date || a.year || "9999").localeCompare(String(b.date || b.year || "9999")));
+      html += section(c, "", list.map(momentTile).join(""), list.length + " moments");
+    }
+  }
+  if (!ms.length && !state.q) html += `<div class="empty">Nothing here yet.</div>`;
+  $("#main").innerHTML = html;
+  if (state.q) searchText(state.q);
+}
+
+let searchSeq = 0;
+async function searchText(q) {
+  const seq = ++searchSeq;
+  const all = await loadAll();
+  if (seq !== searchSeq) return;
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const re = new RegExp("(" + words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "gi");
+  const hits = [];
+  for (const [slug, d] of all) {
+    for (const l of d.tx || []) { const t = l[3].toLowerCase(); if (words.every(w => t.includes(w))) hits.push({slug, t: l[0], text: l[3], kind: "said"}); }
+    for (const c of d.caps || []) { const t = (c[1] + " " + c[2] + " " + c[3].join(" ")).toLowerCase();
+      if (words.every(w => t.includes(w))) hits.push({slug, t: c[0], text: c[1] + (c[2] ? ` [${c[2]}]` : ""), kind: "seen"}); }
+  }
+  const el = $("#hits"); if (!el) return;
+  if (!hits.length) { el.innerHTML = `<h2>Said & seen</h2><div class="hmeta">No matches in transcripts or frame descriptions.</div>`; return; }
+  const shown = hits.slice(0, 120);
+  el.innerHTML = `<h2>Said & seen <span class="hmeta">${hits.length} matches${hits.length > shown.length ? ", first " + shown.length + " shown" : ""}</span></h2>` +
+    shown.map(h => { const v = BY[h.slug]; return `<div class="hit" data-s="${h.slug}" data-t="${Math.max(0, h.t - 2)}">
+      <img loading="lazy" src="${thumb(v, h.t)}" alt=""><div><div class="hmeta">${h.kind === "said" ? "Said" : "Seen"} · ${esc(v.title)} · ${hms(h.t)}</div>
+      <div class="htx">${esc(h.text).replace(re, "<mark>$1</mark>")}</div></div></div>`; }).join("");
+}
+
+// ------------------------------------------------------------ player
+const vid = $("#vid");
+let cur = null, curD = null, lastLine = -1, lastChap = -1, lastThumb = -1;
+async function openVideo(slug, t = 0, push = true) {
+  const v = BY[slug]; if (!v) return;
+  cur = v; lastLine = lastChap = lastThumb = -1;
+  $("#lb").classList.add("on"); document.body.style.overflow = "hidden";
+  $("#lbyr").textContent = [fmtDate(v.date_start), v.date_end && v.date_end !== v.date_start ? fmtDate(v.date_end) : ""].filter(Boolean).join(" – ") || "Date unknown";
+  $("#lbt").textContent = v.title;
+  $("#lbsub").textContent = hms(v.dur) + (v.categories.length ? " · " + v.categories.join(", ") : "");
+  const src = `media/${CFG.folder}/${encodeURIComponent(v.file)}`;
+  if (!vid.src.endsWith(src)) { vid.src = src; }
+  const seekTo = () => { vid.currentTime = t; vid.play().catch(() => {}); };
+  if (vid.readyState >= 1) seekTo(); else vid.addEventListener("loadedmetadata", seekTo, {once: true});
+  const chStarts = new Set(v.chapters.map(c => Math.round(c.start / CFG.step)));
+  $("#strip").innerHTML = Array.from({length: v.n}, (_, k) =>
+    `<button data-t="${k * CFG.step}" class="${chStarts.has(k) ? "ch" : ""}"><img loading="lazy" src="t/${v.slug}/${k}.jpg" alt=""><span>${hms(k * CFG.step)}</span></button>`).join("");
+  $("#p-chapters").innerHTML = v.chapters.length ? v.chapters.map((c, i) => `<div class="chap" data-t="${c.start}" data-i="${i}">
+      <img loading="lazy" src="${thumb(v, c.start + Math.min(15, (c.end - c.start) / 3))}" alt="">
+      <div><b>${esc(c.title)}</b><small>${hms(c.start)} · ${hms(c.end - c.start)}${c.date ? " · " + esc(fmtDate(c.date)) : ""} · ${esc(c.category)}</small>
+      <p>${esc(c.summary)}</p></div></div>`).join("")
+    : `<p class="hmeta">${v.status === "done" ? "No chapters." : "This tape is still being transcribed and sorted. The video plays already."}</p>`;
+  about(v);
+  $("#p-tx").innerHTML = `<p class="hmeta">Loading transcript…</p>`;
+  curD = await detail(slug);
+  if (cur !== v) return;
+  renderTx(v, curD);
+  if (push) history.replaceState(null, "", `#${slug}${t ? "/" + Math.round(t) : ""}`);
+}
+function renderTx(v, d) {
+  const short = n => n.replace(/ \(.*\)$/, "");
+  $("#p-tx").innerHTML = d.tx ? (d.tx.length ? d.tx.map((l, i) => {
+    const name = spkName(v.slug, l[2]), named = l[2] > 0 && LABELS[`${v.slug}/v${l[2]}`];
+    const chip = l[2] > 0 ? `<a class="sp ${spkCls(l[2])} ${named ? "" : "un"}" href="label.html#${v.slug}/v${l[2]}" title="${named ? esc(name) : "Name this voice"}">${esc(short(name))}</a>`
+      : `<span class="sp ${spkCls(l[2] || 8)}">${esc(name)}</span>`;
+    return `<div class="ln" data-t="${l[0]}" data-i="${i}"><span class="ts">${hms(l[0])}</span><span>${chip}${esc(l[3])}</span></div>`; }).join("")
+    : `<p class="hmeta">No speech detected on this tape.</p>`) : `<p class="hmeta">Not transcribed yet.</p>`;
+  lastLine = -1;
+}
+function about(v) {
+  const pills = (arr, kind) => arr.map(x => `<span class="pill" data-${kind}="${esc(x)}">${esc(x)}</span>`).join("");
+  $("#p-about").innerHTML = `<dl>
+    ${v.summary ? `<dt>Summary</dt><dd>${esc(v.summary)}</dd>` : ""}
+    ${v.highlights.length ? `<dt>Worth jumping to</dt><dd>${v.highlights.map(h => `<div class="hl" data-t="${h.t}"><span class="mono">${hms(h.t)}</span> ${esc(h.note)}</div>`).join("")}</dd>` : ""}
+    ${v.people.length ? `<dt>People</dt><dd>${pills(v.people, "p")}</dd>` : ""}
+    ${v.places.length ? `<dt>Places</dt><dd>${esc(v.places.join(" · "))}</dd>` : ""}
+    ${v.date_basis ? `<dt>How it's dated</dt><dd>${esc(v.date_basis)}</dd>` : ""}
+    ${v.quality ? `<dt>Tape condition</dt><dd>${esc(v.quality)}</dd>` : ""}
+    <dt>File</dt><dd class="mono">VHS_Conversions/${esc(CFG.folder)}/${esc(v.file)}${v.aliases.length ? "<br>also: " + v.aliases.map(esc).join("<br>") : ""}</dd>
+    <dt>Voices</dt><dd><a href="label.html#${v.slug}">Who's talking on this tape →</a></dd>
+    <dt>Link</dt><dd><a class="mono" href="#${v.slug}">#${v.slug}</a></dd></dl>`;
+}
+function closeVideo() {
+  vid.pause(); $("#lb").classList.remove("on"); document.body.style.overflow = ""; cur = null;
+  history.replaceState(null, "", location.pathname);
+}
+vid.addEventListener("timeupdate", () => {
+  if (!cur) return; const t = vid.currentTime;
+  const k = Math.min(cur.n - 1, Math.floor(t / CFG.step));
+  if (k !== lastThumb) {
+    lastThumb = k; const s = $("#strip"); s.querySelector(".on")?.classList.remove("on");
+    const b = s.children[k]; if (b) { b.classList.add("on"); s.scrollTo({left: b.offsetLeft - s.clientWidth / 2, behavior: "smooth"}); }
+    const cap = curD?.caps?.[k]; $("#nowcap").textContent = cap ? cap[1] + (cap[2] ? "  ·  " + cap[2] : "") : "";
+  }
+  let ci = -1; cur.chapters.forEach((c, i) => { if (t >= c.start) ci = i; });
+  if (ci !== lastChap) { lastChap = ci; document.querySelectorAll("#p-chapters .chap").forEach((e, i) => e.classList.toggle("on", i === ci)); }
+  if (curD?.tx) {
+    let li = -1; for (let i = 0; i < curD.tx.length && curD.tx[i][0] <= t; i++) li = i;
+    if (li !== lastLine) {
+      lastLine = li; const p = $("#p-tx"); p.querySelector(".ln.on")?.classList.remove("on");
+      const e = p.children[li]; if (e) { e.classList.add("on"); if ($("#p-tx").classList.contains("on")) e.scrollIntoView({block: "center", behavior: "smooth"}); }
+    }
+  }
+});
+
+// ------------------------------------------------------------ events
+document.addEventListener("click", e => {
+  if (e.target.closest("a.sp")) return;
+  const tile = e.target.closest(".tile,.hit"); if (tile) return openVideo(tile.dataset.s, +tile.dataset.t);
+  const seek = e.target.closest("#strip button,.chap,.ln,.hl"); if (seek) { vid.currentTime = +seek.dataset.t; vid.play().catch(() => {}); return; }
+  const tab = e.target.closest("#tabs button"); if (tab) {
+    document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b === tab));
+    document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.id === "p-" + tab.dataset.p));
+    if (tab.dataset.p === "tx") document.querySelector("#p-tx .ln.on")?.scrollIntoView({block: "center"});
+    return;
+  }
+  const pill = e.target.closest(".pill[data-p]"); if (pill) { closeVideo(); state.person = pill.dataset.p; chips(); render(); scrollTo(0, 0); return; }
+  const v = e.target.closest("#views button"); if (v) { state.view = v.dataset.v; document.querySelectorAll("#views button").forEach(b => b.classList.toggle("on", b === v)); render(); return; }
+  const c = e.target.closest("#cats .chip"); if (c) { state.cat = c.dataset.c || null; chips(); render(); return; }
+  const p = e.target.closest("#ppl .chip"); if (p) { state.person = state.person === p.dataset.p ? null : p.dataset.p; chips(); render(); return; }
+});
+$("#x").onclick = closeVideo;
+let qt; $("#q").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 220); });
+document.addEventListener("keydown", e => {
+  if (!cur) return;
+  if (e.key === "Escape") closeVideo();
+  else if (e.target.tagName !== "INPUT" && e.key === "ArrowRight") { vid.currentTime += 10; e.preventDefault(); }
+  else if (e.target.tagName !== "INPUT" && e.key === "ArrowLeft") { vid.currentTime -= 10; e.preventDefault(); }
+});
+stats(); chips(); render();
+const h = location.hash.slice(1).split("/"); if (h[0] && BY[h[0]]) openVideo(h[0], +(h[1] || 0), false);
+</script>
+</body></html>
