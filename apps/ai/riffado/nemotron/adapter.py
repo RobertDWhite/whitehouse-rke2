@@ -50,6 +50,12 @@ OLLAMA_URL = os.environ.get("OLLAMA_UNLOAD_URL", "")
 VRAM_NEEDED_GIB = float(os.environ.get("VRAM_NEEDED_GIB", "24.0"))
 VRAM_WAIT_SECONDS = int(os.environ.get("VRAM_WAIT_SECONDS", "1800"))
 TMP_DIR = os.environ.get("ADAPTER_TMP", "/data/tmp")
+# Output cap per request: a floor plus tokens per second of audio. Real speech needs
+# well under 10/s; without a cap the model can loop on music or tape noise until it
+# fills the context. The audio itself takes ~12.5 tokens/s of the 64K context, so
+# the cap stops at MAX_TOKENS_CAP for the longest chunks.
+TOKENS_PER_SECOND = float(os.environ.get("MAX_TOKENS_PER_SECOND", "25"))
+MAX_TOKENS_CAP = int(os.environ.get("MAX_TOKENS_CAP", "32000"))
 SR = 16000
 
 PROMPT = (
@@ -292,6 +298,7 @@ async def transcribe_chunk(client: httpx.AsyncClient, pcm: np.ndarray, offset: f
         "skip_special_tokens": False,
         "spaces_between_special_tokens": False,
         "mm_processor_kwargs": {"capture_ctc_timestamps": True},
+        "max_tokens": min(MAX_TOKENS_CAP, int(1000 + TOKENS_PER_SECOND * len(pcm) / SR)),
     }
     r = await client.post(f"http://127.0.0.1:{VLLM_PORT}/v1/chat/completions", json=body, timeout=None)
     if r.status_code != 200:
