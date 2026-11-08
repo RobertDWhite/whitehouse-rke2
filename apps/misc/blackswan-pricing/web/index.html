@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Black Swan Coffee · Event Pricing</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2317130f'/%3E%3Cpath d='M20 44c6 4 20 4 26-3 3-4 1-9-4-9-4 0-6 3-9 3-2 0-3-2-3-5 0-6 5-10 5-14 0-3-2-5-5-5-4 0-7 4-7 4' fill='none' stroke='%23e9dcc6' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f6f1e9; --panel: #fffdf9; --ink: #1d1813; --muted: #6f6458; --line: #e4d9c8;
+    --accent: #1d1813; --accent-ink: #f6f1e9; --brand: #9a6b3f; --brand-soft: #f1e5d4;
+    --good: #2f6b45; --bad: #a3392b; --radius: 14px;
+    --shadow: 0 1px 2px rgba(40,25,10,.05), 0 6px 24px rgba(40,25,10,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #13100d; --panel: #1c1814; --ink: #f1e8db; --muted: #a69888; --line: #342c24;
+      --accent: #e9dcc6; --accent-ink: #17130f; --brand: #d3a26f; --brand-soft: #2b2219;
+      --good: #6fbf8a; --bad: #e2786a; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  button, input, select { font: inherit; color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 80px; }
+  header.top { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+  header.top svg { flex: none; }
+  header.top h1 { font-size: 22px; }
+  header.top p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+  .tabs { margin-left: auto; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .tabs button { border: 0; background: none; padding: 7px 16px; border-radius: 999px; cursor: pointer; color: var(--muted); font-weight: 550; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start; }
+  @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } .sticky { position: static !important; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .card + .card { margin-top: 16px; }
+  .card h2 { font-size: 15px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .n { width: 22px; height: 22px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .card h2 small { font-weight: 450; color: var(--muted); font-size: 12.5px; }
+  .opts { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .opt { position: relative; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; background: var(--panel); text-align: left; }
+  .opt:hover { border-color: var(--muted); }
+  .opt[aria-checked="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .opt b { display: block; font-weight: 620; }
+  .opt span { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .opt .badge { position: absolute; top: -9px; right: 10px; background: var(--brand); color: #fff; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+  .slider { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: center; padding: 6px 0 14px; }
+  .slider label { font-weight: 560; }
+  .slider .val { display: flex; align-items: center; gap: 6px; }
+  .slider .val input { width: 84px; text-align: right; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .slider .val em { font-style: normal; color: var(--muted); font-size: 13px; min-width: 42px; }
+  .slider input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--brand); }
+  .slider .note { grid-column: 1 / -1; font-size: 12.5px; color: var(--brand); }
+  .addons { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .addon { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+  .addon:has(input:checked) { border-color: var(--ink); background: var(--brand-soft); }
+  .addon input { margin-top: 3px; accent-color: var(--brand); }
+  .addon b { font-weight: 580; display: block; }
+  .addon span { display: block; font-size: 12px; color: var(--muted); }
+  .addon i { font-style: normal; margin-left: auto; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--brand); white-space: nowrap; font-weight: 600; }
+  .sticky { position: sticky; top: 16px; }
+  .result .lbl { color: var(--muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .result .big { font-size: 46px; font-weight: 720; letter-spacing: -.03em; line-height: 1.1; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+  .result .range { color: var(--muted); font-size: 13.5px; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
+  .chip { background: var(--bg); border-radius: 10px; padding: 10px; text-align: center; }
+  .chip b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .chip span { font-size: 11.5px; color: var(--muted); }
+  .compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 16px; }
+  .compare button { border: 1px solid var(--line); background: none; border-radius: 10px; padding: 8px 6px; cursor: pointer; }
+  .compare button[aria-pressed="true"] { border-color: var(--ink); background: var(--brand-soft); }
+  .compare small { display: block; color: var(--muted); font-size: 11.5px; }
+  .compare b { font-variant-numeric: tabular-nums; }
+  table.bd { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  table.bd td { padding: 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  table.bd td:last-child { text-align: right; white-space: nowrap; padding-left: 12px; }
+  table.bd td small { display: block; color: var(--muted); font-size: 12px; }
+  table.bd tr.total td { font-weight: 700; font-size: 16px; border-top: 2px solid var(--ink); }
+  table.bd tr.neg td:last-child { color: var(--bad); }
+  table.bd tr.pos td:last-child { color: var(--good); }
+  .nb { font-size: 12.5px; color: var(--muted); margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 10px; }
+  .nb.warn { color: var(--bad); }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 9px; padding: 8px 12px; cursor: pointer; font-weight: 550; font-size: 13.5px; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--bad); }
+  .btn.sm { padding: 4px 9px; font-size: 12.5px; }
+  details.card > summary { cursor: pointer; font-weight: 650; list-style: none; display: flex; align-items: center; gap: 8px; }
+  details.card > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+  details.card[open] > summary::before { transform: rotate(90deg); }
+  details.card[open] > summary { margin-bottom: 14px; }
+  .help { color: var(--muted); font-size: 13px; margin: -6px 0 14px; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; font-weight: 550; }
+  .field input, .field select, table.edit input, table.edit select { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .field .hint { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  input.changed { border-color: var(--brand) !important; box-shadow: 0 0 0 1px var(--brand); }
+  table.edit { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+  table.edit th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 6px; }
+  table.edit td { padding: 0 6px 0 0; }
+  table.edit td.x { width: 1%; }
+  h3.sub { font-size: 13.5px; margin: 22px 0 8px; }
+  .scen { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .scen select { min-width: 200px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+  .pill { display: inline-block; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-weight: 650; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--accent); color: var(--accent-ink); padding: 10px 16px; border-radius: 10px; opacity: 0; pointer-events: none; transition: all .2s; font-weight: 550; z-index: 10; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  [hidden] { display: none !important; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 30px; text-align: center; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <svg width="44" height="44" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#17130f"/><path d="M20 44c6 4 20 4 26-3 3-4 1-9-4-9-4 0-6 3-9 3-2 0-3-2-3-5 0-6 5-10 5-14 0-3-2-5-5-5-4 0-7 4-7 4" fill="none" stroke="#e9dcc6" stroke-width="4" stroke-linecap="round"/></svg>
+    <div>
+      <h1>Black Swan Coffee · Event Pricing</h1>
+      <p>Rough event quotes. Every number behind them can be edited under <b>Pricing model</b>.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="quote">Quote</button>
+      <button role="tab" aria-selected="false" data-tab="model">Pricing model <span class="pill" id="modelDirty" hidden>edited</span></button>
+    </div>
+  </header>
+
+  <!-- ============ QUOTE TAB ============ -->
+  <section id="tab-quote" class="grid">
+    <div>
+      <div class="card">
+        <h2><span class="n">1</span> Cart</h2>
+        <div class="opts" id="cartOpts" role="radiogroup"></div>
+      </div>
+      <div class="card">
+        <h2><span class="n">2</span> Positioning</h2>
+        <div class="opts" id="posOpts" role="radiogroup"></div>
+      </div>
+      <div class="card">
+        <h2><span class="n">3</span> Event</h2>
+        <div class="slider">
+          <label for="guestsN">Guests</label>
+          <div class="val"><input id="guestsN" type="number" min="1" step="1"><em>guests</em></div>
+          <input id="guestsR" type="range" min="10" max="450" step="5" aria-label="Guests">
+        </div>
+        <div class="slider">
+          <label for="hoursN">Service hours</label>
+          <div class="val"><input id="hoursN" type="number" min="0.5" step="0.5"><em>hrs</em></div>
+          <input id="hoursR" type="range" min="1" max="8" step="0.5" aria-label="Service hours">
+          <div class="note" id="minNote" hidden></div>
+        </div>
+        <div class="slider">
+          <label for="milesN">Travel distance</label>
+          <div class="val"><input id="milesN" type="number" min="0" step="1"><em>mi</em></div>
+          <input id="milesR" type="range" min="0" max="120" step="5" aria-label="Travel distance">
+        </div>
+      </div>
+      <div class="card">
+        <h2><span class="n">4</span> Add-ons <small>optional</small></h2>
+        <div class="addons" id="addonList"></div>
+      </div>
+      <details class="card" id="costCard">
+        <summary>Our costs and margin <small style="font-weight:450;color:var(--muted)">(optional, edit the cost inputs in Pricing model)</small></summary>
+        <table class="bd" id="costTable"></table>
+      </details>
+    </div>
+
+    <aside class="sticky">
+      <div class="card result">
+        <div class="lbl">Recommended price</div>
+        <div class="big" id="rec">$0</div>
+        <div class="range" id="range"></div>
+        <div class="chips">
+          <div class="chip"><b id="perGuest">–</b><span>Per guest</span></div>
+          <div class="chip"><b id="perDrink">–</b><span>Per drink</span></div>
+          <div class="chip"><b id="drinks">–</b><span>Drinks served</span></div>
+        </div>
+        <div class="lbl" style="margin-bottom:6px">Compare positioning</div>
+        <div class="compare" id="compare"></div>
+        <div class="lbl" style="margin-bottom:4px">Price breakdown</div>
+        <table class="bd" id="breakdown"></table>
+        <div class="nb" id="staffNote"></div>
+        <div class="row-actions">
+          <button class="btn primary" id="copySummary">Copy quote summary</button>
+          <button class="btn" id="shareLink" title="Link that opens this exact event and pricing model">Copy share link</button>
+          <button class="btn" id="resetEvent">Reset event</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- ============ MODEL TAB ============ -->
+  <section id="tab-model" hidden>
+    <div class="card">
+      <h2>Saved models</h2>
+      <p class="help">Changes save automatically in this browser. Save a named copy to compare versions. To give someone else your model, send them a share link or an exported file.</p>
+      <div class="scen">
+        <select id="scenSel"></select>
+        <button class="btn" id="scenLoad">Load</button>
+        <button class="btn" id="scenSave">Save as…</button>
+        <button class="btn danger" id="scenDel">Delete</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="exportJson">Export JSON</button>
+        <button class="btn" id="importJson">Import JSON</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <button class="btn danger" id="resetModel">Reset to team defaults</button>
+      </div>
+      <p class="help" style="margin:12px 0 0" id="defaultsSource"></p>
+    </div>
+
+    <div class="card">
+      <h2>Volume and staffing</h2>
+      <div class="fields" id="coreFields"></div>
+    </div>
+
+    <div class="card">
+      <h2>Base price by guest count</h2>
+      <p class="help">The first matching tier sets the price. The base covers the minimum billable hours, and each hour past that adds the extra-hour rate. Leave the top tier's "up to" field blank so it covers any guest count.</p>
+      <table class="edit" id="tierTable"></table>
+      <button class="btn sm" id="addTier">+ Add tier</button>
+    </div>
+
+    <div class="card">
+      <h2>Cart types</h2>
+      <p class="help">The multiplier applies to the base price. 1.00 means no change.</p>
+      <table class="edit" id="cartTable"></table>
+      <button class="btn sm" id="addCart">+ Add cart type</button>
+    </div>
+
+    <div class="card">
+      <h2>Positioning</h2>
+      <p class="help">Applied after the cart multiplier. Value and Premium also set the low and high ends of the market range.</p>
+      <table class="edit" id="posTable"></table>
+    </div>
+
+    <div class="card">
+      <h2>Travel</h2>
+      <div class="fields" id="travelFields"></div>
+    </div>
+
+    <div class="card">
+      <h2>Add-ons</h2>
+      <p class="help">A flat add-on is a fixed price per event. A per-guest add-on is multiplied by the guest count and rounded to the dollar.</p>
+      <table class="edit" id="addonTable"></table>
+      <button class="btn sm" id="addAddon">+ Add add-on</button>
+    </div>
+
+    <div class="card">
+      <h2>Our costs <small>used only for the margin estimate</small></h2>
+      <p class="help">Customers never see these. They estimate what an event costs us, so the Quote tab can show profit.</p>
+      <div class="fields" id="costFields"></div>
+    </div>
+  </section>
+
+  <footer>Pricing model adapted from the LocalEyes coffee cart pricing calculator. Treat every result as an estimate.</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Built-in model: matches the LocalEyes calculator's constants exactly.
+   Team defaults in defaults.json (served next to this file) override it.
+   ===================================================================== */
+const BUILTIN = {
+  version: 1,
+  drinksPerGuest: 1.5,
+  throughputPerBaristaHour: 50,
+  maxDrinksPerBaristaHour: 60,
+  baristasPerCart: 2,
+  minBillableHours: 2,
+  tiers: [
+    { maxGuests: 50,   base: 640,  extraHour: 185 },
+    { maxGuests: 100,  base: 880,  extraHour: 225 },
+    { maxGuests: 150,  base: 1080, extraHour: 255 },
+    { maxGuests: 200,  base: 1280, extraHour: 285 },
+    { maxGuests: 300,  base: 1760, extraHour: 380 },
+    { maxGuests: null, base: 2400, extraHour: 515 }
+  ],
+  cartTypes: [
+    { id: "espresso",    title: "Espresso Cart",     sub: "Espresso machine on board: lattes, cappuccinos, hot and iced espresso drinks", multiplier: 1 },
+    { id: "nonEspresso", title: "Non-Espresso Cart", sub: "No espresso machine: drip, cold brew, matcha and iced lattes", multiplier: 0.75 }
+  ],
+  positioning: {
+    value:    { title: "Value",    sub: "Compete on price and volume. Bottom ~25% of the market.", multiplier: 0.797 },
+    standard: { title: "Standard", sub: "Market median. Where most operators land.", multiplier: 1 },
+    premium:  { title: "Premium",  sub: "High-touch, top ~25%. Priced for quality and experience.", multiplier: 1.3385 }
+  },
+  recommendedPositioning: "standard",
+  travelFreeRadius: 30,
+  travelPerMile: 2.5,
+  addons: [
+    { id: "customBrandedCart",  label: "Custom Branded Cart",    sub: "Your logo and branding on the cart", type: "flat", amount: 350 },
+    { id: "customBrandedCups",  label: "Custom Branded Cups",    sub: "Printed or stickered cups", type: "perGuest", amount: 2.5 },
+    { id: "latteArtPrinter",    label: "Latte Art Logo Printer", sub: "Logo printed on every drink", type: "flat", amount: 400 },
+    { id: "coldBrewService",    label: "Cold Brew Service",      sub: "Cold brew on the menu", type: "flat", amount: 250 },
+    { id: "dripCoffeeStation",  label: "Drip Coffee Station",    sub: "3 gallons, self-serve", type: "flat", amount: 150 },
+    { id: "matchaSpecialtyTea", label: "Matcha / Specialty Tea", sub: "Non-coffee option", type: "perGuest", amount: 1.5 },
+    { id: "affogatoService",    label: "Affogato Service",       sub: "Espresso over ice cream", type: "perGuest", amount: 3 },
+    { id: "generatorNoPower",   label: "Generator / No Power",   sub: "Portable power when the venue has no outlets", type: "flat", amount: 200 },
+    { id: "signatureDrink",     label: "Signature Drink",        sub: "Custom drink built for the event", type: "flat", amount: 150 },
+    { id: "customSyrupFlavor",  label: "Custom Syrup Flavor",    sub: "Branded or specialty syrup", type: "flat", amount: 75 },
+    { id: "customPrintedMenu",  label: "Custom Printed Menu",    sub: "Branded menu board or cards", type: "flat", amount: 100 },
+    { id: "earlySetupArrival",  label: "Early Setup / Arrival",  sub: "Extra-early load-in", type: "flat", amount: 150 }
+  ],
+  costs: {
+    cogsPerDrink: 1.10,
+    baristaHourly: 22,
+    setupTeardownHours: 1.5,
+    mileageCostPerMile: 0.70,
+    roundTrip: true,
+    fixedPerEvent: 25,
+    processingPct: 2.9
+  }
+};
+const DEFAULT_EVENT = { cart: "espresso", positioning: "standard", guests: 100, hours: 3, miles: 15, addons: [] };
+
+const LS_MODEL = "bsc.pricing.model.v1";
+const LS_EVENT = "bsc.pricing.event.v1";
+const LS_SCEN  = "bsc.pricing.scenarios.v1";
+
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+const usd0 = n => "$" + Math.round(n).toLocaleString("en-US");
+const usd2 = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const slug = s => (String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "item") + "-" + Math.random().toString(36).slice(2, 6);
+const $ = id => document.getElementById(id);
+
+let teamDefaults = clone(BUILTIN);
+let teamDefaultsSource = "built-in (LocalEyes constants)";
+let model, ev;
+
+/* ---- normalise anything loaded from storage / URL / file ---- */
+function normaliseModel(m) {
+  const b = clone(teamDefaults), out = Object.assign(b, m || {});
+  out.costs = Object.assign(clone(teamDefaults.costs), (m && m.costs) || {});
+  out.positioning = Object.assign(clone(teamDefaults.positioning), (m && m.positioning) || {});
+  if (!Array.isArray(out.tiers) || !out.tiers.length) out.tiers = clone(teamDefaults.tiers);
+  if (!Array.isArray(out.cartTypes) || !out.cartTypes.length) out.cartTypes = clone(teamDefaults.cartTypes);
+  if (!Array.isArray(out.addons)) out.addons = clone(teamDefaults.addons);
+  return out;
+}
+function normaliseEvent(e) {
+  const o = Object.assign(clone(DEFAULT_EVENT), e || {});
+  if (!model.cartTypes.some(c => c.id === o.cart)) o.cart = model.cartTypes[0].id;
+  if (!model.positioning[o.positioning]) o.positioning = model.recommendedPositioning || "standard";
+  o.addons = (o.addons || []).filter(id => model.addons.some(a => a.id === id));
+  o.guests = Math.max(1, Math.round(num(o.guests, 100)));
+  o.hours = Math.max(0.5, num(o.hours, 3));
+  o.miles = Math.max(0, num(o.miles, 0));
+  return o;
+}
+
+/* ================= THE PRICING MATH ================= */
+function sortedTiers(m) {
+  return [...m.tiers].sort((a, b) => (a.maxGuests ?? Infinity) - (b.maxGuests ?? Infinity));
+}
+function compute(m, e) {
+  const totalDrinks = Math.round(e.guests * m.drinksPerGuest);
+  const drinksPerHour = totalDrinks / Math.max(1, e.hours);
+  const baristas = Math.max(1, Math.ceil(drinksPerHour / Math.max(1, m.throughputPerBaristaHour)));
+  const carts = Math.max(1, Math.ceil(baristas / Math.max(1, m.baristasPerCart)));
+  const tiers = sortedTiers(m);
+  const tier = tiers.find(t => e.guests <= (t.maxGuests ?? Infinity)) ?? tiers[tiers.length - 1];
+  const extraHours = Math.max(0, e.hours - m.minBillableHours);
+  const basePrice = tier.base + extraHours * tier.extraHour;
+  const travelMiles = Math.max(0, e.miles - m.travelFreeRadius);
+  const travelFee = Math.round(travelMiles * m.travelPerMile);
+  const addonLines = e.addons.map(id => {
+    const a = m.addons.find(x => x.id === id);
+    const amount = a.type === "perGuest" ? Math.round(a.amount * e.guests) : a.amount;
+    return { id, label: a.label, type: a.type, rate: a.amount, amount };
+  });
+  const addonsTotal = addonLines.reduce((s, l) => s + l.amount, 0);
+  const cart = m.cartTypes.find(c => c.id === e.cart) || m.cartTypes[0];
+  const cartAdjusted = basePrice * cart.multiplier;
+  const priceFor = p => Math.round(cartAdjusted * m.positioning[p].multiplier) + travelFee + addonsTotal;
+  const prices = { value: priceFor("value"), standard: priceFor("standard"), premium: priceFor("premium") };
+  const recommended = priceFor(e.positioning);
+  const basePositioned = Math.round(cartAdjusted * m.positioning[e.positioning].multiplier);
+
+  // --- our cost side (not part of the original calculator) ---
+  const c = m.costs;
+  const laborHours = Math.max(e.hours, m.minBillableHours) + c.setupTeardownHours;
+  const cogs = totalDrinks * c.cogsPerDrink;
+  const labor = baristas * laborHours * c.baristaHourly;
+  const mileage = e.miles * (c.roundTrip ? 2 : 1) * c.mileageCostPerMile * carts;
+  const processing = recommended * c.processingPct / 100;
+  const totalCost = cogs + labor + mileage + c.fixedPerEvent + processing;
+  const profit = recommended - totalCost;
+
+  return {
+    totalDrinks, drinksPerHour, baristas, carts, tier, extraHours, basePrice, basePositioned,
+    travelMiles, travelFee, addonLines, addonsTotal, cart, prices, recommended,
+    perGuest: recommended / Math.max(1, e.guests), perDrink: recommended / Math.max(1, totalDrinks),
+    cost: { laborHours, cogs, labor, mileage, processing, fixed: c.fixedPerEvent, totalCost, profit,
+            margin: recommended > 0 ? profit / recommended : 0, hourly: profit / Math.max(0.5, e.hours) }
+  };
+}
+
+/* ================= PERSISTENCE ================= */
+function save() {
+  try {
+    localStorage.setItem(LS_MODEL, JSON.stringify(model));
+    localStorage.setItem(LS_EVENT, JSON.stringify(ev));
+  } catch {}
+  $("modelDirty").hidden = JSON.stringify(model) === JSON.stringify(normaliseModel(teamDefaults));
+}
+function scenarios() { try { return JSON.parse(localStorage.getItem(LS_SCEN)) || {}; } catch { return {}; } }
+function setScenarios(s) { localStorage.setItem(LS_SCEN, JSON.stringify(s)); renderScenarios(); }
+
+function encodeState() {
+  const json = JSON.stringify({ model, event: ev });
+  return btoa(String.fromCharCode(...new TextEncoder().encode(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeState(s) {
+  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(b, c => c.charCodeAt(0))));
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1800);
+}
+async function copy(text, msg) {
+  try { await navigator.clipboard.writeText(text); toast(msg); }
+  catch { prompt("Copy this:", text); }
+}
+
+/* ================= QUOTE RENDER ================= */
+function renderOptions() {
+  $("cartOpts").innerHTML = model.cartTypes.map(c => `
+    <button class="opt" role="radio" data-cart="${esc(c.id)}" aria-checked="${c.id === ev.cart}">
+      <b>${esc(c.title)}</b><span>${esc(c.sub)}</span></button>`).join("");
+  $("posOpts").innerHTML = Object.entries(model.positioning).map(([k, p]) => `
+    <button class="opt" role="radio" data-pos="${k}" aria-checked="${k === ev.positioning}">
+      ${k === model.recommendedPositioning ? '<span class="badge">Recommended</span>' : ""}
+      <b>${esc(p.title)}</b><span>${esc(p.sub)}</span></button>`).join("");
+  $("addonList").innerHTML = model.addons.map(a => `
+    <label class="addon"><input type="checkbox" data-addon="${esc(a.id)}" ${ev.addons.includes(a.id) ? "checked" : ""}>
+      <div><b>${esc(a.label)}</b><span>${esc(a.sub)}</span></div>
+      <i>${a.type === "perGuest" ? usd2(a.amount) + "/guest" : usd0(a.amount)}</i></label>`).join("")
+    || '<p class="help">No add-ons defined. Add them in Pricing model.</p>';
+}
+function syncInputs() {
+  for (const k of ["guests", "hours", "miles"]) {
+    $(k + "N").value = ev[k];
+    $(k + "R").value = ev[k];
+  }
+}
+function render() {
+  const r = compute(model, ev);
+  const posTitle = model.positioning[ev.positioning].title;
+  $("rec").textContent = usd0(r.recommended);
+  $("range").textContent = `Market range ${usd0(r.prices.value)} to ${usd0(r.prices.premium)} · ${posTitle} · ${r.cart.title}`;
+  $("perGuest").textContent = usd2(r.perGuest);
+  $("perDrink").textContent = usd2(r.perDrink);
+  $("drinks").textContent = r.totalDrinks.toLocaleString();
+  $("compare").innerHTML = ["value", "standard", "premium"].map(k => `
+    <button data-pos="${k}" aria-pressed="${k === ev.positioning}"><small>${esc(model.positioning[k].title)}</small><b>${usd0(r.prices[k])}</b></button>`).join("");
+
+  const rows = [];
+  const hrsTxt = ev.hours < model.minBillableHours
+    ? `${ev.hours} hrs, billed as the ${model.minBillableHours}-hr minimum`
+    : `${model.minBillableHours}-hr base ${usd0(r.tier.base)}` + (r.extraHours ? ` + ${r.extraHours} extra hr × ${usd0(r.tier.extraHour)}` : "");
+  const mult = r.cart.multiplier * model.positioning[ev.positioning].multiplier;
+  rows.push(`<tr><td>Base service<small>${esc(r.cart.title)} · ${ev.guests} guests · ${hrsTxt}${Math.abs(mult - 1) > 1e-9 ? ` · ×${mult.toFixed(3)}` : ""}</small></td><td>${usd0(r.basePositioned)}</td></tr>`);
+  if (r.travelFee > 0) rows.push(`<tr><td>Travel fee<small>${r.travelMiles} mi past the ${model.travelFreeRadius}-mi free radius × ${usd2(model.travelPerMile)}</small></td><td>${usd0(r.travelFee)}</td></tr>`);
+  else rows.push(`<tr><td>Travel fee<small>Inside the ${model.travelFreeRadius}-mi free radius</small></td><td>$0</td></tr>`);
+  for (const l of r.addonLines) rows.push(`<tr><td>${esc(l.label)}${l.type === "perGuest" ? `<small>${ev.guests} × ${usd2(l.rate)}</small>` : ""}</td><td>${usd0(l.amount)}</td></tr>`);
+  rows.push(`<tr class="total"><td>Total</td><td>${usd0(r.recommended)}</td></tr>`);
+  $("breakdown").innerHTML = rows.join("");
+
+  const pace = Math.round(r.drinksPerHour / r.baristas);
+  const sn = $("staffNote");
+  sn.textContent = `${r.baristas} barista${r.baristas === 1 ? "" : "s"} · ${r.carts} cart${r.carts === 1 ? "" : "s"} · about ${r.totalDrinks} drinks over ${ev.hours} hr${ev.hours === 1 ? "" : "s"} (about ${Math.round(r.drinksPerHour)}/hr total, ${pace}/hr per barista). Target pace is ${model.throughputPerBaristaHour}/hr per barista, with ${model.maxDrinksPerBaristaHour}/hr as the comfortable maximum.`;
+  sn.classList.toggle("warn", pace > model.maxDrinksPerBaristaHour);
+
+  const mn = $("minNote");
+  mn.hidden = !(ev.hours < model.minBillableHours);
+  mn.textContent = `${model.minBillableHours}-hour minimum: shorter events are billed at the ${model.minBillableHours}-hour base.`;
+
+  const c = r.cost;
+  $("costTable").innerHTML = `
+    <tr><td>Ingredients and cups<small>${r.totalDrinks} drinks × ${usd2(model.costs.cogsPerDrink)}</small></td><td>${usd0(c.cogs)}</td></tr>
+    <tr><td>Labor<small>${r.baristas} × ${c.laborHours} hrs (incl. ${model.costs.setupTeardownHours} setup/teardown) × ${usd2(model.costs.baristaHourly)}</small></td><td>${usd0(c.labor)}</td></tr>
+    <tr><td>Mileage<small>${ev.miles} mi${model.costs.roundTrip ? " × 2 (round trip)" : ""} × ${usd2(model.costs.mileageCostPerMile)}${r.carts > 1 ? ` × ${r.carts} carts` : ""}</small></td><td>${usd0(c.mileage)}</td></tr>
+    <tr><td>Card processing<small>${model.costs.processingPct}% of total</small></td><td>${usd0(c.processing)}</td></tr>
+    <tr><td>Fixed per-event</td><td>${usd0(c.fixed)}</td></tr>
+    <tr class="total"><td>Estimated cost</td><td>${usd0(c.totalCost)}</td></tr>
+    <tr class="${c.profit >= 0 ? "pos" : "neg"}"><td><b>Estimated profit</b><small>${(c.margin * 100).toFixed(0)}% margin · ${usd0(c.hourly)} per service hour</small></td><td><b>${usd0(c.profit)}</b></td></tr>`;
+  save();
+}
+
+function summaryText() {
+  const r = compute(model, ev);
+  const line = (a, b) => `${a} ${".".repeat(Math.max(3, 42 - a.length - b.length))} ${b}`;
+  const out = [
+    "BLACK SWAN COFFEE · EVENT ESTIMATE", "",
+    `Service: ${r.cart.title} (${model.positioning[ev.positioning].title})`,
+    `Guests: ${ev.guests} · Duration: ${ev.hours} hr${ev.hours === 1 ? "" : "s"} · Travel: ${ev.miles} mi`,
+    `Estimated drinks: ~${r.totalDrinks} · ${r.carts} cart${r.carts === 1 ? "" : "s"}, ${r.baristas} barista${r.baristas === 1 ? "" : "s"}`, "",
+    line("Base service", usd0(r.basePositioned))
+  ];
+  if (r.travelFee > 0) out.push(line("Travel", usd0(r.travelFee)));
+  for (const l of r.addonLines) out.push(line(l.label, usd0(l.amount)));
+  out.push(line("TOTAL", usd0(r.recommended)), `Per guest: ${usd2(r.perGuest)}`);
+  return out.join("\n");
+}
+
+/* ================= MODEL EDITOR RENDER ================= */
+const CORE_FIELDS = [
+  ["drinksPerGuest", "Drinks per guest", 0.1, "Expected drinks per guest over the event"],
+  ["throughputPerBaristaHour", "Target drinks/hr per barista", 1, "Sets how many baristas the event needs"],
+  ["maxDrinksPerBaristaHour", "Max comfortable drinks/hr", 1, "Above this, the staffing note shows a warning"],
+  ["baristasPerCart", "Baristas per cart", 1, "When more baristas are needed, carts are added at this ratio"],
+  ["minBillableHours", "Minimum billable hours", 0.5, "Hours covered by the tier's base price"]
+];
+const TRAVEL_FIELDS = [
+  ["travelFreeRadius", "Free travel radius (mi)", 1, "Miles included at no charge"],
+  ["travelPerMile", "Charge per mile beyond radius ($)", 0.05, "Billed one way, rounded to the dollar"]
+];
+const COST_FIELDS = [
+  ["cogsPerDrink", "Ingredients + cup per drink ($)", 0.05, "Beans, milk, syrup, cup, lid, sleeve"],
+  ["baristaHourly", "Barista cost per hour ($)", 0.5, "Wage plus payroll overhead"],
+  ["setupTeardownHours", "Setup + teardown hours", 0.25, "Paid hours on top of service time"],
+  ["mileageCostPerMile", "Vehicle cost per mile ($)", 0.01, "IRS rate is a decent proxy"],
+  ["fixedPerEvent", "Fixed cost per event ($)", 1, "Ice, water, cleaning, insurance share, etc."],
+  ["processingPct", "Card processing (%)", 0.1, "Square or Stripe fee as a percent"]
+];
+function fieldHTML(path, label, step, hint, val, defVal) {
+  const changed = defVal !== undefined && num(val) !== num(defVal);
+  return `<div class="field"><label>${esc(label)}</label>
+    <input type="number" step="${step}" data-path="${path}" value="${val}" class="${changed ? "changed" : ""}" title="Team default: ${defVal}">
+    <div class="hint">${esc(hint)}${changed ? ` · default ${defVal}` : ""}</div></div>`;
+}
+function renderModel() {
+  const d = teamDefaults;
+  $("coreFields").innerHTML = CORE_FIELDS.map(([k, l, s, h]) => fieldHTML(k, l, s, h, model[k], d[k])).join("");
+  $("travelFields").innerHTML = TRAVEL_FIELDS.map(([k, l, s, h]) => fieldHTML(k, l, s, h, model[k], d[k])).join("");
+  $("costFields").innerHTML = COST_FIELDS.map(([k, l, s, h]) => fieldHTML("costs." + k, l, s, h, model.costs[k], d.costs[k])).join("") +
+    `<div class="field"><label>Mileage</label><select data-path="costs.roundTrip"><option value="true" ${model.costs.roundTrip ? "selected" : ""}>Round trip (×2)</option><option value="false" ${!model.costs.roundTrip ? "selected" : ""}>One way</option></select></div>`;
+
+  $("tierTable").innerHTML = `<tr><th>Up to guests</th><th>Base price ($)</th><th>Extra hour ($)</th><th></th></tr>` +
+    model.tiers.map((t, i) => `<tr>
+      <td><input type="number" min="1" step="1" placeholder="and up" data-list="tiers" data-i="${i}" data-k="maxGuests" value="${t.maxGuests ?? ""}"></td>
+      <td><input type="number" min="0" step="5" data-list="tiers" data-i="${i}" data-k="base" value="${t.base}"></td>
+      <td><input type="number" min="0" step="5" data-list="tiers" data-i="${i}" data-k="extraHour" value="${t.extraHour}"></td>
+      <td class="x"><button class="btn sm danger" data-del="tiers" data-i="${i}" ${model.tiers.length < 2 ? "disabled" : ""}>✕</button></td></tr>`).join("");
+
+  $("cartTable").innerHTML = `<tr><th>Name</th><th>Description</th><th style="width:110px">Multiplier</th><th></th></tr>` +
+    model.cartTypes.map((c, i) => `<tr>
+      <td><input data-list="cartTypes" data-i="${i}" data-k="title" value="${esc(c.title)}"></td>
+      <td><input data-list="cartTypes" data-i="${i}" data-k="sub" value="${esc(c.sub)}"></td>
+      <td><input type="number" step="0.01" min="0" data-list="cartTypes" data-i="${i}" data-k="multiplier" value="${c.multiplier}"></td>
+      <td class="x"><button class="btn sm danger" data-del="cartTypes" data-i="${i}" ${model.cartTypes.length < 2 ? "disabled" : ""}>✕</button></td></tr>`).join("");
+
+  $("posTable").innerHTML = `<tr><th>Name</th><th>Description</th><th style="width:110px">Multiplier</th><th style="width:110px">Recommended</th></tr>` +
+    Object.entries(model.positioning).map(([k, p]) => `<tr>
+      <td><input data-pos-k="${k}" data-k="title" value="${esc(p.title)}"></td>
+      <td><input data-pos-k="${k}" data-k="sub" value="${esc(p.sub)}"></td>
+      <td><input type="number" step="0.001" min="0" data-pos-k="${k}" data-k="multiplier" value="${p.multiplier}"></td>
+      <td style="text-align:center"><input type="radio" name="recpos" data-recpos="${k}" ${model.recommendedPositioning === k ? "checked" : ""}></td></tr>`).join("");
+
+  $("addonTable").innerHTML = `<tr><th>Name</th><th>Description</th><th style="width:130px">Pricing</th><th style="width:110px">Amount ($)</th><th></th></tr>` +
+    model.addons.map((a, i) => `<tr>
+      <td><input data-list="addons" data-i="${i}" data-k="label" value="${esc(a.label)}"></td>
+      <td><input data-list="addons" data-i="${i}" data-k="sub" value="${esc(a.sub)}"></td>
+      <td><select data-list="addons" data-i="${i}" data-k="type">
+        <option value="flat" ${a.type === "flat" ? "selected" : ""}>Flat</option>
+        <option value="perGuest" ${a.type === "perGuest" ? "selected" : ""}>Per guest</option></select></td>
+      <td><input type="number" step="0.25" min="0" data-list="addons" data-i="${i}" data-k="amount" value="${a.amount}"></td>
+      <td class="x"><button class="btn sm danger" data-del="addons" data-i="${i}">✕</button></td></tr>`).join("");
+  renderScenarios();
+  $("defaultsSource").textContent = `Team defaults loaded from ${teamDefaultsSource}.`;
+}
+function renderScenarios() {
+  const s = scenarios(), names = Object.keys(s).sort();
+  $("scenSel").innerHTML = names.length
+    ? names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("")
+    : `<option value="">No saved models yet</option>`;
+}
+
+/* ================= EVENTS ================= */
+function fullRefresh() { ev = normaliseEvent(ev); renderOptions(); syncInputs(); renderModel(); render(); }
+
+document.querySelector(".tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if (!b) return;
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  $("tab-quote").hidden = b.dataset.tab !== "quote";
+  $("tab-model").hidden = b.dataset.tab !== "model";
+  if (b.dataset.tab === "quote") { renderOptions(); render(); }
+});
+
+$("tab-quote").addEventListener("click", e => {
+  const c = e.target.closest("[data-cart]"), p = e.target.closest("[data-pos]");
+  if (c) { ev.cart = c.dataset.cart; renderOptions(); render(); }
+  if (p) { ev.positioning = p.dataset.pos; renderOptions(); render(); }
+});
+$("addonList").addEventListener("change", e => {
+  const id = e.target.dataset.addon; if (!id) return;
+  ev.addons = e.target.checked ? [...new Set([...ev.addons, id])] : ev.addons.filter(x => x !== id);
+  render();
+});
+for (const k of ["guests", "hours", "miles"]) {
+  const apply = (v, from) => {
+    ev[k] = v; ev = normaliseEvent(ev);
+    if (from !== "N") $(k + "N").value = ev[k];
+    if (from !== "R") $(k + "R").value = ev[k];
+    render();
+  };
+  $(k + "R").addEventListener("input", e => apply(num(e.target.value), "R"));
+  $(k + "N").addEventListener("input", e => { if (e.target.value !== "") apply(num(e.target.value), "N"); });
+  $(k + "N").addEventListener("blur", () => { $(k + "N").value = ev[k]; });
+}
+$("copySummary").onclick = () => copy(summaryText(), "Quote summary copied");
+$("shareLink").onclick = () => copy(location.origin + location.pathname + "#s=" + encodeState(), "Share link copied");
+$("resetEvent").onclick = () => { ev = normaliseEvent(clone(DEFAULT_EVENT)); ev.positioning = model.recommendedPositioning; fullRefresh(); };
+
+// model editor: scalar fields
+$("tab-model").addEventListener("input", e => {
+  const t = e.target;
+  if (t.dataset.path) {
+    const parts = t.dataset.path.split("."), v = t.tagName === "SELECT" ? t.value === "true" : num(t.value);
+    if (parts.length === 2) model[parts[0]][parts[1]] = v; else model[parts[0]] = v;
+  } else if (t.dataset.list) {
+    const row = model[t.dataset.list][+t.dataset.i], k = t.dataset.k;
+    if (k === "maxGuests") row[k] = t.value === "" ? null : Math.max(1, Math.round(num(t.value)));
+    else if (["base", "extraHour", "multiplier", "amount"].includes(k)) row[k] = Math.max(0, num(t.value));
+    else row[k] = t.value;
+  } else if (t.dataset.posK) {
+    const p = model.positioning[t.dataset.posK];
+    p[t.dataset.k] = t.dataset.k === "multiplier" ? Math.max(0, num(t.value)) : t.value;
+  } else if (t.dataset.recpos) {
+    model.recommendedPositioning = t.dataset.recpos;
+  } else return;
+  save();
+});
+$("tab-model").addEventListener("change", e => {
+  // re-render highlights after a committed edit (keeps focus stable during typing)
+  if (e.target.dataset.path) { const pos = e.target.dataset.path; renderModel(); const el = document.querySelector(`[data-path="${pos}"]`); el && el.focus(); }
+});
+$("tab-model").addEventListener("click", e => {
+  const del = e.target.closest("[data-del]");
+  if (del) {
+    const list = del.dataset.del, i = +del.dataset.i;
+    model[list].splice(i, 1);
+    if (list === "tiers" && !model.tiers.some(t => t.maxGuests == null)) model.tiers[model.tiers.length - 1].maxGuests = null;
+    fullRefresh();
+  }
+});
+$("addTier").onclick = () => {
+  const ts = sortedTiers(model), last = ts[ts.length - 1], prev = ts[ts.length - 2];
+  const newMax = (prev?.maxGuests ?? 0) + 100;
+  model.tiers.push({ maxGuests: newMax, base: last.base, extraHour: last.extraHour });
+  model.tiers = sortedTiers(model); fullRefresh();
+};
+$("addCart").onclick = () => { model.cartTypes.push({ id: slug("cart"), title: "New cart", sub: "", multiplier: 1 }); fullRefresh(); };
+$("addAddon").onclick = () => { model.addons.push({ id: slug("addon"), label: "New add-on", sub: "", type: "flat", amount: 100 }); fullRefresh(); };
+
+// scenarios
+$("scenSave").onclick = () => {
+  const name = prompt("Name for this pricing model:", $("scenSel").value || "Our model");
+  if (!name) return;
+  const s = scenarios();
+  if (s[name] && !confirm(`Replace saved model "${name}"?`)) return;
+  s[name] = clone(model); setScenarios(s); $("scenSel").value = name; toast(`Saved "${name}"`);
+};
+$("scenLoad").onclick = () => {
+  const s = scenarios(), n = $("scenSel").value; if (!s[n]) return;
+  model = normaliseModel(s[n]); fullRefresh(); toast(`Loaded "${n}"`);
+};
+$("scenDel").onclick = () => {
+  const s = scenarios(), n = $("scenSel").value; if (!s[n] || !confirm(`Delete saved model "${n}"?`)) return;
+  delete s[n]; setScenarios(s);
+};
+$("resetModel").onclick = () => {
+  if (!confirm("Replace the current pricing model with the team defaults?")) return;
+  model = normaliseModel(teamDefaults); fullRefresh(); toast("Reset to team defaults");
+};
+$("exportJson").onclick = () => {
+  const blob = new Blob([JSON.stringify(model, null, 2)], { type: "application/json" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "black-swan-pricing-model.json" });
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$("importJson").onclick = () => $("importFile").click();
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); model = normaliseModel(j.model || j); fullRefresh(); toast("Model imported"); }
+  catch { alert("That file isn't a valid pricing model JSON."); }
+  e.target.value = "";
+};
+
+/* ================= BOOT ================= */
+(async function boot() {
+  try {
+    const r = await fetch("defaults.json", { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && Object.keys(j).length) { teamDefaults = Object.assign(clone(BUILTIN), j); teamDefaultsSource = "defaults.json (team defaults on the server)"; }
+    }
+  } catch {}
+  teamDefaults = normaliseModel.call(null, teamDefaults);
+
+  let fromHash = null;
+  const m = location.hash.match(/#s=([\w-]+)/);
+  if (m) {
+    try { fromHash = decodeState(m[1]); } catch { toast("Couldn't read that share link"); }
+    history.replaceState(null, "", location.pathname);
+  }
+  let stored = null, storedEv = null;
+  try { stored = JSON.parse(localStorage.getItem(LS_MODEL)); storedEv = JSON.parse(localStorage.getItem(LS_EVENT)); } catch {}
+
+  if (fromHash) {
+    const backedUp = stored && JSON.stringify(normaliseModel(stored)) !== JSON.stringify(normaliseModel(fromHash.model));
+    if (backedUp) {
+      const s = scenarios(); s["Before share link " + new Date().toLocaleString()] = stored; localStorage.setItem(LS_SCEN, JSON.stringify(s));
+    }
+    model = normaliseModel(fromHash.model); ev = fromHash.event;
+    setTimeout(() => toast(backedUp ? "Opened shared quote. Your previous model is under Saved models." : "Opened shared quote"), 300);
+  } else {
+    model = normaliseModel(stored || teamDefaults);
+    ev = storedEv || Object.assign(clone(DEFAULT_EVENT), { positioning: model.recommendedPositioning });
+  }
+  fullRefresh();
+})();
+</script>
+</body>
+</html>
