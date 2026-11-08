@@ -199,6 +199,9 @@ def load():
                                      "guess": x.get("guess")} for k, x in voices["voices"].items()}
         details[e["slug"]] = {
             "tx": utterances(tx, voices) if tx else None,
+            # AI name guesses, shown as provisional speaker names until a voice is labeled.
+            "guess": {k[1:]: x["guess"]["name"] for k, x in (voices or {}).get("voices", {}).items()
+                      if (x.get("guess") or {}).get("name") and x["guess"].get("confidence") in ("high", "medium")},
             "caps": [[c["t"], c.get("scene") or "", c.get("stamp") or "", c.get("tags") or []] for c in caps],
         }
     videos.sort(key=lambda v: (v["date_start"] or "9999", v["title"]))

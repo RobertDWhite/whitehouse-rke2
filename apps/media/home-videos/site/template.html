@@ -195,7 +195,6 @@ for (const v of VIDEOS) {
 const state = {view: "moments", cat: null, person: null, q: ""};
 let DETAILS = {}, loadingAll = null, LABELS = {};
 fetch("api/labels").then(r => r.json()).then(d => { LABELS = d.labels || {}; if (cur && curD) renderTx(cur, curD); }).catch(() => {});
-const spkName = (slug, n) => n > 0 ? (LABELS[`${slug}/v${n}`]?.name || "v" + n) : n < 0 ? "S" + (-n) : "?";
 const spkCls = n => "s" + ((Math.abs(n) - 1 + 8) % 8 + 1);
 async function detail(slug) {
   if (!DETAILS[slug]) DETAILS[slug] = fetch(`data/${slug}.json`).then(r => r.json());
@@ -330,9 +329,10 @@ async function openVideo(slug, t = 0, push = true) {
 function renderTx(v, d) {
   const short = n => n.replace(/ \(.*\)$/, "");
   $("#p-tx").innerHTML = d.tx ? (d.tx.length ? d.tx.map((l, i) => {
-    const name = spkName(v.slug, l[2]), named = l[2] > 0 && LABELS[`${v.slug}/v${l[2]}`];
-    const chip = l[2] > 0 ? `<a class="sp ${spkCls(l[2])} ${named ? "" : "un"}" href="label.html#${v.slug}/v${l[2]}" title="${named ? esc(name) : "Name this voice"}">${esc(short(name))}</a>`
-      : `<span class="sp ${spkCls(l[2] || 8)}">${esc(name)}</span>`;
+    const lab = LABELS[`${v.slug}/v${l[2]}`]?.name, g = d.guess?.[l[2]];
+    const shown = lab ? short(lab) : g ? short(g) + "?" : "v" + l[2];
+    const chip = l[2] > 0 ? `<a class="sp ${spkCls(l[2])} ${lab ? "" : "un"}" href="label.html#${v.slug}/v${l[2]}" title="${lab ? esc(lab) : g ? "AI guess: " + esc(g) + ". Click to confirm or fix" : "Name this voice"}">${esc(shown)}</a>`
+      : `<span class="sp ${spkCls(l[2] || 8)}">${l[2] < 0 ? "S" + (-l[2]) : "?"}</span>`;
     return `<div class="ln" data-t="${l[0]}" data-i="${i}"><span class="ts">${hms(l[0])}</span><span>${chip}${esc(l[3])}</span></div>`; }).join("")
     : `<p class="hmeta">No speech detected on this tape.</p>`) : `<p class="hmeta">Not transcribed yet.</p>`;
   lastLine = -1;

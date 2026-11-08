@@ -46,10 +46,13 @@ spec:
             - |
               set -e
               PY=/work/.cache/py312
-              if [ ! -f "$PY/.ok-1" ]; then
-                pip install --no-cache-dir --target "$PY" --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchaudio==2.5.1
-                pip install --no-cache-dir --target "$PY" "speechbrain==1.0.3" soundfile "numpy<2.3" "huggingface_hub<0.26"
-                touch "$PY/.ok-1"
+              if [ ! -f "$PY/.ok-2" ]; then
+                rm -rf "$PY"
+                # One resolve, so pip can't pull a CUDA torch for speechbrain's deps.
+                pip install --no-cache-dir --target "$PY" --index-url https://download.pytorch.org/whl/cpu \
+                  --extra-index-url https://pypi.org/simple \
+                  torch==2.5.1+cpu torchaudio==2.5.1+cpu speechbrain==1.0.3 soundfile "numpy<2.3" "huggingface_hub<0.26"
+                touch "$PY/.ok-2"
               fi
               cp /people/people.md /work/White/people.md
               exec python3 /scripts/voices.py "$@"
