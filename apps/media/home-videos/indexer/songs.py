@@ -10,10 +10,12 @@ For every tape with a tx.json it writes WORK/<slug>/songs.json:
                               "kind": "sung" | "playing" | "tv", "quote": ...,
                               "confidence": "high" | "medium"}]}
 
-Every answer is checked against the transcript: the quoted lyric has to be there,
-near the time the model gave, or the song is dropped.
+Every answer is checked twice: the quoted words have to be in the transcript near
+the time the model gave, and a second, stricter question about just those lines
+has to confirm it is a real song whose actual lyrics are there (and give its
+proper title and artist), or the song is dropped.
 
-    python3 songs.py [slug ...]   # skips tapes whose songs.json is newer than tx.json
+    python3 songs.py [slug ...]   # skips tapes whose songs.json is current (newer than tx.json, same VERSION)
     FORCE=1 python3 songs.py
 """
 import json, os, re, sys, time, urllib.request
@@ -23,6 +25,7 @@ LLM = os.environ.get("LLM_URL", "http://qwen-flash.qwen-flash.svc.cluster.local:
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3.6-35b-a3b")
 FORCE = os.environ.get("FORCE") == "1"
 WINDOW_CHARS = 60_000
+VERSION = 2  # bump to redo every tape after changing the prompts or checks
 
 PROMPT = """Below is a stretch of the transcript of a family's VHS home video (late 1980s to
 early 2000s), one line per utterance with its time. Speech recognition is imperfect,
@@ -97,24 +100,66 @@ def lines(tx):
     return out
 
 
-def ask(title, chunk):
-    body = {"model": LLM_MODEL, "temperature": 0, "max_tokens": 3000,
+CHECK = """A first pass over a family home video's transcript thought a known song is sung
+or playing here. Be strict. Speech recognition is imperfect, so allow misheard words,
+but the transcript must contain at least one full line of the song's real lyrics (a
+title said out loud, a poem, a book read aloud, counting, or a common phrase is not
+enough). Children's songs, hymns and carols count when their lyrics are really there.
+
+Claimed: "{title}" by {artist}
+
+Transcript around that time:
+{transcript}
+
+Answer with JSON only:
+{{"real_song": true|false, "lyrics_present": true|false,
+  "title": "the song's correct, usual title", "artist": "its best-known performer, or traditional",
+  "lyric": "one line of the song's actual lyrics that the transcript contains"}}
+"""
+
+
+def llm_json(prompt, max_tokens, tries=3, temperature=0):
+    body = {"model": LLM_MODEL, "temperature": temperature, "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
             "chat_template_kwargs": {"enable_thinking": False},
-            "messages": [{"role": "user", "content": PROMPT.format(title=title, transcript=chunk)}]}
-    for attempt in range(4):
+            "messages": [{"role": "user", "content": prompt}]}
+    for attempt in range(tries):
         try:
             req = urllib.request.Request(f"{LLM}/chat/completions", data=json.dumps(body).encode(),
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=600) as r:
                 content = json.loads(r.read())["choices"][0]["message"]["content"]
-            content = re.sub(r"^```(?:json)?|```$", "", content.strip()).strip()
-            got = json.loads(content).get("songs") or []
-            return [g for g in got if isinstance(g, dict)]
+            return json.loads(re.sub(r"^```(?:json)?|```$", "", content.strip()).strip())
         except Exception as ex:
-            log("songs llm failed", title[:40], attempt, repr(ex)[:200])
-            time.sleep(20 * (attempt + 1))
-    return []
+            log("songs llm failed", attempt, repr(ex)[:200])
+            time.sleep(10 * (attempt + 1))
+    return None
+
+
+def ask(title, chunk, temperature=0):
+    """Candidate songs in one stretch of transcript lines; halves the stretch when the
+    model's answer comes back broken (it sometimes runs on and gets cut off)."""
+    got = llm_json(PROMPT.format(title=title, transcript="\n".join(chunk)), 3000, temperature=temperature)
+    if got is None:
+        if len(chunk) < 40:
+            return []
+        h = len(chunk) // 2
+        return ask(title, chunk[:h + 10], temperature) + ask(title, chunk[h - 10:], temperature)
+    return [g for g in got.get("songs") or [] if isinstance(g, dict)]
+
+
+def check(song, span, ls):
+    """Second, stricter look at one candidate with just the lines around it."""
+    near = [f"[{hms(l[0])}] {l[2]}" for l in ls if l[1] >= span[0] - 20 and l[0] <= span[1] + 20]
+    got = llm_json(CHECK.format(title=song["title"], artist=song.get("artist") or "unknown",
+                                transcript="\n".join(near)[:12000]), 400)
+    if not got or not got.get("real_song") or not got.get("lyrics_present"):
+        return None
+    lyric = words(str(got.get("lyric") or ""))
+    hay = set(w for l in ls if l[1] >= span[0] - 20 and l[0] <= span[1] + 20 for w in words(l[2]))
+    if len(lyric) < 3 or sum(w in hay for w in lyric) < 0.6 * len(lyric):
+        return None
+    return {"title": str(got.get("title") or song["title"]), "artist": str(got.get("artist") or song.get("artist") or "")}
 
 
 def verify(song, ls):
@@ -147,7 +192,8 @@ def run(slug):
     tx_p, out_p = os.path.join(dd, "tx.json"), os.path.join(dd, "songs.json")
     if not os.path.exists(tx_p):
         return
-    if not FORCE and os.path.exists(out_p) and os.path.getmtime(out_p) > os.path.getmtime(tx_p):
+    if not FORCE and os.path.exists(out_p) and os.path.getmtime(out_p) > os.path.getmtime(tx_p) \
+            and json.load(open(out_p)).get("version") == VERSION:
         return
     t0 = time.time()
     info_p = os.path.join(dd, "info.json")
@@ -165,14 +211,25 @@ def run(slug):
         chunks.append(cur)
     found = []
     for c in chunks:
-        for s in ask(title, "\n".join(c)):
+        # Two passes (the second a little looser): the first pass alone misses songs now
+        # and then; the checks below keep the extra candidates honest.
+        seen = set()
+        for s in ask(title, c) + ask(title, c, 0.4):
+            key = (str(s.get("title")).casefold(), str(s.get("start")))
+            if key in seen:
+                continue
+            seen.add(key)
             if s.get("confidence") not in ("high", "medium") or not s.get("title"):
                 continue
             span = verify(s, ls)
             if not span:
                 log("dropped unverified", slug, s.get("title"), s.get("quote"))
                 continue
-            found.append({"title": str(s["title"])[:120], "artist": str(s.get("artist") or "")[:120],
+            ok = check(s, span, ls)
+            if not ok:
+                log("dropped on check", slug, s.get("title"), str(s.get("quote"))[:80])
+                continue
+            found.append({"title": ok["title"][:120], "artist": ok["artist"][:120],
                           "start": span[0], "end": span[1],
                           "kind": s.get("kind") if s.get("kind") in ("sung", "playing", "tv") else "playing",
                           "quote": str(s.get("quote"))[:200], "confidence": s["confidence"]})
@@ -187,7 +244,7 @@ def run(slug):
                 m["confidence"] = "high"
         else:
             merged.append(s)
-    write_json(out_p, {"version": 1, "model": LLM_MODEL, "songs": merged})
+    write_json(out_p, {"version": VERSION, "model": LLM_MODEL, "songs": merged})
     log("songs", slug, len(merged), ", ".join(s["title"] for s in merged)[:200], f"in {time.time() - t0:.0f}s")
 
 
