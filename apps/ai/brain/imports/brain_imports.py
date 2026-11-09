@@ -25,7 +25,6 @@ import json
 import logging
 import os
 import pathlib
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -143,12 +142,17 @@ def fetch():
             path = member.name.split("/", 1)[1] if "/" in member.name else ""
             if not member.isfile() or not path or ".." in path.split("/"):
                 continue
-            for n, prefixes in wanted.items():
-                if any(path == p or path.startswith(p + "/") for p in prefixes):
-                    target = WORK / "repo" / n / path
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with tar.extractfile(member) as src, open(target, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
+            # The archive is a stream: read each member once, even when several
+            # imports want it (e.g. two imports that both read Meerkat/People).
+            targets = [WORK / "repo" / n / path for n, prefixes in wanted.items()
+                       if any(path == p or path.startswith(p + "/") for p in prefixes)]
+            if not targets:
+                continue
+            with tar.extractfile(member) as src:
+                data = src.read()
+            for target in targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
     for m in imports:
         state["trees"][m["n"]] = list_tree(m["dest"])
         (WORK / "repo" / m["n"] / m["dest"]).mkdir(parents=True, exist_ok=True)
