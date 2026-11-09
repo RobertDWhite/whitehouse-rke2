@@ -298,16 +298,83 @@ def loopy(s):
     return (len(w) >= 12 and uniq <= 0.25) or (fast and uniq <= 0.5)
 
 
+DELOOP_VERSION = 2
+RUN_MIN = 6  # a word (or 2-3 word phrase) said this many times in a row is a loop
+
+
+def _tokens(segs):
+    """Every word of the transcript in order, as (segment index, word index, normalised)."""
+    out = []
+    for i, s in enumerate(segs):
+        if s["end"] - s["start"] > 60:
+            continue
+        for j, w in enumerate(s["text"].split()):
+            n = re.sub(r"[^\w']", "", w.lower())
+            if n:
+                out.append((i, j, n))
+    return out
+
+
+def word_runs(segs):
+    """Loops across lines too: the model often returns a loop as hundreds of one-word
+    segments. Yields (first token, unit length, repeats) over _tokens(segs)."""
+    tok = _tokens(segs)
+    norms = [t[2] for t in tok]
+    runs, i = [], 0
+    while i < len(tok):
+        for n in (1, 2, 3):
+            unit, reps = norms[i:i + n], 1
+            while norms[i + reps * n:i + (reps + 1) * n] == unit and len(unit) == n:
+                reps += 1
+            last = i + n * reps - 1
+            dense = reps >= RUN_MIN and segs[tok[last][0]]["end"] - segs[tok[i][0]]["start"] <= max(10, 2 * n * reps)
+            if dense and len(set(unit)) == n:  # said back to back, not a stray word spread over minutes
+                runs.append((i, n, reps))
+                i += n * reps
+                break
+        else:
+            i += 1
+    return tok, runs
+
+
+def collapse_runs(segs):
+    """Keep the first two repeats of each run (plus "…"), or none when the run is only
+    filler ("yeah", "oh"); drop segments left empty."""
+    tok, runs = word_runs(segs)
+    drop, ell, dropped = set(), set(), 0
+    for i, n, reps in runs:
+        unit = {tok[i + k][2] for k in range(n)}
+        keep = 0 if unit <= FILLER else 2 * n
+        for k in range(keep, n * reps):
+            drop.add(tok[i + k][:2])
+        if keep:
+            ell.add(tok[i + keep - 1][:2])
+        dropped += n * reps - keep
+    out = []
+    for si, sg in enumerate(segs):
+        ws = sg["text"].split()
+        kept = [w + (" …" if (si, j) in ell else "") for j, w in enumerate(ws) if (si, j) not in drop]
+        if not kept:
+            continue
+        out.append(sg if len(kept) == len(ws) and not any((si, j) in ell for j in range(len(ws)))
+                   else {**sg, "text": " ".join(kept)})
+    return out, dropped
+
+
 def loop_spans(tx, pad=2.0, join=15.0):
     segs = tx.get("segments", [])
+    marks = [(s["start"], s["end"]) for s in segs if loopy(s)]
+    tok, runs = word_runs(segs)
+    for i, n, reps in runs:
+        a, b = segs[tok[i][0]], segs[tok[i + n * reps - 1][0]]
+        marks.append((a["start"], b["end"]))
     spans = []
-    for s in segs:
-        if loopy(s):
-            a, b = s["start"] - pad, s["end"] + pad
-            if spans and a - spans[-1][1] < join:
-                spans[-1][1] = max(spans[-1][1], b)
-            else:
-                spans.append([a, b])
+    for s0, s1 in sorted(marks):
+        a, b = s0 - pad, s1 + pad
+        if spans and a - spans[-1][1] < join:
+            spans[-1][1] = max(spans[-1][1], b)
+        else:
+            spans.append([a, b])
     # Grow each span to whole segments, so a piece never cuts one in half.
     for sp in spans:
         for s in segs:
@@ -344,11 +411,15 @@ def collapse_loops(segs):
 
 def deloop(e):
     path = d(e, "tx.json")
-    if not os.path.exists(path) or os.path.exists(d(e, "deloop.done")):
+    if not os.path.exists(path):
+        return False
+    prev = json.load(open(d(e, "deloop.done"))) if os.path.exists(d(e, "deloop.done")) else {}
+    if prev.get("version", 1 if prev else 0) >= DELOOP_VERSION:
         return False
     tx = json.load(open(path))
     before = sum(len(_words(s["text"])) for s in tx["segments"])
-    spans = loop_spans(tx)
+    done = [tuple(x) for x in prev.get("spans", [])]  # re-transcribed by an earlier version: don't again
+    spans = [(a, b) for a, b in loop_spans(tx) if not any(a < y and b > x for x, y in done)]
     if spans:
         if not os.path.exists(d(e, "tx.pre-deloop.json")):
             write_json(d(e, "tx.pre-deloop.json"), tx)
@@ -359,7 +430,9 @@ def deloop(e):
         keep = [s for s in tx["segments"] if not (s["start"] >= a - 0.01 and s["end"] <= b + 0.01)]
         tx["segments"] = sorted(keep + new, key=lambda s: s["start"])
         log("redone", e["slug"], f"{a:.0f}-{b:.0f}", len(new), "segments", f"in {time.time() - t0:.0f}s")
-    segs, dropped = collapse_loops(tx["segments"])
+    segs, dropped = collapse_runs(tx["segments"])
+    segs, dropped2 = collapse_loops(segs)
+    dropped += dropped2
     changed = bool(spans) or len(segs) != len(tx["segments"]) or dropped
     if changed:
         for i, s in enumerate(segs):
@@ -367,7 +440,8 @@ def deloop(e):
         tx["segments"] = segs
         write_json(path, tx)
     after = sum(len(_words(s["text"])) for s in segs)
-    write_json(d(e, "deloop.done"), {"spans": spans, "words_before": before, "words_after": after})
+    write_json(d(e, "deloop.done"), {"version": DELOOP_VERSION, "spans": done + list(spans),
+                                     "words_before": prev.get("words_before", before), "words_after": after})
     log("deloop done", e["slug"], f"{before} -> {after} words")
     return changed
 

@@ -170,7 +170,15 @@ def load():
         caps = json.load(open(os.path.join(dd, "captions.json"))) if os.path.exists(os.path.join(dd, "captions.json")) else []
         voices = json.load(open(os.path.join(dd, "voices.json"))) if os.path.exists(os.path.join(dd, "voices.json")) else None
         songs = json.load(open(os.path.join(dd, "songs.json")))["songs"] if os.path.exists(os.path.join(dd, "songs.json")) else []
-        songs = [{k: x[k] for k in ("title", "artist", "start", "end", "kind")} for x in songs]
+        merged = []  # the same song under two spellings ("Pat-a-Cake" / "Pat-a-cake, Baker's Man"), close together
+        for x in sorted(songs, key=lambda x: x["start"]):
+            key = re.sub(r"[^a-z]", "", x["title"].lower())[:8]
+            m = next((y for y in merged if y["key"] == key and x["start"] - y["end"] < 180), None)
+            if m:
+                m["end"] = max(m["end"], x["end"])
+            else:
+                merged.append({"key": key, **{k: x[k] for k in ("title", "artist", "start", "end", "kind")}})
+        songs = [{k: v for k, v in x.items() if k != "key"} for x in merged]
         dur = e["duration"]
         chapters = []
         raw = sorted((c for c in info.get("chapters") or [] if isinstance(c, dict)),

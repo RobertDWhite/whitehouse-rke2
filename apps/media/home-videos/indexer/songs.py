@@ -237,7 +237,8 @@ def run(slug):
     found.sort(key=lambda s: s["start"])
     merged = []
     for s in found:
-        m = next((x for x in merged if x["title"].casefold() == s["title"].casefold() and s["start"] - x["end"] < 120), None)
+        key = re.sub(r"[^a-z]", "", s["title"].lower())[:8]  # "Pat-a-Cake" = "Pat-a-cake, Baker's Man"
+        m = next((x for x in merged if re.sub(r"[^a-z]", "", x["title"].lower())[:8] == key and s["start"] - x["end"] < 180), None)
         if m:
             m["end"] = max(m["end"], s["end"])
             if s["confidence"] == "high":
