@@ -104,9 +104,34 @@ the sample clips, pick a name (keys `1`-`0`), accept a suggestion (`a`), or jump
 to the next unnamed voice (`n`). Voice matching across tapes suggests names you
 have already given elsewhere, and "Same voice on other tapes" names several at
 once. Names save to the labels API immediately and show up in the site's
-transcripts and, within 30 minutes, in the brain notes. Re-running `voices.py`
-renumbers a tape's voices (and orphans its labels), so it skips tapes whose
-`voices.json` is newer than `tx.json`.
+transcripts and, within 30 minutes, in the brain notes. When a tape's `tx.json`
+changes after its `voices.json` (retime, deloop), `voices.py` extends it instead:
+new transcript pieces join the closest existing voice or become a new one, and the
+voice numbers the labels point at stay put. Only `FORCE=1` redoes a tape from
+scratch, which renumbers its voices and orphans its labels.
+
+## Loops and songs: 45-job-cleanup.yaml
+
+Under music or tape noise Nemotron sometimes hears one word over and over
+("yeah, yeah, yeah..." for minutes, at 20+ words a second). The cleanup Job runs:
+
+1. `indexer.py deloop` (init container): finds those stretches (lines that are
+   mostly one word, or faster than anyone talks), re-transcribes them in short
+   pieces, then keeps the first two words of anything that still loops and drops
+   lines that only continue it, or that are nothing but filler ("yeah", "oh").
+   The transcript before is kept as `tx.pre-deloop.json`; `deloop.done` marks a
+   tape as done.
+2. `voices.py`: extends the changed tapes' voices (above).
+3. `songs.py`: songs sung or playing, recognised from their lyrics by qwen-flash,
+   all inside the cluster (no fingerprinting service), so instrumental music
+   is not identified. Every answer must quote words that are really in the
+   transcript near that time. Writes `songs.json`; the site shows them on
+   chapters ("♪ ...") and in a tape's About tab, and search finds them.
+
+```sh
+kubectl -n home-videos delete job home-videos-cleanup --ignore-not-found
+kubectl create -f apps/media/home-videos/45-job-cleanup.yaml
+```
 
 ## Building the site
 

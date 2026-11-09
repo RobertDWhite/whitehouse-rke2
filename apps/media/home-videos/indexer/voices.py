@@ -19,8 +19,12 @@ people.md for a first guess at names (people.md and the name list come from the
 home-videos-people Secret). The site's labeling page (label.html) compares
 voice embeddings across tapes, so naming a voice once suggests it everywhere else.
 
-    python3 voices.py [slug ...]     # skips tapes whose voices.json is newer than tx.json
-    FORCE=1 python3 voices.py        # redo everything
+    python3 voices.py [slug ...]     # new tapes; tapes whose tx.json changed are extended
+    FORCE=1 python3 voices.py        # redo everything (renumbers voices: orphans labels!)
+
+When tx.json is newer than an existing voices.json (after `indexer.py retime` or
+`deloop`), the tape is extended instead of redone: voice numbers stay put, so labels
+made on the site keep pointing at the same people.
 """
 import json, os, re, sys, time, urllib.request
 
@@ -197,6 +201,67 @@ def guess(slug, utts, voice_of, voices):
     return {}
 
 
+def group_info(audio, us):
+    talk = sum(u["end"] - u["start"] for u in us)
+    picks = sorted((u for u in us if u["end"] - u["start"] >= MIN_CLIP), key=lambda u: u["start"] - u["end"])[:CLIPS]
+    embs = [e for e in (embed(audio, u["start"], u["end"]) for u in picks) if e is not None]
+    return {"talk": talk, "n": len(us), "emb": unit(np.mean(embs, axis=0)) if embs else None, "picks": picks}
+
+
+def extend(slug, out_p, audio, utts, by, t0):
+    """The transcript changed (retime, deloop) after voices.json was written. Keep the
+    existing voice numbers, which the labels point at: put each new group into the
+    closest existing voice (same rules as clustering), or a new voice after the last
+    one, then refresh talk time, counts and sample clips from the current transcript."""
+    old = json.load(open(out_p))
+    voice_of, voices = old["groups"], old["voices"]
+    used = {}  # request -> voices already holding one of its groups (cannot-link)
+    for g, v in voice_of.items():
+        if g in by:
+            used.setdefault(request_of(g), set()).add(v)
+    added = new_voices = 0
+    for g in sorted(set(by) - set(voice_of)):
+        info = group_info(audio, by[g])
+        if info["emb"] is None:
+            continue
+        taken = used.get(request_of(g), set())
+        best, bv = MERGE, None
+        for v, x in voices.items():
+            if v in taken:
+                continue
+            sim = float(info["emb"] @ unit(np.array(x["emb"])))
+            if sim > best:
+                best, bv = sim, v
+        if bv is None:
+            bv = f"v{max(int(k[1:]) for k in voices) + 1 if voices else 1}"
+            voices[bv] = {"talk": 0, "n": 0, "emb": [round(float(x), 4) for x in info["emb"]], "clips": []}
+            new_voices += 1
+        voice_of[g] = bv
+        used.setdefault(request_of(g), set()).add(bv)
+        added += 1
+    live = {}
+    for u in utts:
+        v = voice_of.get(u["g"])
+        if v:
+            live.setdefault(v, []).append(u)
+    for v, x in voices.items():
+        us = live.get(v, [])
+        x["talk"] = round(sum(u["end"] - u["start"] for u in us), 1)
+        x["n"] = len(us)
+        # Sample clips must still be speech in the current transcript.
+        x["clips"] = [c for c in x["clips"] if any(u["start"] <= c[0] + 0.5 and u["end"] >= c[1] - 0.5 for u in us)]
+        if len(x["clips"]) < 3:
+            have = {c[0] for c in x["clips"]}
+            for u in sorted((u for u in us if u["end"] - u["start"] >= MIN_CLIP), key=lambda u: u["start"] - u["end"]):
+                if len(x["clips"]) >= 8:
+                    break
+                if round(u["start"], 1) not in have:
+                    x["clips"].append([round(u["start"], 1), round(u["end"], 1), u["text"][:200]])
+    old["groups"] = {g: v for g, v in voice_of.items() if g in by}
+    write_json(out_p, old)
+    log("voices extended", slug, f"{added} new groups, {new_voices} new voices", f"in {time.time() - t0:.0f}s")
+
+
 def run(slug):
     dd = os.path.join(WORK, slug)
     tx_p, out_p, audio = os.path.join(dd, "tx.json"), os.path.join(dd, "voices.json"), os.path.join(dd, "audio.flac")
@@ -209,12 +274,9 @@ def run(slug):
     by = {}
     for u in utts:
         by.setdefault(u["g"], []).append(u)
-    groups = {}
-    for g, us in by.items():
-        talk = sum(u["end"] - u["start"] for u in us)
-        picks = sorted((u for u in us if u["end"] - u["start"] >= MIN_CLIP), key=lambda u: u["start"] - u["end"])[:CLIPS]
-        embs = [e for e in (embed(audio, u["start"], u["end"]) for u in picks) if e is not None]
-        groups[g] = {"talk": talk, "n": len(us), "emb": unit(np.mean(embs, axis=0)) if embs else None, "picks": picks}
+    if not FORCE and os.path.exists(out_p):
+        return extend(slug, out_p, audio, utts, by, t0)
+    groups = {g: group_info(audio, us) for g, us in by.items()}
     clusters = sorted(cluster(groups), key=lambda c: -c["w"])
     voice_of, voices = {}, {}
     for k, c in enumerate(clusters):

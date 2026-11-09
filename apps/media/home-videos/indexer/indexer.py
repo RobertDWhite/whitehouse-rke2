@@ -10,6 +10,7 @@ be killed and re-run at any point.
     python3 indexer.py classify    # info.json via qwen-flash, uses WORK/people.md if present
     python3 indexer.py all         # all four, concurrently (each tape moves on as soon as it can)
     python3 indexer.py retime      # re-transcribe spans that came back without word timings
+    python3 indexer.py deloop      # re-transcribe / collapse "yeah, yeah, yeah..." loops
 
 One frame every STEP seconds (frame k is at k*STEP); the 640px copies feed the
 captioner and are deleted once captions.json is written.
@@ -275,6 +276,102 @@ def retime(e):
     return True
 
 
+# ---------------------------------------------------------------- deloop
+# Under music or tape noise Nemotron sometimes "hears" one word over and over: dozens
+# of lines of "yeah, yeah, yeah..." at 20+ words a second. `deloop` re-sends those
+# stretches in short pieces (often real speech comes back), then collapses whatever
+# still loops to its first couple of words and drops the rest.
+LOOP_WPS = 5.0  # words per second nobody actually speaks at
+FILLER = {"yeah", "yes", "no", "oh", "uh", "um", "ah", "ha", "hey", "mm", "hmm", "ooh", "la", "na", "da", "it", "the", "a"}
+
+
+def _words(text):
+    return [x for x in (re.sub(r"[^\w']", "", w.lower()) for w in text.split()) if x]
+
+
+def loopy(s):
+    w = _words(s["text"])
+    if len(w) < 6 or s["end"] - s["start"] > 60:  # > 60 s: an unaligned leftover, not a loop
+        return False
+    uniq = len(set(w)) / len(w)
+    fast = len(w) / max(s["end"] - s["start"], 0.2) > LOOP_WPS
+    return (len(w) >= 12 and uniq <= 0.25) or (fast and uniq <= 0.5)
+
+
+def loop_spans(tx, pad=2.0, join=15.0):
+    segs = tx.get("segments", [])
+    spans = []
+    for s in segs:
+        if loopy(s):
+            a, b = s["start"] - pad, s["end"] + pad
+            if spans and a - spans[-1][1] < join:
+                spans[-1][1] = max(spans[-1][1], b)
+            else:
+                spans.append([a, b])
+    # Grow each span to whole segments, so a piece never cuts one in half.
+    for sp in spans:
+        for s in segs:
+            if s["end"] - s["start"] <= 60 and s["start"] < sp[1] and s["end"] > sp[0]:
+                sp[0], sp[1] = min(sp[0], s["start"]), max(sp[1], s["end"])
+        sp[0] = max(0.0, sp[0])
+    return [(round(a, 2), round(b, 2)) for a, b in spans]
+
+
+def collapse_loops(segs):
+    """Keep the first two words of a loop and drop the lines that only continue it."""
+    out, run, run_end, dropped = [], None, -1e9, 0
+    for s in sorted(segs, key=lambda s: s["start"]):
+        w = _words(s["text"])
+        if run and w and set(w) <= run and s["start"] - run_end < 10:
+            run_end = max(run_end, s["end"])
+            dropped += len(w)
+            continue
+        if loopy(s):
+            run, run_end = set(w), s["end"]
+            if run <= FILLER:  # "yeah, yeah, yeah..." carries nothing: drop the line
+                dropped += len(w)
+                continue
+            text = squash_loops(s["text"], keep=2, min_repeats=3)
+            if loopy({**s, "text": text}):
+                text = " ".join(s["text"].split()[:2]) + " …"
+            dropped += len(w) - len(_words(text))
+            s = {**s, "text": text}
+        else:
+            run = None
+        out.append(s)
+    return out, dropped
+
+
+def deloop(e):
+    path = d(e, "tx.json")
+    if not os.path.exists(path) or os.path.exists(d(e, "deloop.done")):
+        return False
+    tx = json.load(open(path))
+    before = sum(len(_words(s["text"])) for s in tx["segments"])
+    spans = loop_spans(tx)
+    if spans:
+        if not os.path.exists(d(e, "tx.pre-deloop.json")):
+            write_json(d(e, "tx.pre-deloop.json"), tx)
+        log("deloop", e["slug"], len(spans), "spans", f"{sum(b - a for a, b in spans) / 60:.1f} min")
+    for a, b in spans:
+        t0 = time.time()
+        new = retime_span(e, a, b, f"d{int(a)}")
+        keep = [s for s in tx["segments"] if not (s["start"] >= a - 0.01 and s["end"] <= b + 0.01)]
+        tx["segments"] = sorted(keep + new, key=lambda s: s["start"])
+        log("redone", e["slug"], f"{a:.0f}-{b:.0f}", len(new), "segments", f"in {time.time() - t0:.0f}s")
+    segs, dropped = collapse_loops(tx["segments"])
+    changed = bool(spans) or len(segs) != len(tx["segments"]) or dropped
+    if changed:
+        for i, s in enumerate(segs):
+            s["id"] = str(i)
+        tx["segments"] = segs
+        write_json(path, tx)
+    after = sum(len(_words(s["text"])) for s in segs)
+    write_json(d(e, "deloop.done"), {"spans": spans, "words_before": before, "words_after": after})
+    log("deloop done", e["slug"], f"{before} -> {after} words")
+    return changed
+
+
 # ---------------------------------------------------------------- caption
 CAPTION_PROMPT = (
     "This is one frame from a family home video (VHS, 1989-2001). Reply with JSON only:\n"
@@ -537,6 +634,9 @@ def main():
                 os.replace(d(e, "info.json"), d(e, "info.pre-retime.json"))
                 if os.path.exists(d(e, "captions.json")):
                     classify(e)
+    elif cmd == "deloop":
+        for e in entries:
+            deloop(e)
     elif cmd == "catalog":
         print(json.dumps(entries, indent=1))
     else:

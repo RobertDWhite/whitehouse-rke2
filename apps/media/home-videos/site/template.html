@@ -115,6 +115,7 @@ dd{margin:.25rem 0 0;font-size:.93rem;line-height:1.55}
 .pill{display:inline-block;font:.74rem ui-sans-serif,system-ui,sans-serif;border:1px solid var(--line);border-radius:1rem;padding:.08rem .5rem;margin:.12rem .15rem 0 0;cursor:pointer;background:var(--paper2)}
 .pill:hover{border-color:var(--accent)}
 .hl{cursor:pointer}.hl:hover{color:var(--accent)}
+.chap p.song{color:var(--accent);margin-top:.2rem}
 .mono{font:.72rem ui-monospace,Menlo,monospace;color:var(--ink2);word-break:break-all}
 .x{position:fixed;top:.8rem;right:27rem;z-index:101;width:2.4rem;height:2.4rem;border-radius:50%;border:0;
  background:rgba(255,255,255,.12);color:#fff;font-size:1.3rem;cursor:pointer}
@@ -188,7 +189,7 @@ for (const v of VIDEOS) {
   chs.forEach((c, i) => {
     if (/^blank tape$/i.test(c.title)) return;
     MOMENTS.push({v, i, ...c, year: yearOf(c.date) || v.year,
-      hay: [c.title, c.summary, c.category, (c.people||[]).join(" "), (c.tags||[]).join(" "), v.title, v.file, v.places.join(" ")].join(" ").toLowerCase()});
+      hay: [c.title, c.summary, c.category, (c.people||[]).join(" "), (c.tags||[]).join(" "), (c.songs||[]).join(" "), c.songs?.length ? "song music" : "", v.title, v.file, v.places.join(" ")].join(" ").toLowerCase()});
   });
 }
 
@@ -317,7 +318,7 @@ async function openVideo(slug, t = 0, push = true) {
   $("#p-chapters").innerHTML = v.chapters.length ? v.chapters.map((c, i) => `<div class="chap" data-t="${c.start}" data-i="${i}">
       <img loading="lazy" src="${thumb(v, c.start + Math.min(15, (c.end - c.start) / 3))}" alt="">
       <div><b>${esc(c.title)}</b><small>${hms(c.start)} · ${hms(c.end - c.start)}${c.date ? " · " + esc(fmtDate(c.date)) : ""} · ${esc(c.category)}</small>
-      <p>${esc(c.summary)}</p></div></div>`).join("")
+      <p>${esc(c.summary)}</p>${c.songs?.length ? `<p class="song">♪ ${c.songs.map(esc).join(" · ")}</p>` : ""}</div></div>`).join("")
     : `<p class="hmeta">${v.status === "done" ? "No chapters." : "This tape is still being transcribed and sorted. The video plays already."}</p>`;
   about(v);
   $("#p-tx").innerHTML = `<p class="hmeta">Loading transcript…</p>`;
@@ -342,6 +343,7 @@ function about(v) {
   $("#p-about").innerHTML = `<dl>
     ${v.summary ? `<dt>Summary</dt><dd>${esc(v.summary)}</dd>` : ""}
     ${v.highlights.length ? `<dt>Worth jumping to</dt><dd>${v.highlights.map(h => `<div class="hl" data-t="${h.t}"><span class="mono">${hms(h.t)}</span> ${esc(h.note)}</div>`).join("")}</dd>` : ""}
+    ${v.songs?.length ? `<dt>Songs</dt><dd>${v.songs.map(x => `<div class="hl" data-t="${x.start}"><span class="mono">${hms(x.start)}</span> ♪ ${esc(x.title)}${x.artist && !/^traditional$/i.test(x.artist) ? " · " + esc(x.artist) : ""} <small>(${x.kind === "sung" ? "sung" : x.kind === "tv" ? "on TV" : "playing"})</small></div>`).join("")}</dd>` : ""}
     ${v.people.length ? `<dt>People</dt><dd>${pills(v.people, "p")}</dd>` : ""}
     ${v.places.length ? `<dt>Places</dt><dd>${esc(v.places.join(" · "))}</dd>` : ""}
     ${v.date_basis ? `<dt>How it's dated</dt><dd>${esc(v.date_basis)}</dd>` : ""}

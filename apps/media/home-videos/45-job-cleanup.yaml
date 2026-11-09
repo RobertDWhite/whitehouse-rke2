@@ -1,0 +1,118 @@
+# One-shot cleanup after transcription:
+#   1. deloop (init container): re-transcribe / collapse "yeah, yeah, yeah..." loops
+#   2. voices.py: extend voices.json for the changed transcripts (voice numbers, and so
+#      the labels, stay put)
+#   3. songs.py: songs recognised from their lyrics, all local (qwen-flash)
+# Each step skips tapes it has already done.
+#   kubectl -n home-videos delete job home-videos-cleanup --ignore-not-found
+#   kubectl create -f apps/media/home-videos/45-job-cleanup.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-videos-cleanup
+  namespace: home-videos
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 604800
+  template:
+    metadata:
+      labels:
+        app: home-videos-indexer
+    spec:
+      restartPolicy: OnFailure
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - {key: kubernetes.io/hostname, operator: NotIn, values: [rke2-node-50, rke2-node-10]}
+        # The work volume is ReadWriteOnce: land next to another indexer pod if one is running.
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {app: home-videos-indexer}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1026
+        runAsGroup: 100
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: deloop
+          image: registry.internal.white.fm/clean-audio-mcp:0.5.1@sha256:f7ca9a91cb6464e57c4b8173e77b5a06860adcfb92ef89d4d1ca4ea3d9706982
+          command: [sh, -c]
+          args:
+            - cp /people/people.md /work/White/people.md && exec python3 /scripts/indexer.py deloop "$@"
+            - deloop
+          env:
+            - {name: SRC, value: /vhs/White}
+            - {name: WORK, value: /work/White}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - name: NEMOTRON_API_KEY
+              valueFrom:
+                secretKeyRef: {name: indexer-env, key: NEMOTRON_API_KEY}
+          resources:
+            requests: {cpu: "1", memory: 1Gi}
+            limits: {cpu: "4", memory: 4Gi}
+          volumeMounts:
+            - {name: vhs, mountPath: /vhs, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: scripts, mountPath: /scripts}
+            - {name: people, mountPath: /people, readOnly: true}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: indexer
+          image: docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+          command: [sh, -c]
+          args:
+            - |
+              set -e
+              PY=/work/.cache/py312
+              if [ ! -f "$PY/.ok-2" ]; then
+                rm -rf "$PY"
+                # One resolve, so pip can't pull a CUDA torch for speechbrain's deps.
+                pip install --no-cache-dir --target "$PY" --index-url https://download.pytorch.org/whl/cpu \
+                  --extra-index-url https://pypi.org/simple \
+                  torch==2.5.1+cpu torchaudio==2.5.1+cpu speechbrain==1.0.3 soundfile "numpy<2.3" "huggingface_hub<0.26"
+                touch "$PY/.ok-2"
+              fi
+              cp /people/people.md /work/White/people.md
+              python3 /scripts/voices.py
+              exec python3 /scripts/songs.py
+          env:
+            - {name: WORK, value: /work/White}
+            - {name: PYTHONPATH, value: /work/.cache/py312}
+            - {name: HOME, value: /work/.cache/home}
+            - {name: HF_HOME, value: /work/.cache/hf}
+            - {name: PYTHONUNBUFFERED, value: "1"}
+            - {name: THREADS, value: "6"}
+            - {name: NAMES_FILE, value: /people/names.json}
+          resources:
+            requests: {cpu: "4", memory: 3Gi}
+            limits: {cpu: "6", memory: 6Gi}
+          volumeMounts:
+            - {name: work, mountPath: /work}
+            - {name: scripts, mountPath: /scripts}
+            - {name: people, mountPath: /people, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: work
+          persistentVolumeClaim: {claimName: work}
+        - name: vhs
+          persistentVolumeClaim: {claimName: vhs, readOnly: true}
+        - name: scripts
+          configMap: {name: home-videos-indexer}
+        - name: people
+          secret: {secretName: home-videos-people}
+        - name: tmp
+          emptyDir: {sizeLimit: 4Gi}

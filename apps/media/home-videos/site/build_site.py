@@ -169,6 +169,8 @@ def load():
         tx = json.load(open(os.path.join(dd, "tx.json"))) if os.path.exists(os.path.join(dd, "tx.json")) else None
         caps = json.load(open(os.path.join(dd, "captions.json"))) if os.path.exists(os.path.join(dd, "captions.json")) else []
         voices = json.load(open(os.path.join(dd, "voices.json"))) if os.path.exists(os.path.join(dd, "voices.json")) else None
+        songs = json.load(open(os.path.join(dd, "songs.json")))["songs"] if os.path.exists(os.path.join(dd, "songs.json")) else []
+        songs = [{k: x[k] for k in ("title", "artist", "start", "end", "kind")} for x in songs]
         dur = e["duration"]
         chapters = []
         raw = sorted((c for c in info.get("chapters") or [] if isinstance(c, dict)),
@@ -181,13 +183,15 @@ def load():
             chapters.append({"start": round(start), "end": round(end), "title": c.get("title") or "Untitled",
                              "summary": c.get("summary") or "", "category": c.get("category") or "Other",
                              "date": c.get("date"), "people": c.get("people") or [], "tags": c.get("tags") or []})
+        for c in chapters:  # songs heard in each chapter (indexer/songs.py)
+            c["songs"] = sorted({x["title"] for x in songs if c["start"] <= x["start"] < c["end"]})
         v = {
             "slug": e["slug"], "file": e["file"], "aliases": e.get("aliases", []), "dur": round(dur),
             "n": len(thumbs), "title": info.get("title") or guess_title(e["file"]),
             "summary": info.get("summary") or "", "date_start": info.get("date_start"),
             "date_end": info.get("date_end"), "date_basis": info.get("date_basis") or "",
             "categories": info.get("categories") or [], "people": info.get("people") or [],
-            "places": info.get("places") or [], "chapters": chapters,
+            "places": info.get("places") or [], "chapters": chapters, "songs": songs,
             "highlights": [h for h in info.get("highlights") or [] if isinstance(h, dict)],
             "quality": info.get("quality_notes") or "",
             "status": "done" if info else ("transcribed" if tx else "processing"),
@@ -234,7 +238,8 @@ def build():
             f.write(html)
     done = sum(v["status"] == "done" for v in videos)
     print(f"built {len(videos)} tapes ({done} classified), "
-          f"{sum(len(v['chapters']) for v in videos)} chapters, {sum(len(x) for x in VOICES.values())} voices -> {OUT}")
+          f"{sum(len(v['chapters']) for v in videos)} chapters, {sum(len(x) for x in VOICES.values())} voices, "
+          f"{sum(len(v['songs']) for v in videos)} songs -> {OUT}")
 
 
 # ------------------------------------------------------------------ deploy
