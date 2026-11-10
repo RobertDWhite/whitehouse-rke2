@@ -58,8 +58,10 @@ ENTITY_TOP = int(os.environ.get("ENTITY_TOP", "10"))
 MAX_ITEMS = int(os.environ.get("MAX_ITEMS", "25"))  # per list
 EARLY_HOUR = int(os.environ.get("EARLY_HOUR", "10"))  # tomorrow's events before this hour are listed too
 EMAIL_HOURS = int(os.environ.get("EMAIL_HOURS", "24"))  # threads awaiting a reply, by last message
-# CRM tasks and deal close dates overdue by more than this are counted, not listed.
+# CRM tasks and deal close dates overdue by more than this go in a short backlog list
+# (STALE_LIST items, most recently due first) instead of the main lists.
 STALE_DAYS = int(os.environ.get("STALE_DAYS", "30"))
+STALE_LIST = int(os.environ.get("STALE_LIST", "10"))
 
 LLM_URL = os.environ.get("LLM_URL", "").rstrip("/")  # OpenAI-compatible base, e.g. http://host/v1
 LLM_MODEL = os.environ.get("LLM_MODEL", "")
@@ -270,7 +272,7 @@ HS_KIND_ORDER = {"Deals": 0, "Contacts": 1, "Companies": 2}
 
 def collect_hubspot(files, today, now):
     tasks, changed, closing = {}, [], []
-    stale_tasks, stale_deals = set(), 0
+    stale_tasks, stale_deals = {}, []
     stale_cut = today - timedelta(days=STALE_DAYS)
     base = HUBSPOT_DIR + "/"
     for path, text in files.items():
@@ -293,14 +295,12 @@ def collect_hubspot(files, today, now):
                 continue
             subject = m.group(2).strip()
             key = (m.group(1), subject.casefold())
-            if d and d < stale_cut:
-                stale_tasks.add(key)
-                continue
             rank = HS_KIND_ORDER[kind]
-            if key in tasks and tasks[key]["rank"] <= rank:
+            bucket = stale_tasks if d and d < stale_cut else tasks
+            if key in bucket and bucket[key]["rank"] <= rank:
                 continue
             when = rel_day(d, today) if d else "no due date"
-            tasks[key] = {"rank": rank, "day": d or today, "overdue": bool(d and d < today),
+            bucket[key] = {"rank": rank, "day": d or today, "overdue": bool(d and d < today),
                           "line": f"{clip(subject, 120)} — {wikilink(path, name)} · {when}",
                           "brief": f"CRM task ({when}): {clip(subject, 100)} [{name}]"}
         if kind != "Deals":
@@ -315,13 +315,15 @@ def collect_hubspot(files, today, now):
                             "brief": f"Deal updated: {name} ({bits})"})
         cd = parse_day(fm.get("close_date"))
         if cd and not is_closed and cd < stale_cut:
-            stale_deals += 1
+            stale_deals.append({"day": cd, "line": f"{wikilink(path, name)} — {bits} · close date {rel_day(cd, today)}"})
         elif cd and not is_closed and cd <= today + timedelta(days=DEAL_CLOSING_DAYS):
             closing.append({"day": cd, "line": f"{wikilink(path, name)} — {bits} · close date {rel_day(cd, today)}",
                             "brief": f"Deal close date {rel_day(cd, today)}: {name} ({bits})"})
     open_tasks = sorted(tasks.values(), key=lambda t: (t["day"], t["line"]))
     return (open_tasks, sorted(changed, key=lambda i: i["ts"], reverse=True),
-            sorted(closing, key=lambda i: i["day"]), len(stale_tasks), stale_deals)
+            sorted(closing, key=lambda i: i["day"]),
+            sorted(stale_tasks.values(), key=lambda t: (t["day"], t["line"]), reverse=True),
+            sorted(stale_deals, key=lambda i: (i["day"], i["line"]), reverse=True))
 
 
 def collect_action_items(files, now):
@@ -439,9 +441,10 @@ def collect_calendar(files, today):
 
 def collect_email(files, now):
     """Threads whose last message, in the last EMAIL_HOURS, came from a known entity, not from me."""
-    notes = [(p, t) for p, t in files.items() if p.startswith(EMAIL_DIR + "/") and not p.endswith("/README.md")]
-    if not notes:
+    # brain-sync writes the folder's README as soon as mail sync runs, threads or not.
+    if not any(p.startswith(EMAIL_DIR + "/") for p in files):
         return None
+    notes = [(p, t) for p, t in files.items() if p.startswith(EMAIL_DIR + "/") and not p.endswith("/README.md")]
     cutoff = now - timedelta(hours=EMAIL_HOURS)
     out = []
     for path, text in notes:
@@ -543,13 +546,15 @@ def render(today, now, data, priorities):
     out += ["", "## CRM", "", "### Open tasks", ""]
     out += bullets(data["tasks"]) or [f"_No open tasks due within {UPCOMING_DAYS} days._"]
     if data["stale_tasks"]:
-        out += ["", f"_{data['stale_tasks']} open tasks more than {STALE_DAYS} days overdue are not listed._"]
+        out += ["", f"**Backlog: {len(data['stale_tasks'])} open tasks more than {STALE_DAYS} days overdue**", "",
+                *bullets(data["stale_tasks"], STALE_LIST)]
     out += ["", f"### Deals changed (last {DEAL_CHANGED_HOURS}h)", ""]
     out += bullets(data["deals_changed"]) or ["_None._"]
     out += ["", f"### Open deals closing within {DEAL_CLOSING_DAYS} days or recently overdue", ""]
     out += bullets(data["deals_closing"]) or ["_None._"]
     if data["stale_deals"]:
-        out += ["", f"_{data['stale_deals']} open deals with a close date more than {STALE_DAYS} days ago are not listed._"]
+        out += ["", f"**Backlog: {len(data['stale_deals'])} open deals with a close date more than {STALE_DAYS} days ago**",
+                "", *bullets(data["stale_deals"], STALE_LIST)]
 
     out += ["", f"## Action items from recordings (last {ACTION_ITEM_DAYS} days)", ""]
     if data["actions"]:

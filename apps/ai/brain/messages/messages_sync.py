@@ -422,7 +422,8 @@ def local_tree(prefix):
 def apply_changes(desired, existing, delete, label="messages"):
     """Create/update `desired` (by blob hash) and delete `delete`; batched under MAX_COMMIT_BYTES."""
     ops = []
-    for path, text in sorted(desired.items()):
+    # The index goes last (so in the last commit): it must not claim more than is in the repo.
+    for path, text in sorted(desired.items(), key=lambda kv: (kv[0] == INDEX_PATH, kv[0])):
         content = text.encode()
         if existing.get(path) == blob_sha(content):
             continue
@@ -907,9 +908,8 @@ def run():
             deletions.add(path)
     files[f"{MESSAGES_DIR}/README.md"] = README
     index["threads"] = new_states
+    files[INDEX_PATH] = json.dumps(index, indent=1, sort_keys=True) + "\n"
     apply_changes(files, existing, deletions)
-    apply_changes({INDEX_PATH: json.dumps(index, indent=1, sort_keys=True) + "\n"},
-                  existing, (), label="messages index")
     log.info("messages: %d threads synced, %d messages fetched, %d threads still backfilling; redactions %s",
              totals["synced"], totals["fetched"], totals["pending"], STATS["redacted"] or "none")
 

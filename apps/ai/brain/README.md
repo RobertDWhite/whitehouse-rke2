@@ -18,7 +18,7 @@ HubSpot, Google Calendar and Gmail every 10.
 | Meerkat | `Meerkat/People/<Name>.md` | One note per contact: details, relationships (as `[[wikilinks]]`), notes, activities, reminders. |
 | Riffado | `Riffado/<year>/<date> <title>.md` | One note per recording: summary, key points, action items, full transcript. |
 | HubSpot | `$HUBSPOT_DIR/{Companies,Contacts,Deals}/<Name>.md` | One note per record, linked to each other, with a timeline of logged notes, calls, meetings and tasks. Meeting passwords and dial-in PINs are redacted. |
-| Google Calendar | `$CALENDAR_DIR/<year>/<date> <title>.md` | One note per event on every calendar of the account, 90 days back to 60 ahead (single instances of recurring events; one note when an event is on several calendars). Time, location, organizer, attendees linked to their entity pages, description. Declined, cancelled and free/busy-only events are skipped; notes older than the window are kept. |
+| Google Calendar | `$CALENDAR_DIR/<year>/<date> <title>.md` | One note per event on every calendar of the account, 90 days back to 60 ahead (single instances of recurring events; one note when an event is on several calendars). Time, location, organizer, attendees linked to their entity pages, description. Declined, cancelled and free/busy-only events are skipped, as are titles and copies filtered in `.brain/google.json`; notes older than the window are kept. |
 | Gmail | `$EMAIL_DIR/<year>/<date> <subject>.md` | One note per thread (filed by its first message) where another participant is a known entity: an `emails` address of an entity page, or a `domains` entry of a company/business (public mail domains and no-reply senders don't count), plus what `.brain/google.json` adds or removes. Messages oldest first with From/To/Cc, plain text (HTML converted), quoted replies and obvious signatures stripped, each capped at `EMAIL_MAX_CHARS` (4000); attachment names only. |
 
 It also mirrors Forgejo repos listed in the brain repo's `.brain/mirrors.json`
@@ -40,7 +40,10 @@ optional config `.brain/entities.json` in the brain repo (`folder_sources`,
 extra `entities`, `aliases`, `merge`, `ignore`, `no_match`,
 `min_alias_length`). Each page links its records, related entities and every
 note that mentions it (multi-word names, domains and explicitly listed
-aliases; ambiguous aliases are skipped). It rebuilds from one repo archive
+aliases; ambiguous aliases are skipped). A person lists one role per
+organization, taken from each record that names one. CRM contacts with no
+person behind them (the name is an email address, a role such as "Support",
+or the organization itself) get no page. It rebuilds from one repo archive
 when `main` moves, at most every `ENTITY_INTERVAL_SECONDS` (600).
 
 Each cycle renders every file it owns, compares git blob hashes with the repo,
@@ -105,6 +108,8 @@ live there, not here):
                      "CATEGORY_FORUMS", "SPAM", "TRASH"],
   "lookback_days": 180,
   "exclude_calendars": [],
+  "exclude_event_titles": [],
+  "calendar_copy_suffixes": [],
   "self_addresses": []
 }
 ```
@@ -112,7 +117,12 @@ live there, not here):
 `include_*` pull a thread in like an entity match; any participant in
 `exclude_*` keeps the whole thread out. `exclude_labels` takes label ids or
 names; a thread is skipped when every message carries one of them.
-`exclude_calendars` takes calendar ids or names. The mailbox's own addresses
+`exclude_calendars` takes calendar ids or names. `exclude_event_titles` takes
+regexes (case-insensitive, searched in the title). `calendar_copy_suffixes`
+lists title endings that a calendar-sync tool appends when it copies events
+from one calendar onto another: such a copy is dropped when an event with the
+same start and the title minus the suffix is on another calendar, even one
+that was itself skipped (declined, working location). The mailbox's own addresses
 (the account, its send-as aliases, `self_addresses`) never count as a match,
 render as "Me", and don't count as entity mentions.
 
@@ -246,7 +256,7 @@ today's calendar, email awaiting a reply, reminders due or overdue and coming up
 tasks and deals changed in the last 24h or closing soon (from `$HUBSPOT_DIR`),
 action items from recordings of the last 7 days, agent sessions of the last
 24h, and the entities with the most new mentions in the last 7 days. CRM items
-more than `STALE_DAYS` (30) overdue are counted, not listed. Windows and limits
+more than `STALE_DAYS` (30) overdue go in a short backlog list (`STALE_LIST`, 10) under each section. Windows and limits
 are env vars at the top of the script.
 
 - Top priorities: optional. `LLM_URL` (OpenAI-compatible base) and `LLM_MODEL`
@@ -255,7 +265,7 @@ are env vars at the top of the script.
   today's events on every calendar (time, location, linked attendees) plus
   tomorrow's before `EARLY_HOUR` (10). Email lists threads whose last message
   arrived in the last `EMAIL_HOURS` (24) from a known entity and not from me.
-  If a folder has no notes yet the section says "Not connected yet".
+  A folder brain-sync has never written says "Not connected yet".
 - Notification: ntfy topic `NTFY_TOPIC` from `13-briefing-secret.sops.yaml`
   (secret `brain-briefing`). ntfy has no auth, so the topic name is the only
   thing protecting it: keep it random. The push carries counts only, unless
