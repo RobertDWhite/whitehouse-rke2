@@ -627,7 +627,8 @@ HS_PROPS = {
                   "description", "lifecyclestage", "numberofemployees", "annualrevenue", "createdate",
                   "hs_lastmodifieddate"],
     "contacts": ["firstname", "lastname", "email", "phone", "mobilephone", "jobtitle", "company",
-                 "lifecyclestage", "hs_lead_status", "city", "state", "website", "createdate", "lastmodifieddate"],
+                 "lifecyclestage", "hs_lead_status", "city", "state", "website", "createdate", "lastmodifieddate",
+                 "associatedcompanyid"],
     "deals": ["dealname", "amount", "dealstage", "pipeline", "closedate", "createdate", "dealtype",
               "description", "hs_lastmodifieddate"],
     "notes": ["hs_note_body", "hs_timestamp"],
@@ -835,7 +836,7 @@ def render_hubspot():
         name = company_name(c)
         fm = {"source": "hubspot", "hubspot_id": i, "name": name, "domain": p.get("domain"),
               "industry": p.get("industry"), "lifecycle_stage": p.get("lifecyclestage"),
-              "city": p.get("city"), "state": p.get("state"), "updated_at": p.get("hs_lastmodifieddate"),
+              "city": p.get("city"), "state": p.get("state"), "updated_at": fmt_date(p.get("hs_lastmodifieddate")),
               "url": c.get("url"), "tags": ["company", "hubspot", *HUBSPOT_TAGS]}
         out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
         if html_to_text(p.get("description")):
@@ -853,12 +854,16 @@ def render_hubspot():
     for c in recs["contacts"]:
         p, i = c["properties"], c["id"]
         name = contact_name(c)
-        companies = [names["companies"](by["companies"][x]) for x in links["contacts"][i]["companies"]]
+        # Primary company first, the rest by name: the order must not change between runs.
+        primary = str(p.get("associatedcompanyid") or "")
+        companies = sorted(links["contacts"][i]["companies"],
+                           key=lambda x: (x != primary, names["companies"](by["companies"][x]).casefold(), x))
+        companies = [names["companies"](by["companies"][x]) for x in companies]
         fm = {"source": "hubspot", "hubspot_id": i, "name": name, "email": p.get("email"),
               "phones": [x for x in (p.get("phone"), p.get("mobilephone")) if x], "job_title": p.get("jobtitle"),
               "organization": (companies[0] if companies else p.get("company")),
               "lifecycle_stage": p.get("lifecyclestage"), "lead_status": p.get("hs_lead_status"),
-              "updated_at": p.get("lastmodifieddate"), "url": c.get("url"),
+              "updated_at": fmt_date(p.get("lastmodifieddate")), "url": c.get("url"),
               "tags": ["person", "hubspot", *HUBSPOT_TAGS]}
         out = [frontmatter(fm), GENERATED.format(src="HubSpot"), "", f"# {name}"]
         role = " · ".join(x for x in (p.get("jobtitle"), p.get("company")) if x)
@@ -910,6 +915,90 @@ ENTITY_KINDS = {"person": "People", "company": "Companies", "business": "Busines
 ORG_KINDS = {"company", "business"}
 ORG_SUFFIX = re.compile(r"[,.]?\s+(llc|l\.l\.c\.|inc\.?|incorporated|co\.?|corp\.?|corporation|ltd\.?|company|pllc|pc)$", re.I)
 GENERIC_TAGS = {"person", "company", "deal", "hubspot", "meerkat", "recording", "riffado", "business", "property"}
+
+
+# Shared mailboxes: a contact named after one is an inbox, not a person.
+ROLE_WORDS = {
+    "abuse", "accounting", "accounts", "admin", "billing", "careers", "comments", "contact", "customerservice",
+    "general", "hello", "help", "helpdesk", "hr", "info", "inquiries", "jobs", "legal", "login", "mail",
+    "marketing", "office", "orders", "partners", "payments", "press", "sales", "security", "service",
+    "support", "team", "webmaster",
+}
+
+
+def is_mailbox_contact(name, emails=(), org=None):
+    """True for a contact record with no person behind the name: the name is an email
+    address, or a single word that is a role, the address's local part or the organization."""
+    name = (name or "").strip()
+    if "@" in name:
+        return True
+    if len(name.split()) != 1:
+        return False
+    flat = lambda x: re.sub(r"[^a-z0-9]+", "", (x or "").casefold())
+    n = flat(name)
+    if n in ROLE_WORDS or (org and n == flat(ORG_SUFFIX.sub("", org))):
+        return True
+    return any(n == flat(e.partition("@")[0]) or NOREPLY_RE.match(e) for e in emails if e)
+
+
+def add_role(e, title, org):
+    if title or org:
+        e.setdefault("roles", []).append((title or "", org or ""))
+
+
+def entity_roles(e, find_org):
+    """Distinct (title, organization) pairs of an entity, one per organization, in record
+    order. A person can hold roles at several organizations, one per source record."""
+    out = []  # [key, title, org]
+    for title, org in e.get("roles") or []:
+        if not org:
+            continue
+        target = find_org(org)
+        key = id(target) if target else norm_name(org, "company")
+        row = next((r for r in out if r[0] == key), None)
+        if row is None:
+            out.append([key, title, org])
+        elif title and not row[1]:
+            row[1] = title
+    for title, org in e.get("roles") or []:  # titles from records that name no organization
+        if org or not title or any(r[1].casefold() == title.casefold() for r in out):
+            continue
+        row = next((r for r in out if not r[1]), None)
+        if row:
+            row[1] = title
+        else:
+            out.append([None, title, ""])
+    return [(t, o) for _, t, o in out]
+
+
+WIKILINK_FLAT_RE = re.compile(r"\[\[([^\[\]|]+)(?:\|([^\[\]]*))?\]\]")
+# Lines that only list who was there say nothing about the note: prefer another line.
+ROSTER_LINE_RE = re.compile(r"^[\s>*-]*\**(participants|attendees|people|members)\b", re.I)
+
+
+def flatten_links(text):
+    """[[path|label]] -> label, [[path]] -> last path segment."""
+    return WIKILINK_FLAT_RE.sub(lambda m: m.group(2) or m.group(1).rsplit("/", 1)[-1], text)
+
+
+def mention_snippet(body, low, alias_re, alias):
+    """One line of `body` around a mention, links flattened, at most ~170 characters.
+    "participant" when the name only appears in a roster line."""
+    for n, m in enumerate(alias_re.finditer(low)):
+        if n >= 50:
+            break
+        start = body.rfind("\n", 0, m.start()) + 1
+        end = body.find("\n", m.start())
+        raw = body[start:end if end >= 0 else None]
+        if ROSTER_LINE_RE.match(raw):
+            continue
+        line = re.sub(r"\s+", " ", flatten_links(raw)).strip()
+        if len(line) > 180:
+            at = max(line.casefold().find(alias), 0)
+            off = max(0, at - 70)
+            line = ("…" if off else "") + line[off:off + 170].strip() + "…"
+        return line
+    return "participant"
 
 
 def repo_snapshot():
@@ -988,7 +1077,7 @@ class Entities:
         e = self.find(kind, name, emails, domains)
         if e is None:
             e = {"kind": kind, "name": name, "aliases": set(), "emails": set(), "domains": set(),
-                 "records": [], "facts": {}, "tags": set(), "orgs": set()}
+                 "records": [], "facts": {}, "tags": set(), "orgs": set(), "roles": []}
             self.items.append(e)
         elif kind in ORG_KINDS and e["kind"] == "company" and kind == "business":
             e["kind"] = kind
@@ -1001,6 +1090,8 @@ class Entities:
         for k, v in (facts or {}).items():
             if v and k not in e["facts"]:
                 e["facts"][k] = v
+        if kind == "person":
+            add_role(e, (facts or {}).get("title"), (facts or {}).get("organization"))
         e["tags"].update(t for t in tags if t and t not in GENERIC_TAGS)
         self.index(e)
         return e
@@ -1020,6 +1111,7 @@ class Entities:
         for k in ("aliases", "emails", "domains", "tags", "orgs"):
             a[k] |= b[k]
         a["records"] += [r for r in b["records"] if r not in a["records"]]
+        a["roles"] = (a.get("roles") or []) + (b.get("roles") or [])
         for k, v in b["facts"].items():
             a["facts"].setdefault(k, v)
         self.items.remove(b)
@@ -1044,6 +1136,8 @@ def collect_entities(files, cfg):
                      as_list(fm.get("emails")), facts={"organization": fm.get("organization"),
                                                        "title": fm.get("job_title")}, tags=as_list(fm.get("tags")))
         elif src == "hubspot" and path.startswith(HUBSPOT_DIR + "/Contacts/"):
+            if is_mailbox_contact(fm.get("name") or title(path), as_list(fm.get("email")), fm.get("organization")):
+                continue
             ents.add("person", fm.get("name") or title(path), (path, "HubSpot contact"),
                      emails=as_list(fm.get("email")), facts={"organization": fm.get("organization"),
                                                              "title": fm.get("job_title")}, tags=as_list(fm.get("tags")))
@@ -1077,13 +1171,15 @@ def collect_entities(files, cfg):
     ents.items = [e for e in ents.items if e["name"].casefold() not in ignore]
     for e in ents.items:
         e["aliases"] = {a for a in e["aliases"] if a.casefold() not in ignore}
-    # A person's organization links them to that org's entity.
+    # A person's organizations (one per record that names one) link them to those entities.
+    find_org = lambda org: ents.find("company", org)
     for e in ents.items:
-        org = e["facts"].get("organization")
-        target = ents.find("company", org) if org else None
-        if target and target is not e:
-            e["orgs"].add(id(target))
-            target.setdefault("people", set()).add(id(e))
+        e["roles"] = entity_roles(e, find_org) if e["kind"] == "person" else []
+        for _, org in e["roles"]:
+            target = find_org(org) if org else None
+            if target and target is not e:
+                e["orgs"].add(id(target))
+                target.setdefault("people", set()).add(id(e))
     return ents.items, cfg
 
 
@@ -1154,31 +1250,23 @@ def render_entities(files, cfg):
         body = strip_frontmatter(text)
         low = body.casefold()
         words = set(re.findall(r"[\w&]+", low))
-        hits = {}
+        hits = {}  # entity id -> (compiled alias, alias), or None when matched by address only
         for w in words & by_first.keys():
             for a in by_first[w]:
-                m = re.search(r"(?<![\w])" + re.escape(a) + r"(?![\w])", low)
-                if m:
-                    hits.setdefault(alias_owner[a], m.start())
+                rx = re.compile(r"(?<![\w])" + re.escape(a) + r"(?![\w])")
+                if rx.search(low):
+                    hits.setdefault(alias_owner[a], (rx, a))
         for k in PARTICIPANT_FIELDS:
             for v in as_list(fm.get(k)):
                 for addr in EMAIL_RE.findall(str(v)):
                     if addr.casefold() in email_owner:
-                        hits.setdefault(email_owner[addr.casefold()], -1)
-        for eid, pos in hits.items():
+                        hits.setdefault(email_owner[addr.casefold()], None)
+        for eid, hit in hits.items():
             e = by_id[eid]
             if any(r[0] == path for r in e["records"]):
                 continue
             title = fm.get("title") or fm.get("name") or path.rsplit("/", 1)[-1][:-3]
-            if pos < 0:  # matched by address only
-                mentions[eid].append((note_date(path, fm), path, str(title), "participant"))
-                continue
-            line_start = body.rfind("\n", 0, pos) + 1
-            line_end = body.find("\n", pos)
-            snippet = re.sub(r"\s+", " ", body[line_start:line_end if line_end >= 0 else None]).strip()
-            if len(snippet) > 180:
-                off = max(0, pos - line_start - 70)
-                snippet = ("…" if off else "") + snippet[off:off + 170].strip() + "…"
+            snippet = mention_snippet(body, low, *hit) if hit else "participant"  # None: address only
             mentions[eid].append((note_date(path, fm), path, str(title), snippet))
 
     files_out = {}
@@ -1189,14 +1277,18 @@ def render_entities(files, cfg):
         _entity_mentions.append((e, ms))
         orgs = [by_id[i] for i in e["orgs"] if i in by_id]
         people = [by_id[i] for i in e.get("people", ()) if i in by_id]
+        roles = e.get("roles") or []
+        orgs_fm = [o for _, o in roles if o]
+        titles_fm = [t for t, _ in roles if t]
         fm = {"type": e["kind"], "name": e["name"],
               "aliases": sorted(a for a in e["aliases"] if a != e["name"]),
               "emails": sorted(e["emails"]), "domains": sorted(e["domains"]),
-              "organization": e["facts"].get("organization"), "title": e["facts"].get("title"),
+              "organization": orgs_fm[0] if len(orgs_fm) == 1 else orgs_fm,
+              "title": titles_fm[0] if len(titles_fm) == 1 else titles_fm,
               "mentions": len(ms), "tags": ["entity", f"entity/{e['kind']}", *sorted(e["tags"])]}
         out = [frontmatter(fm), "<!-- Generated by brain-sync from the records below and every note that mentions "
                "them. Edits here are overwritten; tune matching in .brain/entities.json. -->", "", f"# {e['name']}"]
-        role = " · ".join(x for x in (e["facts"].get("title"), e["facts"].get("organization")) if x)
+        role = "; ".join(" · ".join(x for x in r if x) for r in roles)
         if role:
             out += ["", f"*{role}*"]
         if orgs or people:
@@ -1423,8 +1515,39 @@ def event_when(all_day, start, end):
     return f"{head} – {tail} {end.strftime('%Z')}".strip()
 
 
-def keep_event(ev):
+def title_patterns(cfg):
+    """Compiled `exclude_event_titles` regexes (case-insensitive, searched in the title)."""
+    out = []
+    for p in cfg.get("exclude_event_titles") or []:
+        try:
+            out.append(re.compile(str(p), re.I))
+        except re.error as e:
+            log.warning("ignoring exclude_event_titles %r: %s", p, e)
+    return out
+
+
+def event_slot(ev, title=None):
+    """(title, start) of an event, comparable across calendars."""
+    s = ev.get("start") or {}
+    ts = parse_ts(s.get("dateTime")) if s.get("dateTime") else None
+    start = int(ts.timestamp()) if ts else s.get("date")
+    title = (ev.get("summary") or "") if title is None else title
+    return re.sub(r"\s+", " ", title).strip().casefold(), start
+
+
+def copy_original_title(title, suffixes):
+    """Title a copied event was copied from (its title minus a `calendar_copy_suffixes` entry), else None."""
+    t = (title or "").rstrip()
+    for suf in suffixes:
+        if suf and t.casefold().endswith(suf.casefold()) and len(t) > len(suf):
+            return t[:-len(suf)]
+    return None
+
+
+def keep_event(ev, exclude=()):
     if ev.get("status") == "cancelled" or ev.get("eventType") == "workingLocation":
+        return False
+    if any(p.search(ev.get("summary") or "") for p in exclude):
         return False
     me = next((a for a in ev.get("attendees") or [] if a.get("self")), None)
     if me and me.get("responseStatus") == "declined":
@@ -1440,8 +1563,10 @@ def fetch_calendar(cfg):
     now = datetime.now(LOCAL_TZ)
     tmin = (now - timedelta(days=CALENDAR_PAST_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0)
     tmax = now + timedelta(days=CALENDAR_FUTURE_DAYS)
+    exclude = title_patterns(cfg)
+    suffixes = [str(x).rstrip() for x in cfg.get("calendar_copy_suffixes") or [] if str(x).strip()]
     cals = google_pages(f"{CALENDAR_API}/users/me/calendarList", "items", maxResults=250)
-    by_key = {}
+    by_key, slots = {}, {}  # slots: (title, start) -> ids of every live event there, kept or not
     for c in cals:
         name = c.get("summaryOverride") or c.get("summary") or c["id"]
         if c.get("accessRole") == "freeBusyReader" or {c["id"].casefold(), name.casefold()} & skip:
@@ -1450,7 +1575,9 @@ def fetch_calendar(cfg):
                            timeMin=tmin.isoformat(), timeMax=tmax.isoformat(), singleEvents="true",
                            showDeleted="false", maxResults=2500)
         for ev in evs:
-            if not keep_event(ev):
+            if ev.get("status") != "cancelled":
+                slots.setdefault(event_slot(ev), set()).add(ev.get("iCalUID") or ev["id"])
+            if not keep_event(ev, exclude):
                 continue
             # The same meeting shows up on every calendar it was invited to: keep one copy.
             key = (ev.get("iCalUID") or ev["id"], json.dumps(ev.get("originalStartTime") or ev.get("start"),
@@ -1461,7 +1588,17 @@ def fetch_calendar(cfg):
                 continue
             ev["_calendars"] = [name]
             by_key[key] = ev
-    return len(cals), list(by_key.values()), tmin.date()
+    # A calendar-sync tool copies events from one calendar onto another with a marker
+    # appended to the title. The copy is a different event (own id, no attendees), so it
+    # isn't caught above: drop it when the event it was copied from is in the window too,
+    # whether that one was kept or left out (declined, working location).
+    events = []
+    for ev in by_key.values():
+        orig = copy_original_title(ev.get("summary"), suffixes)
+        if orig is not None and slots.get(event_slot(ev, orig), set()) - {ev.get("iCalUID") or ev["id"]}:
+            continue
+        events.append(ev)
+    return len(cals), events, tmin.date()
 
 
 def render_event(ev, directory, selfs):
@@ -1534,7 +1671,11 @@ def render_calendar(directory, selfs, cfg):
         f"{CALENDAR_PAST_DAYS} days back to {CALENDAR_FUTURE_DAYS} days ahead, filed by year. Declined and cancelled\n"
         "events are left out; notes older than the window are kept as they were.\n"
         "Attendees link to their entity pages. Written by `brain-sync` (whitehouse-rke2\n"
-        "`apps/ai/brain`); change the event in Google Calendar, not here.\n"
+        "`apps/ai/brain`); change the event in Google Calendar, not here.\n\n"
+        "`.brain/google.json` can leave more out: `exclude_calendars` (ids or names),\n"
+        "`exclude_event_titles` (regexes, case-insensitive) and `calendar_copy_suffixes`\n"
+        "(title endings a calendar-sync tool adds to its copies; a copy is dropped when the\n"
+        "event it was copied from is on another calendar).\n"
     )
     log.info("calendar: %d calendars, %d events", ncal, len(events))
     return files, start
@@ -1877,7 +2018,7 @@ def render_gmail(index_text, existing, directory, selfs, cfg):
         "`exclude_domains`, `exclude_addresses` (a thread involving any of these is left out),\n"
         "`exclude_labels` (default: promotions, social, updates, forums, spam, trash; a thread\n"
         "is left out when every message carries one), `lookback_days` (180),\n"
-        "`exclude_calendars`, `self_addresses`.\n"
+        "`self_addresses`.\n"
     )
     log.info("gmail: %d threads listed, %d matched, %d checked, %d rendered, %d deferred",
              len(listed), len(matched), checked, fetched, deferred)
