@@ -4,12 +4,10 @@ metadata:
   name: alertmanager
   namespace: observability
 spec:
-  strategy:
-    type: Recreate
-  replicas: 1
   # Preserve silence/notification state on one RWO claim.
   strategy:
     type: Recreate
+  replicas: 1
   selector:
     matchLabels:
       app: alertmanager
