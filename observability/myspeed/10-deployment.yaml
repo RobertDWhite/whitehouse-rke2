@@ -5,6 +5,9 @@ metadata:
   namespace: myspeed
 spec:
   replicas: 1
+  # The data PVC is ReadWriteOnce; release it before starting a replacement.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: myspeed
