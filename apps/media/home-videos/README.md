@@ -128,6 +128,11 @@ Under music or tape noise Nemotron sometimes hears one word over and over
    changed after they were sorted (keeping the old ones if that fails).
    Every piece sent for transcription goes through a 60 Hz high-pass: the captures
    carry a large DC offset that makes Whisper hear nothing and Nemotron do worse.
+   `indexer.py retranscribe` (run once per tape, 2026-11) redid every tape from
+   scratch with that filter, in 2.5-4 min pieces; it keeps `tx.pre-retx.json` and
+   `voices.pre-retx.json`, voices.py then starts the tape's voices over, and
+   `relabel.py` moves the site's labels to the new voice numbers by matching which
+   new voice speaks over the same seconds (report in each tape's `relabel.json`).
 2. `voices.py`: extends the changed tapes' voices (above), and asks for name
    guesses for voices that have none.
 3. `songs.py`: songs sung or playing, recognised from their lyrics by qwen-flash,
