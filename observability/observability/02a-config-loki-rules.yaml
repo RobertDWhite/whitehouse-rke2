@@ -210,9 +210,9 @@ data:
           dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
           runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
       - alert: SecurityFleetUnexpectedRoot
-        expr: sum by (node) (count_over_time({source_type="endpoint"} |= "soc_uid_zero"
-          | json snapshot="snapshot" | __error__="" | snapshot!="[]" | snapshot!="" [2m]))
-          > 0
+        expr: sum by (endpoint) (count_over_time({source_type="endpoint"} |= "soc_uid_zero"
+          | json snapshot="snapshot", endpoint="decorations.hostname" | __error__="" |
+          snapshot!="[]" | snapshot!="" [2m])) > 0
         for: 0m
         labels:
           severity: critical
@@ -221,7 +221,7 @@ data:
           source: loki
           mitre_attack: T1098
         annotations:
-          summary: Fleet detected an unexpected UID 0 account
+          summary: Fleet detected an unexpected UID 0 account on {{ $labels.endpoint }}
           description: Review endpoint identity and the snapshot account names; only root
             is allowed by this detection.
           dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
@@ -401,4 +401,117 @@ data:
           summary: Elevated service-account token issuance by {{ $labels.user }}
           description: More than 50 successful TokenRequests in five minutes, sustained
             for fifteen minutes. Compare with controller activity.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing10
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="spark-5a67" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-10
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-10
+          description: Expected endpoint spark-5a67 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing11
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="rke2-node-11" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-11
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-11
+          description: Expected endpoint rke2-node-11 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing12
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="rke2-node-12" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-12
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-12
+          description: Expected endpoint rke2-node-12 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing13
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="rke2-node-13" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-13
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-13
+          description: Expected endpoint rke2-node-13 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing14
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="rke2-node-14" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-14
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-14
+          description: Expected endpoint rke2-node-14 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing15
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="rke2-node-15" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-15
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-15
+          description: Expected endpoint rke2-node-15 has not reported its scheduled heartbeat
+            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+      - alert: SecurityFleetNodeMissing50
+        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
+          | json endpoint="decorations.hostname" | endpoint="ubuntu-X570-aorus" | __error__=""
+          [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: fleet
+          host: rke2-node-50
+        annotations:
+          summary: Fleet heartbeat missing from rke2-node-50
+          description: Expected endpoint ubuntu-X570-aorus has not reported its scheduled
+            heartbeat for 15 minutes. Check orbit, enrollment, Fleet reports and collector
+            delivery.
           dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc

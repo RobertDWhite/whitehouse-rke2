@@ -264,7 +264,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (hostIdentifier) (count_over_time({source_type=\"endpoint\"} |= \"soc_heartbeat\" | json | __error__=\"\" [15m]))",
+          "expr": "sum by (endpoint) (count_over_time({source_type=\"endpoint\",category=\"telemetry_health\"} |= \"soc_heartbeat\" | json endpoint=\"decorations.hostname\" | __error__=\"\" [15m]))",
           "datasource": {
             "type": "loki",
             "uid": "ffbp5mct1w0lcb"
