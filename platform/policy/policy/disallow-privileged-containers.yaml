@@ -13,7 +13,7 @@ metadata:
       writes, kernel routing, block devices, eBPF) are listed in the
       exclude block below.
 spec:
-  # Stage enforcement in backoffice; audit other namespaces pending validation.
+  # Enforced; see failureActionOverrides for the namespaces still in Audit.
   background: true
   failurePolicy: Ignore
   rules:
@@ -62,11 +62,22 @@ spec:
               namespaces:
                 - nut
       validate:
-        failureAction: Audit
+        # Enforced cluster-wide since 2026-11-11. The namespaces below still run
+        # workloads that violate this rule, so
+        # they stay in Audit until those workloads are fixed or given a named
+        # entry in the exclude block above. Every other namespace had zero
+        # violations (running pods and all workload templates) at the switch.
+        failureAction: Enforce
         failureActionOverrides:
-          - action: Enforce
+          - action: Audit
             namespaces:
-              - backoffice
+              - adsb
+              - headscale
+              - mastodon
+              - scrypted
+              - sdr-research
+              - synology-csi
+              - tailscale
         message: >-
           Privileged containers are not allowed. If this workload needs
           kernel-level access, add it to the policy `exclude` block with
