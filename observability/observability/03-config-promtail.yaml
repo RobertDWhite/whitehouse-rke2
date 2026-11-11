@@ -76,7 +76,7 @@ data:
             node: ${NODE_NAME}
 
         - match:
-            selector: '{namespace="fleet", container="fleet"} |~ `"name"\s*:\s*"[^"]*soc_`'
+            selector: '{namespace="fleet", container="fleet"} |= "soc_"'
             stages:
               - json:
                   expressions:
