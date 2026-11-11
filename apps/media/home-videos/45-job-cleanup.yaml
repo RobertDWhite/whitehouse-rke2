@@ -1,12 +1,14 @@
 # One-shot cleanup after transcription:
 #   1. init container, each step skipping tapes it has done:
 #      deloop           re-transcribe / collapse "yeah, yeah, yeah..." loops
+#      retranscribe     whole tapes again, DC-filtered, in short pieces (once per tape)
 #      retime-fine      untimed blocks of a minute or more, again in 20-35 s pieces
 #      whisper          Whisper's confident lines where Nemotron got next to nothing
 #      reclassify-stale chapters again where the transcript changed since
 #   2. voices.py: extend voices.json for the changed transcripts (voice numbers, and so
 #      the labels, stay put) and fill in name guesses for voices that have none
-#   3. songs.py: songs recognised from their lyrics, all local (qwen-flash)
+#   3. relabel.py: move site labels onto a re-transcribed tape's new voice numbers
+#   4. songs.py: songs recognised from their lyrics, all local (qwen-flash)
 # Each step skips tapes it has already done.
 #   kubectl -n home-videos delete job home-videos-cleanup --ignore-not-found
 #   kubectl create -f apps/media/home-videos/45-job-cleanup.yaml
@@ -53,6 +55,7 @@ spec:
               set -e
               cp /people/people.md /work/White/people.md
               python3 /scripts/indexer.py deloop
+              python3 /scripts/indexer.py retranscribe
               python3 /scripts/indexer.py retime-fine
               python3 /scripts/indexer.py whisper
               exec python3 /scripts/indexer.py reclassify-stale
@@ -93,6 +96,7 @@ spec:
               fi
               cp /people/people.md /work/White/people.md
               python3 /scripts/voices.py
+              python3 /scripts/relabel.py
               exec python3 /scripts/songs.py
           env:
             - {name: WORK, value: /work/White}

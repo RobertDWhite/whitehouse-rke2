@@ -11,6 +11,7 @@ be killed and re-run at any point.
     python3 indexer.py all         # all four, concurrently (each tape moves on as soon as it can)
     python3 indexer.py retime      # re-transcribe spans that came back without word timings
     python3 indexer.py deloop      # re-transcribe / collapse "yeah, yeah, yeah..." loops
+    python3 indexer.py retranscribe  # whole tapes again, DC-filtered, in short pieces (once per tape)
     python3 indexer.py retime-fine # untimed blocks of a minute or more, again in 20-35 s pieces
     python3 indexer.py whisper     # Whisper's confident lines where Nemotron got next to nothing
     python3 indexer.py reclassify-stale  # chapters again where tx.json changed after info.json
@@ -468,9 +469,9 @@ def deloop(e):
 FINE_MIN, FINE_MAX = 20, 35
 
 
-def untimed_spans(tx):
+def untimed_spans(tx, longer_than=60):
     spans = []
-    for a, b in sorted({(s["start"], s["end"]) for s in tx["segments"] if s["end"] - s["start"] > 60}):
+    for a, b in sorted({(s["start"], s["end"]) for s in tx["segments"] if s["end"] - s["start"] > longer_than}):
         if spans and a < spans[-1][1]:
             spans[-1][1] = max(spans[-1][1], b)
         else:
@@ -509,6 +510,50 @@ def retime_fine(e):
     left = untimed_spans(tx)
     write_json(d(e, "retime-fine.done"), {"spans": spans, "untimed_after": round(sum(b - a for a, b in left))})
     return bool(spans)
+
+
+# ---------------------------------------------------------------- retranscribe
+# The first pass sent ~29 min requests without the DC filter. This redoes a whole tape
+# the way retime does: 2.5-4 min pieces cut at pauses (60 s pieces where alignment
+# fails), then 20-35 s pieces for any block still longer than 45 s, loops collapsed.
+# The old transcript and voices are kept (tx.pre-retx.json, voices.pre-retx.json);
+# voices.py then starts the tape's voices over and relabel.py carries the names
+# given on the site across to the new voice numbers.
+def retranscribe(e):
+    path = d(e, "tx.json")
+    if not os.path.exists(path) or not os.path.exists(d(e, "audio.flac")) or os.path.exists(d(e, "retx.done")):
+        return False
+    t0 = time.time()
+    old = json.load(open(path))
+    if not os.path.exists(d(e, "tx.pre-retx.json")):
+        write_json(d(e, "tx.pre-retx.json"), old)
+    log("retranscribe", e["slug"], f"{e['duration'] / 60:.0f} min")
+    segs = retime_span(e, 0.0, float(e["duration"]), "x")
+    tx = {**old, "segments": segs}
+    for a, b in untimed_spans(tx, 45):
+        pts, new = cut_points(e, a, b, FINE_MIN, FINE_MAX), []
+        for i in range(len(pts) - 1):
+            for sg in nemotron_piece(e, pts[i], pts[i + 1]):
+                new.append({**sg, "start": round(pts[i] + sg["start"], 2), "end": round(pts[i] + sg["end"], 2),
+                            "text": squash_loops(sg["text"]), "chunk": f"xf{int(a)}.{i}"})
+        keep = [sg for sg in tx["segments"] if not (sg["start"] >= a - 0.01 and sg["end"] <= b + 0.01)]
+        tx["segments"] = sorted(keep + new, key=lambda sg: sg["start"])
+    segs, _ = collapse_runs(tx["segments"])
+    segs, _ = collapse_loops(segs)
+    for i, sg in enumerate(segs):
+        sg["id"] = str(i)
+    tx["segments"] = segs
+    tx["text"] = " ".join(sg["text"] for sg in segs)
+    tx["retranscribed"] = {"filter": AUDIO_FILTER, "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    if os.path.exists(d(e, "voices.json")) and not os.path.exists(d(e, "voices.pre-retx.json")):
+        os.replace(d(e, "voices.json"), d(e, "voices.pre-retx.json"))
+    write_json(path, tx)
+    before = sum(len(_words(sg["text"])) for sg in old["segments"])
+    after = sum(len(_words(sg["text"])) for sg in segs)
+    write_json(d(e, "retx.done"), {"words_before": before, "words_after": after,
+                                   "untimed_after": round(sum(b - a for a, b in untimed_spans(tx)))})
+    log("retranscribed", e["slug"], f"{before} -> {after} words", f"in {time.time() - t0:.0f}s")
+    return True
 
 
 # ---------------------------------------------------------------- whisper fill
@@ -854,6 +899,9 @@ def main():
     elif cmd == "deloop":
         for e in entries:
             deloop(e)
+    elif cmd == "retranscribe":
+        for e in sorted(entries, key=lambda e: e["duration"]):
+            retranscribe(e)
     elif cmd == "retime-fine":
         for e in entries:
             retime_fine(e)
