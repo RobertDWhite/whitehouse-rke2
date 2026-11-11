@@ -82,11 +82,34 @@ data:
                   expressions:
                     report: name
                     endpoint: hostIdentifier
-              - static_labels:
-                  source_type: endpoint
-                  category: endpoint_activity
               - labels:
                   report:
+              - match:
+                  selector: '{report=~".*soc_.*"}'
+                  stages:
+                    - static_labels:
+                        source_type: endpoint
+                        category: endpoint_activity
+              - match:
+                  selector: '{report=~".*soc_(local_users|uid_zero)"}'
+                  stages:
+                    - static_labels:
+                        category: account_change
+              - match:
+                  selector: '{report=~".*soc_listening_ports"}'
+                  stages:
+                    - static_labels:
+                        category: network
+              - match:
+                  selector: '{report=~".*soc_(cron|launchd|services)"}'
+                  stages:
+                    - static_labels:
+                        category: persistence
+              - match:
+                  selector: '{report=~".*soc_heartbeat"}'
+                  stages:
+                    - static_labels:
+                        category: telemetry_health
 
     # =========================================================
     # RKE2 kube-apiserver audit log.

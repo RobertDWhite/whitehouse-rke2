@@ -12,7 +12,7 @@ Grafana dashboard: https://grafana.internal.white.fm/d/security-soc/security-soc
 
 ## Classification and cadence
 
-Security alerts carry `security=true`, `severity`, `category`, and `source`. Categories are authentication, privilege, account_change, runtime, execution, credential_access and telemetry_health. ATT&CK identifiers are included only where the detection supports a specific technique; they are not proof of compromise.
+Security alerts carry `security=true`, `severity`, `category`, and `source`. Alert categories are authentication, privilege, account_change, runtime, execution, credential_access, network and telemetry_health. Fleet event streams also distinguish persistence and endpoint_activity. ATT&CK identifiers are included only where the detection supports a specific technique; they are not proof of compromise.
 
 Loki evaluates rules every 30 seconds. Critical alerts have no notification group wait; warnings wait 10 seconds and group subsequent updates for five minutes. Resolutions are sent. Rules with sustained thresholds deliberately take longer. High-severity alerts repeat hourly; other security alerts repeat every four hours.
 
@@ -20,7 +20,7 @@ Fleet reports cover enrolled Linux, macOS and Windows teams. Heartbeats run ever
 
 ## Investigation
 
-1. Start with source health. Missing telemetry is not a clean bill of health. The dashboard lists observed hosts and endpoints, while explicit missing-heartbeat rules cover every expected RKE2 node and all three audit sources.
+1. Start with source health. Missing telemetry is not a clean bill of health. The dashboard lists observed hosts and endpoints, while explicit missing-heartbeat rules cover every expected RKE2 node all three audit sources, and the Fleet agents expected on each RKE2 host.
 2. Open the alert's category, source host and time window in Explore. Examine original log lines and identities before attributing malicious intent.
 3. Match privilege changes and interactive access against authorized maintenance. Allowlist only specific known activity; retain source-health alerts.
 4. Preserve relevant evidence before containment or credential rotation. The current Loki retention is 30 days on local filesystem storage; it is not immutable evidence storage.
