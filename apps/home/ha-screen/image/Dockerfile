@@ -1,6 +1,6 @@
 # Renders a Home Assistant dashboard in Chromium on a virtual display and publishes it as a
 # live HLS stream (for TVs/streaming sticks that can play video but cannot open a web page).
-FROM mcr.microsoft.com/playwright/python:v1.64.1-noble@sha256:330d401ae23c905896a0c26c66c36fc971b621519e7b11b435a8328d7bf6e031
+FROM mcr.microsoft.com/playwright/python:v1.65.0-noble@sha256:f9294526294a7bdfb8ca8aa7d815c049125a10e73b65d47fb9a80f5d74f284a6
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends xvfb ffmpeg fonts-noto-color-emoji tini \
