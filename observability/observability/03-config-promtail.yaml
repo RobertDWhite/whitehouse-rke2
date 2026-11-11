@@ -81,6 +81,24 @@ data:
       pipeline_stages:
         - static_labels:
             category: network
+        # UniFi prefixes RFC3164 messages with a MAC/model tag. Preserve
+        # device identity, then extract the actual process from the body.
+        - match:
+            selector: '{source="unifi", app=~"[0-9a-fA-F]{12},.+"}'
+            stages:
+              - regex:
+                  source: app
+                  expression: '^(?P<device_id>[0-9a-fA-F]{12}),'
+              - labels:
+                  device_id:
+              - static_labels:
+                  app: unifi
+                  container: unifi
+              - regex:
+                  expression: '^(?::\s*)?(?P<process>[A-Za-z0-9_./-]+)(?:\[[0-9]+\])?:\s'
+              - labels:
+                  app: process
+                  container: process
         - match:
             selector: '{source="unifi", app=~"sshd|dropbear|login|sudo|su"}'
             stages:

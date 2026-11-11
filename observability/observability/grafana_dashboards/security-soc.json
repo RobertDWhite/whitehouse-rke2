@@ -589,13 +589,14 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (host) (rate({job=\"syslog\",source=\"unifi\"}[5m]))",
+          "expr": "sum by (host,device_id) (rate({job=\"syslog\",source=\"unifi\"}[5m]))",
           "datasource": {
             "type": "loki",
             "uid": "ffbp5mct1w0lcb"
           },
           "instant": false,
-          "range": true
+          "range": true,
+          "legendFormat": "{{host}} {{device_id}}"
         }
       ],
       "fieldConfig": {
