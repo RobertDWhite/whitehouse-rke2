@@ -18,7 +18,8 @@ import bisect, json, os, sys, time, urllib.request
 from voices import WORK, utterances, write_json
 
 LABELS = os.environ.get("LABELS_URL", "http://labels.home-videos.svc.cluster.local:8080/api/labels")
-MIN_OVERLAP, MIN_SHARE = 3.0, 0.2
+MIN_OVERLAP, MIN_SHARE = 3.0, 0.1
+PLACEHOLDERS = {"Unknown", "Not speech", "TV"}
 
 
 def log(*a):
@@ -73,7 +74,9 @@ def run(slug, labels):
             ol = overlap(old.get(ov, []), iv)
             if ol >= MIN_OVERLAP:
                 cands.append((ol, ov, nv))
-    cands.sort(reverse=True)
+    # Real names first: when the new clustering merges voices that were labelled
+    # differently, a name beats "Unknown" / "Not speech" / "TV", then most overlap wins.
+    cands.sort(key=lambda c: (mine[c[1]] not in PLACEHOLDERS, c[0]), reverse=True)
     best, placed = {}, set()  # new voice -> (overlap, name, old voice)
     # 1. each labelled old voice goes to the new voice sharing most of its speech
     for ol, ov, nv in cands:
