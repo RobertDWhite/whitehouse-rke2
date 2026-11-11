@@ -19,8 +19,8 @@ spec:
       labels:
         app: cw-decoder
     spec:
-      nodeSelector:
-        kubernetes.io/hostname: rke2-node-13
+      # This decoder reads recordings from the shared RWX volume; it has no
+      # USB dependency and must remain schedulable during node maintenance.
       restartPolicy: Always
       containers:
         - name: cw-decoder
