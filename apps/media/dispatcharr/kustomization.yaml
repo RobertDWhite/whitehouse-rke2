@@ -24,7 +24,10 @@ images:
   - name: redis
     newTag: "8.10.3@sha256:1f88291b4c57bdf249f02eb085a8669889b2d2954e91d4de5118a5da6b78dd53"
   - name: ghcr.io/dispatcharr/dispatcharr
-    newTag: "0.18.1-20260206020542"
+    # 0.18.1 (February) -> 0.33.0: clears 9 fixable critical CVEs including a
+    # PyJWT auth bypass. Rehearsed against a restored copy of the database on
+    # 2026-11-11 (52 -> 184 migrations on Postgres 14).
+    newTag: "0.33.0@sha256:96bc548978c68e684677da7895692eeeefb7f0b2edfa38311dac2b702c61d236"
   - name: quay.io/prometheuscommunity/postgres-exporter
     newTag: "v0.20.1"
   - name: oliver006/redis_exporter
