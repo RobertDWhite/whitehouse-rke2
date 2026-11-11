@@ -121,7 +121,15 @@ Under music or tape noise Nemotron sometimes hears one word over and over
    lines that only continue it, or that are nothing but filler ("yeah", "oh").
    The transcript before is kept as `tx.pre-deloop.json`; `deloop.done` marks a
    tape as done.
-2. `voices.py`: extends the changed tapes' voices (above).
+   Then `indexer.py retime-fine` re-sends any speech still without word timings
+   (blocks of a minute or more) in 20-35 s pieces, `indexer.py whisper` adds
+   Whisper's (speaches, riffado) confident lines where Nemotron got next to nothing,
+   and `indexer.py reclassify-stale` redoes the chapters of tapes whose transcript
+   changed after they were sorted (keeping the old ones if that fails).
+   Every piece sent for transcription goes through a 60 Hz high-pass: the captures
+   carry a large DC offset that makes Whisper hear nothing and Nemotron do worse.
+2. `voices.py`: extends the changed tapes' voices (above), and asks for name
+   guesses for voices that have none.
 3. `songs.py`: songs sung or playing, recognised from their lyrics by qwen-flash,
    all inside the cluster (no fingerprinting service), so instrumental music
    is not identified. Every answer must quote words that are really in the
