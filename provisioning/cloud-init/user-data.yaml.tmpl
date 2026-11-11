@@ -35,6 +35,7 @@ packages:
   - nfs-common
   - open-iscsi   # required by Longhorn
   - curl
+  - rsyslog
 
 # VMware clock skew has previously future-dated rke2 certs and broken nodes.
 ntp:
@@ -47,6 +48,19 @@ ntp:
 timezone: America/New_York
 
 write_files:
+  - path: /etc/rsyslog.d/60-security-forward.conf
+    permissions: "0644"
+    content: |
+      global(localHostname="${NODE_HOSTNAME}")
+      *.* action(type="omfwd" target="10.99.5.111" port="1514" protocol="tcp"
+        template="RSYSLOG_SyslogProtocol23Format" TCP_Framing="octet-counted"
+        action.resumeRetryCount="-1" queue.type="LinkedList"
+        queue.filename="security-forward" queue.spoolDirectory="/var/spool/rsyslog"
+        queue.maxDiskSpace="256m" queue.saveOnShutdown="on")
+  - path: /etc/cron.d/security-log-heartbeat
+    permissions: "0644"
+    content: |
+      * * * * * root /usr/bin/logger -t siem-heartbeat 'SIEM_HEARTBEAT host=${NODE_HOSTNAME}'
   - path: /etc/rancher/rke2/config.yaml
     permissions: "0600"
     owner: root:root
@@ -56,6 +70,10 @@ write_files:
       node-ip: ${NODE_IP}
 
 runcmd:
+  - install -d -m 0755 /var/spool/rsyslog
+  - rsyslogd -N1
+  - systemctl enable --now rsyslog
+  - systemctl restart rsyslog
   - systemctl enable --now iscsid
   - curl -sfL https://get.rke2.io | INSTALL_RKE2_TYPE=${RKE2_TYPE} sh -
   - systemctl enable --now rke2-${RKE2_TYPE}.service

@@ -12,6 +12,8 @@ spec:
       app: alertmanager
   template:
     metadata:
+      annotations:
+        security.white.fm/config-revision: "22521cf3819c85f9"
       labels:
         app: alertmanager
     spec:
@@ -54,6 +56,9 @@ spec:
             capabilities:
               drop: [ALL]
           volumeMounts:
+            - name: security-webhook
+              mountPath: /etc/security-webhook
+              readOnly: true
             - name: config
               mountPath: /etc/alertmanager
             - name: secrets
@@ -87,6 +92,10 @@ spec:
               mountPath: /etc/alertmanager-ntfy
               readOnly: true
       volumes:
+        - name: security-webhook
+          secret:
+            secretName: security-matrix-webhook
+            defaultMode: 0440
         - name: config
           configMap:
             name: alertmanager-config

@@ -99,31 +99,32 @@ rules:
           - "roles"
           - "rolebindings"
 
-  # Impersonation — `kubectl --as=...` and similar. Always page-worthy.
+  # Explicit impersonate verbs, when emitted. Ordinary impersonated requests
+  # carry impersonatedUser metadata under their actual verb.
   - level: RequestResponse
     verbs: ["impersonate"]
 
-  # ServiceAccount token creation (TokenRequest API).
-  - level: RequestResponse
+  # ServiceAccount token creation: metadata only, never the issued token.
+  - level: Metadata
     verbs: ["create"]
     resources:
       - group: ""
         resources: ["serviceaccounts/token"]
 
   # ----------------------------------------------------------------------
-  # 3. REQUEST — log the request body (not the response) for sensitive
+  # 3. METADATA — retain identity and resource, never credential bodies, for sensitive
   #    verbs on sensitive resources.
   # ----------------------------------------------------------------------
 
-  # Secret + ConfigMap reads/writes anywhere.
-  - level: Request
+  # Secret + ConfigMap reads/writes: never record values.
+  - level: Metadata
     resources:
       - group: ""
         resources: ["secrets", "configmaps"]
 
   # Auth subject access reviews / token reviews — useful audit trail of
   # "who is asking whether X can do Y".
-  - level: Request
+  - level: Metadata
     resources:
       - group: "authentication.k8s.io"
         resources: ["tokenreviews"]
@@ -131,7 +132,7 @@ rules:
         resources: ["subjectaccessreviews", "localsubjectaccessreviews"]
 
   # exec / attach / portforward into pods — interactive shells.
-  - level: Request
+  - level: Metadata
     resources:
       - group: ""
         resources: ["pods/exec", "pods/attach", "pods/portforward"]

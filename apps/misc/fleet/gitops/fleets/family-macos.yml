@@ -27,7 +27,44 @@ controls:
     configuration_profiles:
     - path: ../lib/apple/profiles/managed-wi-fi.mobileconfig
 policies: []
-reports: []
+reports:
+- name: soc_heartbeat
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT hostname, uuid FROM system_info;
+  interval: 60
+  observer_can_run: true
+  automations_enabled: false
+  logging: snapshot
+  platform: darwin
+- name: soc_listening_ports
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT l.address,l.port,l.protocol,p.name,p.path FROM listening_ports l LEFT
+    JOIN processes p ON p.pid=l.pid WHERE l.port > 0;
+  interval: 120
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: darwin
+- name: soc_local_users
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT uid,gid,username,directory,shell FROM users;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: darwin
+- name: soc_launchd
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT name,path,program,run_at_load,keep_alive FROM launchd;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: darwin
 software:
   fleet_maintained_apps:
     - slug: balenaetcher/darwin

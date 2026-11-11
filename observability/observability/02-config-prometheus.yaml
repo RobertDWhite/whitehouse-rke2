@@ -19,8 +19,26 @@ data:
     rule_files:
       - /etc/prometheus/sdr-alerts.yml
       - /etc/prometheus/cluster-alerts.yml
+      - /etc/prometheus/security-alerts.yml
 
     scrape_configs:
+      - job_name: promtail
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [observability]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: promtail
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_number]
+            regex: '1514'
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: '$1:9080'
+          - source_labels: [__meta_kubernetes_pod_node_name]
+            target_label: node
       - job_name: crowdsec-envoy-bouncer
         static_configs:
           - targets: ["crowdsec-envoy-bouncer.crowdsec.svc.cluster.local:9090"]
@@ -996,6 +1014,8 @@ data:
             expr: absent(up{job="crowdsec-envoy-bouncer"}) or up{job="crowdsec-envoy-bouncer"} == 0
             for: 2m
             labels:
+              security: "true"
+              category: telemetry_health
               severity: warning
             annotations:
               summary: "CrowdSec canary external authorization is unavailable"
@@ -1003,6 +1023,8 @@ data:
             expr: time() - bouncer_lapi_last_sync_timestamp_seconds > 120 or bouncer_lapi_stream_connected == 0
             for: 2m
             labels:
+              security: "true"
+              category: telemetry_health
               severity: warning
             annotations:
               summary: "CrowdSec Envoy bouncer is not receiving fresh decisions"
@@ -1428,3 +1450,21 @@ data:
               severity: warning
             annotations:
               summary: "fleet-mysqldump has not succeeded in >12h (schedule is every 6h)"
+
+  security-alerts.yml: |
+    groups:
+      - name: security-network
+        interval: 30s
+        rules:
+          - alert: SecurityCrowdSecDetection
+            expr: sum(increase(cs_lapi_alerts_total[5m])) > 0
+            for: 0m
+            labels:
+              severity: warning
+              category: network
+              security: "true"
+              source: crowdsec
+            annotations:
+              summary: "CrowdSec detected suspicious traffic"
+              description: "Inspect CrowdSec alerts, decisions and the originating scenario before attributing malicious activity."
+              dashboard_url: "https://grafana.internal.white.fm/d/security-soc/security-soc"

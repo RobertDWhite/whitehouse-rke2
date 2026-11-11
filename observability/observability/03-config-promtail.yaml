@@ -10,7 +10,7 @@ data:
       grpc_listen_port: 0
 
     positions:
-      filename: /tmp/positions.yaml
+      filename: /var/lib/promtail/positions.yaml
 
     clients:
       - url: http://loki:3100/loki/api/v1/push
@@ -22,13 +22,39 @@ data:
         idle_timeout: 60s
         labels:
           job: syslog
+          source_type: host
     
       relabel_configs:
         - source_labels: ['__syslog_message_hostname']
           target_label: host
         - source_labels: ['__syslog_message_app_name']
           target_label: container
+        - source_labels: ['__syslog_message_app_name']
+          target_label: app
+        - source_labels: ['__syslog_message_severity']
+          target_label: syslog_severity
+        - source_labels: ['__syslog_message_facility']
+          target_label: facility
     
+      pipeline_stages:
+        - static_labels:
+            category: system
+        - match:
+            selector: '{job="syslog", app=~"sshd|sshd-session|login|sudo|su|su-l"}'
+            stages:
+              - static_labels:
+                  category: authentication
+        - match:
+            selector: '{job="syslog"} |~ "(?i)(useradd|userdel|usermod|groupadd|groupdel|groupmod)"'
+            stages:
+              - static_labels:
+                  category: account_change
+        - match:
+            selector: '{job="syslog"} |= "SIEM_HEARTBEAT"'
+            stages:
+              - static_labels:
+                  category: telemetry_health
+
     - job_name: kubernetes-pods
       static_configs:
       - targets:
@@ -47,7 +73,20 @@ data:
             pod:
             container:
         - labels:
-            node: __host__
+            node: ${NODE_NAME}
+
+        - match:
+            selector: '{namespace="fleet", container="fleet"} |~ `"name"\s*:\s*"[^"]*soc_`'
+            stages:
+              - json:
+                  expressions:
+                    report: name
+                    endpoint: hostIdentifier
+              - static_labels:
+                  source_type: endpoint
+                  category: endpoint_activity
+              - labels:
+                  report:
 
     # =========================================================
     # RKE2 kube-apiserver audit log.
@@ -114,4 +153,4 @@ data:
 
         # Per-node label, matching the kubernetes-pods convention above.
         - labels:
-            node: __host__
+            node: ${NODE_NAME}

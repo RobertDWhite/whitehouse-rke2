@@ -9,6 +9,8 @@ spec:
       app: promtail
   template:
     metadata:
+      annotations:
+        security.white.fm/config-revision: "754f9c7cde48d1fd"
       labels:
         app: promtail
     spec:
@@ -26,6 +28,7 @@ spec:
           image: grafana/promtail
           args:
             - -config.file=/etc/promtail/promtail.yaml
+            - -config.expand-env=true
           env:
             - name: NODE_NAME
               valueFrom:
@@ -40,6 +43,8 @@ spec:
               protocol: UDP
 
           volumeMounts:
+            - name: positions
+              mountPath: /var/lib/promtail
             - name: config
               mountPath: /etc/promtail
               readOnly: true
@@ -62,6 +67,10 @@ spec:
               readOnly: true
 
       volumes:
+        - name: positions
+          hostPath:
+            path: /var/lib/promtail
+            type: DirectoryOrCreate
         - name: config
           configMap:
             name: promtail-config

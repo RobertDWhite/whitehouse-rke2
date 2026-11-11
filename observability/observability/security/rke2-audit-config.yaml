@@ -1,0 +1,10 @@
+# Install as /etc/rancher/rke2/config.yaml.d/60-security-audit.yaml on SERVER nodes.
+# Copy ../30-rke2-audit-policy.yaml to /etc/rancher/rke2/audit-policy.yaml first.
+# Restart rke2-server ONE NODE AT A TIME; wait for its API server to be Ready and
+# audit.log to grow before restarting the next node.
+kube-apiserver-arg+:
+  - audit-policy-file=/etc/rancher/rke2/audit-policy.yaml
+  - audit-log-path=/var/lib/rancher/rke2/server/logs/audit.log
+  - audit-log-maxage=7
+  - audit-log-maxbackup=5
+  - audit-log-maxsize=100
