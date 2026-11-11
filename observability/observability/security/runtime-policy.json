@@ -1,0 +1,253 @@
+[
+  {
+    "id": "immich-rsync",
+    "rule": "Drop and execute new binary in container",
+    "fields": {
+      "k8s_ns_name": "immich",
+      "k8s_pod_name": "immich-(photos-bidirectional-sync|upload-to-synology-sync)-[0-9]+-[a-z0-9]+",
+      "container": "rsync",
+      "image": "docker.io/library/alpine",
+      "process": "rsync",
+      "exe": "/usr/bin/rsync",
+      "parent": "sh"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Immich maintenance CronJobs explicitly install rsync before the additive backup sync."
+  },
+  {
+    "id": "myspeed-ookla",
+    "rule": "Drop and execute new binary in container",
+    "fields": {
+      "k8s_ns_name": "myspeed",
+      "k8s_pod_name": "myspeed-[a-z0-9]+-[a-z0-9]+",
+      "container": "myspeed",
+      "image": "docker.io/germannewsmaker/myspeed",
+      "image_tag": "1.0.9",
+      "process": "speedtest",
+      "exe": "/myspeed/bin/speedtest",
+      "parent": "node"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Upstream v1.0.9 server/util/speedtest.js spawns ./bin/speedtest; downloaded provider binary."
+  },
+  {
+    "id": "cw-python",
+    "rule": "Drop and execute new binary in container",
+    "fields": {
+      "k8s_ns_name": "sdr-research",
+      "k8s_pod_name": "cw-decoder-[a-z0-9]+-[a-z0-9]+",
+      "container": "cw-decoder",
+      "image": "docker.io/library/debian",
+      "image_tag": "stable-slim",
+      "process": "python3|python3.13|py3compile",
+      "exe": "/usr/bin/python3.13",
+      "parent": "py3compile|containerd-shim|python3.postins|python3.13.post|python3.13-mini|python3-minimal"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "09-cw-decoder-deployment.yaml installs Python3 at startup. Remove after prebuilt image rollout."
+  },
+  {
+    "id": "glacier-mirror",
+    "rule": "Drop and execute new binary in container",
+    "fields": {
+      "k8s_ns_name": "glacier",
+      "k8s_pod_name": "tor-onion-[a-z0-9]+-[a-z0-9]+",
+      "container": "mirror",
+      "image": "docker.io/library/alpine",
+      "image_tag": "3.21",
+      "process": "wget",
+      "exe": "/usr/bin/wget",
+      "parent": "sh"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Live tor-onion-mirror script installs GNU wget for daily public blog mirroring."
+  },
+  {
+    "id": "rke2-snapshot-log",
+    "rule": "Clear Log Activities",
+    "fields": {
+      "container": "host",
+      "process": "containerd",
+      "exe": "/var/lib/rancher/rke2/data/v[0-9.]+-rke2r[0-9]+-[a-f0-9]+/bin/containerd",
+      "parent": "rke2",
+      "file": "/var/lib/rancher/rke2/agent/containerd/(io.containerd.snapshotter.v1.overlayfs/snapshots/[0-9]+/fs/(var/log/dpkg.log|etc/default/cron|etc/init.d/cron|etc/pam.d/cron|usr/sbin/cron)|tmpmounts/containerd-mount[0-9]+/var/log/dpkg.log)"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Host RKE2 containerd image unpack/cleanup of dpkg and cron files in managed snapshots/tmpmounts; excludes host /var/log and all other files."
+  },
+  {
+    "id": "nvidia-immich-ml-gpu",
+    "rule": "Fileless execution via memfd_create",
+    "fields": {
+      "k8s_ns_name": "immich",
+      "k8s_pod_name": "immich-ml-gpu-[a-z0-9]+-[a-z0-9]+",
+      "container": "immich-ml",
+      "image": "ghcr.io/immich-app/immich-machine-learning",
+      "process": "memfd:runc_clon",
+      "exe": "memfd:runc_cloned:ldconfig",
+      "parent": "nvidia-ctk",
+      "runtime_hook": "runc:\\[1:CHILD\\]"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "NVIDIA toolkit ldconfig hook in GPU workload; requires both runc child ancestry and nvidia-ctk parent."
+  },
+  {
+    "id": "nvidia-ollama-5090",
+    "rule": "Fileless execution via memfd_create",
+    "fields": {
+      "k8s_ns_name": "ai-stack",
+      "k8s_pod_name": "ollama-5090-[a-z0-9]+-[a-z0-9]+",
+      "container": "ollama",
+      "image": "docker.io/ollama/ollama",
+      "process": "memfd:runc_clon",
+      "exe": "memfd:runc_cloned:ldconfig",
+      "parent": "nvidia-ctk",
+      "runtime_hook": "runc:\\[1:CHILD\\]"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "NVIDIA toolkit ldconfig hook in GPU workload; requires both runc child ancestry and nvidia-ctk parent."
+  },
+  {
+    "id": "nvidia-speaches",
+    "rule": "Fileless execution via memfd_create",
+    "fields": {
+      "k8s_ns_name": "riffado",
+      "k8s_pod_name": "speaches-[a-z0-9]+-[a-z0-9]+",
+      "container": "speaches|fetch-model",
+      "image": "ghcr.io/speaches-ai/speaches",
+      "process": "memfd:runc_clon",
+      "exe": "memfd:runc_cloned:ldconfig",
+      "parent": "nvidia-ctk",
+      "runtime_hook": "runc:\\[1:CHILD\\]"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "NVIDIA toolkit ldconfig hook in GPU workload; requires both runc child ancestry and nvidia-ctk parent."
+  },
+  {
+    "id": "nvidia-nemotron-transcribe",
+    "rule": "Fileless execution via memfd_create",
+    "fields": {
+      "k8s_ns_name": "riffado",
+      "k8s_pod_name": "nemotron-transcribe-[a-z0-9]+-[a-z0-9]+",
+      "container": "api",
+      "image": "ghcr.io/astral-sh/uv",
+      "process": "memfd:runc_clon",
+      "exe": "memfd:runc_cloned:ldconfig",
+      "parent": "nvidia-ctk",
+      "runtime_hook": "runc:\\[1:CHILD\\]"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "NVIDIA toolkit ldconfig hook in GPU workload; requires both runc child ancestry and nvidia-ctk parent."
+  },
+  {
+    "id": "postgres-probe-immich",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "immich",
+      "k8s_pod_name": "immich-postgres-0",
+      "container": "postgres",
+      "image": "ghcr.io/immich-app/postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "sh",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  },
+  {
+    "id": "postgres-probe-sdr-research",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "sdr-research",
+      "k8s_pod_name": "postgres-0",
+      "container": "postgres",
+      "image": "docker.io/library/postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "containerd-shim",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  },
+  {
+    "id": "postgres-probe-matrix",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "matrix",
+      "k8s_pod_name": "matrix-postgresql-0",
+      "container": "postgres",
+      "image": "docker.io/library/postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "containerd-shim",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  },
+  {
+    "id": "postgres-probe-condo",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "condo",
+      "k8s_pod_name": "postgres-0",
+      "container": "postgres",
+      "image": "(docker.io/library/)?postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "containerd-shim",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  },
+  {
+    "id": "postgres-probe-congress-trades",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "congress-trades",
+      "k8s_pod_name": "postgres-0",
+      "container": "postgres",
+      "image": "docker.io/library/postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "containerd-shim",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  },
+  {
+    "id": "postgres-probe-dispatcharr",
+    "rule": "Read sensitive file untrusted",
+    "fields": {
+      "k8s_ns_name": "dispatcharr",
+      "k8s_pod_name": "dispatcharr-db-[a-z0-9]+-[a-z0-9]+",
+      "container": "postgres",
+      "image": "docker.io/library/postgres",
+      "process": "pg_isready",
+      "exe": "/usr/bin/perl",
+      "parent": "containerd-shim",
+      "file": "/etc/shadow"
+    },
+    "owner": "Robert",
+    "expires": "2026-12-11T00:00:00Z",
+    "evidence": "Postgres readiness/liveness probe. Exact image/container must match; unknown probes remain unreviewed."
+  }
+]

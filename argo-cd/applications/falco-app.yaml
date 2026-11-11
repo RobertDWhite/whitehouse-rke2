@@ -35,20 +35,9 @@ spec:
                 follow:
                   refs: [falco-rules:5, container:0.7.6]
 
-          # Local tuning. Postgres readiness/liveness probes run pg_isready, which
-          # resolves the current user and so opens /etc/shadow; that was ~75% of
-          # all Falco events (10k+ per 48h) and buried everything else.
-          customRules:
-            local-tuning.yaml: |-
-              - rule: Read sensitive file untrusted
-                exceptions:
-                  - name: pg_isready_probe
-                    fields: [proc.name, fd.name]
-                    comps: [=, =]
-                    values:
-                      - [pg_isready, /etc/shadow]
-                override:
-                  exceptions: append
+          # Preserve source evidence. Expected activity is classified in Loki by
+          # security/runtime-policy.json, with workload scope and expiry.
+          # No source-side pg_isready suppression: unknown probes stay visible.
 
           metrics:
             enabled: true
@@ -70,21 +59,12 @@ spec:
           falcosidekick:
             enabled: true
             config:
-              # WEBHOOK_ADDRESS comes from the SOPS-encrypted
-              # falcosidekick-matrix-webhook Secret in security/falco/. The chart
-              # appends this to envFrom after its own generated secret, so it
-              # overrides the (now empty) chart value. A Hookshot webhook URL is
-              # a bearer credential and must not be inlined in this public repo.
-              existingSecret: falcosidekick-matrix-webhook
+              # Alertmanager is the only Security Matrix notification path.
+              # Do not load falcosidekick-matrix-webhook: it bypasses grouping,
+              # maintenance silences and expected-activity classification.
               loki:
                 hostport: "http://loki.observability.svc.cluster.local:3100"
                 extralabels: "from:falcosidekick"
-              webhook:
-                # Posts to a Matrix room (!jwEzzWQBepIokbJtfX:white.fm) via hookshot.
-                # The state event in that room carries a transformationFunction
-                # that formats this JSON into readable text/HTML.
-                # address is intentionally unset here — see existingSecret above.
-                minimumpriority: "error"
               # Re-export falco events as Prometheus metrics on the falcosidekick :2801
               # /metrics endpoint (falcosecurity_falcosidekick_falco_events_total{priority,
               # priority_raw,rule,source,...}), scraped for the Glance Falco tile. No

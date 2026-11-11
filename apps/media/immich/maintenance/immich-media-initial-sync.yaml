@@ -27,11 +27,10 @@ spec:
         - name: rsync
           # Installed at runtime so the operational job is portable across
           # the cluster's ARM nodes. This is intentionally not GitOps-managed.
-          image: alpine:3.22
+          image: registry.internal.white.fm/soc-maintenance:2026-11-11@sha256:9b793ee9a67904ea40a07d3c6f4a1cd2b7b0a4c7788a98209b9fe4a0f25f650c
           command: [sh, -ec]
           args:
             - |
-              apk add --no-cache rsync
               # These are independent Immich trees. Four bounded workers make
               # better use of the NFS and Longhorn RWX connections while the
               # final, quiesced rsync remains the authoritative reconciliation.
