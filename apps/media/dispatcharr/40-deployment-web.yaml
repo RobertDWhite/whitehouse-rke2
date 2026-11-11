@@ -32,7 +32,8 @@ spec:
               memory: 256Mi
             limits:
               cpu: 1000m
-              memory: 1Gi
+              # 0.33.0 idles around 960Mi and was OOM-killed at 1Gi on first boot.
+              memory: 2Gi
           readinessProbe:
             httpGet:
               path: /
