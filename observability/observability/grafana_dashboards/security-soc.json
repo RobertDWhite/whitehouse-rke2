@@ -570,6 +570,87 @@
         "overrides": []
       },
       "options": {}
+    },
+    {
+      "id": 15,
+      "title": "UniFi syslog events by device",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "RFC3164 device logs received over UDP. Counts reflect received events, not a complete device inventory or guaranteed delivery.",
+      "gridPos": {
+        "x": 0,
+        "y": 60,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host) (rate({job=\"syslog\",source=\"unifi\"}[5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 16,
+      "title": "UniFi network and authentication events",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 60,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"syslog\",source=\"unifi\"}",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
     }
   ],
   "links": [
