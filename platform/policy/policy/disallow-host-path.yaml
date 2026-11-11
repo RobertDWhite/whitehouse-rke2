@@ -12,8 +12,9 @@ metadata:
       legitimately need hostPath (log tailers, CIS scanners, kernel
       routing, hardware passthrough) are listed in the exclude block.
 spec:
-  # Audit only on day one. Many existing DaemonSets in the cluster mount
-  # hostPaths; we want a clean PolicyReport list before considering Enforce.
+  # Enforced; see failureActionOverrides for the namespaces still in Audit.
+  # `kubectl debug node/...` mounts the host root, so run it with
+  # `-n kube-system` (exempt) rather than in `default`.
   background: true
   failurePolicy: Ignore
   rules:
@@ -79,11 +80,26 @@ spec:
               names:
                 - node-exporter-*
       validate:
-        failureAction: Audit
+        # Enforced cluster-wide since 2026-11-11. The namespaces below still run
+        # workloads that violate this rule (or create short-lived
+        # helper pods that do: local-path-storage, trivy-system), so
+        # they stay in Audit until those workloads are fixed or given a named
+        # entry in the exclude block above. Every other namespace had zero
+        # violations (running pods and all workload templates) at the switch.
+        failureAction: Enforce
         failureActionOverrides:
-          - action: Enforce
+          - action: Audit
             namespaces:
-              - backoffice
+              - adsb
+              - headscale
+              - local-path-storage
+              - media
+              - observability
+              - scrypted
+              - sdr-research
+              - synology-csi
+              - trivy-system
+              - velero
         message: >-
           hostPath volumes are not allowed. If this workload needs host
           filesystem access, add the namespace/name pattern to the policy
