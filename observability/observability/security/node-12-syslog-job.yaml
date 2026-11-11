@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: security-syslog-node-12
+  namespace: observability
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: security-syslog-bootstrap
+    spec:
+      nodeName: rke2-node-12
+      restartPolicy: OnFailure
+      tolerations:
+      - operator: Exists
+      containers:
+      - name: configure
+        image: ubuntu:24.04
+        command:
+        - bash
+        - -ec
+        - chroot /host /bin/bash -s -- rke2-node-12 < /scripts/configure-host.sh
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - SYS_CHROOT
+            - DAC_OVERRIDE
+            - FOWNER
+            - CHOWN
+        volumeMounts:
+        - name: host
+          mountPath: /host
+        - name: scripts
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+      - name: scripts
+        configMap:
+          name: security-host-bootstrap

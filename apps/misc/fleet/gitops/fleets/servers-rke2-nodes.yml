@@ -21,9 +21,55 @@ agent_options:
       - SELECT uuid AS host_uuid FROM system_info;
       - SELECT hostname AS hostname FROM system_info;
   overrides: {}
-controls:
 controls: {}
 policies: []
-reports: []
+reports:
+- name: soc_heartbeat
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT hostname, uuid FROM system_info;
+  interval: 60
+  observer_can_run: true
+  automations_enabled: false
+  logging: snapshot
+  platform: linux
+- name: soc_listening_ports
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT l.address,l.port,l.protocol,p.name,p.path FROM listening_ports l LEFT
+    JOIN processes p ON p.pid=l.pid WHERE l.port > 0;
+  interval: 120
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: linux
+- name: soc_local_users
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT uid,gid,username,directory,shell FROM users;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: linux
+- name: soc_uid_zero
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT uid,username,directory,shell FROM users WHERE uid=0 AND username !=
+    'root';
+  interval: 60
+  observer_can_run: true
+  automations_enabled: false
+  logging: snapshot
+  platform: linux
+- name: soc_cron
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT event,minute,hour,day_of_month,month,day_of_week,path FROM crontab;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: linux
 software:
   packages: []

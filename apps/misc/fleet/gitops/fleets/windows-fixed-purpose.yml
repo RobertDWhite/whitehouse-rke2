@@ -61,7 +61,44 @@ policies:
     platform: darwin
     install_software:
       fleet_maintained_app_slug: whatsapp/darwin
-reports: []
+reports:
+- name: soc_heartbeat
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT hostname, uuid FROM system_info;
+  interval: 60
+  observer_can_run: true
+  automations_enabled: false
+  logging: snapshot
+  platform: windows
+- name: soc_listening_ports
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT l.address,l.port,l.protocol,p.name,p.path FROM listening_ports l LEFT
+    JOIN processes p ON p.pid=l.pid WHERE l.port > 0;
+  interval: 120
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: windows
+- name: soc_local_users
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT uid,gid,username,directory,shell FROM users;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: windows
+- name: soc_services
+  description: SOC endpoint telemetry; evidence is forwarded to Loki. Differential
+    first results are baseline, not automatically an incident.
+  query: SELECT name,display_name,path,start_type,status,user_account FROM services;
+  interval: 300
+  observer_can_run: true
+  automations_enabled: false
+  logging: differential
+  platform: windows
 software:
   # Unpinned Fleet-maintained apps track Fleet's catalog; the nightly
   # CronJob picks up new versions.

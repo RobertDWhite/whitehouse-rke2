@@ -1,0 +1,590 @@
+{
+  "uid": "security-soc",
+  "title": "Security SOC",
+  "tags": [
+    "security",
+    "soc",
+    "siem"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active security detections",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "description": "Missing telemetry is a security alert. Empty results are meaningful only when source-health panels show coverage.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ALERTS{security=\"true\",alertstate=\"firing\"}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Security alerts by category",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (category,severity) (ALERTS{security=\"true\",alertstate=\"firing\"})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Ubuntu syslog events by host",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host) (rate({job=\"syslog\",host=~\"rke2-node-.*\"}[5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Last 10 minutes: host heartbeats",
+      "type": "table",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "Expected nodes: 10,11,12,13,14,15,50. Missing rows are missing sources, not zero risk.",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host) (count_over_time({job=\"syslog\"} |= \"SIEM_HEARTBEAT\" [10m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Kubernetes audit coverage",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate({job=\"kube-audit\"}[5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Falco events by priority",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (priority) (rate({source=\"syscall\"}[5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Fleet endpoints reporting (15m)",
+      "type": "table",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "Desktop/server Fleet agents only. iOS/iPadOS/watchOS/tvOS MDM devices cannot run osquery. Sleeping or offline endpoints may be absent.",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (hostIdentifier) (count_over_time({source_type=\"endpoint\"} |= \"soc_heartbeat\" | json | __error__=\"\" [15m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Fleet activity by report",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (report) (rate({source_type=\"endpoint\"}[5m]))",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "title": "Authentication events",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"syslog\",category=\"authentication\"}",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 10,
+      "title": "Runtime detections",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source=\"syscall\",priority=~\"Warning|Error|Critical|Alert|Emergency\"}",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 11,
+      "title": "Kubernetes security trail",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"kube-audit\"} | json resource=\"objectRef.resource\",subresource=\"objectRef.subresource\" | resource=~\"secrets|clusterrolebindings|rolebindings|clusterroles|roles\" or subresource=~\"exec|attach\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 12,
+      "title": "Endpoint changes / evidence",
+      "type": "logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "ffbp5mct1w0lcb"
+      },
+      "description": "Initial differential snapshots establish the baseline. A new listening port or account is evidence to investigate, not automatically malicious.",
+      "gridPos": {
+        "x": 12,
+        "y": 42,
+        "w": 12,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{source_type=\"endpoint\"} != \"soc_heartbeat\"",
+          "datasource": {
+            "type": "loki",
+            "uid": "ffbp5mct1w0lcb"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      }
+    },
+    {
+      "id": 13,
+      "title": "CrowdSec active decisions",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (type,origin) (cs_active_decisions)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "title": "Collector delivery errors",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "ffbp5qeorery8b"
+      },
+      "description": "Collector drop metrics, when scraped. See source heartbeats for end-to-end delivery health.",
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (rate(promtail_dropped_entries_total[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "ffbp5qeorery8b"
+          },
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "links": [
+    {
+      "title": "Security posture",
+      "url": "/d/security-operations",
+      "type": "link"
+    },
+    {
+      "title": "Runbook",
+      "url": "https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md",
+      "type": "link"
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

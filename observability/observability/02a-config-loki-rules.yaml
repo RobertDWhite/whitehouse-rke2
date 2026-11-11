@@ -4,117 +4,401 @@ metadata:
   name: loki-rules
   namespace: observability
 data:
-  # Loki ruler discovers rule files at /etc/loki/rules/<tenant>/...
-  # With auth_enabled=false there's a single implicit tenant "fake".
-  # See https://grafana.com/docs/loki/latest/configuration/#ruler
-  fake-kube-audit.yml: |
+  security.yml: |
     groups:
-      - name: kube-audit
-        interval: 1m
-        rules:
-
-          # Page on any successful ClusterRoleBinding creation. There are
-          # legitimate reasons this happens (operator installs, ArgoCD
-          # initial sync) but it's rare enough to warrant a look every
-          # time. `responseCode` field comes from the audit JSON.
-          - alert: KubeAuditClusterRoleBindingCreate
-            expr: |
-              sum by (node, user, resource) (
-                count_over_time(
-                  {job="kube-audit", verb="create", resource="clusterrolebindings"}
-                  | json
-                  | responseCode =~ "2.."
-                  [5m]
-                )
-              ) > 0
-            for: 0m
-            labels:
-              severity: warning
-              category: kube-audit
-            annotations:
-              summary: "ClusterRoleBinding created by {{ $labels.user }} on {{ $labels.node }}"
-              description: >
-                A ClusterRoleBinding was created via kube-apiserver. Verify
-                this was an intentional change (operator install, ArgoCD
-                sync, or human operator). Grafana → Explore → loki:
-                {job="kube-audit", verb="create", resource="clusterrolebindings"}
-
-          # Anonymous (unauthenticated) access succeeding against the API.
-          # In a normally-configured RKE2 this should NEVER happen — the
-          # only path is via the system:anonymous user when
-          # anonymous-auth=true. If this fires, something is open.
-          - alert: KubeAuditAnonymousAccess
-            expr: |
-              sum by (node, verb, resource) (
-                count_over_time(
-                  {job="kube-audit"}
-                  | json
-                  | user = "system:anonymous"
-                  | responseCode =~ "2.."
-                  [5m]
-                )
-              ) > 0
-            for: 0m
-            labels:
-              severity: critical
-              category: kube-audit
-            annotations:
-              summary: "system:anonymous succeeded against kube-apiserver on {{ $labels.node }}"
-              description: >
-                The unauthenticated system:anonymous user successfully
-                performed {{ $labels.verb }} on {{ $labels.resource }}.
-                Check kube-apiserver --anonymous-auth flag and any
-                RoleBindings to system:anonymous / system:unauthenticated.
-
-          # Secret reads by a non-system principal. system:serviceaccount:*
-          # is legitimate controller traffic; anything else is a human or
-          # an external client. Threshold: any read in 5m.
-          - alert: KubeAuditSecretAccess
-            expr: |
-              sum by (node, user, namespace) (
-                count_over_time(
-                  {job="kube-audit", verb=~"get|list", resource="secrets"}
-                  | json
-                  | user !~ "system:serviceaccount:.+"
-                  | user !~ "system:.*"
-                  | responseCode =~ "2.."
-                  [5m]
-                )
-              ) > 0
-            for: 0m
-            labels:
-              severity: warning
-              category: kube-audit
-            annotations:
-              summary: "Secret read by user {{ $labels.user }}"
-              description: >
-                User {{ $labels.user }} read secrets in
-                {{ $labels.namespace }}. Confirm this was an intentional
-                operator action; rotate the secrets if not.
-
-          # Baseline visibility on serviceaccount token creation
-          # (TokenRequest API). Likely noisy in steady-state — kept at
-          # warning + 15m for-duration so transient bursts don't page.
-          - alert: KubeAuditServiceAccountTokenCreate
-            expr: |
-              sum by (node, user) (
-                count_over_time(
-                  {job="kube-audit", verb="create", resource="serviceaccounts"}
-                  | json
-                  | line_format "{{.__line__}}"
-                  |~ "serviceaccounts/token"
-                  | responseCode =~ "2.."
-                  [5m]
-                )
-              ) > 50
-            for: 15m
-            labels:
-              severity: warning
-              category: kube-audit
-            annotations:
-              summary: "Elevated ServiceAccount token issuance rate ({{ $value | humanize }}/5m) by {{ $labels.user }}"
-              description: >
-                More than 50 ServiceAccount tokens were minted in 5
-                minutes by {{ $labels.user }} on {{ $labels.node }}.
-                Above the steady-state controller-manager baseline —
-                investigate the calling client.
+    - name: security-soc
+      interval: 30s
+      rules:
+      - alert: SecuritySSHBruteForce
+        expr: sum by (host) (count_over_time({job="syslog",app=~"sshd|sshd-session"} |~
+          "Failed password|Invalid user|authentication failure" [5m])) >= 8
+        for: 0m
+        labels:
+          severity: warning
+          category: authentication
+          security: 'true'
+          source: loki
+          mitre_attack: T1110
+        annotations:
+          summary: Repeated SSH failures on {{ $labels.host }}
+          description: At least eight failed SSH events in five minutes. Inspect source
+            IP and user in syslog; check for subsequent successful authentication.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySSHRootLogin
+        expr: sum by (host) (count_over_time({job="syslog",app=~"sshd|sshd-session"} |~
+          "Accepted (password|publickey|keyboard-interactive/pam) for root " [2m])) >
+          0
+        for: 0m
+        labels:
+          severity: critical
+          category: privilege
+          security: 'true'
+          source: loki
+          mitre_attack: T1078
+        annotations:
+          summary: Remote root login on {{ $labels.host }}
+          description: Verify the source and authorization for this root session. Revoke
+            access and investigate if unexpected.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySudoDenied
+        expr: sum by (host) (count_over_time({job="syslog",app="sudo"} |~ "NOT in sudoers|not
+          in the sudoers|authentication failure|incorrect password" [5m])) >= 3
+        for: 0m
+        labels:
+          severity: warning
+          category: privilege
+          security: 'true'
+          source: loki
+          mitre_attack: T1548.003
+        annotations:
+          summary: Repeated sudo failures on {{ $labels.host }}
+          description: Inspect user, command and source session before taking action.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityAccountChange
+        expr: sum by (host) (count_over_time({job="syslog",app=~"useradd|usermod|userdel|groupadd|groupmod|groupdel"}
+          [2m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: account_change
+          security: 'true'
+          source: loki
+          mitre_attack: T1136.001
+        annotations:
+          summary: Local account or group changed on {{ $labels.host }}
+          description: Check account-management logs and match the change to intended
+            provisioning.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityLogTampering
+        expr: sum by (host) (count_over_time({job="syslog"} |~ "(?i)(rsyslogd.*(exiting|action.*suspended)|imjournal.*(lost|discarded)|Suppressed
+          [1-9][0-9]* messages)" [5m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: Log delivery loss or interruption on {{ $labels.host }}
+          description: Check rsyslog service, queue, disk capacity and collector availability.
+            This is a telemetry fault, not proof of an attack.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityFalcoHighPriority
+        expr: sum by (hostname,rule,priority) (count_over_time({source="syscall",priority=~"Emergency|Alert|Critical|Error"}
+          [2m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: runtime
+          security: 'true'
+          source: loki
+        annotations:
+          summary: 'Falco: {{ $labels.rule }} on {{ $labels.hostname }}'
+          description: Investigate Falco output, process, container and namespace. Verify
+            maintenance context before containment.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityFalcoWarningBurst
+        expr: sum by (hostname,rule) (count_over_time({source="syscall",priority="Warning"}
+          [5m])) >= 20
+        for: 2m
+        labels:
+          severity: warning
+          category: runtime
+          security: 'true'
+          source: loki
+        annotations:
+          summary: 'Repeated Falco warning: {{ $labels.rule }}'
+          description: Twenty or more events for one runtime rule on one host within five
+            minutes. Review and tune specific legitimate workloads.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeRBACChange
+        expr: sum by (node,user,resource) (count_over_time({job="kube-audit"} | json user="user.username",
+          responseCode="responseStatus.code", resource="objectRef.resource", subresource="objectRef.subresource",
+          namespace="objectRef.namespace" | __error__="" | verb=~"create|update|patch|delete"
+          | resource=~"clusterrolebindings|rolebindings|clusterroles|roles" | responseCode=~"2.."
+          [2m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: privilege
+          security: 'true'
+          source: loki
+          mitre_attack: T1098
+        annotations:
+          summary: Kubernetes RBAC change by {{ $labels.user }}
+          description: Verify the role or binding change against GitOps and operator activity.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeAnonymousAccess
+        expr: sum by (node,resource) (count_over_time({job="kube-audit"} | json user="user.username",
+          responseCode="responseStatus.code", resource="objectRef.resource", subresource="objectRef.subresource",
+          namespace="objectRef.namespace" | __error__="" | user="system:anonymous" | resource!=""
+          | responseCode=~"2.." [2m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: authentication
+          security: 'true'
+          source: loki
+          mitre_attack: T1078
+        annotations:
+          summary: Anonymous Kubernetes resource access
+          description: An unauthenticated request succeeded against a Kubernetes resource.
+            Inspect RBAC and anonymous access immediately.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeSecretRead
+        expr: sum by (node,user,namespace) (count_over_time({job="kube-audit"} | json
+          user="user.username", responseCode="responseStatus.code", resource="objectRef.resource",
+          subresource="objectRef.subresource", namespace="objectRef.namespace" | __error__=""
+          | resource="secrets" | verb=~"get|list" | user!~"system:.*" | responseCode=~"2.."
+          [2m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: credential_access
+          security: 'true'
+          source: loki
+          mitre_attack: T1552
+        annotations:
+          summary: Secret access by {{ $labels.user }}
+          description: Confirm the operator action; metadata only is retained, never secret
+            values.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeExec
+        expr: sum by (node,user,namespace) (count_over_time({job="kube-audit"} | json
+          user="user.username", responseCode="responseStatus.code", resource="objectRef.resource",
+          subresource="objectRef.subresource", namespace="objectRef.namespace" | __error__=""
+          | subresource=~"exec|attach" | responseCode=~"101|2.." [2m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          category: execution
+          security: 'true'
+          source: loki
+          mitre_attack: T1609
+        annotations:
+          summary: Kubernetes interactive access by {{ $labels.user }}
+          description: Inspect the pod and initiating identity; compare with maintenance
+            activity.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeDeniedBurst
+        expr: sum by (node,user) (count_over_time({job="kube-audit"} | json user="user.username",
+          responseCode="responseStatus.code", resource="objectRef.resource", subresource="objectRef.subresource",
+          namespace="objectRef.namespace" | __error__="" | responseCode=~"401|403" [5m]))
+          >= 20
+        for: 0m
+        labels:
+          severity: warning
+          category: authentication
+          security: 'true'
+          source: loki
+          mitre_attack: T1110
+        annotations:
+          summary: Repeated Kubernetes authorization failures
+          description: Inspect user and source IP. Expired credentials and broken controllers
+            can also cause this.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityFleetUnexpectedRoot
+        expr: sum by (node) (count_over_time({source_type="endpoint"} |= "soc_uid_zero"
+          | json snapshot="snapshot" | __error__="" | snapshot!="[]" | snapshot!="" [2m]))
+          > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: privilege
+          security: 'true'
+          source: loki
+          mitre_attack: T1098
+        annotations:
+          summary: Fleet detected an unexpected UID 0 account
+          description: Review endpoint identity and the snapshot account names; only root
+            is allowed by this detection.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing10
+        expr: absent_over_time({job="syslog",host="rke2-node-10"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-10
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing11
+        expr: absent_over_time({job="syslog",host="rke2-node-11"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-11
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing12
+        expr: absent_over_time({job="syslog",host="rke2-node-12"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-12
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing13
+        expr: absent_over_time({job="syslog",host="rke2-node-13"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-13
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing14
+        expr: absent_over_time({job="syslog",host="rke2-node-14"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-14
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing15
+        expr: absent_over_time({job="syslog",host="rke2-node-15"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-15
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecuritySyslogMissing50
+        expr: absent_over_time({job="syslog",host="rke2-node-50"} |= "SIEM_HEARTBEAT"
+          [10m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No syslog heartbeat from rke2-node-50
+          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
+            TCP 1514 and collector. Offline hosts remain visible.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeAuditMissing10
+        expr: absent_over_time({job="kube-audit",node="rke2-node-10"} [10m])
+        for: 2m
+        labels:
+          severity: critical
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: Missing Kubernetes audit source rke2-node-10
+          description: Check apiserver audit flags, log file and collector mounts. Quiet
+            alerts are not evidence of coverage.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeAuditMissing11
+        expr: absent_over_time({job="kube-audit",node="rke2-node-11"} [10m])
+        for: 2m
+        labels:
+          severity: critical
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: Missing Kubernetes audit source rke2-node-11
+          description: Check apiserver audit flags, log file and collector mounts. Quiet
+            alerts are not evidence of coverage.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeAuditMissing14
+        expr: absent_over_time({job="kube-audit",node="rke2-node-14"} [10m])
+        for: 2m
+        labels:
+          severity: critical
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: Missing Kubernetes audit source rke2-node-14
+          description: Check apiserver audit flags, log file and collector mounts. Quiet
+            alerts are not evidence of coverage.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityFleetTelemetryMissing
+        expr: absent_over_time({source_type="endpoint"} |= "soc_heartbeat" [15m])
+        for: 2m
+        labels:
+          severity: warning
+          category: telemetry_health
+          security: 'true'
+          source: loki
+        annotations:
+          summary: No Fleet endpoint telemetry
+          description: Check Fleet scheduled reports, stdout result logging, enrolled
+            hosts and Promtail classification.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
+          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
+      - alert: SecurityKubeTokenBurst
+        expr: sum by (node,user) (count_over_time({job="kube-audit",verb="create",resource="serviceaccounts"}
+          | json user="user.username",subresource="objectRef.subresource",code="responseStatus.code"
+          | subresource="token" | code=~"2.." | __error__="" [5m])) > 50
+        for: 15m
+        labels:
+          severity: warning
+          category: credential_access
+          security: 'true'
+          source: loki
+        annotations:
+          summary: Elevated service-account token issuance by {{ $labels.user }}
+          description: More than 50 successful TokenRequests in five minutes, sustained
+            for fifteen minutes. Compare with controller activity.
+          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc

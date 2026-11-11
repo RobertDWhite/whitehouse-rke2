@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - security/node-12-syslog-job.yaml
   # Namespace
   - 00-namespace.yaml
 
@@ -103,6 +104,12 @@ generators:
   - ksops.yaml
 
 configMapGenerator:
+  - name: security-host-bootstrap
+    files:
+      - configure-host.sh=security/configure-host.sh
+  - name: observability-grafana-dashboards-security
+    files:
+      - security-soc.json=grafana_dashboards/security-soc.json
   - name: observability-grafana-dashboards
     files:
       - ingress-nginx-14314-rev2.json=grafana_dashboards/ingress-nginx-14314-rev2.json
