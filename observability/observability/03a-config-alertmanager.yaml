@@ -27,15 +27,22 @@ data:
         - node
         - user
         - rule
+        - k8s_ns_name
+        - namespace
         group_wait: 10s
-        group_interval: 5m
-        repeat_interval: 4h
+        group_interval: 15m
+        repeat_interval: 12h
         routes:
+        # A recovered collector is operationally meaningful; event-window
+        # expiration is not proof that a security incident was resolved.
+        - receiver: security-health
+          matchers:
+          - category="telemetry_health"
         - receiver: security
           matchers:
           - severity="critical"
           group_wait: 0s
-          repeat_interval: 1h
+          repeat_interval: 4h
       - receiver: all
         matchers:
         - severity=~"critical|warning"
@@ -50,6 +57,10 @@ data:
       - url: http://127.0.0.1:8000/hook
         send_resolved: false
     - name: security
+      webhook_configs:
+      - url_file: /etc/security-webhook/url
+        send_resolved: false
+    - name: security-health
       webhook_configs:
       - url_file: /etc/security-webhook/url
         send_resolved: true

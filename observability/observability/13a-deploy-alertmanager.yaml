@@ -7,13 +7,16 @@ spec:
   strategy:
     type: Recreate
   replicas: 1
+  # Preserve silence/notification state on one RWO claim.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: alertmanager
   template:
     metadata:
       annotations:
-        security.white.fm/config-revision: "22521cf3819c85f9"
+        security.white.fm/config-revision: "35824aae23516ab0"
       labels:
         app: alertmanager
     spec:
@@ -106,7 +109,8 @@ spec:
             # container runs as 65534 — so this must be group-readable, not 0400.
             defaultMode: 0440
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: alertmanager-data
         - name: alertmanager-ntfy-config
           configMap:
             name: alertmanager-ntfy-config
