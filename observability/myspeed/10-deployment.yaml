@@ -33,7 +33,9 @@ spec:
             httpGet:
               path: /
               port: 5216
-            failureThreshold: 10
+            # SQLite schema migration on replicated storage can exceed 100s.
+            # Do not kill it midway and leave migration backup tables behind.
+            failureThreshold: 60
             periodSeconds: 10
           readinessProbe:
             httpGet:
