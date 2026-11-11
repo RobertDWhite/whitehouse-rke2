@@ -35,6 +35,21 @@ spec:
                 follow:
                   refs: [falco-rules:5, container:0.7.6]
 
+          # Local tuning. Postgres readiness/liveness probes run pg_isready, which
+          # resolves the current user and so opens /etc/shadow; that was ~75% of
+          # all Falco events (10k+ per 48h) and buried everything else.
+          customRules:
+            local-tuning.yaml: |-
+              - rule: Read sensitive file untrusted
+                exceptions:
+                  - name: pg_isready_probe
+                    fields: [proc.name, fd.name]
+                    comps: [=, =]
+                    values:
+                      - [pg_isready, /etc/shadow]
+                override:
+                  exceptions: append
+
           metrics:
             enabled: true
             interval: 5m
@@ -79,6 +94,13 @@ spec:
               prometheus: {}
             webui:
               enabled: true
+              # Replaces the chart's default admin:admin login with the
+              # SOPS-encrypted credential in security/falco/.
+              existingSecret: falcosidekick-ui-auth
+              # Chart 9.2.2 still defaults the UI to 2.2.0 (Alpine 3.15, end of
+              # life). 2.3.1 is the current upstream release.
+              image:
+                tag: "2.3.1"
               replicaCount: 1
               ttl: 604800
               redis:
