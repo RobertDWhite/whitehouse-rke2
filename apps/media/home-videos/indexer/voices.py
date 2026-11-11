@@ -208,6 +208,29 @@ def group_info(audio, us):
     return {"talk": talk, "n": len(us), "emb": unit(np.mean(embs, axis=0)) if embs else None, "picks": picks}
 
 
+GUESS_MIN_TALK = 8  # seconds: shorter voices aren't worth a guess
+
+
+def missing_guesses(vj):
+    return [v for v, x in vj["voices"].items() if not x.get("guess") and x["talk"] >= GUESS_MIN_TALK]
+
+
+def fill_guesses(slug, utts, voice_of, voices):
+    """Name guesses for voices that have none yet (new ones from extend). Asks about the
+    whole tape, as the first pass did, but only fills the missing ones."""
+    todo = missing_guesses({"voices": voices})
+    if not todo:
+        return
+    got = guess(slug, utts, voice_of, voices)
+    for v in todo:
+        g = got.get(v)
+        # An empty guess marks it as asked, so later runs don't ask again.
+        g = g or {}
+        voices[v]["guess"] = {"name": str(g.get("name") or ""), "confidence": str(g.get("confidence") or ""),
+                              "why": str(g.get("why") or "")[:300]}
+    log("guesses", slug, f"{sum(1 for v in todo if voices[v]['guess']['name'])} of {len(todo)} filled")
+
+
 def extend(slug, out_p, audio, utts, by, t0):
     """The transcript changed (retime, deloop) after voices.json was written. Keep the
     existing voice numbers, which the labels point at: put each new group into the
@@ -258,6 +281,7 @@ def extend(slug, out_p, audio, utts, by, t0):
                 if round(u["start"], 1) not in have:
                     x["clips"].append([round(u["start"], 1), round(u["end"], 1), u["text"][:200]])
     old["groups"] = {g: v for g, v in voice_of.items() if g in by}
+    fill_guesses(slug, utts, old["groups"], voices)
     write_json(out_p, old)
     log("voices extended", slug, f"{added} new groups, {new_voices} new voices", f"in {time.time() - t0:.0f}s")
 
@@ -267,13 +291,19 @@ def run(slug):
     tx_p, out_p, audio = os.path.join(dd, "tx.json"), os.path.join(dd, "voices.json"), os.path.join(dd, "audio.flac")
     if not os.path.exists(tx_p) or not os.path.exists(audio):
         return
-    if not FORCE and os.path.exists(out_p) and os.path.getmtime(out_p) > os.path.getmtime(tx_p):
+    current = not FORCE and os.path.exists(out_p) and os.path.getmtime(out_p) > os.path.getmtime(tx_p)
+    if current and not missing_guesses(json.load(open(out_p))):
         return
     t0 = time.time()
     utts = utterances(json.load(open(tx_p)))
     by = {}
     for u in utts:
         by.setdefault(u["g"], []).append(u)
+    if current:
+        old = json.load(open(out_p))
+        fill_guesses(slug, utts, old["groups"], old["voices"])
+        write_json(out_p, old)
+        return
     if not FORCE and os.path.exists(out_p):
         return extend(slug, out_p, audio, utts, by, t0)
     groups = {g: group_info(audio, us) for g, us in by.items()}

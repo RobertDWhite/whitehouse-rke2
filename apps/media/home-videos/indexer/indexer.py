@@ -11,6 +11,9 @@ be killed and re-run at any point.
     python3 indexer.py all         # all four, concurrently (each tape moves on as soon as it can)
     python3 indexer.py retime      # re-transcribe spans that came back without word timings
     python3 indexer.py deloop      # re-transcribe / collapse "yeah, yeah, yeah..." loops
+    python3 indexer.py retime-fine # untimed blocks of a minute or more, again in 20-35 s pieces
+    python3 indexer.py whisper     # Whisper's confident lines where Nemotron got next to nothing
+    python3 indexer.py reclassify-stale  # chapters again where tx.json changed after info.json
 
 One frame every STEP seconds (frame k is at k*STEP); the 640px copies feed the
 captioner and are deleted once captions.json is written.
@@ -203,19 +206,30 @@ def silences(e, a, b):
     return out
 
 
-def cut_points(e, a, b):
+def cut_points(e, a, b, lo=None, hi=None):
+    lo, hi = lo or RETIME_MIN, hi or RETIME_MAX
     sil, cuts, pos = silences(e, a, b), [], a
-    while b - pos > RETIME_MAX:
-        window = [x for x in sil if pos + RETIME_MIN <= x[0] <= pos + RETIME_MAX]
-        pos = max(window, key=lambda x: x[1])[0] if window else pos + RETIME_MAX
+    while b - pos > hi:
+        window = [x for x in sil if pos + lo <= x[0] <= pos + hi]
+        pos = max(window, key=lambda x: x[1])[0] if window else pos + hi
         cuts.append(pos)
     return [a, *cuts, b]
 
 
+# The captures carry a large DC offset (samples sit around +15000 of 32768): Whisper hears
+# nothing at all through it and Nemotron does a little worse. A 60 Hz high-pass removes it.
+AUDIO_FILTER = os.environ.get("AUDIO_FILTER", "highpass=f=60")
+
+
+def piece_audio(e, a, b, fmt):
+    return subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}",
+                           "-i", d(e, "audio.flac"), *(["-af", AUDIO_FILTER] if AUDIO_FILTER else []),
+                           "-ac", "1", "-ar", "16000", *(["-c:a", "flac"] if fmt == "flac" else []), "-f", fmt, "-"],
+                          capture_output=True, check=True).stdout
+
+
 def nemotron_piece(e, a, b):
-    audio = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}",
-                            "-i", d(e, "audio.flac"), "-c:a", "flac", "-f", "flac", "-"],
-                           capture_output=True, check=True).stdout
+    audio = piece_audio(e, a, b, "flac")
     for attempt in range(5):
         try:
             r = httpx.post(f"{NEMOTRON}/v1/audio/transcriptions", headers={"Authorization": f"Bearer {NEMOTRON_KEY}"},
@@ -444,6 +458,135 @@ def deloop(e):
                                      "words_before": prev.get("words_before", before), "words_after": after})
     log("deloop done", e["slug"], f"{before} -> {after} words")
     return changed
+
+
+# ---------------------------------------------------------------- fine retime
+# What `retime` left: speech that came back as one block of a minute or more with no
+# word timings (Nemotron's alignment fails on sparse, noisy speech). Re-sent in 20-35 s
+# pieces cut at pauses; even when alignment fails again, a line is then off by
+# seconds instead of minutes, and the voice step can use it.
+FINE_MIN, FINE_MAX = 20, 35
+
+
+def untimed_spans(tx):
+    spans = []
+    for a, b in sorted({(s["start"], s["end"]) for s in tx["segments"] if s["end"] - s["start"] > 60}):
+        if spans and a < spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], b)
+        else:
+            spans.append([a, b])
+    return [(a, b) for a, b in spans]
+
+
+def retime_fine(e):
+    path = d(e, "tx.json")
+    if not os.path.exists(path) or os.path.exists(d(e, "retime-fine.done")):
+        return False
+    tx = json.load(open(path))
+    spans = untimed_spans(tx)
+    if spans:
+        if not os.path.exists(d(e, "tx.pre-fine.json")):
+            write_json(d(e, "tx.pre-fine.json"), tx)
+        log("fine retime", e["slug"], len(spans), "spans", f"{sum(b - a for a, b in spans) / 60:.1f} min")
+    for a, b in spans:
+        t0, new = time.time(), []
+        pts = cut_points(e, a, b, FINE_MIN, FINE_MAX)
+        for i in range(len(pts) - 1):
+            for sg in nemotron_piece(e, pts[i], pts[i + 1]):
+                new.append({**sg, "start": round(pts[i] + sg["start"], 2), "end": round(pts[i] + sg["end"], 2),
+                            "text": squash_loops(sg["text"]), "chunk": f"f{int(a)}.{i}"})
+        keep = [sg for sg in tx["segments"] if not (sg["start"] >= a - 0.01 and sg["end"] <= b + 0.01)]
+        tx["segments"] = sorted(keep + new, key=lambda sg: sg["start"])
+        write_json(path, tx)  # after every span, so a restart picks up the rest
+        log("fine retimed", e["slug"], f"{a:.0f}-{b:.0f}", len(new), "segments", f"in {time.time() - t0:.0f}s")
+    segs, _ = collapse_runs(tx["segments"])
+    segs, _ = collapse_loops(segs)
+    for i, sg in enumerate(segs):
+        sg["id"] = str(i)
+    tx["segments"] = segs
+    if spans:
+        write_json(path, tx)
+    left = untimed_spans(tx)
+    write_json(d(e, "retime-fine.done"), {"spans": spans, "untimed_after": round(sum(b - a for a, b in left))})
+    return bool(spans)
+
+
+# ---------------------------------------------------------------- whisper fill
+# Where Nemotron found (almost) nothing in a stretch it looped on, ask Whisper
+# (speaches in riffado, large-v3-turbo) too and add the lines it is sure of in the
+# gaps. Whisper invents text over music and noise ("Thank you.", "We'll be right
+# back"), so only confident, non-repeating lines that Nemotron didn't cover count.
+SPEACHES = os.environ.get("SPEACHES_URL", "http://speaches.riffado.svc.cluster.local:8000")
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "deepdml/faster-whisper-large-v3-turbo-ct2")
+HALLUCINATIONS = re.compile(r"^(thank you|thanks for watching|we'll be right back|you|bye|subtitles? by.*|"
+                            r"please subscribe.*|i'm sorry|okay|oh|music|applause)[.!?]*$", re.I)
+
+
+def whisper_piece(e, a, b):
+    audio = piece_audio(e, a, b, "wav")
+    for attempt in range(3):
+        try:
+            r = httpx.post(f"{SPEACHES}/v1/audio/transcriptions", files={"file": ("piece.wav", audio)},
+                           data={"model": WHISPER_MODEL, "response_format": "verbose_json", "language": "en",
+                                 "vad_filter": "true", "temperature": "0"},
+                           timeout=httpx.Timeout(600, connect=30))
+            r.raise_for_status()
+            return r.json().get("segments") or []
+        except Exception as ex:
+            log("whisper failed", e["slug"], f"{a:.0f}", attempt, repr(ex)[:200])
+            time.sleep(30)
+    return []
+
+
+def whisper_fill(e):
+    path = d(e, "tx.json")
+    if not os.path.exists(path) or os.path.exists(d(e, "whisper.done")) or not os.path.exists(d(e, "deloop.done")):
+        return False
+    tx = json.load(open(path))
+    spans = json.load(open(d(e, "deloop.done"))).get("spans") or []
+    added = []
+    for a, b in spans:
+        inside = [sg for sg in tx["segments"] if sg["start"] < b and sg["end"] > a]
+        words = sum(len(_words(sg["text"])) for sg in inside)
+        if b - a < 8 or words / (b - a) > 0.8:  # Nemotron already has this stretch
+            continue
+        seen = set()
+        for w in whisper_piece(e, a, b):
+            text = w.get("text", "").strip()
+            st, en = round(a + w["start"], 2), round(a + w["end"], 2)
+            if (not text or HALLUCINATIONS.match(text) or text.lower() in seen
+                    or w.get("no_speech_prob", 0) > 0.5 or w.get("avg_logprob", 0) < -0.9
+                    or w.get("compression_ratio", 0) > 2.2 or en - st > 30 or len(_words(text)) < 2):
+                continue
+            if any(sg["start"] < en and sg["end"] > st and len(_words(sg["text"])) > 1 for sg in inside):
+                continue  # Nemotron has words here: keep its version (it has speakers)
+            seen.add(text.lower())
+            added.append({"start": st, "end": en, "text": text, "speaker": "Speaker 1",
+                          "chunk": f"wh{int(a)}", "source": "whisper"})
+    if added:
+        segs = sorted(tx["segments"] + added, key=lambda sg: sg["start"])
+        for i, sg in enumerate(segs):
+            sg["id"] = str(i)
+        tx["segments"] = segs
+        write_json(path, tx)
+    write_json(d(e, "whisper.done"), {"added": len(added)})
+    log("whisper fill", e["slug"], len(added), "lines")
+    return bool(added)
+
+
+def reclassify_stale(e):
+    """Chapters were written from an older transcript (before retime/deloop): redo them,
+    keeping the old info.json if the new one fails."""
+    info, tx = d(e, "info.json"), d(e, "tx.json")
+    if not (os.path.exists(info) and os.path.exists(tx) and os.path.exists(d(e, "captions.json"))):
+        return
+    if os.path.getmtime(info) >= os.path.getmtime(tx):
+        return
+    os.replace(info, d(e, "info.pre-cleanup.json"))
+    classify(e)
+    if not os.path.exists(info):
+        os.replace(d(e, "info.pre-cleanup.json"), info)
+        os.utime(info)  # don't retry it on every run
 
 
 # ---------------------------------------------------------------- caption
@@ -711,6 +854,15 @@ def main():
     elif cmd == "deloop":
         for e in entries:
             deloop(e)
+    elif cmd == "retime-fine":
+        for e in entries:
+            retime_fine(e)
+    elif cmd == "whisper":
+        for e in entries:
+            whisper_fill(e)
+    elif cmd == "reclassify-stale":
+        for e in entries:
+            reclassify_stale(e)
     elif cmd == "catalog":
         print(json.dumps(entries, indent=1))
     else:

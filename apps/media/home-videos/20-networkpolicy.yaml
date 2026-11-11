@@ -21,3 +21,25 @@ spec:
               app: home-videos-indexer
       ports:
         - {port: 8765, protocol: TCP}
+---
+# indexer.py whisper: Whisper (speaches) for stretches Nemotron can't hear.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-home-videos-indexer-speaches
+  namespace: riffado
+spec:
+  podSelector:
+    matchLabels:
+      app: speaches
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-videos
+          podSelector:
+            matchLabels:
+              app: home-videos-indexer
+      ports:
+        - {port: 8000, protocol: TCP}
