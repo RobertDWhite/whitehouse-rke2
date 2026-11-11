@@ -5,6 +5,10 @@ metadata:
   namespace: calibre
 spec:
   replicas: 1
+  # Both volumes are ReadWriteOnce: a rolling update schedules the new pod on
+  # another node and deadlocks on Multi-Attach until the old pod is deleted.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: shelfmark
