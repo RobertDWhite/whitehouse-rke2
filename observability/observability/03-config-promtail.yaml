@@ -72,7 +72,7 @@ data:
             namespace:
             pod:
             container:
-        - labels:
+        - static_labels:
             node: ${NODE_NAME}
 
         - match:
@@ -132,6 +132,12 @@ data:
               namespace: 'objectRef.namespace'
               stage: stage
               responseCode: 'responseStatus.code'
+              audit_time: stageTimestamp
+
+        - timestamp:
+            source: audit_time
+            format: RFC3339Nano
+            action_on_failure: skip
 
         # Only keep the final stage of each event (ResponseComplete /
         # ResponseStarted / Panic). Drops the duplicate RequestReceived
@@ -152,5 +158,5 @@ data:
             level:
 
         # Per-node label, matching the kubernetes-pods convention above.
-        - labels:
+        - static_labels:
             node: ${NODE_NAME}

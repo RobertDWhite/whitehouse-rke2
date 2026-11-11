@@ -68,7 +68,7 @@ reports:
   query: SELECT hostname, uuid FROM system_info;
   interval: 60
   observer_can_run: true
-  automations_enabled: false
+  automations_enabled: true
   logging: snapshot
   platform: windows
 - name: soc_listening_ports
@@ -78,7 +78,7 @@ reports:
     JOIN processes p ON p.pid=l.pid WHERE l.port > 0;
   interval: 120
   observer_can_run: true
-  automations_enabled: false
+  automations_enabled: true
   logging: differential
   platform: windows
 - name: soc_local_users
@@ -87,7 +87,7 @@ reports:
   query: SELECT uid,gid,username,directory,shell FROM users;
   interval: 300
   observer_can_run: true
-  automations_enabled: false
+  automations_enabled: true
   logging: differential
   platform: windows
 - name: soc_services
@@ -96,7 +96,7 @@ reports:
   query: SELECT name,display_name,path,start_type,status,user_account FROM services;
   interval: 300
   observer_can_run: true
-  automations_enabled: false
+  automations_enabled: true
   logging: differential
   platform: windows
 software:
