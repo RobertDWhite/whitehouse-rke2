@@ -1565,6 +1565,15 @@ def fetch_calendar(cfg):
     tmax = now + timedelta(days=CALENDAR_FUTURE_DAYS)
     exclude = title_patterns(cfg)
     suffixes = [str(x).rstrip() for x in cfg.get("calendar_copy_suffixes") or [] if str(x).strip()]
+    # Per-calendar look-ahead (ids or names -> days), shorter than CALENDAR_FUTURE_DAYS.
+    # Such a calendar is still read over the whole window, so copies of its later events
+    # on other calendars are still recognised and dropped; only its notes stop earlier.
+    ahead = {}
+    for k, v in (cfg.get("calendar_future_days") or {}).items():
+        try:
+            ahead[str(k).casefold()] = min(int(v), CALENDAR_FUTURE_DAYS)
+        except (TypeError, ValueError):
+            log.warning("ignoring calendar_future_days[%r]: not a number", k)
     cals = google_pages(f"{CALENDAR_API}/users/me/calendarList", "items", maxResults=250)
     by_key, slots = {}, {}  # slots: (title, start) -> ids of every live event there, kept or not
     for c in cals:
@@ -1574,11 +1583,17 @@ def fetch_calendar(cfg):
         evs = google_pages(f"{CALENDAR_API}/calendars/{urllib.parse.quote(c['id'], safe='')}/events", "items",
                            timeMin=tmin.isoformat(), timeMax=tmax.isoformat(), singleEvents="true",
                            showDeleted="false", maxResults=2500)
+        days = next((ahead[k] for k in (c["id"].casefold(), name.casefold()) if k in ahead), None)
+        cutoff = now + timedelta(days=days) if days is not None else None
         for ev in evs:
             if ev.get("status") != "cancelled":
                 slots.setdefault(event_slot(ev), set()).add(ev.get("iCalUID") or ev["id"])
             if not keep_event(ev, exclude):
                 continue
+            if cutoff is not None:
+                all_day, start, _ = event_times(ev)
+                if start and (start > cutoff.date() if all_day else start > cutoff):
+                    continue
             # The same meeting shows up on every calendar it was invited to: keep one copy.
             key = (ev.get("iCalUID") or ev["id"], json.dumps(ev.get("originalStartTime") or ev.get("start"),
                                                             sort_keys=True))
@@ -1673,9 +1688,10 @@ def render_calendar(directory, selfs, cfg):
         "Attendees link to their entity pages. Written by `brain-sync` (whitehouse-rke2\n"
         "`apps/ai/brain`); change the event in Google Calendar, not here.\n\n"
         "`.brain/google.json` can leave more out: `exclude_calendars` (ids or names),\n"
-        "`exclude_event_titles` (regexes, case-insensitive) and `calendar_copy_suffixes`\n"
-        "(title endings a calendar-sync tool adds to its copies; a copy is dropped when the\n"
-        "event it was copied from is on another calendar).\n"
+        "`exclude_event_titles` (regexes, case-insensitive), `calendar_future_days` (ids or\n"
+        "names -> days ahead, for calendars that should look ahead less than the default) and\n"
+        "`calendar_copy_suffixes` (title endings a calendar-sync tool adds to its copies; a\n"
+        "copy is dropped when the event it was copied from is on another calendar).\n"
     )
     log.info("calendar: %d calendars, %d events", ncal, len(events))
     return files, start
