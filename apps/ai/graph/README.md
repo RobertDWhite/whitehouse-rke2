@@ -63,12 +63,20 @@ everything else to 7474.
    On generated entity pages under `ENTITIES_DIR` everything from the
    `## Mentions` heading on is dropped: the records stay, the long mention
    lists (which only repeat other notes) don't.
-3. Deletes the episodes of notes that changed or disappeared.
-4. Adds at most `BATCH_SIZE` (10) new or changed notes per cycle, newest first.
+3. Adds at most `BATCH_SIZE` (10) new or changed notes per cycle, replacing
+   the episodes of a changed note. Order: notes dated up to now, newest first;
+   then notes dated in the future (upcoming calendar events), soonest first;
+   then undated notes.
    Each note becomes one episode, or several (`path (part i/n)`) when it is
    longer than `MAX_EPISODE_CHARS` (6000). Reference time: a date field in the
    frontmatter or near the top of the note (`DATE_KEYS`), else a date in the
    file name, else the last commit that touched the file.
+4. Removes the episodes of at most `DELETE_BATCH` (2) deleted notes per cycle.
+   Removing an episode makes Graphiti rewrite the summary of every entity it
+   touched, which can take a long time with a local model, so removals come
+   after new notes and are rationed: a pile of deletions (say, after a filter
+   change) can't hold up new notes. `graphiti_ingest_notes{state="pending_removal"}`
+   shows how many are left.
 
 State (content hash and episode uuids per note) is `/state/state.json` on the
 `graphiti-ingest-state` PVC; deleting it makes the worker re-add everything

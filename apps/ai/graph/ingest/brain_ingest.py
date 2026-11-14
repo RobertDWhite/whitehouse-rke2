@@ -9,9 +9,14 @@ Each cycle:
      there is still a backlog.
   2. Hashes every Markdown note (after stripping noise such as the generated
      mention lists on entity pages) and compares with the state file.
-  3. Removes the episodes of notes that changed or were deleted.
-  4. Adds at most BATCH_SIZE new or changed notes, newest first, one episode
-     per chunk of at most MAX_EPISODE_CHARS characters.
+  3. Adds at most BATCH_SIZE new or changed notes (replacing the episodes of a
+     changed one), one episode per chunk of at most MAX_EPISODE_CHARS
+     characters: notes dated up to now newest first, then notes dated in the
+     future (upcoming calendar events) soonest first, then undated notes.
+  4. Removes the episodes of at most DELETE_BATCH deleted notes. Removal makes
+     Graphiti rewrite the summary of every entity the episode touched, which
+     can take a long time, so it comes after new notes and is rationed: a pile
+     of deletions never holds up new notes for more than DELETE_BATCH removals.
 State lives in STATE_PATH (a small PVC). Metrics on :METRICS_PORT/metrics.
 """
 
@@ -63,6 +68,7 @@ FORGEJO_TOKEN = env('FORGEJO_TOKEN')
 BRANCH = env('BRANCH', 'main')
 STATE_PATH = env('STATE_PATH', '/state/state.json')
 BATCH_SIZE = int(env('BATCH_SIZE', '10'))
+DELETE_BATCH = int(env('DELETE_BATCH', '2'))
 INTERVAL_SECONDS = int(env('INTERVAL_SECONDS', '1800'))
 MAX_EPISODE_CHARS = int(env('MAX_EPISODE_CHARS', '6000'))
 MAX_ATTEMPTS = int(env('MAX_ATTEMPTS', '3'))
@@ -92,6 +98,7 @@ METRICS: dict[str, float] = {
     'notes_total': 0,
     'notes_ingested': 0,
     'notes_pending': 0,
+    'notes_pending_removal': 0,
     'notes_failed': 0,
     'episodes_added_total': 0,
     'episodes_removed_total': 0,
@@ -131,6 +138,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
             f'graphiti_ingest_notes{{state="total"}} {m["notes_total"]}',
             f'graphiti_ingest_notes{{state="ingested"}} {m["notes_ingested"]}',
             f'graphiti_ingest_notes{{state="pending"}} {m["notes_pending"]}',
+            f'graphiti_ingest_notes{{state="pending_removal"}} {m["notes_pending_removal"]}',
             f'graphiti_ingest_notes{{state="failed"}} {m["notes_failed"]}',
             '# TYPE graphiti_ingest_episodes_added_total counter',
             f'graphiti_ingest_episodes_added_total {m["episodes_added_total"]}',
@@ -422,15 +430,12 @@ async def cycle(ing: Ingester, state: dict) -> None:
         for p, body in rendered.items()
     }
 
-    # Deleted notes: drop their episodes.
-    for path in [p for p in state['notes'] if p not in notes]:
-        log.info('removing deleted note %s', path)
-        await ing.remove(state['notes'][path]['episodes'])
-        del state['notes'][path]
-        save_state(state)
+    # Deleted notes: their episodes are removed after the new notes (below).
+    deleted = sorted(p for p in state['notes'] if p not in notes)
     for path in [p for p in state['failures'] if p not in notes]:
         del state['failures'][path]
 
+    now = time.time()
     pending = []
     for path, h in hashes.items():
         if not rendered[path]:
@@ -441,17 +446,27 @@ async def cycle(ing: Ingester, state: dict) -> None:
         if fail and fail['hash'] == h and fail['count'] >= MAX_ATTEMPTS:
             continue
         explicit = note_date(path, notes[path][0])
-        # Undated notes (their archive mtime is just the head commit's time) go
-        # after every dated one.
-        sort_key = explicit.timestamp() if explicit else float('-inf')
+        # Highest key first: notes dated up to now, newest first; then future-dated
+        # notes (upcoming events), soonest first, so they never jump ahead of what
+        # just happened; then undated notes (their archive mtime is just the head
+        # commit's time).
+        if not explicit:
+            sort_key = (0, 0.0)
+        elif explicit.timestamp() <= now:
+            sort_key = (2, explicit.timestamp())
+        else:
+            sort_key = (1, -explicit.timestamp())
         pending.append((sort_key, path, explicit))
-    pending.sort(reverse=True)  # newest first
+    pending.sort(key=lambda x: x[0], reverse=True)
 
     METRICS['notes_total'] = len(notes)
     METRICS['notes_pending'] = len(pending)
-    log.info('%d notes, %d new or changed, taking up to %d', len(notes), len(pending), BATCH_SIZE)
+    METRICS['notes_pending_removal'] = len(deleted)
+    log.info('%d notes, %d new or changed, taking up to %d; %d deleted, removing up to %d',
+             len(notes), len(pending), BATCH_SIZE, len(deleted), DELETE_BATCH)
 
     done = 0
+    unreachable = False
     for _, path, explicit in pending[:BATCH_SIZE]:
         if STOP.is_set():
             break
@@ -473,6 +488,7 @@ async def cycle(ing: Ingester, state: dict) -> None:
             log.exception('failed to ingest a note (attempt %d/%d)', count, MAX_ATTEMPTS)
             if is_connection_error(e):
                 log.error('model or database unreachable; ending this cycle early')
+                unreachable = True
                 break
             continue
         state['notes'][path] = {
@@ -493,15 +509,27 @@ async def cycle(ing: Ingester, state: dict) -> None:
             done, min(BATCH_SIZE, len(pending)), path, len(uuids), time.time() - t0,
         )
 
+    removed = 0
+    for path in deleted[:DELETE_BATCH]:
+        if STOP.is_set() or unreachable:
+            break
+        log.info('removing deleted note %s', path)
+        await ing.remove(state['notes'][path]['episodes'])
+        del state['notes'][path]
+        save_state(state)
+        removed += 1
+    METRICS['notes_pending_removal'] = len(deleted) - removed
+
     state['commit'] = commit
-    state['backlog'] = len(pending) > done
+    state['backlog'] = len(pending) > done or len(deleted) > removed
     save_state(state)
     METRICS['notes_pending'] = len(pending) - done
     METRICS['notes_ingested'] = len(state['notes'])
     METRICS['notes_failed'] = sum(1 for f in state['failures'].values() if f['count'] >= MAX_ATTEMPTS)
     METRICS['last_success'] = time.time()
     METRICS['last_cycle_seconds'] = time.time() - started
-    log.info('cycle done: %d ingested, %d still pending', done, METRICS['notes_pending'])
+    log.info('cycle done: %d ingested, %d removed; %d still pending, %d still to remove',
+             done, removed, METRICS['notes_pending'], METRICS['notes_pending_removal'])
 
 
 async def graph_stats_loop(ing: Ingester) -> None:

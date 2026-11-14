@@ -108,6 +108,7 @@ live there, not here):
                      "CATEGORY_FORUMS", "SPAM", "TRASH"],
   "lookback_days": 180,
   "exclude_calendars": [],
+  "calendar_future_days": {},
   "exclude_event_titles": [],
   "calendar_copy_suffixes": [],
   "self_addresses": []
@@ -117,7 +118,11 @@ live there, not here):
 `include_*` pull a thread in like an entity match; any participant in
 `exclude_*` keeps the whole thread out. `exclude_labels` takes label ids or
 names; a thread is skipped when every message carries one of them.
-`exclude_calendars` takes calendar ids or names. `exclude_event_titles` takes
+`exclude_calendars` takes calendar ids or names. `calendar_future_days` maps
+calendar ids or names to a shorter look-ahead in days (at most
+`CALENDAR_FUTURE_DAYS`); that calendar is still read over the whole window, so
+copies of its later events are still recognised, but notes for its events past
+the cut-off are not written (existing ones are removed). `exclude_event_titles` takes
 regexes (case-insensitive, searched in the title). `calendar_copy_suffixes`
 lists title endings that a calendar-sync tool appends when it copies events
 from one calendar onto another: such a copy is dropped when an event with the
