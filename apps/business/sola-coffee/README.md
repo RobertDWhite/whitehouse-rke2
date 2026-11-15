@@ -23,3 +23,9 @@ Keep the SOPS age key and integration encryption key recoverable independently. 
 The image is pinned by digest in `kustomization.yaml`. Build a new immutable image from the app checkout, validate tests, and update the digest here. Argo owns persistent resources.
 
 For a bad release, revert the app image digest through Git. For a bad first launch, remove the app hostname's DNS record and tunnel route, and scale the app to zero while preserving database and backup PVCs. Do not delete or prune PostgreSQL data to roll back code. Database schema changes require a compatible restore/migration plan.
+
+## Last deployment verification
+
+Initial PostgreSQL import, app health/anonymous authorization checks, a backup archive, and a full restore into a temporary database passed on November 14, 2026. Cloudflare DNS record `b1fc95b718bba583fb83c122143571d2` was created and read back through its API.
+
+Public access remains blocked by existing cluster outbound connectivity failures: Google HTTPS and Cloudflare TCP 7844 time out, the tunnel returns HTTP 530 / 1033, and Argo cannot fetch GitHub. Do not report this app as usable publicly until the tunnel connects, Argo synchronizes, public HTTPS health succeeds, and real Google login completes. CoreDNS now uses the existing redundant LAN resolvers and local control-plane nodes; external resolution was checked, but that does not prove outbound HTTPS access.
