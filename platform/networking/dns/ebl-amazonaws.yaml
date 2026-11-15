@@ -86,6 +86,11 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
+    # Keep cluster DNS on the local control-plane nodes; remote workers
+    # cannot provide a reliable path to the LAN resolver pair.
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: "true"
+
     # Mount the extra server blocks from the rke2-coredns-extra ConfigMap and
     # `import` them into the Corefile.
     extraConfig:
