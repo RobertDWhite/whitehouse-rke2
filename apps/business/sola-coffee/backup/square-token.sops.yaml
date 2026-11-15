@@ -1,0 +1,25 @@
+# Encrypted backup only; NOT referenced by kustomization or applied to the cluster.
+# Square personal access token used by Sola for Black Swan (merchant MLHX7842MSZGR, production).
+# Backed up 2026-11-15. Rotate in Square developer app "Sola Coffee CRM"; reconnect in Sola if rotated.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: sola-square-token-backup
+    namespace: sola-coffee
+stringData:
+    SQUARE_ACCESS_TOKEN: ENC[AES256_GCM,data:PzXE7yRGg3GqqtXLWdEnimP35Kz0RlGCotT9wLt27/ZaUrCHIJVq9zAk4AAwTCxMf5BP/u5wvi2wVa9oscaTrQ==,iv:We9NFP6+Ac7rH+LpJQYSZfxM1YN0d8/LNhYDM/Ludp4=,tag:LJVzPA4yvjCY18dIppF50g==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAyNmdsN1ZvV25GWUtOM0dw
+            VEk2WXZkdi90akZqKzd4czB1OEVCM2E0Z2dVCmxmekYrNE9PSjlJd1JseVZBTXNx
+            UURSYzBzR1gycWN3YURSVmdyYlR4M1UKLS0tIE5hOXJjbnJRcU55UEMreklQVm51
+            MEtZU2JnQ2lyaWVEMzFOalZVWkVLdlUKr5mFp6H+bHWNrmgju0tlAZqzWGIIRlWW
+            n0EclKS8VYpM8QAUkTR7kw11llIhM4x579kz4jMZDd56m6h50VigkA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age16krjysalsq26mfndnthd9r42thapj43a0zdndgrrz30utzuhwd0q7fxh9p
+    encrypted_regex: ^(data|stringData|parameters)$
+    lastmodified: "2026-11-15T21:42:29Z"
+    mac: ENC[AES256_GCM,data:LB7xGzr1zXW33cRdfqJBzN2V7Y0OcSIxQr9V2d20sRKx3dfYaFCAvgt4fzZMDpZowGYCNdme9ST7gJZtyW2fjCFQ2bKSvfjQZXrQO1ep+utta/V3sPfnkPP3CbhW6+GfSqqMEYDr+6EdXICcKMGb8Qm2GY54ECbwJA5rReu7Iew=,iv:uL57ZpS2fLiGNEtpgFDV7JC/7Vxsf+rf5uKLBE2WZfA=,tag:fNzUwXIprpPpSte0bqJ3ZQ==,type:str]
+    version: 3.13.1
