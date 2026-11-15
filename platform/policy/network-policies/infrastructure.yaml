@@ -133,6 +133,13 @@ spec:
               kubernetes.io/metadata.name: mastodon
       ports:
         - {protocol: TCP, port: 3000}
+    # → Sola quoter directly (app.blackswancoffeecart.com tunnel route)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sola-coffee
+      ports:
+        - {protocol: TCP, port: 3001}
     # → BlueBubbles server on Mac mini (bluebubbles.white.fm tunnel route)
     - to:
         - ipBlock:
