@@ -111,10 +111,9 @@ spec:
         cpu: 100m
         memory: 128Mi
 
-    # Default zone: prefer the dnscrypt-proxy → VPN chain for privacy on
-    # external lookups, fall back to public DNS so the cluster keeps
-    # functioning when the VPN is degraded. health_check marks unhealthy
-    # upstreams so traffic skips dnscrypt while it's crashlooping.
+    # Default zone: use the same redundant Technitium resolvers as LAN clients.
+    # Their cache keeps cached names available while the encrypted upstream is
+    # degraded. Direct DNSCrypt and public DNS remain fallback upstreams.
     servers:
       - zones:
           - zone: .
@@ -137,10 +136,11 @@ spec:
           - name: prometheus
             parameters: 0.0.0.0:9153
           - name: forward
-            parameters: . 10.43.6.253 1.1.1.1 8.8.8.8
+            parameters: . 10.99.5.50 10.99.5.51 10.43.6.253 1.1.1.1 8.8.8.8
             configBlock: |-
               policy sequential
               health_check 5s
+              failover SERVFAIL REFUSED
           - name: cache
             parameters: 30
           - name: loop
