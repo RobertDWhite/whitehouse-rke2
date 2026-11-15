@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sola-db-backups
+  namespace: sola-coffee
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: longhorn-retain
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sola-coffee
+  namespace: argocd
+spec:
+  project: apps
+  source:
+    repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+    targetRevision: main
+    path: apps/business/sola-coffee
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sola-coffee
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

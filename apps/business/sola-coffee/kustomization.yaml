@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sola-coffee
+resources:
+- 00-namespace.yaml
+- 20-postgres.yaml
+- 21-postgres-statefulset.yaml
+- 30-deployment.yaml
+- 31-service.yaml
+- 40-networkpolicy.yaml
+- 51-backup-pvc.yaml
+- 52-backup-cronjob.yaml
+generators:
+- ksops.yaml
+images:
+- name: registry.internal.white.fm/sola-coffee
+  newTag: a61beb7
+  digest: sha256:d2d89027d83cb85bc293b5b92a8107467f8c7ef50c70c3683ce3362b2bac28ce
+- name: postgres
+  newTag: 17-alpine
+  digest: sha256:d3244e8ce3f165ee3c93d9c4a4b1d0fe48b3a89e2287b717fdcbbde92d405065
