@@ -74,11 +74,13 @@ spec:
               value: "api"
           resources:
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: "1"
+              memory: 2Gi
             limits:
-              cpu: "4"
-              memory: 3Gi
+              # The mobile app's first sync streams every asset (714k+) through
+              # one request; don't throttle or OOM it. node-14 has 56 cores.
+              cpu: "8"
+              memory: 6Gi
           volumeMounts:
             - name: upload
               mountPath: /usr/src/app/upload

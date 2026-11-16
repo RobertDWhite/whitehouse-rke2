@@ -29,6 +29,36 @@ spec:
         - name: postgres
           # Pin the image supplied by Immich for the v3.1.0 database format.
           image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+          # Command-line -c settings override the image's postgresql.conf.
+          # The library is 714k+ assets and the DB ~8.5 GB, but the image's
+          # HDD profile gives it shared_buffers=512MB: the cache hit ratio was
+          # 67% and a single timeline query read ~115 MB from the 20 TB HDD
+          # (~0.5 s). Size the buffer cache to hold the whole database so the
+          # mobile app's timeline/sync reads never touch the spinning disk, and
+          # cost random reads as cheap because they are served from RAM.
+          # pg_prewarm's autoprewarm reloads the cache after a restart.
+          args:
+            - postgres
+            - -c
+            - config_file=/etc/postgresql/postgresql.conf
+            - -c
+            - shared_preload_libraries=vchord.so,vectors.so,pg_prewarm,pg_stat_statements
+            - -c
+            - shared_buffers=16GB
+            - -c
+            - effective_cache_size=40GB
+            - -c
+            - work_mem=64MB
+            - -c
+            - maintenance_work_mem=2GB
+            - -c
+            - random_page_cost=1.1
+            - -c
+            - jit=off
+            - -c
+            - pg_prewarm.autoprewarm=on
+            - -c
+            - pg_stat_statements.track=top
           ports:
             - name: postgres
               containerPort: 5432
@@ -91,12 +121,14 @@ spec:
             timeoutSeconds: 5
           resources:
             requests:
+              # node-11 is at ~99% of CPU requests and this pod is pinned there;
+              # it has no CPU limit, so it can still burst to all 16 cores.
               cpu: 500m
-              memory: 2Gi
+              # 16 GB shared_buffers + per-query work_mem + /dev/shm.
+              memory: 20Gi
             limits:
-              # VectorChord needs temporary working memory while it builds
-              # Immich's large vector indexes during a restore.
-              memory: 8Gi
+              # Headroom for VectorChord index builds during a restore.
+              memory: 28Gi
       volumes:
         # Kubernetes gives a container a 64 MB /dev/shm by default, which is
         # where Postgres puts parallel-query shared memory. On a 765k-row asset
@@ -105,7 +137,7 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 1Gi
+            sizeLimit: 2Gi
   volumeClaimTemplates:
     - metadata:
         name: data
