@@ -26,7 +26,7 @@ spec:
     spec:
       project: apps
       source:
-        repoURL: git@github.com:RobertDWhite/whitehouse-rke2.git
+        repoURL: '{{ get . "repoURL" | default "git@github.com:RobertDWhite/whitehouse-rke2.git" }}'
         targetRevision: main
         path: "{{ .srcPath }}"
       destination:
