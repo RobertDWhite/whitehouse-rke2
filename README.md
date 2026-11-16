@@ -178,7 +178,7 @@ node-10 runs the NVIDIA-flavored kernel (DGX Spark / Grace platform). After two 
 - **Longhorn** — primary distributed block storage (replicated volumes). Since Sept 2026 Immich's photo originals and its (now in-cluster) Postgres also live on dedicated Longhorn volumes, with sync CronJobs pushing mobile uploads back to the Synology.
 - **Synology CSI** — NAS-backed volumes / snapshots for larger datasets.
 - **local-path-provisioner** — node-local volumes for caches and scratch data.
-- **snapshot-controller** — CSI volume snapshot support.
+- **snapshot-controller** — CSI volume snapshot support, provided by RKE2's bundled `rke2-snapshot-controller` in `kube-system`.
 - **Velero** (`velero` namespace, chart 12.x / Velero 1.18) — scheduled backups to Garage (S3) on the Synology NAS, using file-system backups with Kopia; no VolumeSnapshotLocation is rendered. A daily `velero-backup-pruner` CronJob (`platform/storage/velero/pruner/`) keeps only the newest two backups per schedule (n and n-1), plus any older backup still holding a volume's newest good copy. Schedules in `platform/storage/velero/schedules/`:
   - `daily` (03:00, 7-day TTL) — the stateful namespaces, including Tautulli.
   - `weekly` (Sunday 02:00, 49-day TTL) — lower-churn namespaces.
@@ -303,7 +303,7 @@ platform/
                   Headscale, Tailscale subnet router, external-services, kube-vip
   controllers/    cert-manager issuer, external-dns, external-secrets (1Password),
                   nvidia-device-plugin, registry, metrics-server, NUT, node-init
-  storage/        Longhorn, Synology CSI, snapshot-controller, Velero (+ schedules)
+  storage/        Longhorn, Synology CSI, Velero (+ schedules)
   policy/         NetworkPolicies, policy engine
 security/         Authentik, CrowdSec, Falco, kube-bench
 observability/    Prometheus, Grafana, Loki, InfluxDB, Uptime-Kuma, MySpeed
