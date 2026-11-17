@@ -128,3 +128,23 @@ spec:
       ports:
         - port: 3000
           protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-summary-llm
+  namespace: riffado
+spec:
+  podSelector:
+    matchLabels:
+      app: summary-llm
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: riffado
+      ports:
+        - port: 8000
+          protocol: TCP
