@@ -8,7 +8,10 @@ metadata:
   name: graphiti-ingest
   namespace: graph
 spec:
-  replicas: 1
+  # Paused 2026-11-16: 214 of ~7,700 notes ingested in 25 days, and its 7-10 min
+  # qwen3.8:27b calls held the Mac mini's only Ollama slot, so every other
+  # client of that model timed out. Set back to 1 once it has a faster model.
+  replicas: 0
   # Owns the state PVC; never two writers.
   strategy:
     type: Recreate
