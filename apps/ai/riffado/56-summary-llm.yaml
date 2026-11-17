@@ -1,0 +1,72 @@
+# Summaries: Riffado -> summary-llm -> qwen-flash (Qwen3.6-35B-A3B on the GB10).
+# The proxy only adds chat_template_kwargs.enable_thinking=false; see
+# summary-llm/thinking.js.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: summary-llm
+  namespace: riffado
+  labels:
+    app: summary-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: summary-llm
+  template:
+    metadata:
+      labels:
+        app: summary-llm
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: config
+              mountPath: /etc/nginx/summary-llm
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: summary-llm
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: summary-llm
+  namespace: riffado
+spec:
+  selector:
+    app: summary-llm
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

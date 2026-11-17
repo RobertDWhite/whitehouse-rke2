@@ -14,9 +14,10 @@ https://github.com/riffado/riffado (AGPL-3.0).
 | `riffado-postgres-logical-backup` | CronJob 05:40 daily | `pg_dump` to the Synology so the DB is recoverable even if Longhorn is not. 14-day retention. |
 | `speaches` | Deployment, GPU on rke2-node-50 | faster-whisper behind an OpenAI-compatible `/v1/audio/transcriptions`. Loads `large-v3-turbo` in fp16 and keeps it resident. |
 | `nemotron-transcribe` | Deployment, GPU on rke2-node-50 | NVIDIA Nemotron 3.5 Transcribe (NVFP4) on an on-demand vLLM, with speaker labels. See below. |
+| `summary-llm` | Deployment (nginx) | Summary proxy in front of `qwen-flash` on the GB10. See below. |
 | Audio + backups | NFS `10.100.1.20:/volume1/Personal`, subPaths `Riffado/audio`, `Riffado/db-backups` | Permanent storage on the NAS, same share Gramps uses. |
 
-Summaries use the GB10 Ollama (`http://ollama.ai-stack.svc.cluster.local:11434/v1`).
+Summaries use `qwen3.6-35b-a3b` on the GB10 through `summary-llm`.
 
 ## Why speaches is on node-50 and not the GB10
 
@@ -34,14 +35,34 @@ comfyui/invokeai/ollama-5090/immich-ml.
 2. Settings -> AI providers -> Add provider (Custom):
    - Transcription: base URL `http://speaches.riffado.svc.cluster.local:8000/v1`,
      model `deepdml/faster-whisper-large-v3-turbo-ct2`, any non-empty API key.
-   - Summaries: base URL `http://ollama.ai-stack.svc.cluster.local:11434/v1`,
-     model `qwen3.8:27b`, any non-empty API key.
+   - Summaries (Custom): base URL `http://summary-llm.riffado.svc.cluster.local:8000/v1`,
+     model `qwen3.6-35b-a3b`, any non-empty API key.
 3. Connect Plaud with the email OTP flow (Google/Apple sign-in accounts need the
    Connector extension instead, see upstream docs).
 
 Secrets (`11-secret.sops.yaml`): `POSTGRES_PASSWORD`, `DATABASE_URL`,
 `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`. Losing `ENCRYPTION_KEY` loses every
 stored token/API key/transcript, so it is in the SOPS file and nowhere else.
+
+## Summaries (Qwen3.6 on the GB10)
+
+Summaries ran on `qwen3.8:27b` through `ollama-router`, which sends that model
+to the Mac mini first. On 2026-11-15 the Mac's runner hung, and with no copy on
+ollama-5090 every summary waited out the router's timeout. They now use
+`qwen-flash` (vLLM, `apps/ai/qwen-flash`), which has a 131K context, so a
+multi-hour transcript fits in one request.
+
+Riffado sends summaries with `max_tokens: 2000` and has no setting to turn
+reasoning off. Qwen3.6 spent the whole budget thinking and returned an empty
+summary. `summary-llm` ([`summary-llm/thinking.js`](summary-llm/thinking.js))
+adds `chat_template_kwargs.enable_thinking=false` to each request unless the
+request already sets it, then forwards it to qwen-flash. That way the vLLM
+default for OpenCode and the other clients stays as it is. `/no_think` in the
+prompt does not work on Qwen3.6. Short summaries take 5-30 s.
+
+The provider row lives in Riffado's database, not Git: Settings -> AI
+providers, Custom, as in First run above. Auto-summarize is on
+(`user_settings.auto_summarize`).
 
 ## Speaker-labelled transcripts (Nemotron 3.5 Transcribe)
 

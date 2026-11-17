@@ -14,6 +14,7 @@ resources:
   - 51-speaches-service.yaml
   - 54-nemotron-deployment.yaml
   - 55-nemotron-service.yaml
+  - 56-summary-llm.yaml
   - 53-httproute-internal.yaml
   - 60-networkpolicy.yaml
 
@@ -25,6 +26,12 @@ configMapGenerator:
     files:
       - nemotron/adapter.py
       - nemotron/setup.sh
+  # nginx config for the summary proxy in front of qwen-flash.
+  - name: summary-llm
+    namespace: riffado
+    files:
+      - summary-llm/nginx.conf
+      - summary-llm/thinking.js
 
 generators:
   - ksops.yaml
@@ -47,5 +54,7 @@ images:
   # trixie (not bookworm): buildpack-deps bookworm carried ~170 critical CVEs.
   - name: ghcr.io/astral-sh/uv
     newTag: "python3.13-trixie@sha256:8d8ba6bf376cc972df1422f302dbe22c24865add109c43c47a994e5f485a4545"
+  - name: nginx
+    newTag: "1.31-alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606"
   - name: busybox
     newTag: "1.38@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4"
