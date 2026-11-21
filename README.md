@@ -237,7 +237,7 @@ Other GPU / AI workloads in their own namespaces:
 - **ComfyUI** (`apps/ai/comfyui`) — node-graph image generation alongside InvokeAI, also on the 5090.
 - **Riffado** (`apps/ai/riffado`) — Plaud Note recorder companion: syncs recordings, transcribes them through a GPU **speaches** (faster-whisper `large-v3-turbo`) instance kept resident on the 5090, stores audio/transcripts on the NAS.
 - **opencode** (`apps/ai/opencode`) — the opencode coding agent's web UI, running on the Spark next to its Ollama backend, with this repo cloned into its workspace.
-- **Hermes** (`apps/misc/hermes`) and **OpenClaw** (with its operator) — LLM agents that use the local models and MCP servers.
+- **Hermes** (`apps/misc/hermes`) — LLM agent that uses the local models and MCP servers.
 
 Local inference is also consumed *inside* the cluster — e.g. the SDR pipeline tags radio transcripts via Ollama, and the MCP servers below let LLM clients reach self-hosted data.
 
@@ -282,7 +282,7 @@ Beyond off-the-shelf charts, several apps are bespoke, built and (mostly) hosted
 
 Apps are grouped under `apps/` by domain. A non-exhaustive map:
 
-- **ai/** — ai-stack (Ollama/OpenWebUI), ComfyUI, InvokeAI, Riffado, opencode, the MCP servers, odysseus, openclaw, codex-refresh, pages
+- **ai/** — ai-stack (Ollama/OpenWebUI), ComfyUI, InvokeAI, Riffado, opencode, the MCP servers, odysseus, codex-refresh, pages
 - **data/** — congress-trades, politics, appstore-reviews, jetlog, weather, worldmonitor
 - **media/** — Immich, Audiobookshelf, Kavita, Calibre-Web-Automated (+ LazyLibrarian, Shelfmark), Dispatcharr, Tautulli, the *arr stack / FlexGet / VPN egress (`media`); Ombi and Portainer are chart-only Applications
 - **social/** — Matrix stack, Mastodon stack, Nitter, Convos

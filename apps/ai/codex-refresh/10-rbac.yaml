@@ -55,31 +55,3 @@ roleRef:
   kind: Role
   name: codex-refresh-bot
   apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: codex-refresh-bot
-  namespace: openclaw
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["get", "create", "update", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["statefulsets"]
-    resourceNames: ["openclaw"]
-    verbs: ["get", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: codex-refresh-bot
-  namespace: openclaw
-subjects:
-  - kind: ServiceAccount
-    name: codex-refresh
-    namespace: codex-refresh
-roleRef:
-  kind: Role
-  name: codex-refresh-bot
-  apiGroup: rbac.authorization.k8s.io

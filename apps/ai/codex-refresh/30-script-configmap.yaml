@@ -69,7 +69,7 @@ data:
       --dry-run=client -o yaml | kubectl apply -f -
 
     # Propagate access_token to bot namespaces
-    for NS in openclaw hermes; do
+    for NS in hermes; do
       kubectl create secret generic codex-token -n "$NS" \
         --from-literal=OPENAI_API_KEY="$NEW_ACCESS" \
         --from-literal=OPENAI_TOKEN="$NEW_ACCESS" \
@@ -78,8 +78,6 @@ data:
 
     # Trigger rolling restart so envFrom picks up new tokens
     kubectl -n hermes patch deployment hermes \
-      -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"codex-refresh/last-refresh\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
-    kubectl -n openclaw patch statefulset openclaw \
       -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"codex-refresh/last-refresh\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}}}"
 
     echo "OK: refreshed and propagated at $(date -u)"
