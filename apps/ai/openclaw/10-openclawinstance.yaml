@@ -155,8 +155,10 @@ spec:
                 id: "qwen3:30b"
                 api: "ollama"
   probes:
+    # 30 min: after a config change the startup doctor plus state migrations
+    # on the Longhorn volume take ~10 min; 120 x 5s killed it in a loop.
     startup:
-      failureThreshold: 120
+      failureThreshold: 360
       periodSeconds: 5
     liveness:
       initialDelaySeconds: 300
