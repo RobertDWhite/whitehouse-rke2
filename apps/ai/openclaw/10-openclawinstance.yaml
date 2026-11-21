@@ -53,17 +53,23 @@ spec:
       agents:
         defaults:
           model:
-            # qwen3.8:27b is the primary on the shared Ollama router (Mac mini,
-            # with the RTX 5090 as failover).
+            # Inkling 2 Mini (26B MoE, 5.4B active, Mac mini only) is the
+            # primary on the shared Ollama router: on a 12K-token prompt it
+            # finished in 65 s vs 122 s for qwen3.8:27b (2.6x faster prompt
+            # processing). qwen3.8:27b (Mac mini, RTX 5090 failover) is the
+            # first fallback.
             # Subscription OAuth (via the Claude CLI runtime) and Anthropic API
             # key both require paid usage; kept as a fallback for when
             # extra-usage credits are added.
-            primary: "ollama/qwen3.8:27b"
+            primary: "ollama/inkling-2-mini:64k"
             fallbacks:
+              - "ollama/qwen3.8:27b"
               - "anthropic/claude-sonnet-4-6"
           models:
-            "ollama/qwen3.8:27b":
+            "ollama/inkling-2-mini:64k":
               alias: "local"
+            "ollama/qwen3.8:27b":
+              alias: "qwen"
             # 2026.10.x folds the old claude-cli/* refs into anthropic/* run
             # through the Claude CLI runtime.
             "anthropic/claude-sonnet-4-6":
@@ -141,6 +147,10 @@ spec:
           ollama:
             baseUrl: "http://ollama-router.ai-stack.svc.cluster.local:11434"
             models:
+              - name: "inkling-2-mini:64k"
+                id: "inkling-2-mini:64k"
+                api: "ollama"
+                contextTokens: 65536
               - name: "qwen3:30b"
                 id: "qwen3:30b"
                 api: "ollama"
