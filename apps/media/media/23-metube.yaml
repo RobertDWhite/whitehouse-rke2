@@ -1,0 +1,256 @@
+# MeTube — yt-dlp web UI for YouTube (and the other yt-dlp sites), with
+# subscriptions for channels and playlists. Replaces YoutubeDL-Material on the NAS
+# (ytdl.internal.white.fm).
+#
+# VPN: the pod has its own gluetun sidecar, as flaresolverr-vpn does, so MeTube's
+# whole network namespace egresses through the tunnel and gluetun's firewall is the
+# kill switch. It deliberately does not go through the shared vpn-proxy: bulk video
+# downloads would compete with the DNS/ODoH traffic that runs through it.
+#
+# Storage: yt-dlp writes in-progress files to TEMP_DIR (node-local emptyDir), and
+# MeTube moves each file to DOWNLOAD_DIR (NAS /volume5/downloads/metube) as soon as
+# it finishes, so only completed files reach the NAS. Queue, history and
+# subscriptions live in STATE_DIR on Longhorn, not on NFS, because MeTube's state
+# files are dbm/shelve and don't like NFS locking.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: metube-state
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-single
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metube
+  namespace: media
+  labels:
+    app: metube
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: metube
+  template:
+    metadata:
+      labels:
+        app: metube
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - rke2-node-50
+      securityContext:
+        # Longhorn state volume group-writable for PUID/PGID below. Not applied to NFS.
+        fsGroup: 100
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: gluetun
+          image: ghcr.io/qdm12/gluetun
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: private internet access
+            - name: VPN_TYPE
+              value: openvpn
+            - name: SERVER_REGIONS
+              value: US East,US Atlanta,US Chicago,US Denver,US East Streaming Optimized,US California,US Washington DC,US New York,US Las Vegas
+            - name: UPDATER_PERIOD
+              value: 24h
+            - name: HTTPPROXY
+              value: "off"
+            - name: SHADOWSOCKS
+              value: "off"
+            # 8081 = MeTube UI (reached by envoy over the pod IP).
+            - name: FIREWALL_INPUT_PORTS
+              value: 8000,8081
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+            - name: OPENVPN_USER
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: vpn-credentials
+            - name: OPENVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: vpn-credentials
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /v1/openvpn/status
+              port: 8000
+            periodSeconds: 10
+          livenessProbe:
+            failureThreshold: 3
+            periodSeconds: 60
+            timeoutSeconds: 15
+            exec:
+              command:
+                - sh
+                - -c
+                - wget -q -O /dev/null --tries=1 --timeout=10 https://www.google.com/generate_204
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          volumeMounts:
+            - mountPath: /dev/net/tun
+              name: tun
+        - name: metube
+          image: ghcr.io/alexta69/metube:2026.11.22@sha256:be802dfc2c7ac250a0b49c378d0aa5b154241a670864159183af0e0c26b89dd7
+          env:
+            # Synology user/group used by the rest of the media stack.
+            - name: PUID
+              value: "1026"
+            - name: PGID
+              value: "100"
+            - name: UMASK
+              value: "002"
+            # The NAS folder is 0777 and fsGroup covers the rest; don't let MeTube
+            # recursively chown the NFS share at startup.
+            - name: CHOWN_DIRS
+              value: "false"
+            - name: DOWNLOAD_DIR
+              value: /downloads
+            - name: TEMP_DIR
+              value: /temp
+            - name: STATE_DIR
+              value: /state
+            - name: MAX_CONCURRENT_DOWNLOADS
+              value: "3"
+            - name: DELETE_FILE_ON_TRASHCAN
+              value: "false"
+            - name: TZ
+              value: America/New_York
+          ports:
+            - containerPort: 8081
+              name: http
+          startupProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /
+              port: 8081
+            periodSeconds: 10
+          livenessProbe:
+            failureThreshold: 3
+            periodSeconds: 60
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: 8081
+          readinessProbe:
+            failureThreshold: 3
+            periodSeconds: 30
+            timeoutSeconds: 10
+            httpGet:
+              path: /
+              port: 8081
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: downloads
+              mountPath: /downloads
+              subPath: metube
+            - name: temp
+              mountPath: /temp
+            - name: state
+              mountPath: /state
+      volumes:
+        - hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+          name: tun
+        - name: downloads
+          persistentVolumeClaim:
+            claimName: pvc-downloads-shared
+        - name: temp
+          emptyDir:
+            sizeLimit: 60Gi
+        - name: state
+          persistentVolumeClaim:
+            claimName: metube-state
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: metube
+  namespace: media
+spec:
+  selector:
+    app: metube
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: metube-internal
+  namespace: media
+spec:
+  hostnames:
+    - metube.internal.white.fm
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  rules:
+    - backendRefs:
+        - name: metube
+          port: 8081
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+---
+# gluetun reaches the VPN server and egresses through the tunnel. Mirrors
+# allow-flaresolverr-vpn-egress. Gateway ingress, DNS and NFS (kubelet) are already
+# covered by the namespace-wide policies.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metube-vpn-egress
+  namespace: media
+spec:
+  podSelector:
+    matchLabels:
+      app: metube
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
