@@ -22,7 +22,7 @@ claim every image architecture or node-collector workload is scanned there.
 
 Before applying to another worker, inspect disk/memory headroom, existing
 kubelet flags/drop-ins, workload/storage placement and recovery access. Preserve
-existing settings. Do not restart multiple nodes together or ignore node12's
+existing settings. Do not restart multiple nodes together or ignore any node's
 existing NotReady condition. Use a rollback timer when independently recoverable
 access is uncertain. The first application used a five-minute host rollback timer,
 then canceled it after service health, NodeReady and effective config checks.

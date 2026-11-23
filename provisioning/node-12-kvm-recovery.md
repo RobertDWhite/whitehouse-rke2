@@ -1,5 +1,9 @@
 # rke2-node-12 — out-of-band recovery via KVM
 
+> **node-12 was permanently retired on 2026-11-22** and removed from Kubernetes and Longhorn.
+> Its RX888, HF decoders and UPS USB link now live on node-15. The KVM itself is still
+> useful for the other nodes on its 4-port switch (node-14); the node-12 notes below are history.
+
 node-12 has a **GL.iNet Comet KVM** (GLKVM, PiKVM/kvmd-based) wired to its
 HDMI + USB. Use it when the node is `NotReady` and SSH/ping are dead.
 

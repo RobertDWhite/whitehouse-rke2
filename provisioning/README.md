@@ -107,4 +107,4 @@ Baked-in lessons from past outages:
 - NTP is forced on (VMware clock skew has future-dated rke2 certs before).
 - DNS is 10.99.5.50/.51 only — never add a public fallback.
 - The admin user gets passwordless sudo so recovery doesn't require nsenter pods.
-- node-12 has a KVM for when it hangs off-network: [`node-12-kvm-recovery.md`](node-12-kvm-recovery.md).
+- The GL.iNet Comet KVM (still wired to node-14) is documented in [`node-12-kvm-recovery.md`](node-12-kvm-recovery.md); node-12 itself was retired in 2026-11.

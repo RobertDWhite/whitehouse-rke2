@@ -32,7 +32,6 @@ Fleet reports cover enrolled Linux, macOS and Windows teams. Heartbeats run ever
 - Controlled SSH detection test: eight `logger -p authpriv.warning -t sshd 'Failed password for invalid user soc-validation from 192.0.2.10 port 2222 ssh2 [SOC TEST]'` messages. This tests parsing and detection without attempting authentication. Confirm the alert reaches Matrix, then resolves after the window expires.
 - Query `{job="kube-audit"}` and check all three server node labels. Never dump audit contents into a public PR.
 - Query `{source_type="endpoint"} |= "soc_heartbeat"` and verify actual enrolled endpoint identities, not just Fleet pod health.
-- Node 12 forwarding is queued in `node-12-syslog-job.yaml`; it can execute only when that host returns. Keep the source-gap alert enabled until a heartbeat arrives.
 - Promtail positions persist at `/var/lib/promtail/positions.yaml`. Preserve this file when restarting collectors. Config revision annotations trigger collector/Alertmanager rollouts. Loki local rule files are polled by the ruler and Grafana provisions mounted dashboards periodically; avoid restarting Loki for a rule-only change.
 - Matrix hook transform source: `apps/social/matrix-stack/hookshot/transforms/security-soc.js`. The live transform is a Hookshot room state event. Editing its source alone does not update room state. The webhook URL stays in a SOPS Secret.
 
