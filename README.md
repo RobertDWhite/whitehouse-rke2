@@ -121,10 +121,9 @@ RKE2 nodes are named `rke2-node-NN`. The cluster mixes one always-on arm64 GPU h
 |------|------|------|-------|-----|-----|-------------------------------|
 | **rke2-node-10** | control-plane, etcd | arm64 | 20 | ~128 GB (unified with GPU) | DGX Spark GB10, time-sliced ×4 — **always on** | **Reserved for LLM inference** (tainted `dedicated=llm:PreferNoSchedule`): Ollama, opencode, plus the Airspy SDR / unified-SDR, voice-decoder and the arm64 BI pipeline that must run here. General workloads were drained to node-14 on 2026-10-13. The taint becomes `NoSchedule` once Longhorn's system components pick up `taint-toleration: dedicated:NoSchedule` (Longhorn only applies it with every volume detached) |
 | **rke2-node-11** | control-plane, etcd | amd64 | 12 | ~48 GB | — | Utility node — Authentik replica, Immich Postgres; Argo CD controllers, Headscale router/DERP kept off it |
-| **rke2-node-12** | worker | amd64 | 8 | ~16 GB | — | **RX888** wideband HF SDR, HF decode chain (HFDL/FT8/WSPR/SSTV), **UPS USB link** (NUT server). Rebuilt Sept 2026; stateful apps (e.g. Fleet MySQL) avoid it. Out-of-band **KVM** at kvm.internal.white.fm — see [`provisioning/node-12-kvm-recovery.md`](provisioning/node-12-kvm-recovery.md) |
 | **rke2-node-13** | worker | amd64 | 8 | ~32 GB | — | **RTL-SDR** dongles (VHF + 70 cm + pager), AIS, VDL2 — busiest radio node; also data apps |
 | **rke2-node-14** | control-plane, etcd | amd64 | 48 | ~56 GB | — | Data apps (congress-trades, politics, app-store-reviews, listmonk, condo), Immich server, Matrix Postgres, Homebridge/Scrypted, Headscale. General-purpose (the old `kube-vip=disabled` taint was removed 2026-10-13) |
-| **rke2-node-15** | worker | amd64 | 6 | ~8 GB | — | **ADS-B** feeder, Nitter, jetlog, Authentik replica, Technitium replica |
+| **rke2-node-15** | worker | amd64 | 6 | ~8 GB | — | **ADS-B** feeder, **RX888** wideband HF SDR, RTL-SDR dongles (HF Blog V4 + 70 cm), **UPS USB link** (NUT server); also Nitter, jetlog, Authentik replica, Technitium replica |
 | **rke2-node-50** | worker | amd64 | 32 | ~48 GB | **1× RTX 5090 (32 GB)**, time-sliced ×6 — **transient** (dual-boots, may be offline) | Larger-model inference, image generation (ComfyUI/InvokeAI), Whisper (Riffado), Immich ML. Tainted `dedicated=gpu:PreferNoSchedule`. `local-path` volumes live on a dedicated 500 GB NVMe mounted at `/opt/local-path-provisioner`, not the 196 GB root disk |
 
 **GPU details.** Both GPU hosts run the `nvidia-device-plugin` with **separate ConfigMaps per node** for time-slicing (node-10 ×4, node-50 ×6 — time-slicing only gates scheduling, it doesn't partition VRAM). Cluster-wide:
@@ -190,7 +189,7 @@ node-10 runs the NVIDIA-flavored kernel (DGX Spark / Grace platform). After two 
 
 ## Power (UPS)
 
-`platform/controllers/nut` installs [NUT](https://networkupstools.org/) onto each node's systemd via privileged DaemonSets, so the shutdown path keeps working even when the cluster itself is degraded. node-12 holds the UPS USB link and runs the NUT server; every other node (and the Synology) is a client that shuts down cleanly on an extended outage. A `nut-exporter` feeds the **UPS / Power** Grafana dashboard.
+`platform/controllers/nut` installs [NUT](https://networkupstools.org/) onto each node's systemd via privileged DaemonSets, so the shutdown path keeps working even when the cluster itself is degraded. node-15 holds the UPS USB link and runs the NUT server; every other node (and the Synology) is a client that shuts down cleanly on an extended outage. A `nut-exporter` feeds the **UPS / Power** Grafana dashboard.
 
 ---
 
@@ -268,7 +267,7 @@ Each MCP ships a `NetworkPolicy` restricting it to just its upstream service.
 
 Beyond off-the-shelf charts, several apps are bespoke, built and (mostly) hosted from the internal registry:
 
-- **sdr-research** (`apps/radio/sdr-research`) — the flagship custom system: a software-defined-radio capture/decode/transcribe/search pipeline. RTL-SDR / Airspy / RX888 radios run as DaemonSets pinned to the nodes they're physically plugged into (node-10, -12, -13), feeding decoders for FM/AM voice, CW, APRS, pager (POCSAG/FLEX), EAS, ACARS, VDL2, AIS, HFDL, FT8/WSPR, and SSTV. Voice clips are Whisper-transcribed and AI-tagged via the local Ollama, with a React web UI, Postgres store, Prometheus metrics, and an MCP server. Dockerfiles and source for the custom images (API, MCP, decoders, Soapy remotes) live alongside the manifests.
+- **sdr-research** (`apps/radio/sdr-research`) — the flagship custom system: a software-defined-radio capture/decode/transcribe/search pipeline. RTL-SDR / Airspy / RX888 radios run as DaemonSets pinned to the nodes they're physically plugged into (node-10, -13, -15), feeding decoders for FM/AM voice, CW, APRS, pager (POCSAG/FLEX), EAS, ACARS, VDL2, AIS, HFDL, FT8/WSPR, and SSTV. Voice clips are Whisper-transcribed and AI-tagged via the local Ollama, with a React web UI, Postgres store, Prometheus metrics, and an MCP server. Dockerfiles and source for the custom images (API, MCP, decoders, Soapy remotes) live alongside the manifests.
 - **weather** (`apps/data/weather`) — a custom weather dashboard (API + UI) that ingests APRS weather data from the SDR pipeline, with a "time machine" PVC for history.
 - **astronomy** (`apps/radio/astronomy`) — a custom astronomy dashboard (API + UI) served on the tailnet.
 - **face-recognition** (`apps/home/face-recognition`) — CompreFace + Double Take for doorbell face greetings in Home Assistant (CPU-only; the CompreFace GPU builds don't run on either GPU node).

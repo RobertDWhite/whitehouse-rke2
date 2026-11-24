@@ -257,21 +257,6 @@ data:
             TCP 1514 and collector. Offline hosts remain visible.
           dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
           runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
-      - alert: SecuritySyslogMissing12
-        expr: absent_over_time({job="syslog",host="rke2-node-12"} |= "SIEM_HEARTBEAT"
-          [10m])
-        for: 2m
-        labels:
-          severity: warning
-          category: telemetry_health
-          security: 'true'
-          source: loki
-        annotations:
-          summary: No syslog heartbeat from rke2-node-12
-          description: Expected one heartbeat per minute. Check host power, rsyslog queue,
-            TCP 1514 and collector. Offline hosts remain visible.
-          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
-          runbook_url: https://github.com/RobertDWhite/whitehouse-rke2/blob/main/observability/observability/security/README.md
       - alert: SecuritySyslogMissing13
         expr: absent_over_time({job="syslog",host="rke2-node-13"} |= "SIEM_HEARTBEAT"
           [10m])
@@ -433,22 +418,6 @@ data:
         annotations:
           summary: Fleet heartbeat missing from rke2-node-11
           description: Expected endpoint rke2-node-11 has not reported its scheduled heartbeat
-            for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
-          dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
-      - alert: SecurityFleetNodeMissing12
-        expr: absent_over_time({source_type="endpoint",report="pack/team-1/soc_heartbeat"}
-          | json endpoint="decorations.hostname" | endpoint="rke2-node-12" | __error__=""
-          [15m])
-        for: 2m
-        labels:
-          severity: warning
-          category: telemetry_health
-          security: 'true'
-          source: fleet
-          host: rke2-node-12
-        annotations:
-          summary: Fleet heartbeat missing from rke2-node-12
-          description: Expected endpoint rke2-node-12 has not reported its scheduled heartbeat
             for 15 minutes. Check orbit, enrollment, Fleet reports and collector delivery.
           dashboard_url: https://grafana.internal.white.fm/d/security-soc/security-soc
       - alert: SecurityFleetNodeMissing13
