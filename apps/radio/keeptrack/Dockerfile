@@ -19,7 +19,7 @@ COPY . .
 RUN npm ci --ignore-scripts
 RUN npm run build
 
-FROM nginx:1.31-alpine@sha256:b50897d5c7b1aa08067c3d90c5e8b3e47ec4e3c91c91446f67820228f7b41e34 AS runtime
+FROM nginx:1.31-alpine@sha256:7fc0fb4af7bf006aeb31aea88069976060f8f0a0a86b667126742cc17f4e31ae AS runtime
 # Pull current Alpine security fixes (openssl, brotli, ...) on top of the base.
 RUN apk upgrade --no-cache
 COPY nginx.conf /etc/nginx/conf.d/default.conf
