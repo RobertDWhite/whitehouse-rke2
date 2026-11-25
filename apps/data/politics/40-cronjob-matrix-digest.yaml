@@ -39,6 +39,7 @@ spec:
                 - |
                   import json
                   import os
+                  import re
                   import urllib.request
 
                   API = "http://politics-api.politics.svc.cluster.local:8000"
@@ -57,6 +58,9 @@ spec:
                   text = str(digest.get("text") or "")
                   if not text:
                       text = str(request("GET", f"{API}/accounts/digest").get("text") or "")
+                  # Keep the full source appendix in the app, but omit it from chat.
+                  text = re.split(r"(?m)^## Sources\s*$", text, maxsplit=1)[0]
+                  text = re.sub(r"[ \t]*\[S\d+\]", "", text).strip()
                   if not text:
                       raise RuntimeError("Politics API returned an empty AI digest")
 
