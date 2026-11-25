@@ -1,7 +1,7 @@
 # Security patch layer over upstream NousResearch/hermes-agent v0.18.2 (2026.7.7.2,
 # rev 9de9c25f), built unmodified. Behaviour unchanged; only package versions move.
 ARG BASE=registry.internal.white.fm/hermes-agent:v2026.7.7.2@sha256:9c841866021c54c4596849f6135717e8a4d52ba510b7f52c50aef1de1a283973
-FROM ghcr.io/astral-sh/uv:0.13.8@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.10@sha256:a3ea1357342c1a4bf9a0c53a3deb1b55379aefa037338d8113d5771efa01774f AS uv
 FROM ${BASE}
 USER root
 # Debian security/point-release fixes (perl, mesa, glib, mbedtls, brotli, docker-cli, ...)
