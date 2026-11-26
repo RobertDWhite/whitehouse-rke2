@@ -1,0 +1,113 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hermes-media-observer
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [list]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: media
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: media-mcp
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: calibre
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: tautulli
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: audiobookshelf
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: kavita
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: dispatcharr
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: jellystat
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: clean-audio-mcp
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: immich
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hermes-media-observer
+  namespace: home-videos
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: hermes-media-observer}
+subjects:
+  - {kind: ServiceAccount, name: hermes-media-context, namespace: media-mcp}

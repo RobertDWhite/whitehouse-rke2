@@ -28,6 +28,7 @@ All endpoints below use streamable HTTP and bearer authentication. The internal 
 - For Pages sites managed by brain-sync, edit the owning brain repository's `Pages/<site>/` source. Direct deployments are overwritten by sync. See [Pages deployment notes](apps/ai/pages/README.md).
 - Meerkat is the CRM used by the current brain pipeline. Monica and its MCP server were removed on 2026-10-26.
 - Use the user's requested scope for writes. Adding a server does not itself authorize editing records, sending communications, deleting data, or changing infrastructure.
+- For media operations from Matrix, use the dedicated [Hermes Media profile](apps/misc/hermes/media/README.md). Its private context broker filters the full media MCP catalog and adds live Synology metadata and cluster workload status.
 
 ## Local app setup
 
