@@ -1,0 +1,25 @@
+# filebot.internal.white.fm — FileBot noVNC GUI on the in-cluster jlesage pod.
+# Internal hostname only (same pattern as metube). Replaces the dead NAS
+# Endpoints hack (fbot:5803 in external-services).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: filebot-internal
+  namespace: media
+spec:
+  hostnames:
+    - filebot.internal.white.fm
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: main
+      namespace: envoy-gateway-system
+      sectionName: https-internal-white-fm
+  rules:
+    - backendRefs:
+        - name: filebot
+          port: 5800
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
