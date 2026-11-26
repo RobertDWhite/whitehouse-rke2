@@ -3,15 +3,25 @@
 Grafana dashboard: https://grafana.internal.white.fm/d/security-soc/security-soc
 
 Threat Command wallboard: `/d/security-threat-command/security-threat-command`.
-The world map shows CrowdSec decision records received by Loki in the selected
-window. Marker size represents record count at an approximate IP geolocation;
+The world map shows both CrowdSec decisions and UniFi IDS/IPS records in the selected
+window. Marker size represents record count per feed at an approximate IP geolocation;
 the map does not show confirmed attacks, traffic paths, or all network activity.
 Decisions without usable coordinates are counted separately. Source IPs are
-not returned by the wallboard queries, and geolocation comes from CrowdSec,
-not an external lookup by Grafana. The dark CARTO basemap loads public tiles.
-An empty map may mean no decisions or an interrupted export; check the CrowdSec
-scrape and `crowdsec_decisions` ingestion before interpreting silence. Keep the
+not returned by the wallboard queries. Geolocation comes from CrowdSec or the
+UniFi collector's local GeoLite2 database, not an external lookup by Grafana.
+The dark CARTO basemap loads public tiles. An empty map may mean no geolocated
+activity or an interrupted export; check the UniFi feed health card and
+`crowdsec_decisions` ingestion before interpreting silence. Keep the
 original Security SOC dashboard for raw evidence and deeper investigation.
+
+The UniFi collector polls the EFG's intrusion-prevention system log every five
+minutes, initially importing up to seven days of retained records. It keeps a
+persistent event-ID ledger, uses the existing UniFi poller login and a pinned TLS
+certificate, and publishes a heartbeat only after a successful read and Loki
+write. Verify and update the pin in `unifi-ips.yaml` when the console certificate
+rotates. The image reuses the bundled GeoLite2 database from MISP; update the
+image to refresh that database. Private, multicast and unresolved origins are
+never mapped. The feed does not create Matrix notifications.
 
 ## Data paths
 

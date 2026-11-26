@@ -14,6 +14,7 @@ resources:
   - 03a-config-alertmanager.yaml
   - 13b-config-alertmanager-ntfy.yaml
   - 04-config-unpoller.yaml
+  - security/unifi-ips.yaml
   - 24-config-grafana-dashboard-provider.yaml
   - 25-config-grafana-datasources.yaml
 
@@ -104,6 +105,9 @@ generators:
   - ksops.yaml
 
 configMapGenerator:
+  - name: unifi-ips-collector
+    files:
+      - collector.py=security/unifi_ips.py
   - name: security-host-bootstrap
     files:
       - configure-host.sh=security/configure-host.sh
@@ -204,13 +208,13 @@ images:
     newTag: "13.3.2"
 
   - name: grafana/grafana-image-renderer
-    newTag: "v5.12.11"
+    newTag: "v5.12.12"
 
   - name: influxdb
     newTag: "2.10.1"
 
   - name: ghcr.io/unpoller/unpoller
-    newTag: "v5.10.1"
+    newTag: "v5.10.2"
     
   - name: ekofr/pihole-exporter
     newTag: "v1.4.0"

@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unifi-ips-state
+  namespace: observability
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: unifi-ips-collector
+  namespace: observability
+spec:
+  schedule: '*/5 * * * *'
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 180
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 180
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: collector
+              image: registry.internal.white.fm/misp-dashboard:20261104-1@sha256:22968567324ffe23ed420d02a96498ef95de73ff95b8063c8ed5f296b727e956
+              command: [python3, -B, /collector/collector.py]
+              envFrom:
+                - secretRef:
+                    name: unifi-poller
+              env:
+                - name: UNIFI_TLS_SHA256
+                  value: 7fbe06b4a27ed68b8726472ca77c7140cd8f1d70cf73c1ec8095749a106d1e40
+                - name: LOKI_PUSH_URL
+                  value: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests: {cpu: 25m, memory: 64Mi}
+                limits: {memory: 256Mi}
+              volumeMounts:
+                - {name: code, mountPath: /collector, readOnly: true}
+                - {name: state, mountPath: /state}
+          volumes:
+            - name: code
+              configMap:
+                name: unifi-ips-collector
+            - name: state
+              persistentVolumeClaim:
+                claimName: unifi-ips-state

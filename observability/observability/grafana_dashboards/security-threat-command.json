@@ -1,7 +1,7 @@
 {
   "uid": "security-threat-command",
   "title": "Security Threat Command",
-  "description": "SOC wallboard: global CrowdSec decision origins, active detections, and telemetry health.",
+  "description": "SOC wallboard: global UniFi IDS/IPS and CrowdSec origins, active detections, and telemetry health.",
   "schemaVersion": 39,
   "tags": ["soc", "security", "wallboard"],
   "editable": false,
@@ -20,7 +20,7 @@
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
       "options": {
         "mode": "markdown",
-        "content": "# THREAT COMMAND\n**01 / GLOBAL ORIGINS** · **02 / DETECTIONS** · **03 / SENSOR COVERAGE**\n\nCrowdSec decision locations are approximate. A marker is an observed decision, not a confirmed intrusion."
+        "content": "# THREAT COMMAND\n**01 / GLOBAL ORIGINS** · **02 / DETECTIONS** · **03 / SENSOR COVERAGE** · **04 / UNIFI IDS/IPS**\n\nThe map shows approximate public source origins from UniFi and CrowdSec, not confirmed compromises. Local and unenriched activity is shown separately."
       }
     },
     {
@@ -48,7 +48,7 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "EDGE DECISIONS",
+      "title": "CROWDSEC DECISIONS",
       "description": "CrowdSec decision records received in Loki during the selected window. This is not the current number of active blocks.",
       "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
@@ -60,10 +60,10 @@
       "id": 5,
       "type": "stat",
       "title": "ORIGIN COUNTRIES",
-      "description": "Distinct country codes associated with received decision records. Blank country codes are excluded.",
+      "description": "Distinct country codes across the CrowdSec and UniFi feeds. Unenriched records are excluded.",
       "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "targets": [{ "refId": "A", "expr": "count(sum by (country) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | country!=\"\" [$__range])))", "queryType": "instant", "editorMode": "code" }],
+      "targets": [{ "refId": "A", "expr": "count(sum by (country) (count_over_time({job=~\"crowdsec_decisions|unifi_ips\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | country!=\"\" [$__range])))", "queryType": "instant", "editorMode": "code" }],
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "super-light-purple" }, "noValue": "—" }, "overrides": [] },
       "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
     },
@@ -71,14 +71,14 @@
       "id": 6,
       "type": "geomap",
       "title": "01  /  GLOBAL THREAT ORIGINS",
-      "description": "Larger points indicate more CrowdSec decision records at an approximate source coordinate. Missing and invalid positions are omitted; no source IPs are returned.",
+      "description": "Larger points indicate more records by feed at an approximate public source coordinate. Hover to see the feed. Missing positions are omitted; no source IPs are returned.",
       "gridPos": { "x": 0, "y": 8, "w": 17, "h": 17 },
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "targets": [{ "refId": "A", "expr": "sum by (country, latitude, longitude) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range]))", "queryType": "instant", "editorMode": "code" }],
+      "targets": [{ "refId": "A", "expr": "sum by (feed, country, latitude, longitude) (count_over_time({job=~\"crowdsec_decisions|unifi_ips\"} | label_format feed=`{{ if eq .job \"unifi_ips\" }}UniFi IDS/IPS{{ else }}CrowdSec{{ end }}` | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range]))", "queryType": "instant", "editorMode": "code" }],
       "transformations": [
         { "id": "labelsToFields", "options": { "mode": "columns" } },
         { "id": "convertFieldType", "options": { "conversions": [{ "targetField": "latitude", "destinationType": "number" }, { "targetField": "longitude", "destinationType": "number" }] } },
-        { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "Decisions", "country": "Country" } } }
+        { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "Records", "country": "Country", "feed": "Feed" } } }
       ],
       "options": {
         "view": { "id": "coords", "lat": 22, "lon": 8, "zoom": 1.5 },
@@ -86,12 +86,12 @@
         "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": false, "showDebug": false, "showScale": false },
         "tooltip": { "mode": "details" },
         "layers": [{
-          "name": "CrowdSec origins",
+          "name": "UniFi and CrowdSec origins",
           "type": "markers",
           "location": { "mode": "coords", "latitude": "latitude", "longitude": "longitude" },
           "config": {
             "showLegend": false,
-            "style": { "color": { "fixed": "#ff466f" }, "opacity": 0.82, "size": { "field": "Decisions", "fixed": 9, "min": 8, "max": 24 }, "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }, "rotation": { "fixed": 0, "min": -360, "max": 360 } }
+            "style": { "color": { "fixed": "#ff466f" }, "opacity": 0.82, "size": { "field": "Records", "fixed": 9, "min": 8, "max": 24 }, "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }, "rotation": { "fixed": 0, "min": -360, "max": 360 } }
           }
         }]
       }
@@ -100,10 +100,10 @@
       "id": 7,
       "type": "bargauge",
       "title": "ORIGIN LEADERBOARD",
-      "description": "Top countries by CrowdSec decision records received. Unenriched records appear as Unknown.",
+      "description": "Top countries across UniFi and CrowdSec. Counts are records, not deduplicated incidents across feeds.",
       "gridPos": { "x": 17, "y": 8, "w": 7, "h": 10 },
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "targets": [{ "refId": "A", "expr": "topk(7, sum by (origin) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | label_format origin=`{{ if .country }}{{ .country }}{{ else }}Unknown{{ end }}` [$__range])))", "queryType": "instant", "editorMode": "code", "legendFormat": "{{origin}}" }],
+      "targets": [{ "refId": "A", "expr": "topk(7, sum by (country) (count_over_time({job=~\"crowdsec_decisions|unifi_ips\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | country!=\"\" [$__range])))", "queryType": "instant", "editorMode": "code", "legendFormat": "{{country}}" }],
       "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "color": { "mode": "fixed", "fixedColor": "light-purple" } }, "overrides": [] },
       "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "namePlacement": "left", "valueMode": "color" }
     },
@@ -111,10 +111,10 @@
       "id": 8,
       "type": "stat",
       "title": "OFF THE MAP",
-      "description": "Decision records missing a country or usable coordinates. No data means no decision records were received in this window.",
+      "description": "Records missing a country or usable coordinates, including private UniFi source addresses.",
       "gridPos": { "x": 17, "y": 18, "w": 7, "h": 7 },
       "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
-      "targets": [{ "refId": "A", "expr": "sum(count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"}[$__range])) - (sum(count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range])) or vector(0))", "queryType": "instant", "editorMode": "code" }],
+      "targets": [{ "refId": "A", "expr": "sum(count_over_time({job=~\"crowdsec_decisions|unifi_ips\"}[$__range])) - (sum(count_over_time({job=~\"crowdsec_decisions|unifi_ips\"} | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range])) or vector(0))", "queryType": "instant", "editorMode": "code" }],
       "fieldConfig": { "defaults": { "noValue": "—", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
       "options": { "colorMode": "value", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
     },
@@ -163,6 +163,38 @@
       "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "indexByName": { "severity": 0, "alertname": 1, "category": 2, "Value": 3 }, "renameByName": { "severity": "Severity", "alertname": "Detection", "category": "Category", "Value": "Instances" } } }],
       "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Severity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-text" } }, { "id": "mappings", "value": [{ "type": "value", "options": { "critical": { "text": "CRITICAL", "color": "red" }, "warning": { "text": "WARNING", "color": "orange" } } }] }] }] },
       "options": { "showHeader": true, "cellHeight": "sm" }
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "04  /  UNIFI FEED HEALTH",
+      "description": "A successful gateway read and Loki delivery must be observed within 15 minutes, even when there are no threats.",
+      "gridPos": { "x": 0, "y": 42, "w": 6, "h": 7 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "sum(absent_over_time({job=\"unifi_ips_health\",source=\"unifi\"} |= \"status=ok\" [15m])) or vector(0)", "queryType": "instant", "editorMode": "code" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "mappings": [{ "type": "value", "options": { "0": { "text": "REPORTING", "color": "green" }, "1": { "text": "STALE", "color": "red" } } }] }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 14,
+      "type": "bargauge",
+      "title": "UNIFI THREATS BY OUTCOME & SCOPE",
+      "description": "Gateway IDS/IPS records in the selected range. Public sources can go on the map; local and unknown sources stay in this view.",
+      "gridPos": { "x": 6, "y": 42, "w": 18, "h": 7 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "sum by (action, scope) (count_over_time({job=\"unifi_ips\",source=\"unifi\"} | logfmt | __error__=\"\" [$__range]))", "queryType": "instant", "editorMode": "code", "legendFormat": "{{action}} / {{scope}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "color": { "mode": "fixed", "fixedColor": "light-red" } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "namePlacement": "left", "showUnfilled": true }
+    },
+    {
+      "id": 15,
+      "type": "logs",
+      "title": "UNIFI IDS/IPS EVENT TRAIL",
+      "description": "Recent gateway events; the event ID allows correlation in the original UniFi console. Client names and IP addresses are intentionally omitted.",
+      "gridPos": { "x": 0, "y": 49, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "{job=\"unifi_ips\",source=\"unifi\"} | logfmt | line_format `{{.severity}} · {{.action}} · {{.scope}} · origin {{.country}} · event {{.event_id}}`", "queryType": "range", "editorMode": "code", "maxLines": 100 }],
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "enableLogDetails": true, "dedupStrategy": "none" }
     }
   ]
 }
