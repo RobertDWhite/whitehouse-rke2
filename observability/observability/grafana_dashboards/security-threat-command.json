@@ -1,0 +1,168 @@
+{
+  "uid": "security-threat-command",
+  "title": "Security Threat Command",
+  "description": "SOC wallboard: global CrowdSec decision origins, active detections, and telemetry health.",
+  "schemaVersion": 39,
+  "tags": ["soc", "security", "wallboard"],
+  "editable": false,
+  "timezone": "browser",
+  "time": { "from": "now-7d", "to": "now" },
+  "refresh": "1m",
+  "links": [
+    { "title": "Evidence & investigation", "type": "link", "url": "/d/security-soc/security-soc" },
+    { "title": "Security posture", "type": "link", "url": "/d/security-operations" }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "WHITEHOUSE  /  SOC",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "options": {
+        "mode": "markdown",
+        "content": "# THREAT COMMAND\n**01 / GLOBAL ORIGINS** · **02 / DETECTIONS** · **03 / SENSOR COVERAGE**\n\nCrowdSec decision locations are approximate. A marker is an observed decision, not a confirmed intrusion."
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "CRITICAL NOW",
+      "description": "Firing security-tagged critical alerts, excluding telemetry health. Zero means no matching firing series, not a clean bill of health.",
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "targets": [{ "refId": "A", "expr": "count(ALERTS{security=\"true\",alertstate=\"firing\",severity=\"critical\",category!=\"telemetry_health\"}) or vector(0)", "instant": true, "range": false }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "VISIBILITY FAULTS NOW",
+      "description": "Firing SOC telemetry alerts and the Prometheus coverage alerts for Falco, Fleet, and the CrowdSec bouncer.",
+      "gridPos": { "x": 6, "y": 4, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "targets": [{ "refId": "A", "expr": "count(ALERTS{security=\"true\",alertstate=\"firing\",category=\"telemetry_health\"} or ALERTS{alertstate=\"firing\",alertname=~\"FalcoMissingOnReadyNode|FleetAllReplicasDown|CrowdSecEnvoyBouncerUnavailable|CrowdSecEnvoyDecisionsStale\"}) or vector(0)", "instant": true, "range": false }],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "EDGE DECISIONS",
+      "description": "CrowdSec decision records received in Loki during the selected window. This is not the current number of active blocks.",
+      "gridPos": { "x": 12, "y": 4, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "sum(count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"}[$__range]))", "queryType": "instant", "editorMode": "code" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "super-light-blue" }, "noValue": "—" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "ORIGIN COUNTRIES",
+      "description": "Distinct country codes associated with received decision records. Blank country codes are excluded.",
+      "gridPos": { "x": 18, "y": 4, "w": 6, "h": 4 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "count(sum by (country) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | country!=\"\" [$__range])))", "queryType": "instant", "editorMode": "code" }],
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "super-light-purple" }, "noValue": "—" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 6,
+      "type": "geomap",
+      "title": "01  /  GLOBAL THREAT ORIGINS",
+      "description": "Larger points indicate more CrowdSec decision records at an approximate source coordinate. Missing and invalid positions are omitted; no source IPs are returned.",
+      "gridPos": { "x": 0, "y": 8, "w": 17, "h": 17 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "sum by (country, latitude, longitude) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range]))", "queryType": "instant", "editorMode": "code" }],
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        { "id": "convertFieldType", "options": { "conversions": [{ "targetField": "latitude", "destinationType": "number" }, { "targetField": "longitude", "destinationType": "number" }] } },
+        { "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "Value": "Decisions", "country": "Country" } } }
+      ],
+      "options": {
+        "view": { "id": "coords", "lat": 22, "lon": 8, "zoom": 1.5 },
+        "basemap": { "type": "carto", "name": "Dark atlas", "config": { "theme": "dark", "showLabels": false } },
+        "controls": { "showZoom": true, "showAttribution": true, "mouseWheelZoom": false, "showDebug": false, "showScale": false },
+        "tooltip": { "mode": "details" },
+        "layers": [{
+          "name": "CrowdSec origins",
+          "type": "markers",
+          "location": { "mode": "coords", "latitude": "latitude", "longitude": "longitude" },
+          "config": {
+            "showLegend": false,
+            "style": { "color": { "fixed": "#ff466f" }, "opacity": 0.82, "size": { "field": "Decisions", "fixed": 9, "min": 8, "max": 24 }, "symbol": { "fixed": "img/icons/marker/circle.svg", "mode": "fixed" }, "rotation": { "fixed": 0, "min": -360, "max": 360 } }
+          }
+        }]
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "ORIGIN LEADERBOARD",
+      "description": "Top countries by CrowdSec decision records received. Unenriched records appear as Unknown.",
+      "gridPos": { "x": 17, "y": 8, "w": 7, "h": 10 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "topk(7, sum by (origin) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) ` | label_format origin=`{{ if .country }}{{ .country }}{{ else }}Unknown{{ end }}` [$__range])))", "queryType": "instant", "editorMode": "code", "legendFormat": "{{origin}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "color": { "mode": "fixed", "fixedColor": "light-purple" } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "namePlacement": "left", "valueMode": "color" }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "OFF THE MAP",
+      "description": "Decision records missing a country or usable coordinates. No data means no decision records were received in this window.",
+      "gridPos": { "x": 17, "y": 18, "w": 7, "h": 7 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "sum(count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"}[$__range])) - (sum(count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp `^country=(?P<country>[A-Z]{2}) .* lat=(?P<latitude>-?[0-9]+(?:\\.[0-9]+)?) lon=(?P<longitude>-?[0-9]+(?:\\.[0-9]+)?) ` | country!=\"\" | latitude>=-90 | latitude<=90 | longitude>=-180 | longitude<=180 | (latitude!=0 or longitude!=0) | __error__=\"\" [$__range])) or vector(0))", "queryType": "instant", "editorMode": "code" }],
+      "fieldConfig": { "defaults": { "noValue": "—", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }, { "color": "orange", "value": 1 }] } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "none", "textMode": "value", "justifyMode": "center" }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "02  /  DETECTION PULSE",
+      "description": "Number of concurrently firing alert instances per category, not the number of incidents or delivered messages. Telemetry faults have their own card and sensor section.",
+      "gridPos": { "x": 0, "y": 25, "w": 13, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "targets": [{ "refId": "A", "expr": "count by (category) (ALERTS{security=\"true\",alertstate=\"firing\",category!=\"telemetry_health\"})", "instant": false, "range": true, "legendFormat": "{{category}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "color": { "mode": "palette-classic" }, "custom": { "lineInterpolation": "stepAfter", "lineWidth": 2, "fillOpacity": 20, "showPoints": "never", "spanNulls": false } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "id": 10,
+      "type": "bargauge",
+      "title": "EDGE SCENARIOS",
+      "description": "Most common CrowdSec scenarios among received decisions in the selected window.",
+      "gridPos": { "x": 13, "y": 25, "w": 11, "h": 9 },
+      "datasource": { "type": "loki", "uid": "ffbp5mct1w0lcb" },
+      "targets": [{ "refId": "A", "expr": "topk(7, sum by (scenario) (count_over_time({job=\"crowdsec_decisions\",source=\"rke2-whitehouse\"} | regexp ` scenario=(?P<scenario>[^ ]+) type=` | scenario!=\"\" [$__range])))", "queryType": "instant", "editorMode": "code", "legendFormat": "{{scenario}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "decimals": 0, "color": { "mode": "fixed", "fixedColor": "light-orange" } }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "namePlacement": "left" }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "03  /  SENSOR SCRAPE HEALTH",
+      "description": "Prometheus scrape status, not end-to-end ingestion. A missing job means no target data. See the SOC evidence dashboard for actual heartbeats and audit coverage.",
+      "gridPos": { "x": 0, "y": 34, "w": 10, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "targets": [{ "refId": "A", "expr": "min by (job) (up{job=~\"crowdsec|crowdsec-agents|crowdsec-envoy-bouncer|falco|falcosidekick|promtail\"})", "instant": true, "range": false, "format": "table" }],
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "renameByName": { "job": "Source", "Value": "Scrape status" } } }],
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Scrape status" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-text" } }, { "id": "mappings", "value": [{ "type": "value", "options": { "0": { "text": "TARGET DOWN", "color": "red" }, "1": { "text": "ALL DISCOVERED TARGETS UP", "color": "green" } } }] }] }] },
+      "options": { "showHeader": true, "cellHeight": "sm" }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "ACTIVE DETECTION QUEUE",
+      "description": "Currently firing alert instances. Multiple alerts can describe one incident; use the evidence dashboard to investigate.",
+      "gridPos": { "x": 10, "y": 34, "w": 14, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "ffbp5qeorery8b" },
+      "targets": [{ "refId": "A", "expr": "count by (severity, category, alertname) (ALERTS{security=\"true\",alertstate=\"firing\"})", "instant": true, "range": false, "format": "table" }],
+      "transformations": [{ "id": "organize", "options": { "excludeByName": { "Time": true }, "indexByName": { "severity": 0, "alertname": 1, "category": 2, "Value": 3 }, "renameByName": { "severity": "Severity", "alertname": "Detection", "category": "Category", "Value": "Instances" } } }],
+      "fieldConfig": { "defaults": {}, "overrides": [{ "matcher": { "id": "byName", "options": "Severity" }, "properties": [{ "id": "custom.cellOptions", "value": { "type": "color-text" } }, { "id": "mappings", "value": [{ "type": "value", "options": { "critical": { "text": "CRITICAL", "color": "red" }, "warning": { "text": "WARNING", "color": "orange" } } }] }] }] },
+      "options": { "showHeader": true, "cellHeight": "sm" }
+    }
+  ]
+}

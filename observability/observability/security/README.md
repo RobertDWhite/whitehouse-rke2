@@ -2,6 +2,17 @@
 
 Grafana dashboard: https://grafana.internal.white.fm/d/security-soc/security-soc
 
+Threat Command wallboard: `/d/security-threat-command/security-threat-command`.
+The world map shows CrowdSec decision records received by Loki in the selected
+window. Marker size represents record count at an approximate IP geolocation;
+the map does not show confirmed attacks, traffic paths, or all network activity.
+Decisions without usable coordinates are counted separately. Source IPs are
+not returned by the wallboard queries, and geolocation comes from CrowdSec,
+not an external lookup by Grafana. The dark CARTO basemap loads public tiles.
+An empty map may mean no decisions or an interrupted export; check the CrowdSec
+scrape and `crowdsec_decisions` ingestion before interpreting silence. Keep the
+original Security SOC dashboard for raw evidence and deeper investigation.
+
 ## Data paths
 
 - Ubuntu RKE2 hosts: rsyslog -> TCP RFC5424 `10.99.5.111:1514` -> Promtail -> Loki. Each host has a 256 MB disk-assisted queue and a one-minute heartbeat. `configure-host.sh rke2-node-N` installs and validates forwarding; cloud-init also configures future nodes. TCP transport is LAN-only, without TLS. Do not expose this listener to the Internet.

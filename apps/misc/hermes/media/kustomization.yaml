@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hermes
+resources:
+  - deployment.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: hermes-media-profile
+    files:
+      - config.yaml
+      - SOUL.md
+      - matrix_gateway.py

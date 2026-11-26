@@ -1,0 +1,36 @@
+_config_version: 33
+model:
+  provider: custom
+  default: qwen3.6-35b-a3b
+  base_url: http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1
+  api_key: local
+  context_length: 131072
+  max_tokens: 4096
+fallback_providers: []
+agent:
+  disabled_toolsets: [kanban]
+compression:
+  threshold: 0.65
+  target_ratio: 0.30
+auxiliary:
+  compression:
+    provider: custom
+    model: qwen3.6-35b-a3b
+    base_url: http://qwen-flash.qwen-flash.svc.cluster.local:8000/v1
+    api_key: local
+    timeout: 300
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+platform_toolsets:
+  matrix: [media]
+  cli: [media]
+plugins:
+  enabled: []
+mcp_servers:
+  media:
+    url: http://hermes-media-context.media-mcp.svc.cluster.local:8080/mcp
+    headers:
+      Authorization: "Bearer ${HERMES_MEDIA_CONTEXT_TOKEN}"
+    connect_timeout: 20
+    timeout: 45

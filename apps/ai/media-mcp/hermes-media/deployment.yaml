@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hermes-media-context
+  namespace: media-mcp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-media-context
+  namespace: media-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hermes-media-context
+  template:
+    metadata:
+      labels:
+        app: hermes-media-context
+    spec:
+      serviceAccountName: hermes-media-context
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        supplementalGroups: [101]
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: context
+          image: ghcr.io/robertdwhite/media-mcp:v0.1.1@sha256:92ef1183ebdb9f66a125a7afc90cc7a6147597da7d4260eae15b028299c9d7b1
+          command: ["python", "-B", "/broker/server.py"]
+          env:
+            - name: HERMES_MEDIA_CONTEXT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-media-context-auth
+                  key: token
+            - name: UPSTREAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: media-mcp-env
+                  key: MCP_TOKEN
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: code
+              mountPath: /broker
+              readOnly: true
+            - name: media
+              mountPath: /nas/media
+              readOnly: true
+            - name: books
+              mountPath: /nas/books
+              readOnly: true
+            - name: downloads
+              mountPath: /nas/downloads
+              readOnly: true
+      volumes:
+        - name: code
+          configMap:
+            name: hermes-media-context-code
+        - name: media
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/Media
+            readOnly: true
+        - name: books
+          nfs:
+            server: 10.100.1.20
+            path: /volume1/Books
+            readOnly: true
+        - name: downloads
+          nfs:
+            server: 10.100.1.20
+            path: /volume5/downloads
+            readOnly: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-media-context
+  namespace: media-mcp
+spec:
+  selector:
+    app: hermes-media-context
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
